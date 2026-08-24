@@ -1,0 +1,63 @@
+/** Bengali/English UI dictionary. Keys are English identifiers; values localized. */
+export type Lang = "bn" | "en";
+
+export const dict = {
+  appName: { bn: "এগ্রোব্রিজ", en: "AgroBridge" },
+  tagline: { bn: "সবুজ মাটি। স্মার্ট ফার্ম। নিরাপদ ভবিষ্যৎ।", en: "Green Soil. Smart Farm. Secure Future." },
+  login: { bn: "লগইন", en: "Login" },
+  register: { bn: "রেজিস্ট্রেশন", en: "Register" },
+  logout: { bn: "লগআউট", en: "Logout" },
+  fullName: { bn: "পূর্ণ নাম", en: "Full name" },
+  phone: { bn: "মোবাইল নম্বর", en: "Mobile number" },
+  password: { bn: "পাসওয়ার্ড", en: "Password" },
+  home: { bn: "হোম", en: "Home" },
+  myFarm: { bn: "আমার ফার্ম", en: "My Farm" },
+  aiAgent: { bn: "এআই কৃষি সহকারী", en: "AI Agro Agent" },
+  market: { bn: "বাজার", en: "Market" },
+  profile: { bn: "প্রোফাইল", en: "Profile" },
+  weather: { bn: "আবহাওয়া", en: "Weather" },
+  services: { bn: "সেবা", en: "Services" },
+  sellCrop: { bn: "ফসল বিক্রি", en: "Sell Crop" },
+  wallet: { bn: "ওয়ালেট", en: "Wallet" },
+  membership: { bn: "মেম্বারশিপ", en: "Membership" },
+  notifications: { bn: "নোটিফিকেশন", en: "Notifications" },
+  admin: { bn: "অ্যাডমিন", en: "Admin" },
+  addFarm: { bn: "নতুন ফার্ম", en: "Add Farm" },
+  addPlot: { bn: "নতুন প্লট", en: "Add Plot" },
+  addCrop: { bn: "নতুন ফসল", en: "Add Crop" },
+  cart: { bn: "কার্ট", en: "Cart" },
+  checkout: { bn: "চেকআউট", en: "Checkout" },
+  myOrders: { bn: "আমার অর্ডার", en: "My Orders" },
+  bookNow: { bn: "বুক করুন", en: "Book now" },
+  areaBigha: { bn: "জমির পরিমাণ (বিঘা)", en: "Area (bigha)" },
+  date: { bn: "তারিখ", en: "Date" },
+  submit: { bn: "জমা দিন", en: "Submit" },
+  cropName: { bn: "ফসলের নাম", en: "Crop name" },
+  quantityKg: { bn: "পরিমাণ (কেজি)", en: "Quantity (kg)" },
+  qualityGrade: { bn: "মানের গ্রেড", en: "Quality grade" },
+  moisturePct: { bn: "আর্দ্রতা (%)", en: "Moisture (%)" },
+  netPayable: { bn: "নীট পরিশোধযোগ্য", en: "Net payable" },
+  payNow: { bn: "পেমেন্ট করুন (স্যান্ডবক্স)", en: "Pay now (sandbox)" },
+  askPlaceholder: { bn: "আপনার প্রশ্ন লিখুন...", en: "Ask your question..." },
+  send: { bn: "পাঠান", en: "Send" },
+  lowConfidence: { bn: "নিশ্চিত উত্তর নয় — বিশেষজ্ঞের পরামর্শ নিন", en: "Low confidence — verify with an expert" },
+  uploadPhoto: { bn: "ছবি আপলোড করুন", en: "Upload photo" },
+  diseaseCheck: { bn: "রোগ নির্ণয়", en: "Disease check" },
+  pendingReview: { bn: "বিশেষজ্ঞ পর্যালোচনাধীন", en: "Pending expert review" },
+  reviewed: { bn: "পর্যালোচিত", en: "Reviewed" },
+  farmers: { bn: "কৃষক", en: "Farmers" },
+  farms: { bn: "ফার্ম", en: "Farms" },
+  orders: { bn: "অর্ডার", en: "Orders" },
+  bookings: { bn: "বুকিং", en: "Bookings" },
+  revenue: { bn: "রাজস্ব", en: "Revenue" },
+  users: { bn: "ব্যবহারকারী", en: "Users" },
+  auditLogs: { bn: "অডিট লগ", en: "Audit Logs" },
+  loading: { bn: "লোড হচ্ছে...", en: "Loading..." },
+  errorGeneric: { bn: "এই মুহূর্তে সেবাটি পাওয়া যাচ্ছে না। কিছুক্ষণ পরে আবার চেষ্টা করুন।", en: "Service unavailable right now. Please try again shortly." },
+} as const;
+
+export type DictKey = keyof typeof dict;
+
+export function t(key: DictKey, lang: Lang): string {
+  return dict[key][lang];
+}
