@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite connector used for development/test reproducibility.
+// For production PostgreSQL: change provider to "postgresql" and set DATABASE_URL.
+// String fields with validated values replace native enums (SQLite limitation).
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String
+  fullName     String
+  role         String   @default("FARMER") // SUPER_ADMIN|ADMIN|REGIONAL_MANAGER|AREA_MANAGER|FIELD_AGENT|COLLECTION_MANAGER|WAREHOUSE_MANAGER|PROCUREMENT_MANAGER|SERVICE_PROVIDER|DEALER|CORPORATE|COOPERATIVE|FARMER
+  langPref     String   @default("bn") // bn|en
+  status       String   @default("ACTIVE") // ACTIVE|SUSPENDED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens     RefreshToken[]
+  farmerProfile     FarmerProfile?
+  farms             Farm[]
+  cart              Cart?
+  orders            Order[]
+  bookings          Booking[]
+  procurementOrders ProcurementOrder[]
+  payments          Payment[]
+  wallet            Wallet?
+  notifications     Notification[]
+  advisoryQueries   AdvisoryQuery[]
+  diseaseCases      DiseaseCase[]
+  auditLogs         AuditLog[]
+  aiUsageLogs       AiUsageLog[]
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  deviceInfo String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FarmerProfile {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  nidLast4       String?
+  address        String?
+  district       String?
+  upazila        String?
+  membershipTier String    @default("BRONZE") // BRONZE|SILVER|GOLD
+  joinedAt       DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Farm {
+  id            String   @id @default(cuid())
+  ownerId       String
+  name          String
+  address       String?
+  district      String?
+  upazila       String?
+  lat           Float?
+  lng           Float?
+  totalAreaBigha Float?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  plots         Plot[]
+  bookings      Booking[]
+  procurementOrders ProcurementOrder[]
+  farmEvents    FarmEvent[]
+
+  @@index([ownerId])
+}
+
+model Plot {
+  id            String   @id @default(cuid())
+  farmId        String
+  name          String
+  areaBigha     Float
+  soilType      String?
+  irrigationType String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  farm          Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  cropCycles    CropCycle[]
+  farmEvents    FarmEvent[]
+
+  @@index([farmId])
+}
+
+model CropCycle {
+  id                 String    @id @default(cuid())
+  plotId             String
+  cropName           String
+  variety            String?
+  plantedAt          DateTime
+  expectedHarvestAt  DateTime?
+  stage              String    @default("SEED") // SEED|GERMINATION|VEGETATIVE|FLOWERING|GRAIN_FRUIT_DEVELOPMENT|HARVEST
+  status             String    @default("ACTIVE") // ACTIVE|HARVESTED|FAILED
+  yieldKg            Float?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  plot               Plot      @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  farmEvents         FarmEvent[]
+  diseaseCases       DiseaseCase[]
+
+  @@index([plotId])
+  @@index([status])
+}
+
+model FarmEvent {
+  id          String   @id @default(cuid())
+  clientUuid  String?  @unique // offline sync idempotency
+  farmId      String
+  plotId      String?
+  cropCycleId String?
+  actorId     String
+  type        String // PLANTING|SEED|FERTILIZER|IRRIGATION|PEST|DISEASE|SERVICE|HARVEST|OTHER
+  title       String
+  notes       String?
+  metadataStr String? // JSON-serialized metadata (validated at API layer)
+  occurredAt  DateTime
+  source      String   @default("APP") // APP|SYNC|ADMIN
+  createdAt   DateTime @default(now())
+  farm        Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  plot        Plot?    @relation(fields: [plotId], references: [id])
+  cropCycle   CropCycle? @relation(fields: [cropCycleId], references: [id])
+
+  @@index([farmId])
+  @@index([cropCycleId])
+}
+
+model AdvisoryQuery {
+  id                String   @id @default(cuid())
+  userId            String
+  question          String
+  answer            String
+  confidence        Float
+  provider          String
+  model             String
+  lowConfidenceFlag Boolean  @default(false)
+  groundedRefs      String? // JSON array of KB refs
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DiseaseCase {
+  id             String    @id @default(cuid())
+  userId         String
+  cropCycleId    String?
+  imagePath      String
+  cropGuess      String?
+  diagnosis      String?
+  confidence     Float?
+  severity       String? // LOW|MODERATE|HIGH
+  recommendation String?
+  status         String    @default("PENDING_REVIEW") // AI_ONLY|PENDING_REVIEW|REVIEWED
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cropCycle      CropCycle? @relation(fields: [cropCycleId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  sku           String    @unique
+  name          String
+  category      String // SEED|FERTILIZER|BIO_INPUT|CROP_PROTECTION|EQUIPMENT
+  description   String?
+  unit          String    @default("KG")
+  pricePaisa    Int
+  stockQty      Int       @default(0)
+  batchNo       String?
+  expiryDate    DateTime?
+  supplier      String?
+  cropRelevance String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+}
+
+model Cart {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  qty       Int
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id             String    @id @default(cuid())
+  orderNo        String    @unique
+  userId         String
+  status         String    @default("PENDING") // PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED
+  subtotalPaisa  Int
+  discountPaisa  Int       @default(0)
+  deliveryFeePaisa Int     @default(0)
+  totalPaisa     Int
+  paymentStatus  String    @default("UNPAID") // UNPAID|PAID|REFUNDED
+  cancelReason   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items          OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id             String @id @default(cuid())
+  orderId        String
+  productId      String
+  nameSnapshot   String
+  skuSnapshot    String
+  unitPricePaisa Int
+  qty            Int
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Service {
+  id            String  @id @default(cuid())
+  code          String  @unique
+  name          String
+  category      String // DRONE|TRACTOR|COMBINE_HARVESTER|RICE_TRANSPLANTER|POWER_TILLER|LAND_LEVELLER|THRESHER|SOIL_TESTING|AGRONOMIST|OTHER
+  basePricePaisa Int
+  priceUnit     String  @default("PER_BIGHA")
+  description   String?
+  isActive      Boolean @default(true)
+  providers     ServiceProvider[]
+  bookings      Booking[]
+}
+
+model ServiceProvider {
+  id          String  @id @default(cuid())
+  serviceId   String
+  userId      String?
+  name        String
+  phone       String?
+  district    String?
+  ratingSum   Int     @default(0)
+  ratingCount Int     @default(0)
+  isActive    Boolean @default(true)
+  service     Service @relation(fields: [serviceId], references: [id])
+  bookings    Booking[]
+
+  @@index([serviceId])
+}
+
+model Booking {
+  id                 String    @id @default(cuid())
+  bookingNo          String    @unique
+  userId             String
+  farmId             String
+  serviceId          String
+  providerId         String?
+  scheduledFor       DateTime
+  areaBigha          Float
+  estimatedPricePaisa Int
+  status             String    @default("REQUESTED") // REQUESTED|ASSIGNED|IN_PROGRESS|COMPLETED|CANCELLED
+  paymentStatus      String    @default("UNPAID")
+  rating             Int?
+  cancelReason       String?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  farm               Farm          @relation(fields: [farmId], references: [id])
+  service            Service       @relation(fields: [serviceId], references: [id])
+  provider           ServiceProvider? @relation(fields: [providerId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ProcurementOrder {
+  id                   String   @id @default(cuid())
+  poNo                 String   @unique
+  userId               String
+  farmId               String
+  cropName             String
+  quantityKg           Float
+  moisturePct          Float?
+  qualityGrade         String? // A|B|C
+  basePricePerKgPaisa  Int
+  deductionsPaisa      Int      @default(0)
+  netPayablePaisa      Int
+  status               String   @default("SUBMITTED") // SUBMITTED|QC|PURCHASE_ORDER|COLLECTED|PAID|REJECTED|CANCELLED
+  notes                String?
+  qcNotes              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  farm                 Farm @relation(fields: [farmId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  refNo       String   @unique
+  userId      String
+  purposeType String // ORDER|BOOKING|PROCUREMENT|MEMBERSHIP
+  purposeId   String
+  amountPaisa Int
+  method      String   @default("MOBILE_WALLET") // MOBILE_WALLET|CARD|BANK|WALLET_CREDIT
+  providerRef String?
+  status      String   @default("PENDING") // PENDING|SUCCEEDED|FAILED|REFUNDED
+  metaStr     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([purposeType, purposeId])
+}
+
+model Wallet {
+  id           String @id @default(cuid())
+  userId       String @unique
+  balancePaisa Int    @default(0)
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WalletTransaction {
+  id             String   @id @default(cuid())
+  userId         String
+  direction      String // CREDIT|DEBIT
+  amountPaisa    Int
+  reason         String
+  balanceAfterPaisa Int
+  refType        String?
+  refId          String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MembershipPlan {
+  id          String  @id @default(cuid())
+  tier        String  @unique // BRONZE|SILVER|GOLD
+  pricePaisa  Int
+  durationDays Int    @default(365)
+  benefitsStr String // JSON array of benefit strings; configurable from admin
+  isActive    Boolean @default(true)
+}
+
+model Notification {
+  id       String    @id @default(cuid())
+  userId   String
+  type     String // SYSTEM|ORDER|BOOKING|PROCUREMENT|PAYMENT|WEATHER|AI|MEMBERSHIP
+  title    String
+  body     String
+  readAt   DateTime?
+  refType  String?
+  refId    String?
+  createdAt DateTime @default(now())
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  ip         String?
+  metaStr    String?
+  createdAt  DateTime @default(now())
+  actor      User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+model AiUsageLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  provider   String
+  model      String
+  tokensIn   Int?
+  tokensOut  Int?
+  costEstimatePaisa Int?
+  latencyMs  Int
+  success    Boolean
+  createdAt  DateTime @default(now())
+  user       User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
