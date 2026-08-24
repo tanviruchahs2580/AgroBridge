@@ -8,7 +8,7 @@ on:
 
 jobs:
   api-quality:
-    name: API — Lint · TypeCheck · Tests
+    name: API — Lint · TypeCheck · Tests (SQLite)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,9 +38,53 @@ jobs:
         working-directory: apps/api
         run: npm run typecheck
 
-      - name: Unit / Integration / E2E journey tests (SQLite)
+      - name: Unit / Integration / E2E journeys (SQLite)
         working-directory: apps/api
         run: npx vitest run
+
+      - name: Validate PostgreSQL schema variant
+        working-directory: apps/api
+        run: npx prisma validate --schema prisma/schema.postgresql.prisma
+
+  api-postgres:
+    name: API — Integration & Concurrency (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: agrobridge
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: agrobridge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agrobridge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://agrobridge:ci-password@localhost:5432/agrobridge
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
+
+      - name: Provision PostgreSQL (schema + client + seed)
+        working-directory: apps/api
+        run: node scripts/provision-postgres.mjs
+
+      - name: Full suite incl. concurrency & security matrix on PostgreSQL
+        working-directory: apps/api
+        run: npx vitest run --config vitest.config.pg.ts
 
   web-quality:
     name: Web — TypeCheck · Build
@@ -63,7 +107,7 @@ jobs:
   docker-build:
     name: Docker — Build images
     runs-on: ubuntu-latest
-    needs: [api-quality]
+    needs: [api-quality, api-postgres]
     steps:
       - uses: actions/checkout@v4
 
@@ -86,15 +130,29 @@ jobs:
           tags: agrobridge-web:ci
 
   security-scan:
-    name: Security — Dependency audit
+    name: Security — Dependency audit & secret scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: npm audit (high+ fails the build)
+      - name: npm audit (high+ reported)
         run: npm audit --audit-level=high || echo "::warning::npm audit found issues — review required"
+
+      - name: Secret scan (tracked files must not contain real credentials)
+        shell: bash
+        run: |
+          # Heuristic scanner: flags private keys and hard-coded postgres URLs with passwords.
+          if git grep -I -nE 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- .; then
+            echo "::error::Private key material committed"; exit 1
+          fi
+          if git grep -InE 'postgres(ql)?://[^/@:\s]+:[^@\s]+@' -- ':!*.md' ':!.env.example'; then
+            echo "::error::Hard-coded database credential pattern found"; exit 1
+          fi
+          echo "Secret scan clean"

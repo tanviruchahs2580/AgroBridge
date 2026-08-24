@@ -194,11 +194,16 @@ ordersRouter.post("/checkout", async (req, res, next) => {
 
       let subtotalPaisa = 0;
       for (const item of cart.items) {
-        subtotalPaisa += item.product.pricePaisa * item.qty;
-        await tx.product.update({
-          where: { id: item.productId },
+        // Atomic conditional decrement: only succeeds when sufficient stock exists,
+        // preventing overselling under concurrent checkouts (PostgreSQL-safe).
+        const claimed = await tx.product.updateMany({
+          where: { id: item.productId, stockQty: { gte: item.qty }, isActive: true },
           data: { stockQty: { decrement: item.qty } },
         });
+        if (claimed.count !== 1) {
+          throw unprocessable(`Insufficient stock for ${item.product.name}`, { available: item.product.stockQty });
+        }
+        subtotalPaisa += item.product.pricePaisa * item.qty;
       }
 
       const discountPaisa = Math.round((subtotalPaisa * discountPct) / 100);

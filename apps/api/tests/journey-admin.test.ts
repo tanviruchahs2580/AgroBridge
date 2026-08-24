@@ -83,9 +83,10 @@ describe("Journey 12 — Notifications", () => {
 
     const before = await request(app).get("/api/v1/notifications").set("Authorization", `Bearer ${f.accessToken}`);
 
-    // Trigger a notification via checkout flow
-    const products = await request(app).get("/api/v1/products?pageSize=5").set("Authorization", `Bearer ${f.accessToken}`);
-    const p = products.body.data.items[0];
+    // Trigger a notification via checkout flow (pick a product that still has stock)
+    const products = await request(app).get("/api/v1/products?pageSize=50").set("Authorization", `Bearer ${f.accessToken}`);
+    const p = products.body.data.items.find((x: { stockQty: number }) => x.stockQty > 10);
+    expect(p).toBeTruthy();
     await request(app).post("/api/v1/cart/items").set("Authorization", `Bearer ${f.accessToken}`).send({ productId: p.id, qty: 1 });
     const order = await request(app).post("/api/v1/orders/checkout").set("Authorization", `Bearer ${f.accessToken}`);
 

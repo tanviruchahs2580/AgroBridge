@@ -28,7 +28,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "rice-urea",
     crop: "rice",
-    keywords: ["urea", "ইউরিয়া", "fertilizer rice", "ধানে সার", "top dress"],
+    keywords: ["rice", "ধান", "urea", "ইউরিয়া", "fertilizer rice", "ধানে সার", "top dress"],
     titleEn: "Urea application schedule for rice",
     answerEn:
       "For modern high-yielding Boro/Aus rice: apply urea in 3 splits — 50% at 15 days after transplanting (tillering), 30% at panicle initiation (~40 days), 20% just before flowering. Never apply urea on dry soil without standing water. A leaf colour chart (LCC) score of 4 indicates correct nitrogen status.",

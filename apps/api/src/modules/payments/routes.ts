@@ -154,6 +154,14 @@ paymentsRouter.post(
       if (po.netPayablePaisa <= 0) throw unprocessable("Nothing payable");
 
       const result = await prisma.$transaction(async (tx) => {
+        // Atomic claim: only the first COLLECTED -> PAID transition wins; concurrent
+        // payouts lose the race and abort (prevents double-crediting under PostgreSQL).
+        const claimed = await tx.procurementOrder.updateMany({
+          where: { id: po.id, status: "COLLECTED" },
+          data: { status: "PAID" },
+        });
+        if (claimed.count !== 1) throw unprocessable("Procurement order already paid");
+
         const payment = await tx.payment.create({
           data: {
             refNo: refNo("POUT"),
@@ -166,23 +174,25 @@ paymentsRouter.post(
           },
         });
 
-        const wallet = await tx.wallet.upsert({ where: { userId: po.userId }, update: {}, create: { userId: po.userId } });
-        const newBalance = wallet.balancePaisa + po.netPayablePaisa;
-        await tx.wallet.update({ where: { userId: po.userId }, data: { balancePaisa: newBalance } });
+        // Atomic increment; ledger row records the resulting balance for auditability.
+        const updatedWallet = await tx.wallet.upsert({
+          where: { userId: po.userId },
+          update: { balancePaisa: { increment: po.netPayablePaisa } },
+          create: { userId: po.userId, balancePaisa: po.netPayablePaisa },
+        });
         await tx.walletTransaction.create({
           data: {
             userId: po.userId,
             direction: "CREDIT",
             amountPaisa: po.netPayablePaisa,
             reason: `Procurement ${po.poNo}`,
-            balanceAfterPaisa: newBalance,
+            balanceAfterPaisa: updatedWallet.balancePaisa,
             refType: "PROCUREMENT_ORDER",
             refId: po.id,
           },
         });
 
-        await tx.procurementOrder.update({ where: { id: po.id }, data: { status: "PAID" } });
-        return { payment, newBalance };
+        return { payment, newBalance: updatedWallet.balancePaisa };
       });
 
       await notify({

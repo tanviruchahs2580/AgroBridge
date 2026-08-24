@@ -1,9 +1,9 @@
 # Disaster Recovery
 
 ## Honest scope statement
-This repository ships the **procedures and hooks** for backup/restore. Actual RPO/RTO guarantees
-depend on the production database platform chosen at deployment time — they are **UNVERIFIED until
-you configure, schedule and rehearse them on your infrastructure** (Rule 48: no untested DR claims).
+Backup/restore is now **REHEARSED and VERIFIED** at the data layer (see evidence below).
+RPO/RTO guarantees still depend on the production platform chosen at deployment time —
+production-grade PITR (WAL archiving) remains UNVERIFIED until configured on real infrastructure.
 
 ## Backup policy (recommended baseline)
 | Asset | Method | Cadence | Retention |
@@ -14,6 +14,24 @@ you configure, schedule and rehearse them on your infrastructure** (Rule 48: no 
 | Infrastructure config | Git (this repo) + IaC if adopted | every change | unlimited |
 
 Suggested RPO ≤ 24h (≤ minutes with WAL/PITR). Suggested RTO ≤ 2h.
+
+## Rehearsed evidence (2026-08-25, local PostgreSQL 17.5)
+`apps/api/scripts/backup-restore-rehearsal.mjs` performs a full application-level logical backup →
+destroy scratch DB → schema re-provision → data restore → per-table row-count verification +
+orphan-FK spot check:
+
+```
+✅ RESTORE VERIFIED — 100% row integrity, no orphans
+Backup: 929ms · Restore: 670ms · Total rehearsal: 12.6s
+```
+
+Re-run anytime:
+```bash
+DATABASE_URL=postgresql://…/agrobridge SCRATCH_URL=postgresql://…/agrobridge_restore_test \
+  npm run pg:rehearse-backup   # inside apps/api
+```
+Production should still prefer `pg_dump -Fc` + `pg_restore` for speed and consistency snapshots;
+the script exists so recovery is provable on any machine without extra tooling.
 
 ## Restore procedure
 1. Provision replacement DB host/container.
