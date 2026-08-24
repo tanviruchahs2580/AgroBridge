@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import request from "supertest";
+import { randomUUID } from "node:crypto";
 import { app, registerFarmer, createFarmWithCrop } from "./helpers.js";
 
-/** Journey 2: Create farm → plot → crop; digital record; Journey 13: offline sync idempotency */
-describe("Journey 2 & 13 — Farm management + offline sync", () => {
-  it("creates farm → plot → crop with automatic lifecycle stage and PLANTING event", async () => {
+/** Journey 2: Create farm â†’ plot â†’ crop; digital record; Journey 13: offline sync idempotency */
+describe("Journey 2 & 13 â€” Farm management + offline sync", () => {
+  it("creates farm â†’ plot â†’ crop with automatic lifecycle stage and PLANTING event", async () => {
     const f = await registerFarmer();
     const { farmId, plotId, cropId } = await createFarmWithCrop(f.accessToken);
 
@@ -32,7 +33,7 @@ describe("Journey 2 & 13 — Farm management + offline sync", () => {
     const res = await request(app)
       .post("/api/v1/farms/crops")
       .set("Authorization", `Bearer ${f.accessToken}`)
-      .send({ plotId, cropName: "গম", plantedAt: new Date().toISOString() });
+      .send({ plotId, cropName: "à¦—à¦®", plantedAt: new Date().toISOString() });
     expect(res.status).toBe(409);
   });
 
@@ -49,7 +50,7 @@ describe("Journey 2 & 13 — Farm management + offline sync", () => {
     const notFoundForB = await request(app)
       .post(`/api/v1/farms/${farmId}/events`)
       .set("Authorization", `Bearer ${b.accessToken}`)
-      .send({ type: "IRRIGATION", title: "সেচ দেওয়া হলো" });
+      .send({ type: "IRRIGATION", title: "à¦¸à§‡à¦š à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¹à¦²à§‹" });
     expect(notFoundForB.status).toBe(404); // scoped lookup hides other users' resources
 
     void b.userId;
@@ -61,15 +62,15 @@ describe("Journey 2 & 13 — Farm management + offline sync", () => {
     const res = await request(app)
       .post(`/api/v1/farms/${farmId}/plots`)
       .set("Authorization", `Bearer ${f.accessToken}`)
-      .send({ name: "বিশাল প্লট", areaBigha: 999 });
+      .send({ name: "à¦¬à¦¿à¦¶à¦¾à¦² à¦ªà§à¦²à¦Ÿ", areaBigha: 999 });
     expect(res.status).toBe(400);
   });
 
   it("offline sync replay with same clientUuid is idempotent", async () => {
     const f = await registerFarmer();
     const { farmId } = await createFarmWithCrop(f.accessToken);
-    const clientUuid = "11111111-2222-3333-4444-555555555555";
-    const payload = { type: "FERTILIZER", title: "ইউরিয়া প্রয়োগ", clientUuid, metadata: { kg: 50 } };
+    const clientUuid = randomUUID(); // unique per run (PG test DB persists across runs)
+    const payload = { type: "FERTILIZER", title: "à¦‡à¦‰à¦°à¦¿à¦¯à¦¼à¦¾ à¦ªà§à¦°à¦¯à¦¼à§‹à¦—", clientUuid, metadata: { kg: 50 } };
 
     const first = await request(app)
       .post(`/api/v1/farms/${farmId}/events`)

@@ -1,43 +1,55 @@
 # Testing
 
-Framework: **Vitest + Supertest** against the real Express app with a dedicated SQLite database
-(migrations applied, demo seed loaded) — no mocks of the HTTP or DB layers.
+Framework: **Vitest + Supertest** against the real Express app. Two database profiles:
 
-```bash
-cd apps/api
-npx vitest run        # 64 tests
-```
+| Profile | Config | DB | Command |
+|---|---|---|---|
+| SQLite (fast, default) | `vitest.config.ts` | fresh `prisma/test.db` per run | `npx vitest run` |
+| **PostgreSQL** | `vitest.config.pg.ts` | real PostgreSQL 17 server | `DATABASE_URL=… node scripts/provision-postgres.mjs && npx vitest run --config vitest.config.pg.ts` |
 
-## Coverage by layer
-- **Unit** — procurement price engine (grade multipliers, moisture deductions), membership discount,
-  weather→agri-risk engine (spray/rain/heat/irrigation/fungal rules), crop lifecycle staging +
-  bilingual calendar, KB retrieval & prompt-injection sanitization.
-- **API / Integration / E2E journeys (Section 37 of the build brief):**
-  1. Registration → login → profile (+ duplicate/weak-input rejection, refresh rotation, replayed
-     refresh rejected).
-  2. Farm → plot → crop with auto stage + planting record; second active crop rejected; plot area cap.
-  3. Weather endpoint returns risks; invalid coords 400; auth required.
-  4. AI agent: grounded answer w/ refs ≥0.7 confidence; unknown question flagged low-confidence with
-     expert note; history persisted.
-  5. Disease: valid JPEG queued PENDING_REVIEW (no fabricated diagnosis); non-image magic bytes
-     rejected; farmer blocked from review; admin review notifies farmer.
-  6. Marketplace: pagination/category filter; cart → checkout → stock decrement verified; delivery
-     fee rule; empty-cart rejection; over-stock rejection; Silver-tier discount applied at checkout.
-  7. Booking: provider-assigned creation, past-date rejection, RBAC on assign, rating only after
-     completion, provider aggregate updated.
-  8. Procurement: catalogue validation, auditable calculation asserted numerically, state machine
-     transitions incl. invalid jumps, payout credits wallet + ledger entry.
-  9. Sandbox payment intent+confirm marks order/booking paid (clearly labelled sandbox).
-  10. Admin metrics from live queries; user search/suspend revokes access instantly; audit log records
-      AUTH events; AI usage telemetry.
-  11. RBAC: farmer 403s on assign/review/payout/admin endpoints.
-  12. Notifications: generated on order events, unread counts, mark-all-read, cross-user isolation.
-  13. Offline sync: identical `clientUuid` replays return the original row (single copy stored).
+Current totals: **79 tests, all passing on BOTH SQLite and PostgreSQL 17.5**
+(verified locally against an embedded PostgreSQL 17.5 on Windows; CI runs the PG profile
+against postgres:17-alpine).
 
-## Security baseline tests
-Helmet headers present; unknown route structured 404; malformed JSON → 400 (not 500); oversized
-payload → 413; forged JWT → 401; CORS does not reflect arbitrary origins.
+## Suites
+1. `unit-core.test.ts` — procurement price engine, membership discounts, weather→risk engine,
+   crop lifecycle staging + calendar, KB retrieval & sanitization.
+2. `journey-auth.test.ts` — registration/login/profile/refresh rotation/logout; enumeration resistance.
+3. `journey-farm.test.ts` — farm→plot→crop, lifecycle auto-stage, ownership isolation,
+   plot-area validation, offline-sync idempotency.
+4. `journey-weather-ai-disease.test.ts` — weather advisories, AI grounding & low-confidence honesty,
+   advisory history, disease upload validation + review workflow + notifications.
+5. `journey-marketplace.test.ts` — catalog pagination/filtering, checkout with stock decrement,
+   delivery fee rule, over-stock rejection, membership discount at checkout.
+6. `journey-services-procurement.test.ts` — booking lifecycle incl. RBAC on assignment, rating
+   aggregation, sandbox payment; procurement pipeline with auditable math and wallet payout.
+7. `journey-admin.test.ts` — live metrics, user search/suspend (instant session revocation),
+   audit log contents, AI usage telemetry, notification flows and cross-user isolation.
+8. `security-observability.test.ts` — helmet headers, structured 404, malformed JSON → 400,
+   oversized payload → 413, forged JWT → 401, CORS origin policy.
+9. `concurrency.test.ts` *(PostgreSQL profile)* — parallel checkouts never oversell
+   (atomic conditional decrement), concurrent procurement payouts credit exactly once
+   (atomic state claim), provider reassignment consistency. **These tests exposed two real
+   race conditions that were then fixed** (see CHANGELOG).
+10. `security-matrix.test.ts` — IDOR across orders/payments/notifications (404-scoping, no
+    existence oracle), privilege-escalation attempts, refresh-token hashing at rest + replay after
+    logout, oversized upload abuse, elevated-role permission boundaries, AI hourly quota enforcement.
+11. `ai-eval.test.ts` — behavioural evaluation: Bengali disease queries retrieve correct KB entries;
+    English parity; Banglish mixed-script grounding; out-of-domain refusal (hallucination guard);
+    prompt-injection neutralization; no unverified chemical dosage instructions.
+
+## Performance baseline (local PostgreSQL 17.5, 10s autocannon bursts)
+| Endpoint | req/s | p50 | p90 | p99 |
+|---|---|---|---|---|
+| GET /health | ~6200 | 1ms | 2ms | 5ms |
+| GET /products?pageSize=12 (auth+DB) | ~400 | 23ms | 32ms | 45ms |
+| GET /weather (mock provider) | ~620 | 14ms | 20ms | 39ms |
+| POST /auth/login (bcrypt cost 12) | ~7–8 | ~1.2s | 1.5s | 1.9s |
+| POST /ai/advisory | quota-bound by design (30/h/user) |
+
+Login throughput is intentionally bcrypt-bound (~130–250ms/hash on this hardware class);
+scale horizontally behind a load balancer or add progressive throttling before raising the cost.
 
 ## CI
-`.github/workflows/ci.yml` runs lint, typecheck, the full test suite, web typecheck+build, Docker
-image builds and `npm audit` on every push/PR to `main`/`develop`.
+`.github/workflows/ci.yml`: lint → typecheck → SQLite suite → **PostgreSQL 17 service job with the
+full suite** → web build → Docker image builds → npm audit + secret scan.

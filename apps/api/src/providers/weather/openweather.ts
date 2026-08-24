@@ -1,13 +1,16 @@
 import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js";
 
 const BASE = "https://api.openweathermap.org/data/2.5";
+const FETCH_TIMEOUT_MS = 8_000;
 
 export class OpenWeatherProvider implements WeatherProvider {
   readonly name = "openweather";
   constructor(private apiKey: string) {}
 
   async getCurrent(lat: number, lng: number): Promise<CurrentWeather> {
-    const res = await fetch(`${BASE}/weather?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`);
+    const res = await fetch(`${BASE}/weather?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`openweather current failed: ${res.status}`);
     const j = (await res.json()) as {
       main: { temp: number; feels_like: number; humidity: number };
@@ -26,7 +29,9 @@ export class OpenWeatherProvider implements WeatherProvider {
   }
 
   async getForecast(lat: number, lng: number, days: number): Promise<DailyForecast[]> {
-    const res = await fetch(`${BASE}/forecast?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`);
+    const res = await fetch(`${BASE}/forecast?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`openweather forecast failed: ${res.status}`);
     const j = (await res.json()) as {
       list: { dt_txt: string; main: { temp_min: number; temp_max: number; humidity: number }; wind: { speed: number }; rain?: { "3h"?: number } }[];

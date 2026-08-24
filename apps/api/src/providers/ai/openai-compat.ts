@@ -33,6 +33,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
 
     const res = await fetch(`${env.OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(20_000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.OPENAI_API_KEY}` },
       body: JSON.stringify({
         model: this.model,

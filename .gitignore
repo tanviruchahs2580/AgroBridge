@@ -31,6 +31,7 @@ Thumbs.db
 # Test artifacts
 coverage/
 .vitest-cache/
+apps/api/pg-init.sql
 
 # Uploads (runtime user content)
 uploads/
