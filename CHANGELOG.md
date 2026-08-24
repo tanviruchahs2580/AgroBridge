@@ -3,6 +3,32 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com) ·
 SemVer.
 
+## [1.1.0] — 2026-08-25 · Hardening & Verification Pass
+
+### Fixed (real bugs found by new concurrency tests)
+- **Checkout oversell race**: stock check + decrement is now an atomic conditional update
+  (`UPDATE … WHERE stockQty >= qty`); parallel checkouts can no longer oversell on PostgreSQL.
+- **Procurement double-payout race**: payout claims the COLLECTED→PAID transition atomically;
+  concurrent payouts credit the wallet exactly once.
+
+### Added
+- PostgreSQL as a first-class test target: `schema.postgresql.prisma`,
+  `scripts/provision-postgres.mjs`, `vitest.config.pg.ts`, CI service job (postgres:17).
+- Concurrency suite (oversell, double-payout, assignment consistency) — verified against real
+  PostgreSQL 17.5.
+- Security-matrix suite: IDOR scoping, privilege escalation, refresh-token hashing/replay,
+  upload abuse, RBAC boundaries, AI quota enforcement.
+- AI evaluation suite: Bengali/English/Banglish grounding, out-of-domain refusal,
+  injection neutralization, dosage-safety assertions.
+- Backup/restore rehearsal script (`scripts/backup-restore-rehearsal.mjs`) with integrity
+  verification and measured durations.
+- Load-test harness (`scripts/loadtest.mjs`) and recorded performance baseline.
+- External provider fetch timeouts (OpenWeather 8s, OpenAI-compatible 20s).
+
+### Verified
+- Full suite green on BOTH SQLite and PostgreSQL 17.5: **79/79**.
+- Backup → destroy → restore → integrity: **100% row match, no orphans** (12.6s total rehearsal).
+
 ## [1.0.0] — 2026-08-25
 
 ### Added
