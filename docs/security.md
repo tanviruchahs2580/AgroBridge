@@ -6,7 +6,7 @@
   hashes with rotation and revocation. Suspension/role-change revokes all refresh tokens immediately,
   and `requireAuth` re-validates account status per request so suspended accounts are cut off at once.
 - **RBAC:** 13 roles → permission map enforced in middleware (`requirePermission`) plus per-resource
-  ownership scoping in every farmer-facing query.
+  ownership scoping in every farmer-facing query. **Tenancy:** `Organization`/`OrganizationMember` + `Farm.organizationId`; CORPORATE/COOPERATIVE `org:read/org:manage` + farm queries scoped to `OR(ownerId, organizationId in members)`; zero cross-tenant leakage proven by tenant isolation test.
 - **Input validation:** zod schemas on body/query for every route (coercion, length caps, regex for
   BD phone numbers, UUID checks for sync ids).
 - **Injection prevention:** Prisma parameterized queries only; no raw string SQL from user input.

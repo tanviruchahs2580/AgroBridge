@@ -9,6 +9,7 @@ import { ok } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
+import { paymentIntentsTotal } from "../../lib/metrics.js";
 
 export const paymentsRouter = Router();
 export const walletRouter = Router();
@@ -64,6 +65,7 @@ paymentsRouter.post(
           metaStr: JSON.stringify({ mode: "sandbox" }),
         },
       });
+      paymentIntentsTotal.inc({ purpose_type: purposeType, status: "created" });
 
       ok(res, {
         paymentId: payment.id,

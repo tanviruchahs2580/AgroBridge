@@ -19,7 +19,15 @@ const schema = z.object({
   OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
   PAYMENT_PROVIDER: z.enum(["sandbox", "sslcommerz"]).default("sandbox"),
+  SSLCOMMERZ_STORE_ID: z.string().optional(),
+  SSLCOMMERZ_STORE_PASSWORD: z.string().optional(),
+  SSLCOMMERZ_SANDBOX: z.string().optional(),
   SMS_PROVIDER: z.enum(["sandbox", "none"]).default("sandbox"),
+  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
