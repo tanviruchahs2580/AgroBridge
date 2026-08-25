@@ -10,9 +10,10 @@ RUN npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-
 COPY apps/api apps/api
 # Production image must use the PostgreSQL-flavoured client.
 # For dev/test the sqlite schema (schema.prisma) is used via `npm run test`.
-RUN npm run build --workspace @agrobridge/api \
- && npx prisma generate --schema apps/api/prisma/schema.postgresql.prisma \
- && cp apps/api/prisma/schema.postgresql.prisma apps/api/prisma/schema.prisma
+# Generate PG client BEFORE build so tsc can resolve Prisma types (needs DATABASE_URL dummy).
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema apps/api/prisma/schema.postgresql.prisma \
+ && cp apps/api/prisma/schema.postgresql.prisma apps/api/prisma/schema.prisma \
+ && npm run build --workspace @agrobridge/api
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
