@@ -19,7 +19,8 @@ export default function globalSetup() {
     return;
   }
 
-  // SQLite path
+  // SQLite path — ensure client matches the SQLite schema (host may have PG client from prior provision)
+  execSync("npx prisma generate --schema prisma/schema.prisma", { stdio: "inherit" });
   const dbPath = fileURLToPath(new URL("../prisma/test.db", import.meta.url));
   for (const p of [dbPath, dbPath + "-journal"]) {
     if (existsSync(p)) rmSync(p);

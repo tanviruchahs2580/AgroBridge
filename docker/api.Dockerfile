@@ -8,8 +8,11 @@ COPY apps/api/package.json apps/api/
 RUN npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
 
 COPY apps/api apps/api
+# Production image must use the PostgreSQL-flavoured client.
+# For dev/test the sqlite schema (schema.prisma) is used via `npm run test`.
 RUN npm run build --workspace @agrobridge/api \
- && npx prisma generate --schema apps/api/prisma/schema.prisma
+ && npx prisma generate --schema apps/api/prisma/schema.postgresql.prisma \
+ && cp apps/api/prisma/schema.postgresql.prisma apps/api/prisma/schema.prisma
 
 FROM node:22-alpine AS runtime
 WORKDIR /app

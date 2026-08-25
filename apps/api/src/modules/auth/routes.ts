@@ -9,8 +9,19 @@ import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
 import { env, isTest } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
+import rateLimit from "express-rate-limit";
 
 export const authRouter = Router();
+
+// Brute-force protection: stricter than global limiter for auth endpoints
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "development",
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
+});
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -75,7 +86,7 @@ authRouter.post("/register", validate({ body: registerSchema }), async (req, res
   }
 });
 
-authRouter.post("/login", validate({ body: loginSchema }), async (req, res, next) => {
+authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (req, res, next) => {
   try {
     const { phone, password } = req.body as z.infer<typeof loginSchema>;
     const user = await prisma.user.findUnique({ where: { phone } });
