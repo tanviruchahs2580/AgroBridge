@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App.jsx";
+import { SessionProvider } from "./lib/session.jsx";
 import "./index.css";
 
 // PWA service worker: auto-update, prompt user when a new version is ready.
@@ -22,7 +23,9 @@ const updateSW = registerSW({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <SessionProvider>
+        <App />
+      </SessionProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

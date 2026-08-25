@@ -1,10 +1,54 @@
 # FINAL ENTERPRISE VALIDATION REPORT — AgroBridge v1.3.0 (post-build re-validation)
 
-**Date:** 2026-08-25 07:47 UTC · **Commit:** `51fe4c5` (main, after validation harness) · **Tag:** `v1.3.0` @ `dc8746f` + validation commit
+**Date:** 2026-08-26 01:10 +06 (2026-08-25 19:10 UTC) · **Commit:** this cycle @ `main` (see git log) · **Tag:** `v1.3.0` @ `dc8746f`
 **Environment:** Windows 11 / Node v24.19 / npm 11.17 (local) + Ubuntu 24.04 CI (Node 22, JDK 21, PG 17, Docker 28)
-**Auditor:** Independent post-build validation (second cycle, this prompt) — no prior report trusted without re-execution.
+**Auditor:** Independent post-build validation (third cycle) — no prior report trusted without re-execution.
 
 ---
+
+## ⚡ CYCLE 08 (2026-08-26) — TWO CRITICAL DEFECTS FOUND & FIXED; ALL GATES RE-EXECUTED
+
+> **Headline:** The previous cycles validated the API exhaustively but never loaded a real page in a real browser. This cycle did — and found the PWA was **completely broken for end users** while CI stayed green. Both the product defect and the gate that allowed it are now fixed, with evidence.
+
+### Defects found this cycle (register below has full RCAs)
+
+| ID | Sev | What | Impact before fix |
+|---|---|---|---|
+| **V14-001** | **S1** | `SessionProvider` defined (`apps/web/src/lib/session.tsx:22`) but never mounted in `apps/web/src/main.tsx` → context default `{loading:true}` forever | **Entire PWA stuck on "লোড হচ্ছে…" for every user** — login/farm/market unreachable in browser |
+| **V14-002** | **S2** | CI job `web-e2e` ran only `npx playwright test --list` (`.github/workflows/ci.yml`) — tests were **listed, never executed** | Broken UI shipped with "green E2E" badge across 5+ runs |
+| V14-003 | S3 | E2E selectors referenced a phantom DOM (`placeholder*="Mobile"`, `name="phone"`) that never existed in `Login.tsx` (real ids: `#phone`, `#password`) | First real execution failed at first fill |
+| V14-004 | S3 | Local drift: stale `prisma/dev.db` missing `20260825170000_add_organization` migration → `POST /farms` = 500 against default `.env` DB | Any dev following `.env` defaults hit 500s |
+
+### Fixes applied & verified
+
+1. **V14-001:** mounted `<SessionProvider>` in `main.tsx` → probe shows `/` redirects to `/login`, full UI renders.
+2. **V14-002:** `web-e2e` job now provisions seeded SQLite DB, builds & starts API (`NODE_ENV=test`), starts Vite on :5173, and **runs the real journey**: `npx playwright test`.
+3. **V14-003:** spec fills stable DOM ids `#phone` / `#password`; journey passes end-to-end.
+4. **V14-004:** `npx prisma migrate deploy` applied to `dev.db`; smoke harness usage clarified (server must target freshly migrated/seeded `test.db`).
+
+### Dependency posture change (registry drift since cycle 07)
+
+`npm audit` moved 13 → **15 findings incl. 1 CRITICAL** between Aug 25 and Aug 26 (new advisories published upstream):
+
+- **vitest critical** GHSA-5xrq-8626-4rwp (arbitrary file read/exec via Vitest UI server) — **dev-only**; CI runs headless `vitest run`; no UI server ever exposed. Accepted with remediation plan (major bump to vitest 4 deferred to avoid destabilising 83 tests mid-release).
+- **react-router-dom moderate (RUNTIME)** open-redirect/SSR-hydration advisories affected ≤7.17.0 → **upgraded to 7.18.2** (v6→v7 migration). Verified: typecheck 0, build PASS, real E2E 2/2 on v7. Runtime finding closed.
+- `esbuild@0.25.12` added to `allowScripts` allowlist (repo script policy).
+
+### Cycle-08 gate results (all re-executed this session)
+
+| Gate | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` (api+web) | exit 0 |
+| Lint | `npx eslint src tests` (api) | exit 0 |
+| Prisma | validate sqlite + postgresql schemas | both valid |
+| Build | `npm run build` (api tsc + web vite/PWA) | PASS, precache 7 entries |
+| API suite | `npm run test --workspace apps/api` | **13 files, 82 passed +1 skipped**, 32.65s |
+| Live runtime | `/health` + `/ready` (test.db) | ok:true, ready:true, db:true |
+| Business smoke | `postbuild-smoke.mjs` vs live server | **29/29 PASS** |
+| Browser E2E (REAL, first time) | `npx playwright test` (chromium) | **2/2 PASS** — login→farm→market + responsive 390px |
+| APK artifact | `gh run download 32822393697 -n agrobridge-debug-apk` | `app-debug.apk` 4,214,529 bytes |
+| CI @ 4f52b70 | run 32822393697 (pre-fix code) | 9/9 success (note: its e2e was list-only — superseded by this cycle's fix) |
+
 
 ## EXECUTIVE VERDICT
 
@@ -14,6 +58,8 @@
 Quality score: **9.3 / 10**
 
 **Re-validation 2026-08-25 07:47:** Full cycle re-executed on `51fe4c5` (main after validation harness): `typecheck` api+web exit 0, `eslint` exit 0, `vite build` PWA precache 7, `vitest` 13 files **82 passed +1 skipped** 38.33s, live smoke **29/29** (re-run at 07:47 after fixing harness envelope assumption), PWA `dist/manifest.webmanifest` + `sw.js` present, APK re-downloaded `app-debug.apk` 4.2 MB, CI `main` 32820636434 **9/9 green** (SQLite 39s, PG 42s, Web 19s, Web-E2E 35s, Gitleaks 10s, Docker 1m11s, Trivy 1m17s, Security 15s). No new defects.
+
+**Re-validation CYCLE 08 (2026-08-26):** First cycle to execute browser E2E for real. Found & fixed S1 V14-001 (PWA unusable — SessionProvider unmounted), S2 V14-002 (CI e2e list-only), V14-003/004. Upgraded react-router-dom → 7.18.2 closing the only runtime audit finding; vitest critical documented dev-only/accepted. All gates re-executed green post-fix (see Cycle-08 table above). Verdict unchanged in class, confidence materially increased.
 
 ---
 
@@ -48,7 +94,7 @@ Verified journeys: register→login→farm→plot→crop(auto-stage)→weather r
 |---|---|---|---|
 | Unit+Integration+E2E-API (SQLite) | ✅ EXECUTED | `npm run test --workspace apps/api` | **13 files, 82 passed, 1 skipped** (PG-gated oversell), 61.5s |
 | PostgreSQL suite | ✅ CI-VERIFIED (local BLOCKED: no Docker/PG daemon) | CI run 32815133593 job `api-postgres` | 41s green incl. tenant-isolation + concurrency |
-| Browser E2E list | ✅ CI | job `web-e2e` 33s | green |
+| Browser E2E | ✅ EXECUTED (cycle 08) | `npx playwright test` chromium — real journey login→farm→market + responsive; CI job now executes (was `--list` only, V14-002) | **2/2 PASS** local; post-push run pending |
 | Live business smoke | ✅ EXECUTED | above | 29/29 |
 | Concurrency | ✅ (PG via CI) | atomic claims proven | oversell/payout/dup-confirm impossible |
 
@@ -80,14 +126,18 @@ Verified journeys: register→login→farm→plot→crop(auto-stage)→weather r
 | CI/CD | ✅ **9/9 jobs green** on v1.3.0 PR 32815133593 **and** on validation commit 32820636434 (main @ 51fe4c5) — includes android-build → APK artifact `app-debug.apk` 4,214,529 bytes (re-downloaded 07:47) | — |
 | Deployment rehearsal | ⛔ BLOCKED (no TLS host) — compose config CI-built ok | docs/deployment.md §6 checklist ready |
 
-## 35 · DEFECT REGISTER (this cycle)
+## 35 · DEFECT REGISTER (all cycles)
 
 | ID | Sev | Title | Root cause | Fix | Retest | Status |
 |---|---|---|---|---|---|---|
+| V14-001 | **S1** | PWA unusable: `SessionProvider` never mounted | provider defined but omitted from `main.tsx` tree; context default `loading:true` permanent | mount provider in `main.tsx` | probe + E2E 2/2 PASS on real browser | Closed |
+| V14-002 | **S2** | CI "E2E" job never executed tests (`--list` only) | job authored as listing validation; gave false green since introduction | job now provisions DB, starts API+Web, runs `npx playwright test` | new run must show executed journey (post-push) | Closed (CI verification pending push) |
+| V14-003 | S3 | E2E selectors matched non-existent DOM | spec written against imagined markup; never executed so never caught | use stable ids `#phone`/`#password` from `Login.tsx` | journey passes 6.1s | Closed |
+| V14-004 | S3 | stale local `dev.db` → farm create 500 (`organizationId` missing) | `.env` default predates multitenancy migration; server pointed at unmigrated file | `prisma migrate deploy`; harness docs clarify test.db target | smoke 29/29 after restart vs migrated DB | Closed |
 | V13-001 | S3 | Smoke harness mis-parsed `/ready` envelope | test-side assumption vs intentional bare payload | assertion accepts both shapes | 29/29 PASS | Closed |
-| (carried) DEPS-001 | S2 | 13 dev-scope audit findings | outdated dev majors | accepted w/ plan; prod image unaffected | Trivy green | Accepted risk |
+| DEPS-001 | S2 | dev-scope audit findings (now incl. vitest critical, dev-only) | upstream registry advisories drift | runtime react-router fixed via v7.18.2; vitest accepted w/ plan | Trivy green; audit re-run documented this cycle | Partially closed / accepted |
 
-No S0/S1 open.
+No S0. No open S1/S2 in product code.
 
 ## GO/NO-GO
 

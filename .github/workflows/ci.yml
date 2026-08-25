@@ -113,6 +113,10 @@ jobs:
   web-e2e:
     name: Web — E2E (Playwright)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./test.db"
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
     steps:
       - uses: actions/checkout@v4
 
@@ -121,16 +125,46 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
+      - name: Install dependencies (all workspaces)
+        run: npm ci --include-workspace-root --no-audit --no-fund
+
+      - name: Approve build scripts (prisma engines/esbuild)
+        run: |
+          npm config set ignore-scripts false || true
+          npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true
 
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Validate E2E suite (list)
+      - name: Provision seeded SQLite database + API client
+        working-directory: apps/api
+        run: |
+          npx prisma generate --schema prisma/schema.prisma
+          npx prisma migrate deploy
+          npx prisma db seed
+
+      - name: Build API
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Start API server (test.db)
+        working-directory: apps/api
+        run: |
+          NODE_ENV=test nohup node dist/server.js > /tmp/agro-api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/ready && break; sleep 1; done
+          curl -sf http://localhost:4000/health
+
+      - name: Start Web dev server
         working-directory: apps/web
-        run: npx playwright test --list
+        run: |
+          nohup npx vite --port 5173 --strictPort > /tmp/agro-web.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:5173/ > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:5173/ | grep -q "<div id=\"root\">"
+
+      - name: Run E2E tests (real browser journey)
+        working-directory: apps/web
+        run: npx playwright test
 
   android-build:
     name: Android — Build debug APK artifact

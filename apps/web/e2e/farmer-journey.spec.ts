@@ -10,8 +10,9 @@ test.describe("Farmer journey", () => {
     await page.goto("/");
     // Should redirect to /login when not authenticated
     await expect(page).toHaveURL(/.*login/);
-    await page.fill('input[placeholder*="Mobile" i], input[name="phone"]', "01700000002");
-    await page.fill('input[type="password"]', "Demo@1234");
+    // Inputs are identified by stable DOM ids (#phone / #password) in pages/Login.tsx
+    await page.fill("#phone", "01700000002");
+    await page.fill("#password", "Demo@1234");
     await page.click('button:has-text("Login"), button:has-text("লগইন")');
     // After login, should land on home
     await page.waitForURL(/.*\/$/, { timeout: 10_000 });

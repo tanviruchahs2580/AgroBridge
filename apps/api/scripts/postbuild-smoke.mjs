@@ -3,8 +3,11 @@
  * AgroBridge Post-Build Smoke — full business workflow simulation over live HTTP.
  *
  * Usage:
- *   1. Start API:   cd apps/api && npm run start        (test.db seeded)
- *   2. Run smoke:   BASE_URL=http://localhost:4000 node scripts/postbuild-smoke.mjs
+ *   1. Prepare DB:   cd apps/api && npx prisma migrate deploy && npx prisma db seed
+ *      (server must point at a freshly migrated DB — e.g. DATABASE_URL="file:./test.db";
+ *       a stale dev.db missing migrations will 500 on writes)
+ *   2. Start API:    NODE_ENV=test node dist/server.js
+ *   3. Run smoke:    BASE_URL=http://localhost:4000 node scripts/postbuild-smoke.mjs
  *
  * Covers: health/ready/metrics · registration/login · farm→plot→crop→weather→AI ·
  * marketplace checkout with atomic stock · payment confirm IDEMPOTENCY (duplicate = 422) ·
