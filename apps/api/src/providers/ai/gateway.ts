@@ -1,6 +1,7 @@
 import { env, isProd } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
+import { aiRequestsTotal } from "../../lib/metrics.js";
 import { OfflineAgroEngine } from "./offline-engine.js";
 import { OpenAiCompatibleProvider } from "./openai-compat.js";
 import { AiAnswer, AiContext, AiProvider } from "./types.js";
@@ -21,6 +22,7 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
 
   try {
     const answer = await provider.ask(question, ctx);
+    aiRequestsTotal.inc({ provider: answer.provider, status: "success" });
     await logUsage({ userId: ctx.userId, provider: answer.provider, model: answer.model, latencyMs: Date.now() - started, success: true });
     await persistQuery(ctx.userId, question, answer);
     return answer;
@@ -28,6 +30,7 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     logger.warn({ err: (err as Error).message }, "primary AI provider failed; falling back to offline engine");
     const fallback = new OfflineAgroEngine();
     const answer = await fallback.ask(question, ctx);
+    aiRequestsTotal.inc({ provider: fallback.name, status: "fallback_success" });
     await logUsage({ userId: ctx.userId, provider: fallback.name, model: fallback.model, latencyMs: Date.now() - started, success: true });
     await persistQuery(ctx.userId, question, answer);
     return answer;

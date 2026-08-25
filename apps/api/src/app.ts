@@ -7,6 +7,7 @@ import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
+import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 
 import { authRouter } from "./modules/auth/routes.js";
 import { farmsRouter } from "./modules/farms/routes.js";
@@ -19,6 +20,7 @@ import { procurementRouter } from "./modules/procurement/routes.js";
 import { paymentsRouter, walletRouter, membershipRouter } from "./modules/payments/routes.js";
 import { notificationsRouter } from "./modules/notifications/routes.js";
 import { adminRouter } from "./modules/admin/routes.js";
+import { organizationsRouter } from "./modules/organizations/routes.js";
 
 export function createApp() {
   const app = express();
@@ -39,6 +41,7 @@ export function createApp() {
   app.use(express.urlencoded({ extended: false, limit: "200kb" }));
 
   app.use(requestContext);
+  app.use(metricsMiddleware);
 
   const globalLimiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
@@ -59,10 +62,17 @@ export function createApp() {
   app.get("/ready", async (_req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
+      dbUp.set(1);
       res.json({ ok: true, ready: true, db: true });
     } catch {
+      dbUp.set(0);
       res.status(503).json({ ok: false, ready: false, db: false });
     }
+  });
+
+  app.get("/metrics", async (_req, res) => {
+    res.setHeader("Content-Type", registry.contentType);
+    res.send(await registry.metrics());
   });
 
   // ---- Versioned API ----
@@ -83,6 +93,7 @@ export function createApp() {
   v1.use("/membership", membershipRouter);
   v1.use("/notifications", notificationsRouter);
   v1.use("/admin", adminRouter);
+  v1.use("/organizations", organizationsRouter);
   app.use("/api/v1", v1);
 
   logger.info("AgroBridge API routes mounted");
