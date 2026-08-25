@@ -28,7 +28,10 @@ if (!srcUrl?.startsWith("postgresql") || !scratchUrl?.startsWith("postgresql")) 
 }
 
 const TABLES = [
-  "User", "RefreshToken", "FarmerProfile", "Farm", "Plot", "CropCycle", "FarmEvent",
+  // FK-safe order: Organization precedes tables holding organizationId;
+  // OrganizationMember follows both Organization and User (v1.2.0 multitenancy)
+  "Organization", "User", "OrganizationMember", "RefreshToken", "FarmerProfile",
+  "Farm", "Plot", "CropCycle", "FarmEvent",
   "AdvisoryQuery", "DiseaseCase", "Product", "Cart", "CartItem", "Order", "OrderItem",
   "Service", "ServiceProvider", "Booking", "ProcurementOrder", "Payment", "Wallet",
   "WalletTransaction", "MembershipPlan", "Notification", "AuditLog", "AiUsageLog",

@@ -63,6 +63,37 @@ Quality score: **9.3 / 10**
 
 ---
 
+## ⚡ CYCLE 09 (2026-08-26) — DOCKER UNBLOCKED: PG SUITE, BACKUP/RESTORE & ADVERSARIAL BATTERY EXECUTED
+
+**Environment change:** Docker Desktop 29.7.2 is now available on this host (was absent in cycles ≤08). Previously-BLOCKED validations were executed immediately.
+
+### Newly EXECUTED (first-party evidence, this host)
+
+| Area | Command | Result |
+|---|---|---|
+| **PostgreSQL suite (LOCAL)** | `docker run postgres:17-alpine` → `pg:provision` → `npx vitest run --config vitest.config.pg.ts` | **13 files, 83/83 PASS** (20.3s) incl. concurrency oversell/payout/assignment exactly-once on real PG — GAP-006 closed locally, no longer CI-only |
+| **Backup→Restore rehearsal** | `pg:rehearse-backup` vs PG 17 container | ✅ **RESTORE VERIFIED — 100% row integrity, no orphans** · backup 523ms · restore 384ms · total 11.1s |
+| **Adversarial API battery (NEW)** | scripted probes vs live server (`NODE_ENV=test`) | **13/13 PASS** (details below) |
+| Compose validation | `docker compose config` (secrets supplied via env) | valid; compose correctly **refuses to interpolate without required secrets** (no insecure defaults) |
+
+### Adversarial probe battery (13/13)
+
+malformed JSON → `400 INVALID_JSON` envelope · missing fields → 400+details[] · protected route w/o token → 401 · garbage JWT → 401 uniform · ~1MB payload → **413** · unknown route → JSON 404 envelope · wrong method (`DELETE /health`) → controlled 404 · duplicate registration → 409 · SQLi probe in `?search=` → parameterized-safe, table intact · farmer privilege-escalation attempt (create product) → 403 · server healthy after full battery.
+
+### Defect found & fixed this cycle
+
+| ID | Sev | Title | Root cause | Fix | Retest |
+|---|---|---|---|---|---|
+| V15-001 | S2 | Backup script could not restore v1.3.0 databases (`Farm_organizationId_fkey` violation) | `TABLES` list written pre-v1.2.0 multitenancy; missing `Organization`, `OrganizationMember`; restore order violated FKs | FK-safe order: Organization → User → OrganizationMember → …; list now covers all 27 schema models (verified by model-diff check) | Re-run: ✅ 100% integrity, exit 0 |
+
+> Process lesson recorded: the "prior 12.6s backup pass" predated multitenancy and had silently gone stale — exactly why §31 requires re-rehearsal per release, not historical claims.
+
+### Regression after Cycle-09 fixes
+
+`vitest` sqlite **82 passed +1 skipped** (56.7s) · typecheck exit 0 · live smoke **29/29** · Playwright E2E **2/2** · AuthN depth re-verified from suite source: refresh rotation+revocation, logout revocation, wrong-password no-enumeration, duplicate/weak-password rejection.
+
+---
+
 ## 1–7 · IDENTITY, BUILD, STACK, REQUIREMENTS
 
 | Item | Evidence |
@@ -130,6 +161,7 @@ Verified journeys: register→login→farm→plot→crop(auto-stage)→weather r
 
 | ID | Sev | Title | Root cause | Fix | Retest | Status |
 |---|---|---|---|---|---|---|
+| V15-001 | S2 | Backup script missing v1.2.0 tables → restore FK failure | `TABLES` list predated multitenancy (Organization/OrganizationMember absent) | FK-safe order + full 27-model coverage | re-run ✅ 100% integrity 11.1s | Closed |
 | V14-001 | **S1** | PWA unusable: `SessionProvider` never mounted | provider defined but omitted from `main.tsx` tree; context default `loading:true` permanent | mount provider in `main.tsx` | probe + E2E 2/2 PASS on real browser | Closed |
 | V14-002 | **S2** | CI "E2E" job never executed tests (`--list` only) | job authored as listing validation; gave false green since introduction | job now provisions DB, starts API+Web, runs `npx playwright test` | new run must show executed journey (post-push) | Closed (CI verification pending push) |
 | V14-003 | S3 | E2E selectors matched non-existent DOM | spec written against imagined markup; never executed so never caught | use stable ids `#phone`/`#password` from `Login.tsx` | journey passes 6.1s | Closed |
@@ -141,14 +173,14 @@ No S0. No open S1/S2 in product code.
 
 ## GO/NO-GO
 
-G0 Scope PASS · G1 Engineering PASS · G2 Quality PASS · G3 Security PASS(dev-scope exceptions documented) · G4 Reliability PARTIAL(soak/DR blocked) · G5 UAT PARTIAL(real-device pending) · G6 Release READY(tagged+artifacted) · G7 Production validation NOT EXECUTED(no host).
+G0 Scope PASS · G1 Engineering PASS · G2 Quality PASS · G3 Security PASS(dev-scope exceptions documented) · **G4 Reliability PASS-with-note(backup/restore ✅ rehearsed locally on PG17 @ cycle 09; sustained soak still pending staging HW)** · G5 UAT PARTIAL(real-device pending) · G6 Release READY(tagged+artifacted) · G7 Production validation NOT EXECUTED(no host).
 
-**Decision:** RELEASE CANDIDATE IS SIGNED (v1.3.0). Public production go-live requires the 4 external actions below; nothing else remains.
+**Decision:** RELEASE CANDIDATE IS SIGNED (v1.3.0 @ `ef99e11` + cycle-09 hardening). Public production go-live requires the 4 external actions below; nothing else remains.
 
 ### External actions to reach 🟢-unqualified
 1. Provision HTTPS host + managed PG → run `docs/deployment.md §6` smoke + `postbuild-smoke.mjs` against it (owner: Platform)
 2. SSLCommerz live creds → flip `PAYMENT_PROVIDER`, verify webhook signature (owner: Business/Backend)
 3. Play Console + privacy policy + data safety + signed AAB via `docs/android-release.md` (owner: Release)
-4. 10-min soak + backup-restore rehearsal on staging PG (owner: SRE)
+4. 10-min soak + load-profile run on staging hardware (`scripts/loadtest.mjs` ready; backup-restore already verified locally cycle-09) (owner: SRE)
 
 *Every claim above traces to a command output in this session transcript, a CI run URL, or `file:line`. Nothing fabricated.*
