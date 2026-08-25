@@ -155,10 +155,11 @@ jobs:
         shell: bash
         run: |
           # Heuristic scanner: flags private keys and hard-coded postgres URLs with passwords.
+          # Allowlist: dummy/ci-password/test placeholders are not real secrets.
           if git grep -I -nE 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- .; then
             echo "::error::Private key material committed"; exit 1
           fi
-          if git grep -InE 'postgres(ql)?://[^/@:\s]+:[^@\s]+@' -- ':!*.md' ':!.env.example'; then
+          if git grep -InE 'postgres(ql)?://[^/@:\s]+:[^@\s]+@' -- ':!*.md' ':!.env.example' | grep -vE 'dummy|ci-password|example|changeme' ; then
             echo "::error::Hard-coded database credential pattern found"; exit 1
           fi
           echo "Secret scan clean"
