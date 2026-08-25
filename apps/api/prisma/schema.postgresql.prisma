@@ -37,6 +37,7 @@ model User {
   diseaseCases      DiseaseCase[]
   auditLogs         AuditLog[]
   aiUsageLogs       AiUsageLog[]
+  organizationMembers OrganizationMember[]
 }
 
 model RefreshToken {
@@ -67,6 +68,7 @@ model FarmerProfile {
 model Farm {
   id            String   @id @default(cuid())
   ownerId       String
+  organizationId String?
   name          String
   address       String?
   district      String?
@@ -78,12 +80,14 @@ model Farm {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id])
   plots         Plot[]
   bookings      Booking[]
   procurementOrders ProcurementOrder[]
   farmEvents    FarmEvent[]
 
   @@index([ownerId])
+  @@index([organizationId])
 }
 
 model Plot {
@@ -427,4 +431,29 @@ model AiUsageLog {
   user       User? @relation(fields: [userId], references: [id])
 
   @@index([createdAt])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // COOPERATIVE | CORPORATE | NGO | GOVT
+  district  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   OrganizationMember[]
+  farms     Farm[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("MEMBER") // ADMIN | MEMBER | VIEWER
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId])
 }

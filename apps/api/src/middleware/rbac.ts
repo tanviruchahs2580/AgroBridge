@@ -30,8 +30,8 @@ export const PERMISSIONS: Record<string, string[]> = {
   FIELD_AGENT: ["farmers:assist"],
   SERVICE_PROVIDER: ["bookings:execute", "bookings:manage:own"],
   DEALER: ["products:manage", "orders:read:own"],
-  CORPORATE: [],
-  COOPERATIVE: [],
+  CORPORATE: ["org:read", "org:manage", "farm:read:org", "procurement:read:org"],
+  COOPERATIVE: ["org:read", "org:manage", "farm:read:org"],
   FARMER: [],
 };
 
