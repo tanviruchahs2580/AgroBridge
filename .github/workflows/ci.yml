@@ -10,6 +10,10 @@ jobs:
   api-quality:
     name: API — Lint · TypeCheck · Tests (SQLite)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./test.db"
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +48,8 @@ jobs:
 
       - name: Validate PostgreSQL schema variant
         working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://agrobridge:ci-password@localhost:5432/agrobridge
         run: npx prisma validate --schema prisma/schema.postgresql.prisma
 
   api-postgres:
