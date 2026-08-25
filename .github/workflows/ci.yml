@@ -132,6 +132,44 @@ jobs:
         working-directory: apps/web
         run: npx playwright test --list
 
+  android-build:
+    name: Android — Build debug APK artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
+
+      - name: Build PWA bundle
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Sync Capacitor android platform
+        working-directory: apps/web
+        run: npx cap sync android
+
+      - name: Assemble debug APK (unsigned release requires keystore)
+        working-directory: apps/web/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agrobridge-debug-apk
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
   gitleaks:
     name: Security — Gitleaks secret scan
     runs-on: ubuntu-latest

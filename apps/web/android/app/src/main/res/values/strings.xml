@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AgroBridge</string>
+    <string name="title_activity_main">AgroBridge</string>
+    <string name="package_name">com.agrobridge.app</string>
+    <string name="custom_url_scheme">com.agrobridge.app</string>
+</resources>

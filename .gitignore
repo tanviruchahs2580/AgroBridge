@@ -35,3 +35,16 @@ apps/api/pg-init.sql
 
 # Uploads (runtime user content)
 uploads/
+
+# Android signing secrets — NEVER commit
+*.keystore
+*.jks
+apps/web/android/key.properties
+apps/web/android/app/google-services.json
+
+# Android build intermediates
+apps/web/android/.gradle/
+apps/web/android/build/
+apps/web/android/app/build/
+apps/web/android/capacitor-cordova-android-plugins/build/
+apps/web/android/local.properties
