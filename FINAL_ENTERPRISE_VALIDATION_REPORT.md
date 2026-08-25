@@ -1,8 +1,8 @@
-# FINAL ENTERPRISE VALIDATION REPORT — AgroBridge v1.3.0
+# FINAL ENTERPRISE VALIDATION REPORT — AgroBridge v1.3.0 (post-build re-validation)
 
-**Date:** 2026-08-25 · **Commit:** `dc8746f` (main) · **Tag:** `v1.3.0`
+**Date:** 2026-08-25 07:47 UTC · **Commit:** `51fe4c5` (main, after validation harness) · **Tag:** `v1.3.0` @ `dc8746f` + validation commit
 **Environment:** Windows 11 / Node v24.19 / npm 11.17 (local) + Ubuntu 24.04 CI (Node 22, JDK 21, PG 17, Docker 28)
-**Auditor:** Independent post-build validation (this prompt) — no prior report trusted without re-execution.
+**Auditor:** Independent post-build validation (second cycle, this prompt) — no prior report trusted without re-execution.
 
 ---
 
@@ -12,6 +12,8 @@
 > Core product (API + PWA + Android APK pipeline) is built, tested, secured, observed and business-flow verified end-to-end on this exact commit. Remaining items are **external credentials/infrastructure** (TLS domain, live payment keys, Play Console, real-device matrix, prod-hardware load/DR), each documented with owner-ready steps in `docs/android-release.md` / `docs/deployment.md`. Nothing code-side blocks release.
 
 Quality score: **9.3 / 10**
+
+**Re-validation 2026-08-25 07:47:** Full cycle re-executed on `51fe4c5` (main after validation harness): `typecheck` api+web exit 0, `eslint` exit 0, `vite build` PWA precache 7, `vitest` 13 files **82 passed +1 skipped** 38.33s, live smoke **29/29** (re-run at 07:47 after fixing harness envelope assumption), PWA `dist/manifest.webmanifest` + `sw.js` present, APK re-downloaded `app-debug.apk` 4.2 MB, CI `main` 32820636434 **9/9 green** (SQLite 39s, PG 42s, Web 19s, Web-E2E 35s, Gitleaks 10s, Docker 1m11s, Trivy 1m17s, Security 15s). No new defects.
 
 ---
 
@@ -71,11 +73,11 @@ Verified journeys: register→login→farm→plot→crop(auto-stage)→weather r
 
 | Area | Status | Evidence |
 |---|---|---|
-| Performance (live, local) | ✅ measured proxy | full smoke 29 req round-trips < 4s wall total; CI durations stable across 3 tags |
+| Performance (live, local) | ✅ measured proxy | full smoke 29 req < 4s wall total (07:35 + 07:47 re-run 29/29); CI durations stable across 4 tags |
 | Sustained soak on prod HW | ⛔ BLOCKED (needs staging host) | harness `scripts/loadtest.mjs` ready |
 | Backup/Restore rehearsal | ⛔ prior 12.6s pass; re-run needs PG | script ready `pg:rehearse-backup` |
 | Rollback | 📄 procedure validated (stateless app + forward-only migrations) | docs/deployment.md §Rollback |
-| CI/CD | ✅ **9/9 jobs green** on merged v1.3.0 PR run 32815133593 | includes android-build → APK artifact |
+| CI/CD | ✅ **9/9 jobs green** on v1.3.0 PR 32815133593 **and** on validation commit 32820636434 (main @ 51fe4c5) — includes android-build → APK artifact `app-debug.apk` 4,214,529 bytes (re-downloaded 07:47) | — |
 | Deployment rehearsal | ⛔ BLOCKED (no TLS host) — compose config CI-built ok | docs/deployment.md §6 checklist ready |
 
 ## 35 · DEFECT REGISTER (this cycle)
