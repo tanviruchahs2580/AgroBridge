@@ -1,5 +1,7 @@
 // API client with token storage + refresh handling.
-const BASE = "/api/v1";
+// Base URL is build-time configurable so the same bundle works behind nginx
+// proxy ("/api/v1") or as a Capacitor APK / cross-origin PWA ("https://api…").
+const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
 export interface AuthUser {
   id: string;
