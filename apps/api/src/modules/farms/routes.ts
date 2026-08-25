@@ -18,26 +18,46 @@ const farmBody = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   totalAreaBigha: z.number().positive().max(100000).optional(),
+  organizationId: z.string().min(5).optional(),
 });
 
-/** Ownership check: farmers see only their own farms; admins may inspect any. */
+/** Ownership + tenant check: owner, privileged, or org member may access. */
 async function assertFarmAccess(farmId: string, userId: string, role: string) {
   const farm = await prisma.farm.findUnique({ where: { id: farmId } });
   if (!farm) throw notFound("Farm");
   const isPrivileged = role === "SUPER_ADMIN" || role === "ADMIN";
-  if (farm.ownerId !== userId && !isPrivileged) throw forbidden("Not your farm");
-  return farm;
+  if (farm.ownerId === userId || isPrivileged) return farm;
+  if (farm.organizationId) {
+    const member = await prisma.organizationMember.findFirst({ where: { organizationId: farm.organizationId, userId } });
+    if (member) return farm;
+  }
+  throw forbidden("Not your farm");
 }
 
 farmsRouter.get("/", async (req, res, next) => {
   try {
+    const userId = req.auth!.userId;
+    const role = req.auth!.role;
+    // Corporate/cooperative see org farms; farmers see owned; admins see owned (but could see all via admin panel)
+    const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
+    const orgIds = orgMemberships.map((m) => m.organizationId);
+    const where: Record<string, unknown> = {};
+    if (["CORPORATE", "COOPERATIVE"].includes(role) && orgIds.length > 0) {
+      where.OR = [{ ownerId: userId }, { organizationId: { in: orgIds } }];
+    } else if (["SUPER_ADMIN", "ADMIN"].includes(role)) {
+      // admins via this endpoint still see own farms; full view via admin metrics
+      where.ownerId = userId;
+    } else {
+      where.ownerId = userId;
+    }
     const farms = await prisma.farm.findMany({
-      where: { ownerId: req.auth!.userId },
+      where,
       include: {
         plots: {
           include: { cropCycles: { where: { status: "ACTIVE" }, select: { id: true, cropName: true, stage: true, plantedAt: true } } },
         },
         _count: { select: { plots: true } },
+        organization: { select: { id: true, name: true, type: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -49,8 +69,14 @@ farmsRouter.get("/", async (req, res, next) => {
 
 farmsRouter.post("/", validate({ body: farmBody }), async (req, res, next) => {
   try {
+    const data = req.body as z.infer<typeof farmBody>;
+    if (data.organizationId) {
+      const member = await prisma.organizationMember.findFirst({ where: { organizationId: data.organizationId, userId: req.auth!.userId } });
+      const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
+      if (!member && !isPrivileged) throw forbidden("Not a member of the target organization");
+    }
     const farm = await prisma.farm.create({
-      data: { ...(req.body as Record<string, unknown>), ownerId: req.auth!.userId } as never,
+      data: { ...(data as Record<string, unknown>), ownerId: req.auth!.userId } as never,
     });
     ok(res, farm, 201);
   } catch (e) {
