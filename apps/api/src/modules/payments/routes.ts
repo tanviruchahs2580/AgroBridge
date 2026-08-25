@@ -110,7 +110,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
         });
         void expiresAt;
       }
-    });
+    }, { timeout: 15000, maxWait: 8000 });
 
     await audit({ actorId: req.auth!.userId, action: "PAYMENT_SUCCEEDED", entityType: "Payment", entityId: payment.id, meta: { sandbox: true } });
     await notify({
@@ -198,7 +198,7 @@ paymentsRouter.post(
         });
 
         return { payment, newBalance: updatedWallet.balancePaisa };
-      });
+      }, { timeout: 15000, maxWait: 8000 });
 
       await notify({
         userId: po.userId,

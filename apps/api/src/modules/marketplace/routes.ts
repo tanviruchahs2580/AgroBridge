@@ -234,7 +234,7 @@ ordersRouter.post("/checkout", async (req, res, next) => {
 
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
       return order;
-    });
+    }, { timeout: 15000, maxWait: 8000 });
 
     await audit({
       actorId: req.auth!.userId,
