@@ -94,6 +94,40 @@ malformed JSON → `400 INVALID_JSON` envelope · missing fields → 400+details
 
 ---
 
+## ⚡ CYCLE 10 (2026-08-26) — PRODUCTION IMAGE RUNTIME, LOAD PROFILE & ROLLBACK REHEARSAL VERIFIED
+
+### Production Docker image — built AND run (first time against real traffic)
+
+| Check | Command | Result |
+|---|---|---|
+| Clean image build | `docker build -f docker/api.Dockerfile -t agrobridge-api:cycle10 .` | PASS (multi-stage, 49s unpack) |
+| Runtime boot | `docker run … -p 4001:4000` vs PG 17 container | `/health ok:true` · `/ready ready:true db:true` |
+| **Business smoke vs IMAGE** | `BASE_URL=http://localhost:4001 postbuild-smoke.mjs` | **29/29 PASS** — full chain `Dockerfile→image→container→API→PostgreSQL 17→business outcome` proven |
+| Non-root | `docker inspect .Config.User` | `app` |
+| Secrets in image | `.Config.Env` + `history --no-trunc` scan | only PATH/NODE_*/NODE_ENV baked; **0 secret matches** |
+| Healthcheck | Dockerfile HEALTHCHECK wget /health | present |
+
+### Load profile (autocannon 10s/scenario; local laptop, SQLite; limiter neutralised via env for measurement)
+
+| Scenario | req/s | p50 | p99 | errors | note |
+|---|---|---|---|---|---|
+| GET /products (auth read) | 529 | 17ms | 48ms | 0 | |
+| GET /weather+risks | 833 | 10ms | 35ms | 0 | mock provider path |
+| POST /auth/login | — | — | — | non2xx=17,441 | **login rate-limiter HELD**: 20/15m/IP enforced under sustained load, remainder 429 → brute-force control proven at load |
+| POST /ai/advisory | — | — | — | non2xx=28,192 | AI quota 30/h/user enforced (intended) |
+
+Caveat: figures are local-HW baselines, not staging capacity. Prod-HW soak remains an external action.
+
+### Rollback rehearsal (Phase-38 evidence)
+
+`v1.3.0` tag (`dc8746f`) → clean worktree → image rebuilt (`agrobridge-api:v1.3.0-rollback`) → booted against the same live PostgreSQL → `/health ok · /ready true · db true`. Previous-stable artifact verified runnable; app is stateless; migrations forward-only per `docs/deployment.md §Rollback`.
+
+### Codebase hygiene (Phase 40)
+
+59 source files scanned: **0** TODO/FIXME/HACK/debugger/console.log. Pino redaction confirmed (`logger.ts`: authorization/cookie/password/passwordHash/token). Request-ID correlation covered by `security-observability.test.ts` (8 tests).
+
+---
+
 ## 1–7 · IDENTITY, BUILD, STACK, REQUIREMENTS
 
 | Item | Evidence |
