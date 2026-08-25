@@ -82,6 +82,7 @@ paymentsRouter.post(
 /**
  * Sandbox confirm: simulates the gateway webhook/return path.
  * Marks payment SUCCEEDED atomically with the business side-effect.
+ * Idempotent under concurrency: only the first PENDING->SUCCEEDED claim wins.
  */
 paymentsRouter.post("/:id/confirm", async (req, res, next) => {
   try {
@@ -90,7 +91,11 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
     if (payment.status !== "PENDING") throw unprocessable(`Payment already ${payment.status}`);
 
     await prisma.$transaction(async (tx) => {
-      await tx.payment.update({ where: { id: payment.id }, data: { status: "SUCCEEDED" } });
+      const claimed = await tx.payment.updateMany({
+        where: { id: payment.id, status: "PENDING" },
+        data: { status: "SUCCEEDED" },
+      });
+      if (claimed.count !== 1) throw unprocessable(`Payment already ${payment.status}`);
 
       if (payment.purposeType === "ORDER") {
         await tx.order.update({ where: { id: payment.purposeId }, data: { status: "PAID", paymentStatus: "PAID" } });
