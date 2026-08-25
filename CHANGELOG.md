@@ -3,6 +3,25 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com) ·
 SemVer.
 
+## [1.3.0] — 2026-08-25 · Android & PWA Release
+
+### Added
+- **PWA:** `vite-plugin-pwa` — installable web app (manifest, offline precache, stale-while-revalidate
+  product cache, update prompt); apple/iOS meta tags; SVG app icon.
+- **Android (Capacitor 8):** native wrapper project `apps/web/android`
+  (`com.agrobridge.app`, versionCode 13000 / v1.3.0, targetSdk 36, minSdk 24),
+  camera permission for disease photo capture, release-signing config via git-ignored `key.properties`.
+- **Disease upload UI:** camera/file input with `capture="environment"` in Advisor page —
+  previously the `/disease/cases` API had no web UI at all.
+- **Configurable API base:** `VITE_API_BASE_URL` build-time env so one bundle works behind nginx
+  proxy and inside the APK (`apps/web/src/lib/api.ts`).
+- **CI:** new `android-build` job — JDK 21 + Capacitor sync + `gradlew assembleDebug` +
+  APK artifact upload on every push/PR.
+
+### Docs
+- `docs/android-release.md` — signing keys, CORS for APK origin (`https://localhost`),
+  adb sideload, Play Store submission checklist.
+
 ## [1.2.0] — 2026-08-25 · Enterprise Production Hardening
 
 ### Added
