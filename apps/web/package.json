@@ -8,8 +8,8 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "preview": "vite preview",
-    "test:e2e": "playwright test --list",
-    "test:e2e:run": "playwright test"
+    "test:e2e": "playwright test",
+    "e2e:list": "playwright test --list"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -17,6 +17,7 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",

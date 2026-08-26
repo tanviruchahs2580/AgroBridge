@@ -3,8 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
+import type { DictKey } from "../lib/i18n.js";
+import { mapError } from "../lib/errors-ui.js";
+import { track } from "../lib/analytics.js";
+import { Button, Card, ErrorBanner, Input, Label } from "../components/ui.jsx";
 
-const CROPS = ["ধান", "গম", "পাট", "সরিষা", "ভুট্টা", "আলু"];
+const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
+const CROP_KEYS: Record<string, DictKey> = {
+  RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE",
+  MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
+};
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -31,12 +39,17 @@ export default function Onboarding() {
     setError("");
     try {
       if (farmName.trim()) {
-        await api("POST", "/farms", { name: farmName.trim(), district: district || undefined, totalAreaBigha: area ? Number(area) : undefined });
+        await api("POST", "/farms", {
+          name: farmName.trim(),
+          district: district || undefined,
+          totalAreaBigha: area ? Number(area) : undefined,
+        });
+        track("farm_created");
       }
       localStorage.setItem("ab_onboarded", "1");
       nav("/");
     } catch (e) {
-      setError((e as Error).message);
+      setError(mapError(e, lang));
     } finally {
       setBusy(false);
     }
@@ -48,72 +61,92 @@ export default function Onboarding() {
         <div className="h-2 rounded-full bg-green-700 transition-all" style={{ width: `${progress}%` }} />
       </div>
       <p className="text-center text-xs text-stone-500">
-        {lang === "bn" ? `ধাপ ${step + 1} / ${total}` : `Step ${step + 1} / ${total}`} ·{" "}
-        <button onClick={() => { localStorage.setItem("ab_onboarded", "1"); nav("/"); }} className="font-semibold text-green-700 hover:underline">
-          {lang === "bn" ? "এখন এড়িয়ে যান" : "Skip for now"}
+        {t("obStepOf", lang, { step: step + 1, total })} ·{" "}
+        <button
+          type="button"
+          onClick={() => { localStorage.setItem("ab_onboarded", "1"); nav("/"); }}
+          className="font-semibold text-green-700 hover:underline"
+        >
+          {t("skipForNow", lang)}
         </button>
       </p>
 
       {step === 0 && (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{lang === "bn" ? "আপনি কে?" : "Who are you?"}</h2>
-          <p className="text-sm text-stone-600">{session?.fullName} · {session?.role}</p>
-          <p className="text-xs text-stone-500">{lang === "bn" ? "প্রোফাইল নিশ্চিত করুন এবং এগিয়ে যান।" : "Confirm your profile and continue."}</p>
-        </div>
+        <Card className="space-y-3">
+          <h2 className="text-lg font-bold text-stone-800">{t("onboarding", lang)}</h2>
+          <p className="text-sm text-stone-600">
+            {session?.fullName} · <span className="text-xs">{session?.role}</span>
+          </p>
+          <p className="text-xs text-stone-500">{t("obWhoHint", lang)}</p>
+        </Card>
       )}
       {step === 1 && (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{lang === "bn" ? "এলাকা / জেলা" : "Area / District"}</h2>
-          <input className="input" placeholder={lang === "bn" ? "যেমন: রংপুর" : "e.g. Rangpur"} value={district} onChange={(e) => setDistrict(e.target.value)} />
-        </div>
+        <Card className="space-y-3">
+          <h2 className="text-lg font-bold text-stone-800">{t("obDistrictTitle", lang)}</h2>
+          <div>
+            <Label htmlFor="ob-district">{t("districtPh", lang)}</Label>
+            <Input id="ob-district" placeholder={t("districtExample", lang)} value={district} onChange={(e) => setDistrict(e.target.value)} />
+          </div>
+        </Card>
       )}
       {step === 2 && (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{lang === "bn" ? "জমির পরিমাণ (বিঘা)" : "Land size (bigha)"}</h2>
-          <input type="number" min="0.1" step="0.1" className="input" placeholder={lang === "bn" ? "যেমন: 5" : "e.g. 5"} value={area} onChange={(e) => setArea(e.target.value)} />
-        </div>
+        <Card className="space-y-3">
+          <h2 className="text-lg font-bold text-stone-800">{t("obAreaTitle", lang)}</h2>
+          <div>
+            <Label htmlFor="ob-area">{t("areaBigha", lang)}</Label>
+            <Input id="ob-area" type="number" min="0.1" step="0.1" placeholder={t("areaExample", lang)} value={area} onChange={(e) => setArea(e.target.value)} />
+          </div>
+        </Card>
       )}
       {step === 3 && (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{lang === "bn" ? "প্রধান ফসল" : "Primary crops"}</h2>
+        <Card className="space-y-3">
+          <h2 className="text-lg font-bold text-stone-800">{t("obCropsTitle", lang)}</h2>
           <div className="flex flex-wrap gap-2">
             {CROPS.map((c) => (
               <button
                 key={c}
                 type="button"
+                aria-pressed={selectedCrops.includes(c)}
                 onClick={() => setSelectedCrops((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium ${selectedCrops.includes(c) ? "bg-green-700 text-white" : "bg-white ring-1 ring-stone-200 hover:bg-green-50"}`}
+                className={`min-h-[44px] rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+                  selectedCrops.includes(c) ? "bg-green-700 text-white" : "bg-white ring-1 ring-stone-200 hover:bg-green-50"
+                }`}
               >
-                {c}
+                {t(CROP_KEYS[c], lang)}
               </button>
             ))}
           </div>
-        </div>
+          {selectedCrops.length > 0 && (
+            <p className="text-xs text-stone-500">{t("selectedCropsLabel", lang)} {selectedCrops.map((c) => t(CROP_KEYS[c], lang)).join(", ")}</p>
+          )}
+        </Card>
       )}
       {step === 4 && (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{lang === "bn" ? "প্রথম ফার্ম তৈরি করুন" : "Create first farm"}</h2>
-          <input className="input" placeholder={lang === "bn" ? "ফার্মের নাম" : "Farm name"} value={farmName} onChange={(e) => setFarmName(e.target.value)} />
-          {selectedCrops.length > 0 && <p className="text-xs text-stone-500">{lang === "bn" ? "নির্বাচিত ফসল:" : "Selected:"} {selectedCrops.join(", ")}</p>}
-        </div>
+        <Card className="space-y-3">
+          <h2 className="text-lg font-bold text-stone-800">{t("obFarmTitle", lang)}</h2>
+          <div>
+            <Label htmlFor="ob-farm">{t("farmNamePh", lang)}</Label>
+            <Input id="ob-farm" placeholder={t("farmNamePh", lang)} value={farmName} onChange={(e) => setFarmName(e.target.value)} />
+          </div>
+        </Card>
       )}
 
-      {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <ErrorBanner message={error} />}
 
       <div className="flex gap-2">
         {step > 0 && (
-          <button type="button" onClick={() => setStep((s) => s - 1)} className="btn-outline flex-1">
-            {lang === "bn" ? "পিছনে" : "Back"}
-          </button>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => setStep((s) => s - 1)}>
+            ← {t("back", lang)}
+          </Button>
         )}
         {step < total - 1 ? (
-          <button type="button" onClick={() => setStep((s) => s + 1)} className="btn-primary flex-1">
-            {lang === "bn" ? "পরবর্তী" : "Next"}
-          </button>
+          <Button type="button" className="flex-1" onClick={() => setStep((s) => s + 1)}>
+            {t("next", lang)} →
+          </Button>
         ) : (
-          <button type="button" disabled={busy} onClick={finish} className="btn-primary flex-1">
-            {busy ? "..." : lang === "bn" ? "শুরু করুন" : "Get started"}
-          </button>
+          <Button type="button" className="flex-1" loading={busy} onClick={() => void finish()}>
+            {t("getStarted", lang)}
+          </Button>
         )}
       </div>
     </div>

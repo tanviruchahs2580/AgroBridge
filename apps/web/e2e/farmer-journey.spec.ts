@@ -13,7 +13,7 @@ test.describe("Farmer journey", () => {
     // Inputs are identified by stable DOM ids (#phone / #password) in pages/Login.tsx
     await page.fill("#phone", "01700000002");
     await page.fill("#password", "Demo@1234");
-    await page.click('button:has-text("Login"), button:has-text("লগইন")');
+    await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');
     // After login, should land on home
     await page.waitForURL(/.*\/$/, { timeout: 10_000 });
     await expect(page.locator("text=AgroBridge")).toBeVisible({ timeout: 5_000 }).catch(() => {});

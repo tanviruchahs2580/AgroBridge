@@ -48,3 +48,5 @@ apps/web/android/build/
 apps/web/android/app/build/
 apps/web/android/capacitor-cordova-android-plugins/build/
 apps/web/android/local.properties
+apps/web/test-results/
+apps/web/playwright-report/

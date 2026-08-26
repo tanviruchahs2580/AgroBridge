@@ -2,6 +2,14 @@
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
+import type { DictKey } from "../lib/i18n.js";
+import { formatBDT } from "../lib/format.js";
+import { cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../lib/labels.js";
+import { mapError } from "../lib/errors-ui.js";
+import { track } from "../lib/analytics.js";
+import {
+  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, Stepper, useConfirm, useToast,
+} from "../components/ui.jsx";
 
 interface ProcurementOrder {
   id: string;
@@ -14,49 +22,95 @@ interface ProcurementOrder {
 }
 
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
-// F-UX3: farmer-first bilingual labels (value stays API enum)
-const CROP_LABELS: Record<string, string> = { RICE: "ধান (RICE)", WHEAT: "গম (WHEAT)", JUTE: "পাট (JUTE)", MUSTARD: "সরিষা (MUSTARD)", MAIZE: "ভুট্টা (MAIZE)", POTATO: "আলু (POTATO)" };
+const CROP_KEYS: Record<string, DictKey> = {
+  RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE",
+  MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
+};
+const PIPE_KEYS: Record<string, DictKey> = {
+  SUBMITTED: "pipeSUBMITTED", QC: "pipeQC", PURCHASE_ORDER: "pipePO",
+  COLLECTED: "pipeCOLLECTED", PAID: "pipePAID",
+};
+const GRADE_KEYS: Record<string, DictKey> = { A: "gradeA", B: "gradeB", C: "gradeC" };
 
 export default function SellCrop() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
   const [orders, setOrders] = useState<ProcurementOrder[]>([]);
-  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formErrs, setFormErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    setOrders(await api<ProcurementOrder[]>("GET", "/procurement"));
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setOrders(await api<ProcurementOrder[]>("GET", "/procurement"));
+    } catch (err) {
+      setLoadError(mapError(err, lang));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         setFarms(await api<{ id: string; name: string }[]>("GET", "/farms"));
-        await load();
-      } catch {
-        setMsg(t("errorGeneric", lang));
+      } catch (err) {
+        setLoadError(mapError(err, lang));
       }
+      await load();
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const errs: Record<string, string> = {};
+    if (!fd.get("farm")) errs.farm = t("errFieldRequired", lang);
+    if (!fd.get("crop")) errs.crop = t("errFieldRequired", lang);
+    const qty = Number(fd.get("qty"));
+    if (!qty || qty < 1) errs.qty = t("errAmountInvalid", lang);
+    const moistureRaw = fd.get("moisture") as string;
+    if (moistureRaw && (Number(moistureRaw) < 0 || Number(moistureRaw) > 60)) errs.moisture = t("errValidation", lang);
+    setFormErrs(errs);
+    if (Object.keys(errs).length > 0 || !farms.length) return;
+
+    const cropValue = String(fd.get("crop"));
+    const okToSubmit = await confirm({
+      title: t("submitOfferTitle", lang),
+      body: t("submitOfferBody", lang, {
+        crop: t(CROP_KEYS[cropValue], lang),
+        qty,
+        unit: t("kgUnit", lang),
+      }),
+      confirmLabel: t("submit", lang),
+      cancelLabel: t("cancel", lang),
+    });
+    if (!okToSubmit) return;
+
     setBusy(true);
-    setMsg("");
     try {
       await api("POST", "/procurement/offers", {
         farmId: fd.get("farm"),
-        cropName: fd.get("crop"),
-        quantityKg: Number(fd.get("qty")),
-        moisturePct: fd.get("moisture") ? Number(fd.get("moisture")) : undefined,
+        cropName: cropValue,
+        quantityKg: qty,
+        moisturePct: moistureRaw ? Number(moistureRaw) : undefined,
         qualityGrade: fd.get("grade"),
       });
+      track("offer_submitted", { crop: cropValue });
+      toast.success(t("offerSubmittedToast", lang));
+      form.reset();
       await load();
-      setMsg(lang === "bn" ? "✅ অফার জমা হয়েছে — গুণগত যাচাইয়ের অপেক্ষায়।" : "✅ Offer submitted — pending QC.");
     } catch (err) {
-      setMsg((err as Error).message);
+      toast.error(mapError(err, lang));
     } finally {
       setBusy(false);
     }
@@ -64,46 +118,112 @@ export default function SellCrop() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-stone-800">💰 {t("sellCrop", lang)}</h1>
-      {msg && <p className="card bg-green-50 text-sm text-green-800">{msg}</p>}
-
-      <form onSubmit={submit} className="card grid gap-3 sm:grid-cols-2">
-        <select name="farm" className="input" required defaultValue="">
-          <option value="" disabled>ফার্ম</option>
-          {farms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
-        <select name="crop" className="input" required defaultValue="">
-          <option value="" disabled>{t("cropName", lang)}</option>
-          {CROPS.map((c) => <option key={c} value={c}>{CROP_LABELS[c] ?? c}</option>)}
-        </select>
-        <input name="qty" type="number" min="1" step="1" className="input" placeholder={t("quantityKg", lang)} required />
-        <div className="grid grid-cols-2 gap-3">
-          <input name="moisture" type="number" min="0" max="60" step="0.5" className="input" placeholder={t("moisturePct", lang)} />
-          <select name="grade" className="input" defaultValue="A" title={t("qualityGrade", lang)}>
-            <option value="A">গ্রেড A</option>
-            <option value="B">গ্রেড B</option>
-            <option value="C">গ্রেড C</option>
-          </select>
+      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>💰</span> {t("sellCrop", lang)}</h1>
+      {loadError && (
+        <div className="space-y-2">
+          <ErrorBanner message={loadError} />
+          <Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button>
         </div>
-        <button className="btn-primary sm:col-span-2" disabled={busy || farms.length === 0}>{t("submit", lang)}</button>
-      </form>
+      )}
 
-      <h2 className="pt-2 font-semibold text-stone-700">{lang === "bn" ? "আমার ফসলের অফার" : "My offers"}</h2>
-      <div className="space-y-2">
-        {orders.length === 0 && <p className="card text-center text-sm text-stone-400">এখনো কোনো অফার নেই।</p>}
-        {orders.map((o) => (
-          <div key={o.id} className="card flex items-center justify-between text-sm">
+      <Card>
+        <form onSubmit={submit} noValidate className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="of-farm">{t("farmLabel", lang)}</Label>
+            <Select id="of-farm" name="farm" defaultValue="" aria-invalid={Boolean(formErrs.farm)}>
+              <option value="" disabled>{t("farmLabel", lang)}</option>
+              {farms.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </Select>
+            {formErrs.farm && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
+          </div>
+          <div>
+            <Label htmlFor="of-crop">{t("cropName", lang)}</Label>
+            <Select id="of-crop" name="crop" defaultValue="" aria-invalid={Boolean(formErrs.crop)}>
+              <option value="" disabled>{t("cropName", lang)}</option>
+              {CROPS.map((c) => (
+                <option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>
+              ))}
+            </Select>
+            {formErrs.crop && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.crop}</p>}
+          </div>
+          <div>
+            <Label htmlFor="of-qty">{t("quantityKg", lang)}</Label>
+            <Input id="of-qty" name="qty" type="number" min="1" step="1" aria-invalid={Boolean(formErrs.qty)} />
+            {formErrs.qty && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.qty}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className="font-bold text-stone-800">{o.cropName}</span> · {o.quantityKg} কেজি · গ্রেড {o.qualityGrade}
-              <p className="text-xs text-stone-400">{o.poNo}</p>
+              <Label htmlFor="of-moisture">{t("moisturePct", lang)}</Label>
+              <Input id="of-moisture" name="moisture" type="number" min="0" max="60" step="0.5" aria-invalid={Boolean(formErrs.moisture)} />
+              {formErrs.moisture && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.moisture}</p>}
             </div>
-            <div className="text-right">
-              <p className="font-bold text-green-800">৳{(o.netPayablePaisa / 100).toLocaleString("bn-BD")}</p>
-              <span className="badge bg-stone-100 text-stone-600">{o.status}</span>
+            <div>
+              <Label htmlFor="of-grade">{t("qualityGrade", lang)}</Label>
+              <Select id="of-grade" name="grade" defaultValue="A">
+                {(["A", "B", "C"] as const).map((g) => (
+                  <option key={g} value={g}>{t(GRADE_KEYS[g], lang)}</option>
+                ))}
+              </Select>
             </div>
           </div>
-        ))}
-      </div>
+          <Button type="submit" className="sm:col-span-2" loading={busy} disabled={farms.length === 0}>
+            {t("submit", lang)}
+          </Button>
+          {farms.length === 0 && !loading && (
+            <p className="text-xs text-stone-400 sm:col-span-2">{t("needFarmFirst", lang)}</p>
+          )}
+        </form>
+      </Card>
+
+      <h2 className="pt-2 font-semibold text-stone-700">{t("myOffers", lang)}</h2>
+      {loading ? (
+        <Card><Skeleton className="h-16 w-full" /></Card>
+      ) : orders.length === 0 ? (
+        <EmptyState icon="🌾" title={t("noOffers", lang)} />
+      ) : (
+        <div className="space-y-2">
+          {orders.map((o) => {
+            if (o.status === "REJECTED") {
+              return (
+                <Card key={o.id} className="text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-stone-800">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
+                      {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
+                      <p className="text-xs text-stone-400">{o.poNo}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-right">
+                      <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
+                      <Badge className="bg-red-100 text-red-700">{procurementStatusLabel(o.status, lang)}</Badge>
+                    </div>
+                  </div>
+                </Card>
+              );
+            }
+            const idx = PROC_PIPELINE.indexOf(o.status as (typeof PROC_PIPELINE)[number]);
+            return (
+              <Card key={o.id}>
+                <div className="mb-3 flex items-center justify-between gap-2 text-sm">
+                  <div>
+                    <span className="font-bold text-stone-800">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
+                    {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
+                    <p className="text-xs text-stone-400">{o.poNo}</p>
+                  </div>
+                  <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
+                </div>
+                <Stepper
+                  steps={PROC_PIPELINE.map((stage, i) => ({
+                    label: t(PIPE_KEYS[stage], lang),
+                    state: i < idx ? "done" : i === idx ? "current" : "todo",
+                  }))}
+                />
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

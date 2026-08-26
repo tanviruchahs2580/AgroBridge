@@ -1,7 +1,9 @@
-// API client with token storage + refresh handling.
+// API client: token storage, single-flight refresh, timeout + retry resilience.
 // Base URL is build-time configurable so the same bundle works behind nginx
 // proxy ("/api/v1") or as a Capacitor APK / cross-origin PWA ("https://api…").
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
+
+export const API_BASE = BASE;
 
 export interface AuthUser {
   id: string;
@@ -32,21 +34,119 @@ export function hasToken() {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public details?: unknown) {
+  /** HTTP status; 0 means the request failed at network/timeout level. */
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+    public details?: unknown,
+    /** Backend-provided support/reference id from the error envelope. */
+    public reference?: string
+  ) {
     super(message);
+    this.name = "ApiError";
+  }
+}
+
+// ── Unauthorized hook (consumed by session.tsx) ──
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+/** Register the callback invoked when an authenticated session is definitively rejected (final 401). */
+export function setUnauthorizedHandler(fn: UnauthorizedHandler | null) {
+  unauthorizedHandler = fn;
+}
+
+// ── Connectivity helpers ──
+export function isOnline(): boolean {
+  return typeof navigator === "undefined" ? true : navigator.onLine !== false;
+}
+
+export function onOnlineStatusChange(cb: (online: boolean) => void): () => void {
+  const goOnline = () => cb(true);
+  const goOffline = () => cb(false);
+  window.addEventListener("online", goOnline);
+  window.addEventListener("offline", goOffline);
+  return () => {
+    window.removeEventListener("online", goOnline);
+    window.removeEventListener("offline", goOffline);
+  };
+}
+
+// ── Transport ──
+const REQUEST_TIMEOUT_MS = 10_000;
+const GET_RETRY_DELAYS_MS = [300, 900];
+
+class NetworkError extends Error {
+  constructor(public timedOut: boolean, message: string) {
+    super(message);
+    this.name = "NetworkError";
   }
 }
 
 async function rawRequest(method: string, path: string, body?: unknown): Promise<Response> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
-  });
-  return res;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${BASE}${path}`, {
+      method,
+      headers: {
+        ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new NetworkError(true, `Request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw new NetworkError(false, err instanceof Error ? err.message : "Network request failed");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/** GET-only retry on network errors/timeouts/5xx with exponential backoff. Never retries 4xx. */
+async function performWithRetry(method: string, path: string, body?: unknown): Promise<Response> {
+  const isGet = method.toUpperCase() === "GET";
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await rawRequest(method, path, body);
+    } catch (err) {
+      if (isGet && attempt < GET_RETRY_DELAYS_MS.length && err instanceof NetworkError) {
+        await sleep(GET_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      throw err;
+    }
+    if (isGet && attempt < GET_RETRY_DELAYS_MS.length && res.status >= 500) {
+      await sleep(GET_RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+    return res;
+  }
+}
+
+function networkApiError(err: NetworkError): ApiError {
+  return new ApiError(0, err.timedOut ? "NETWORK_TIMEOUT" : "NETWORK_ERROR", err.message);
+}
+
+interface Envelope {
+  ok?: boolean;
+  data?: unknown;
+  error?: { code?: string; message?: string; details?: unknown; reference?: string };
+}
+
+function parseEnvelope(res: Response): Promise<Envelope> {
+  return res.json().catch(
+    (): Envelope => ({ ok: false, error: { code: "BAD_RESPONSE", message: "Malformed server response" } })
+  );
 }
 
 /** Single-flight refresh to avoid stampedes on 401. */
@@ -73,20 +173,48 @@ async function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T = unknown>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
-  let res = await rawRequest(method, path, body);
-  if (res.status === 401 && retry && refreshToken) {
+export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  const wasAuthed = Boolean(accessToken);
+
+  let res: Response;
+  try {
+    res = await performWithRetry(method, path, body);
+  } catch (err) {
+    if (err instanceof NetworkError) throw networkApiError(err);
+    throw err;
+  }
+
+  let json = await parseEnvelope(res);
+
+  if (res.status === 401) {
+    // Try one silent refresh + replay.
     if (await tryRefresh()) {
-      res = await rawRequest(method, path, body);
+      try {
+        res = await performWithRetry(method, path, body);
+        json = await parseEnvelope(res);
+      } catch (err) {
+        if (err instanceof NetworkError) throw networkApiError(err);
+        throw err;
+      }
+    }
+    if (res.status === 401) {
+      // Refresh failed OR replay STILL returned 401 → session is dead.
+      // Clear tokens and notify the app layer (previously tokens were kept).
+      clearTokens();
+      if (wasAuthed) unauthorizedHandler?.();
+      throw new ApiError(
+        res.status,
+        json.error?.code ?? "UNAUTHORIZED",
+        json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
+        json.error?.details,
+        json.error?.reference
+      );
     }
   }
 
-  const json = await res.json().catch(() => ({ ok: false, error: { code: "BAD_RESPONSE", message: "Malformed server response" } }));
-
   if (!res.ok || !json.ok) {
-    const err = json?.error ?? {};
-    if (res.status === 401 && !retry) clearTokens();
-    throw new ApiError(res.status, err.code ?? "UNKNOWN", err.message ?? "সমস্যা হয়েছে / Something went wrong", err.details);
+    const err = json.error ?? {};
+    throw new ApiError(res.status, err.code ?? "UNKNOWN", err.message ?? "সমস্যা হয়েছে / Something went wrong", err.details, err.reference);
   }
   return json.data as T;
 }
