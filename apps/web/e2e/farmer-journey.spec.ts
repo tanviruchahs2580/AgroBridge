@@ -25,10 +25,10 @@ test.describe("Farmer journey", () => {
       await toggle.click();
     }
     // Navigate to farm
-    await page.click('a:has-text("My Farm"), a:has-text("আমার ফার্ম")');
+    await page.click('a[href="/farm"], a:has-text("My Farm"), a:has-text("আমার ফার্ম")');
     await expect(page).toHaveURL(/.*farm/);
     // Market
-    await page.click('a:has-text("Market"), a:has-text("বাজার")');
+    await page.click('a[href="/market"], a:has-text("Market"), a:has-text("বাজার")');
     await expect(page).toHaveURL(/.*market/);
     // Just verify market loads (products may be empty before seed)
     await expect(page.locator("body")).toContainText(/Market|বাজার|Product|পণ্য/);
