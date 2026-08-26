@@ -87,7 +87,11 @@ farmsRouter.post("/", validate({ body: farmBody }), async (req, res, next) => {
 farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req, res, next) => {
   try {
     await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
-    const farm = await prisma.farm.update({ where: { id: req.params.id! }, data: req.body as never });
+    // organizationId is NOT patchable by owners — org linking is an
+    // admin/organization flow; otherwise a farmer could attach their farm to
+    // an arbitrary org and leak visibility.
+    const { organizationId: _blocked, ...data } = req.body as Record<string, unknown>;
+    const farm = await prisma.farm.update({ where: { id: req.params.id! }, data });
     ok(res, farm);
   } catch (e) {
     next(e);

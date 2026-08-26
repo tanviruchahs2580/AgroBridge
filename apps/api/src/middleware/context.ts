@@ -21,6 +21,6 @@ export function ok(res: Response, data: unknown, status = 200) {
   res.status(status).json({ ok: true, data, requestId: res.req.requestId });
 }
 
-export function fail(res: Response, status: number, code: string, message: string, details?: unknown) {
-  res.status(status).json({ ok: false, error: { code, message, details }, requestId: res.req.requestId });
+export function fail(res: Response, status: number, code: string, message: string, details?: unknown, reference?: string) {
+  res.status(status).json({ ok: false, error: { code, message, details, reference }, requestId: res.req.requestId });
 }

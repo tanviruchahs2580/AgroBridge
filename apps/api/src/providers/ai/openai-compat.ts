@@ -1,6 +1,6 @@
 import { env } from "../../config/env.js";
 import { AiContext, AiAnswer, expertVerificationNote, LOW_CONFIDENCE_THRESHOLD, AiProvider } from "./types.js";
-import { retrieve } from "./knowledge.js";
+import { retrieve, sanitizeQuestion } from "./knowledge.js";
 
 /**
  * Adapter for any OpenAI-compatible chat completions API.
@@ -13,7 +13,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
   readonly model = env.OPENAI_MODEL;
 
   async ask(question: string, ctx: AiContext): Promise<AiAnswer> {
-    const { entries } = retrieve(question.toLowerCase(), ctx.cropName);
+    const sanitized = sanitizeQuestion(question);
+    const { entries } = retrieve(sanitized.toLowerCase(), ctx.cropName);
     const grounding = entries
       .map((e) => `[KB:${e.id}] ${ctx.lang === "bn" ? e.answerBn : e.answerEn}`)
       .join("\n\n");
@@ -41,7 +42,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
         max_tokens: 600,
         messages: [
           { role: "system", content: system },
-          { role: "user", content: question },
+          { role: "user", content: sanitized },
         ],
       }),
     });
@@ -63,7 +64,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
       model: this.model,
       lowConfidenceFlag,
       groundedRefs: entries.map((e) => e.id),
-      ...((usage?.prompt_tokens != null || usage?.completion_tokens != null) && {}),
+      tokensIn: usage?.prompt_tokens,
+      tokensOut: usage?.completion_tokens,
     };
   }
 }

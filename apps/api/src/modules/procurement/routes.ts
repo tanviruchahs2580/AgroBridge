@@ -84,11 +84,22 @@ procurementRouter.post(
 
 procurementRouter.get("/", async (req, res, next) => {
   try {
-    // GAP-P-01: PROCUREMENT_MANAGER must see the review queue (read-only list).
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN", "PROCUREMENT_MANAGER"].includes(req.auth!.role);
+    // Queue visibility: admins see all; procurement/area/collection managers
+    // see their territory (user.region) or everything while unassigned;
+    // farmers see only their own offers.
+    const role = req.auth!.role;
+    let where: Record<string, unknown>;
+    if (["ADMIN", "SUPER_ADMIN"].includes(role)) {
+      where = {};
+    } else if (["PROCUREMENT_MANAGER", "AREA_MANAGER", "COLLECTION_MANAGER", "REGIONAL_MANAGER"].includes(role)) {
+      const me = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: { region: true } });
+      where = me?.region ? { user: { region: me.region } } : {};
+    } else {
+      where = { userId: req.auth!.userId };
+    }
     const pos = await prisma.procurementOrder.findMany({
-      where: isPrivileged ? {} : { userId: req.auth!.userId },
-      include: { farm: { select: { name: true } }, user: { select: { fullName: true, phone: true } } },
+      where,
+      include: { farm: { select: { name: true } }, user: { select: { fullName: true, phone: true, region: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
@@ -121,9 +132,15 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
       throw unprocessable(`Cannot ${action} from status ${po.status}`);
     }
 
-    const updated = await prisma.procurementOrder.update({
-      where: { id: po.id },
-      data: { status: t.to, qcNotes: qcNotes ?? po.qcNotes },
+    // Transactional conditional transition: prevents two reviewers racing
+    // past each other (check-then-write TOCTOU).
+    const updated = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.procurementOrder.updateMany({
+        where: { id: po.id, status: { in: t.from } },
+        data: { status: t.to, qcNotes: qcNotes ?? po.qcNotes },
+      });
+      if (claimed.count !== 1) throw unprocessable(`Cannot ${action} from status ${po.status}`);
+      return tx.procurementOrder.findUniqueOrThrow({ where: { id: po.id } });
     });
 
     await notify({

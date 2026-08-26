@@ -15,6 +15,8 @@ export interface AiAnswer {
   model: string;
   lowConfidenceFlag: boolean;
   groundedRefs: string[];
+  tokensIn?: number;
+  tokensOut?: number;
 }
 
 export interface AiProvider {

@@ -8,6 +8,11 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
+import { createRedisStore } from "./lib/rateLimitRedis.js";
+
+// Multi-instance deployments set REDIS_URL so all pods share limit windows.
+const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
+if (sharedStore) logger.info("rate limiting backed by Redis");
 
 import { authRouter } from "./modules/auth/routes.js";
 import { farmsRouter } from "./modules/farms/routes.js";
@@ -21,11 +26,14 @@ import { paymentsRouter, walletRouter, membershipRouter } from "./modules/paymen
 import { notificationsRouter } from "./modules/notifications/routes.js";
 import { adminRouter } from "./modules/admin/routes.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
+import { analyticsRouter } from "./modules/analytics/routes.js";
+import { paymentWebhookRouter } from "./modules/payments/webhook.js";
+import { metricsGuard } from "./middleware/metricsGuard.js";
 
 export function createApp() {
   const app = express();
 
-  app.set("trust proxy", 1);
+  app.set("trust proxy", env.TRUST_PROXY === "false" ? false : env.TRUST_PROXY);
   app.disable("x-powered-by");
 
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
@@ -50,6 +58,7 @@ export function createApp() {
     legacyHeaders: false,
     // Relaxed in local dev; enforced in test/staging/production.
     skip: () => process.env.NODE_ENV === "development",
+    store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
   });
   app.use("/api/", globalLimiter);
@@ -70,13 +79,16 @@ export function createApp() {
     }
   });
 
-  app.get("/metrics", async (_req, res) => {
+  app.get("/metrics", metricsGuard, async (_req, res) => {
     res.setHeader("Content-Type", registry.contentType);
     res.send(await registry.metrics());
   });
 
   // ---- Versioned API ----
   const v1 = express.Router();
+  // Payment gateway IPN/webhooks are unauthenticated by design and verify
+  // provider signatures themselves; mounted BEFORE the auth-gated router.
+  v1.use("/payments", paymentWebhookRouter);
   v1.use("/auth", authRouter);
   v1.use("/farms", farmsRouter);
   v1.use("/weather", weatherRouter);
@@ -94,6 +106,7 @@ export function createApp() {
   v1.use("/notifications", notificationsRouter);
   v1.use("/admin", adminRouter);
   v1.use("/organizations", organizationsRouter);
+  v1.use("/analytics", analyticsRouter);
   app.use("/api/v1", v1);
 
   logger.info("AgroBridge API routes mounted");

@@ -177,9 +177,21 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
 
 bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]), reason: z.string().max(300).optional() }) }), async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role) || req.auth!.role === "SERVICE_PROVIDER";
+    const role = req.auth!.role;
+    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
+    // SERVICE_PROVIDER may only transition bookings assigned to THEM.
+    let scope: Record<string, unknown>;
+    if (isAdmin) {
+      scope = {};
+    } else if (role === "SERVICE_PROVIDER") {
+      const provider = await prisma.serviceProvider.findFirst({ where: { userId: req.auth!.userId }, select: { id: true } });
+      if (!provider) throw notFound("Provider profile");
+      scope = { providerId: provider.id };
+    } else {
+      scope = { userId: req.auth!.userId };
+    }
     const booking = await prisma.booking.findFirst({
-      where: { id: req.params.id!, ...(isPrivileged ? {} : { userId: req.auth!.userId }) },
+      where: { id: req.params.id!, ...scope },
     });
     if (!booking) throw notFound("Booking");
 
