@@ -75,3 +75,32 @@ Or copy the APK to the phone and enable "Install unknown apps" for the file mana
 2. Upload signed `.aab` to Internal testing
 3. Complete: Privacy Policy URL, Data Safety (phone/photos/financial), content rating, bn+en listing + screenshots
 4. Promote Internal → Closed (≥20 testers, 14 days for new personal accounts) → Production staged rollout
+
+## 9. Signed AAB via CI (secrets-based)
+
+`.github/workflows/android-release.yml` (manual `workflow_dispatch` trigger) builds a signed
+`.aab` + release `.apk` in CI — no local Android Studio needed.
+
+Required GitHub repo secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Contents |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | base64 of the release keystore (`base64 -w0 agrobridge-release.keystore.jks`) |
+| `KEYSTORE_PASSWORD` | keystore password |
+| `KEY_ALIAS` | key alias (e.g., `agrobridge`) |
+| `KEY_PASSWORD` | key password |
+
+One-time keystore generation (keep offline backup):
+
+```bash
+keytool -genkeypair -v -keystore agrobridge-release.keystore.jks \
+  -alias agrobridge -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Security notes:
+
+- The keystore is **NEVER committed** — `.gitignore` already excludes `*.keystore.jks` /
+  `key.properties`; CI decodes it from secrets into `apps/web/android/app/`.
+- Keep exactly one backup in a password manager or HSM — Google Play updates are bound to
+  this key forever (see §3). No copies in chats, drives or laptops.
+- The workflow fails fast with a clear error if any secret is missing.

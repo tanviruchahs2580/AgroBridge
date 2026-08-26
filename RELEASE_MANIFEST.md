@@ -1,8 +1,30 @@
 # AgroBridge — Release Manifest
 
-Version: **v1.1.1** (candidate, patch over `v1.1.0` hardened baseline)  
-Date: 2026-08-25  
-Commit: (hardening fixes — payment confirm race, login limiter, docker PG client, test generation)  
+Version: **v1.5.0** (candidate — Production Hardening & Product Transformation)
+Date: 2026-08-26
+Previous release: `v1.3.0` (2026-08-25). Full delta: see CHANGELOG 1.5.0.
+
+> Historical note: sections below describe the v1.1.1 manifest and are retained for
+> provenance; current-state deltas (9 CI jobs incl. real E2E/coverage gates, prod
+> compose, monitoring files, legal docs, withdrawal/refund/OTP flows) are listed in
+> CHANGELOG `[1.5.0]` and `PRODUCTION_GAP_REGISTER.md`.
+
+## Current known limitations (v1.5.0 go/no-go)
+1. Live payment gateway credentials + webhook endpoint URL not yet provisioned (SSLCommerz).
+2. No production host/TLS/staging yet (`docker-compose.prod.yml`, TLS nginx conf and
+   deploy scaffold ready; requires operator secrets + domain).
+3. Signed AAB pending keystore generation (`android-release.yml` workflow ready, secrets-based).
+4. Monitoring sink not deployed (prometheus.yml/alert_rules.yml/dashboard shipped in repo).
+5. SMS gateway adapter is sandbox/log-only until a provider account exists.
+6. Real-device UAT with farmers outstanding (script: docs/uat-script.md).
+
+---
+
+# Historical manifest (v1.1.1) — retained
+
+Version: **v1.1.1** (candidate, patch over `v1.1.0` hardened baseline)
+Date: 2026-08-25
+Commit: (hardening fixes — payment confirm race, login limiter, docker PG client, test generation)
 Previous release: `v1.1.0` (2026-08-25, see CHANGELOG) — 79/79 on both SQLite + PG 17.5, backup 12.6s
 
 ## Artifacts

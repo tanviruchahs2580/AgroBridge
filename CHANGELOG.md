@@ -3,6 +3,26 @@
 All notable changes are documented here. Format: [Keep a Changelog](https://keepachangelog.com) ·
 SemVer.
 
+## [1.5.0] — 2026-08-26 · Production Hardening & Product Transformation
+
+### Security (Phase 0)
+- **Payments:** SSLCommerz IPN webhook with signature verification (`/api/v1/payments/webhook/sslcommerz`); sandbox `/confirm` forbidden when a real gateway is configured; stale PENDING intents superseded atomically; refunds (orders) with compensating DEBIT ledger entries; membership expiry persisted and enforced in discount calculation.
+- **Auth:** refresh-token rotation with reuse detection (replay revokes the token family); phone OTP endpoints; production payouts/withdrawals require verified phone; self-service account deletion (anonymization, financial rows retained per policy).
+- **RBAC:** SERVICE_PROVIDER limited to own assigned bookings; farm `organizationId` not patchable by owners; procurement review transitions race-safe; region-scoped manager queues; `/metrics` gated in production.
+- **Ops:** stable support references `AB-XXXXXX` on error envelopes; configurable trust proxy; Redis-backed rate limiting when `REDIS_URL` set; graceful shutdown drains Prisma; unhandled rejection handlers.
+
+### Product / UX
+- Design system adopted across all pages; self-hosted Noto Sans Bengali; full i18n sweep (~380 keys); consistent BDT/date formatting; bilingual inline validation.
+- Toasts + confirm dialogs on money/destructive actions; 4-step checkout wizard with fee/discount transparency; sell-crop stepper; decision dashboard, onboarding wizard, bottom-nav shell (Sprint A).
+- Wallet month-in/out summary + withdrawal request flow with admin approvals; notification taxonomy + preferences; offline banner + queued farm-event sync.
+- First-party analytics events + admin funnel summary.
+
+### Quality gates
+- Coverage thresholds enforced in CI; +37 API tests (payments integrity, auth hardening, RBAC fixes, withdrawals) — 119 passing; Playwright E2E additions: axe a11y, English-mode, offline banner, admin guard.
+
+### Infra / Release
+- Prod compose (PG17, healthchecks, limits), TLS nginx config (CSP/HSTS), Prometheus rules + Grafana dashboard, CodeQL, Dependabot, signed-AAB workflow, staging deploy scaffold, S3-compatible storage provider (zero-dep SigV4), uploads prune script, Privacy Policy + Terms (bn+en), data-protection/UAT/support runbooks, SECURITY_WAIVERS register, PWA PNG/maskable icons.
+
 ## [1.3.0] — 2026-08-25 · Android & PWA Release
 
 ### Added

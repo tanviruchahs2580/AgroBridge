@@ -1,0 +1,17 @@
+# Prometheus scrape config for AgroBridge (runs on the same compose network as `api`).
+# Mount as /etc/prometheus/prometheus.yml; alert_rules.yml alongside it.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  # /health (liveness) and /ready are probed by Docker HEALTHCHECKs — see docs/operations.md.
+  # Metrics are exposed unauthenticated on the internal network only.
+  - job_name: agrobridge-api
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["api:4000"]
