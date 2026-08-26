@@ -1,33 +1,54 @@
 ﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, setTokens } from "../lib/api.js";
+import { track } from "../lib/analytics.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
+import { Button, Card, ErrorBanner, Input, Label } from "../components/ui.jsx";
+import { BD_PHONE_RE, mapError } from "../lib/errors-ui.js";
 
 export default function Register() {
+  const { session } = useSession();
+  const lang = session?.lang ?? "bn";
   const [fullName, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [langPref, setLangPref] = useState<"bn" | "en">("bn");
+  const [fieldErrs, setFieldErrs] = useState<{ fullName?: string; phone?: string; password?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const { refresh } = useSession();
 
+  const inputInvalid =
+    (fullName.trim().length > 0 && fullName.trim().length < 2) ||
+    (phone.trim().length > 0 && !BD_PHONE_RE.test(phone.trim())) ||
+    (password.length > 0 && password.length < 8);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const errs: typeof fieldErrs = {};
+    if (!fullName.trim()) errs.fullName = t("errFieldRequired", lang);
+    else if (fullName.trim().length < 2) errs.fullName = t("errNameTooShort", lang);
+    if (!phone.trim()) errs.phone = t("errFieldRequired", lang);
+    else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
+    if (!password) errs.password = t("errFieldRequired", lang);
+    else if (password.length < 8) errs.password = t("errWeakPassword", lang);
+    setFieldErrs(errs);
+    if (Object.keys(errs).length > 0) return;
+
     setBusy(true);
     setError("");
     try {
       const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/register", {
-        fullName, phone, password, langPref,
+        fullName: fullName.trim(), phone: phone.trim(), password, langPref,
       });
       setTokens(data.accessToken, data.refreshToken);
+      track("register_success");
       await refresh();
       nav("/farm");
     } catch (err) {
-      const anyErr = err as { details?: { path: string; message: string }[] };
-      setError(anyErr.details?.map((d) => d.message).join(", ") || (err as Error).message);
+      setError(mapError(err, lang));
     } finally {
       setBusy(false);
     }
@@ -35,37 +56,80 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-green-50 to-stone-100 px-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-bold text-green-800">{t("register", "bn")}</h1>
-        <div>
-          <label className="label" htmlFor="name">{t("fullName", "bn")}</label>
-          <input id="name" className="input" value={fullName} onChange={(e) => setName(e.target.value)} required minLength={2} />
-        </div>
-        <div>
-          <label className="label" htmlFor="rphone">{t("phone", "bn")}</label>
-          <input id="rphone" className="input" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01XXXXXXXXX" required pattern="01[3-9][0-9]{8}" />
-        </div>
-        <div>
-          <label className="label" htmlFor="rpass">{t("password", "bn")} (৮+ অক্ষর)</label>
-          <input id="rpass" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-        </div>
-        <div>
-          <span className="label">ভাষা / Language</span>
-          <div className="flex gap-2">
-            {(["bn", "en"] as const).map((l) => (
-              <button key={l} type="button" onClick={() => setLangPref(l)}
-                className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${langPref === l ? "border-green-700 bg-green-50 text-green-800" : "border-stone-300 text-stone-500"}`}>
-                {l === "bn" ? "বাংলা" : "English"}
-              </button>
-            ))}
+      <Card className="w-full max-w-sm">
+        <form onSubmit={submit} noValidate className="space-y-4">
+          <h1 className="text-xl font-bold text-green-800">{t("registerTitle", lang)}</h1>
+          <div>
+            <Label htmlFor="name">{t("fullName", lang)}</Label>
+            <Input
+              id="name"
+              autoComplete="name"
+              value={fullName}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("fullNamePlaceholder", lang)}
+              aria-invalid={Boolean(fieldErrs.fullName)}
+            />
+            {fieldErrs.fullName && <p role="alert" className="mt-1 text-xs text-red-600">{fieldErrs.fullName}</p>}
           </div>
-        </div>
-        {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        <button type="submit" className="btn-primary w-full !py-3" disabled={busy}>{busy ? "..." : t("register", "bn")}</button>
-        <p className="text-center text-sm text-stone-500">
-          <Link to="/login" className="font-semibold text-green-700 hover:underline">{t("login", "bn")} →</Link>
-        </p>
-      </form>
+          <div>
+            <Label htmlFor="rphone">{t("phone", lang)}</Label>
+            <Input
+              id="rphone"
+              inputMode="numeric"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={t("phonePlaceholder", lang)}
+              aria-invalid={Boolean(fieldErrs.phone)}
+            />
+            {fieldErrs.phone && <p role="alert" className="mt-1 text-xs text-red-600">{fieldErrs.phone}</p>}
+          </div>
+          <div>
+            <Label htmlFor="rpass">
+              {t("password", lang)} <span className="text-xs font-normal text-stone-400">{t("passwordHint", lang)}</span>
+            </Label>
+            <Input
+              id="rpass"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={Boolean(fieldErrs.password)}
+            />
+            {fieldErrs.password && <p role="alert" className="mt-1 text-xs text-red-600">{fieldErrs.password}</p>}
+          </div>
+          <div>
+            <Label>{t("langSelectLabel", lang)}</Label>
+            <div className="flex gap-2" role="radiogroup" aria-label={t("langSelectLabel", lang)}>
+              {(["bn", "en"] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  role="radio"
+                  aria-checked={langPref === l}
+                  onClick={() => setLangPref(l)}
+                  className={`min-h-[44px] flex-1 rounded-lg border py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+                    langPref === l ? "border-green-700 bg-green-50 text-green-800" : "border-stone-300 text-stone-500"
+                  }`}
+                >
+                  {l === "bn" ? "বাংলা" : "English"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {error && <ErrorBanner message={error} />}
+          <Button type="submit" size="lg" className="w-full" disabled={busy || inputInvalid}>
+            {busy ? "..." : t("signUp", lang)}
+          </Button>
+          {inputInvalid && !busy && (
+            <p className="text-center text-[11px] text-stone-400">{t("fixErrorsNote", lang)}</p>
+          )}
+          <p className="text-center text-sm text-stone-500">
+            {t("haveAccount", lang)}{" "}
+            <Link to="/login" className="font-semibold text-green-700 hover:underline">→</Link>
+          </p>
+        </form>
+      </Card>
     </div>
   );
 }

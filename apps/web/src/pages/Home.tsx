@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
+import type { DictKey } from "../lib/i18n.js";
+import { formatBDT } from "../lib/format.js";
+import { stageLabel, weatherRiskActionLabel } from "../lib/labels.js";
+import { Badge, Button, Card, ErrorBanner, Skeleton } from "../components/ui.jsx";
 
 interface FarmShape {
   id: string;
@@ -11,7 +15,7 @@ interface FarmShape {
 }
 interface WeatherShape {
   current: { tempC: number; humidityPct: number; windKmh: number; condition: string };
-  risks: { type: string; severity: string; titleBn: string; titleEn: string; detailEn: string }[];
+  risks: { type: string; severity: string; titleBn: string; titleEn: string }[];
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -20,6 +24,12 @@ const SEVERITY_STYLES: Record<string, string> = {
   LOW: "bg-green-100 text-green-800",
 };
 
+const TASK_KEYS: { id: string; key: DictKey }[] = [
+  { id: "t1", key: "taskWaterCheck" },
+  { id: "t2", key: "taskFertilizerCheck" },
+  { id: "t3", key: "taskPestScout" },
+];
+
 export default function Home() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
@@ -27,151 +37,185 @@ export default function Home() {
   const [weather, setWeather] = useState<WeatherShape | null>(null);
   const [unread, setUnread] = useState(0);
   const [walletBal, setWalletBal] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const [tasks, setTasks] = useState<{ id: string; label: string; done: boolean }[]>([
-    { id: "t1", label: lang === "bn" ? "জমিতে পানি পরীক্ষা করুন" : "Check field water level", done: false },
-    { id: "t2", label: lang === "bn" ? "সার প্রয়োগের সময় যাচাই করুন" : "Verify fertilizer schedule", done: false },
-    { id: "t3", label: lang === "bn" ? "পোকা/রোগ পর্যবেক্ষণ" : "Scout for pests/disease", done: false },
-  ]);
+  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: false, t2: false, t3: false });
+
+  async function load() {
+    setError(false);
+    setLoaded(false);
+    try {
+      // Parallel loads — weather no longer waits for the other calls,
+      // and the wasted /auth/me round-trip is gone (session already has it).
+      const [farmsData, notif, walletData, weatherData] = await Promise.allSettled([
+        api<FarmShape[]>("GET", "/farms"),
+        api<{ unread: number }>("GET", "/notifications"),
+        api<{ balancePaisa: number }>("GET", "/wallet"),
+        api<WeatherShape>("GET", "/weather?lat=25.9&lng=89.1"),
+      ]);
+      if (farmsData.status === "fulfilled") setFarms(farmsData.value);
+      if (notif.status === "fulfilled") setUnread(notif.value.unread);
+      if (walletData.status === "fulfilled") setWalletBal(walletData.value.balancePaisa);
+      if (weatherData.status === "fulfilled") setWeather(weatherData.value);
+      if (farmsData.status === "rejected") throw farmsData.reason;
+      setLoaded(true);
+    } catch {
+      setError(true);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [farmsData, notif] = await Promise.all([
-          api<FarmShape[]>("GET", "/farms"),
-          api<{ unread: number }>("GET", "/notifications"),
-        ]);
-        setFarms(farmsData);
-        setUnread(notif.unread);
-        try {
-          const w = await api<{ balancePaisa: number }>("GET", "/wallet");
-          setWalletBal(w.balancePaisa);
-        } catch { /* wallet may be empty */ }
-
-        const profile = await api<{ farmerProfile?: { district?: string } }>("GET", "/auth/me");
-        void profile;
-        // Use demo farm coordinates when the farm has none (mock provider is location-insensitive).
-        const farm = farmsData[0];
-        if (farm) {
-          const w = await api<WeatherShape>("GET", `/weather?lat=25.9&lng=89.1`);
-          setWeather(w);
-        }
-      } catch {
-        setError(true);
-      }
-    })();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeCrops = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
-  const todayStr = new Date().toLocaleDateString(lang === "bn" ? "bn-BD" : "en-BD", { weekday: "long", day: "numeric", month: "long" });
+  const todayStr = new Intl.DateTimeFormat(lang === "bn" ? "bn-BD" : "en-GB", {
+    weekday: "long", day: "numeric", month: "long",
+  }).format(new Date());
 
   return (
     <div className="space-y-5">
       <section>
-        <h1 className="text-xl font-bold text-stone-800">আসসালামু আলাইকুম, {session?.fullName} 👋</h1>
+        <h1 className="text-xl font-bold text-stone-800">{t("greeting", lang, { name: session?.fullName ?? "" })}</h1>
         <p className="text-sm text-stone-500">{todayStr} · {t("tagline", lang)}</p>
       </section>
 
-      {error && <p className="card bg-red-50 text-sm text-red-700">{t("errorGeneric", lang)}</p>}
+      {error && (
+        <ErrorBanner message={t("errorGeneric", lang)} />
+      )}
+      {error && (
+        <Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button>
+      )}
 
       {farms.length === 0 && !localStorage.getItem("ab_onboarded") && (
-        <div className="card flex items-center justify-between bg-green-50">
-          <p className="text-sm font-medium text-green-900">{lang === "bn" ? "শুরু করতে ১ মিনিটের সেটআপ করুন" : "Get set up in 1 minute"}</p>
-          <Link to="/onboarding" className="btn-primary !py-2 text-sm">{lang === "bn" ? "শুরু করুন" : "Get started"}</Link>
-        </div>
+        <Card className="flex flex-wrap items-center justify-between gap-3 bg-green-50">
+          <p className="text-sm font-medium text-green-900">{t("setupBanner", lang)}</p>
+          <Link to="/onboarding" className="inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800">
+            {t("getStarted", lang)}
+          </Link>
+        </Card>
       )}
 
       {/* Decision-first: Today's tasks */}
-      <div className="card">
-        <h2 className="mb-3 font-semibold text-stone-700">✅ {lang === "bn" ? "আজকের কাজ" : "Today's tasks"}</h2>
+      <Card>
+        <h2 className="mb-3 font-semibold text-stone-700">
+          <span aria-hidden>✅</span> {t("todayTasks", lang)}
+        </h2>
         <ul className="space-y-2">
-          {tasks.map((task) => (
+          {TASK_KEYS.map((task) => (
             <li key={task.id} className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={task.done}
-                onChange={() => setTasks((prev) => prev.map((p) => (p.id === task.id ? { ...p, done: !p.done } : p)))}
-                className="h-4 w-4 rounded border-stone-300 text-green-700 focus:ring-green-600"
-                aria-label={task.label}
+                checked={tasks[task.id] ?? false}
+                onChange={() => setTasks((prev) => ({ ...prev, [task.id]: !prev[task.id] }))}
+                className="h-5 w-5 rounded border-stone-300 text-green-700 focus:ring-green-600"
+                aria-label={t(task.key, lang)}
               />
-              <span className={`text-sm ${task.done ? "text-stone-400 line-through" : "text-stone-700"}`}>{task.label}</span>
+              <span className={`text-sm ${(tasks[task.id] ?? false) ? "text-stone-400 line-through" : "text-stone-700"}`}>
+                {t(task.key, lang)}
+              </span>
             </li>
           ))}
         </ul>
         {activeCrops.length === 0 && (
           <p className="mt-3 text-xs text-stone-500">
-            {lang === "bn" ? "প্রথম ফসল যোগ করলে কাজগুলো স্বয়ংক্রিয় হবে।" : "Add your first crop to auto-generate tasks."} <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
+            {t("addFirstCropHint", lang)}{" "}
+            <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
           </p>
         )}
-      </div>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Weather card with action pairing */}
-        <div className="card">
-          <h2 className="mb-2 font-semibold text-stone-700">🌦️ {t("weather", lang)}</h2>
-          {weather ? (
+        {/* Weather card with paired action lines */}
+        <Card>
+          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>🌦️</span> {t("weather", lang)}</h2>
+          {!loaded && !weather ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : weather ? (
             <>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-green-800">{weather.current.tempC}°</span>
                 <span className="text-sm text-stone-500">{weather.current.condition}</span>
               </div>
-              <p className="mt-1 text-xs text-stone-400">আর্দ্রতা {weather.current.humidityPct}% · বাতাস {weather.current.windKmh} km/h</p>
+              <p className="mt-1 text-xs text-stone-400">
+                {t("humidityLabel", lang)} {weather.current.humidityPct}% · {t("windLabel", lang)} {weather.current.windKmh} km/h
+              </p>
               <div className="mt-3 space-y-2">
-                {weather.risks.map((r, i) => (
-                  <div key={i} className={`rounded-lg p-2 text-xs ${SEVERITY_STYLES[r.severity] ?? "bg-stone-100"}`}>
-                    <span className="font-semibold">{lang === "bn" ? r.titleBn : r.titleEn}</span>
-                    <span className="ml-1 text-[11px] opacity-80">{r.severity === "HIGH" ? (lang === "bn" ? "→ আজ স্প্রে স্থগিত করুন" : "→ postpone spray") : ""}</span>
-                  </div>
-                ))}
+                {weather.risks.map((r, i) => {
+                  const action = weatherRiskActionLabel(r.type, lang);
+                  return (
+                    <div key={i} className={`rounded-lg p-2 text-xs ${SEVERITY_STYLES[r.severity] ?? "bg-stone-100"}`}>
+                      <span className="font-semibold">{lang === "bn" ? r.titleBn : r.titleEn}</span>
+                      {action && <span className="mt-0.5 block opacity-90">{action}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (
-            <p className="text-sm text-stone-400">{t("loading", lang)}</p>
+            <p className="text-sm text-stone-400">—</p>
           )}
-        </div>
+        </Card>
 
         {/* Active crops */}
-        <div className="card">
-          <h2 className="mb-2 font-semibold text-stone-700">🌱 চলমান ফসল</h2>
+        <Card>
+          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>🌱</span> {t("activeCropsTitle", lang)}</h2>
           {activeCrops.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {activeCrops.map((c) => (
                 <li key={c.id} className="flex items-center justify-between rounded-lg bg-green-50 px-3 py-2">
                   <span className="font-medium">{c.cropName}</span>
-                  <span className="badge bg-green-200 text-green-900">{c.stage}</span>
+                  <Badge className="bg-green-200 text-green-900">{stageLabel(c.stage, lang)}</Badge>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="text-sm text-stone-400">
-              কোনো ফসল নেই। <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
+              {t("noCropsYet", lang)}{" "}
+              <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
             </p>
           )}
-        </div>
+        </Card>
 
         {/* Wallet teaser */}
-        <div className="card">
-          <h2 className="mb-2 font-semibold text-stone-700">👛 {t("wallet", lang)}</h2>
-          <p className="text-2xl font-bold text-green-800">{walletBal !== null ? `৳${(walletBal / 100).toLocaleString("bn-BD")}` : "—"}</p>
-          <p className="text-xs text-stone-500">{lang === "bn" ? "উপলব্ধ ব্যালেন্স" : "Available balance"}</p>
-          <Link to="/wallet" className="btn-outline mt-3 w-full text-center">{t("wallet", lang)} →</Link>
-        </div>
+        <Card>
+          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>👛</span> {t("wallet", lang)}</h2>
+          {walletBal !== null ? (
+            <p className="text-2xl font-bold text-green-800">{formatBDT(walletBal, lang)}</p>
+          ) : loaded ? (
+            <p className="text-2xl font-bold text-stone-300">—</p>
+          ) : (
+            <Skeleton className="h-8 w-28" />
+          )}
+          <p className="text-xs text-stone-500">{t("availableBalance", lang)}</p>
+          <Link
+            to="/wallet"
+            className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"
+          >
+            {t("wallet", lang)} →
+          </Link>
+        </Card>
 
         {/* Quick actions */}
-        <div className="card flex flex-col gap-2 sm:col-span-2 lg:col-span-3">
-          <h2 className="mb-1 font-semibold text-stone-700">⚡ দ্রুত সেবা</h2>
+        <Card className="flex flex-col gap-2 sm:col-span-2 lg:col-span-3">
+          <h2 className="mb-1 font-semibold text-stone-700"><span aria-hidden>⚡</span> {t("quickActions", lang)}</h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Link to="/advisor" className="btn-outline w-full">🤖 {t("aiAgent", lang)}</Link>
-            <Link to="/services" className="btn-outline w-full">🚜 {t("services", lang)}</Link>
-            <Link to="/sell" className="btn-outline w-full">💰 {t("sellCrop", lang)}</Link>
-            <Link to="/notifications" className="relative btn-outline w-full">
-              🔔 {t("notifications", lang)}
+            <Link to="/advisor" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>🤖</span> {t("aiAgent", lang)}</Link>
+            <Link to="/services" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>🚜</span> {t("services", lang)}</Link>
+            <Link to="/sell" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>💰</span> {t("sellCrop", lang)}</Link>
+            <Link to="/notifications" className="relative inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50">
+              <span aria-hidden>🔔</span> {t("notifications", lang)}
               {unread > 0 && (
                 <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{unread}</span>
               )}
             </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

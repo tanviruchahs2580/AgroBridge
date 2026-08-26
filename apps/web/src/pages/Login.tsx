@@ -1,28 +1,47 @@
 ﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, setTokens } from "../lib/api.js";
+import { track } from "../lib/analytics.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
+import { Button, Card, ErrorBanner, Input, Label } from "../components/ui.jsx";
+import { BD_PHONE_RE, mapError } from "../lib/errors-ui.js";
 
 export default function Login() {
+  const { session } = useSession();
+  const lang = session?.lang ?? "bn";
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [fieldErrs, setFieldErrs] = useState<{ phone?: string; password?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const { refresh } = useSession();
 
+  const inputInvalid =
+    (phone.trim().length > 0 && !BD_PHONE_RE.test(phone.trim())) ||
+    (password.length > 0 && password.length < 8);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const errs: typeof fieldErrs = {};
+    if (!phone.trim()) errs.phone = t("errFieldRequired", lang);
+    else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
+    if (!password) errs.password = t("errFieldRequired", lang);
+    else if (password.length < 8) errs.password = t("errWeakPassword", lang);
+    setFieldErrs(errs);
+    if (Object.keys(errs).length > 0) return;
+
     setBusy(true);
     setError("");
     try {
-      const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/login", { phone, password });
+      const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/login", { phone: phone.trim(), password });
       setTokens(data.accessToken, data.refreshToken);
+      track("login_success");
       await refresh();
       nav("/");
     } catch (err) {
-      setError((err as Error).message || t("errorGeneric", "bn"));
+      setError(mapError(err, lang));
     } finally {
       setBusy(false);
     }
@@ -32,28 +51,56 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-green-50 to-stone-100 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="text-4xl">🌾</div>
-          <h1 className="mt-2 text-2xl font-bold text-green-800">{t("appName", "bn")}</h1>
-          <p className="text-xs text-stone-500">{t("tagline", "bn")}</p>
+          <div className="text-4xl" aria-hidden>🌾</div>
+          <h1 className="mt-2 text-2xl font-bold text-green-800">{t("appName", lang)}</h1>
+          <p className="text-xs text-stone-500">{t("tagline", lang)}</p>
         </div>
-        <form onSubmit={submit} className="card space-y-4">
-          <div>
-            <label className="label" htmlFor="phone">{t("phone", "bn")}</label>
-            <input id="phone" className="input" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01712345678" required />
-          </div>
-          <div>
-            <label className="label" htmlFor="password">{t("password", "bn")}</label>
-            <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-          </div>
-          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <button className="btn-primary w-full !py-3 text-base" disabled={busy}>{busy ? "..." : t("login", "bn")}</button>
-          <p className="text-center text-sm text-stone-500">
-            {t("register", "bn")}? <Link to="/register" className="font-semibold text-green-700 hover:underline">→</Link>
-          </p>
-          <p className="rounded-md bg-stone-50 px-3 py-2 text-center text-[11px] leading-relaxed text-stone-400">
-            ডেমো: কৃষক 01700000002 / Demo@1234 · অ্যাডমিন 01700000001 / Demo@1234
-          </p>
-        </form>
+        <Card>
+          <form onSubmit={submit} noValidate className="space-y-4">
+            <div>
+              <Label htmlFor="phone">{t("phone", lang)}</Label>
+              <Input
+                id="phone"
+                inputMode="numeric"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={t("phonePlaceholder", lang)}
+                aria-invalid={Boolean(fieldErrs.phone)}
+              />
+              {fieldErrs.phone && <p role="alert" className="mt-1 text-xs text-red-600">{fieldErrs.phone}</p>}
+            </div>
+            <div>
+              <Label htmlFor="password">{t("password", lang)}</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-invalid={Boolean(fieldErrs.password)}
+              />
+              {fieldErrs.password && <p role="alert" className="mt-1 text-xs text-red-600">{fieldErrs.password}</p>}
+            </div>
+            {error && <ErrorBanner message={error} />}
+            <Button type="submit" size="lg" className="w-full" disabled={busy || inputInvalid}>
+              {busy ? "..." : t("signIn", lang)}
+            </Button>
+            {inputInvalid && !busy && (
+              <p className="text-center text-[11px] text-stone-400">{t("fixErrorsNote", lang)}</p>
+            )}
+            <p className="text-center text-sm text-stone-500">
+              {t("noAccount", lang)}{" "}
+              <Link to="/register" className="font-semibold text-green-700 hover:underline">→</Link>
+            </p>
+            {import.meta.env.DEV && (
+              <div className="rounded-md bg-stone-50 px-3 py-2 text-center text-[11px] leading-relaxed text-stone-400">
+                <p className="font-semibold uppercase tracking-wide">{t("demoCredentialsTitle", lang)}</p>
+                <p>{t("demoCredentialsBody", lang)}</p>
+              </div>
+            )}
+          </form>
+        </Card>
       </div>
     </div>
   );
