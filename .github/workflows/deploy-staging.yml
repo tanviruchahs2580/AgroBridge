@@ -39,7 +39,7 @@ jobs:
 
       - name: Extract metadata (api)
         id: meta-api
-        uses: docker/metadata-action@v5 # pin v5 -> commit SHA
+        uses: docker/metadata-action@v6 # pin v5 -> commit SHA
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/api
           tags: |
@@ -57,7 +57,7 @@ jobs:
 
       - name: Extract metadata (web)
         id: meta-web
-        uses: docker/metadata-action@v5 # pin v5 -> commit SHA
+        uses: docker/metadata-action@v6 # pin v5 -> commit SHA
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/web
           tags: |
