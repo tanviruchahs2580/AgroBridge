@@ -6,7 +6,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, badRequest, unprocessable } from "../../lib/errors.js";
 import { ok } from "../../middleware/context.js";
-import { tierDiscountPct } from "../../lib/money.js";
+import { getActiveMembership } from "../../lib/membership.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { refNo } from "../../lib/money.js";
@@ -176,8 +176,17 @@ ordersRouter.get("/:id", async (req, res, next) => {
  */
 ordersRouter.post("/checkout", async (req, res, next) => {
   try {
-    const profile = await prisma.farmerProfile.findUnique({ where: { userId: req.auth!.userId } });
-    const discountPct = tierDiscountPct(profile?.membershipTier);
+    // Optional delivery details captured by the checkout wizard; validated
+    // loosely and stored verbatim on the order for fulfilment.
+    const shippingSchema = z.object({
+      shippingName: z.string().trim().min(2).max(120).optional(),
+      shippingPhone: z.string().regex(/^01[3-9]\d{8}$/).optional(),
+      shippingAddress: z.string().trim().min(5).max(400).optional(),
+    });
+    const shipping = shippingSchema.safeParse(req.body ?? {}).data;
+
+    const membership = await getActiveMembership(req.auth!.userId);
+    const discountPct = membership.discountPct;
 
     const result = await prisma.$transaction(async (tx) => {
       const cart = await tx.cart.findUnique({
@@ -219,6 +228,7 @@ ordersRouter.post("/checkout", async (req, res, next) => {
           discountPaisa,
           deliveryFeePaisa,
           totalPaisa,
+          ...(shipping ?? {}),
           items: {
             create: cart.items.map((i) => ({
               productId: i.productId,

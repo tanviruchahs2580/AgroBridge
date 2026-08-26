@@ -15,6 +15,7 @@ export const PERMISSIONS: Record<string, string[]> = {
     "bookings:assign", "bookings:manage:any",
     "procurement:review", "procurement:pay",
     "payments:refund",
+    "finance:withdrawals",
     "membership:manage",
     "admin:metrics",
     "audit:read",

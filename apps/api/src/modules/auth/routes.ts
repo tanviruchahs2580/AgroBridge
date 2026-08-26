@@ -1,15 +1,19 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { badRequest, unauthorized, conflict } from "../../lib/errors.js";
+import { badRequest, unauthorized, conflict, unprocessable } from "../../lib/errors.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
-import { env, isTest } from "../../config/env.js";
+import { isProd, isTest, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
+
+// Multi-instance-safe limiter store when REDIS_URL configured.
+const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
 
 export const authRouter = Router();
 
@@ -20,7 +24,18 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development",
+  store: sharedStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
+});
+
+// OTP request limiter: prevents SMS-pumping abuse
+const otpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
 });
 
 const registerSchema = z.object({
@@ -57,6 +72,8 @@ authRouter.post("/register", validate({ body: registerSchema }), async (req, res
     if (existing) throw conflict("An account with this phone/email already exists");
 
     const passwordHash = await bcrypt.hash(password, isTest ? 4 : 12);
+    // Phone is auto-verified outside production (sandbox/dev/test) so demo and
+    // E2E journeys keep working; production requires the OTP flow below.
     const user = await prisma.user.create({
       data: {
         fullName,
@@ -65,6 +82,7 @@ authRouter.post("/register", validate({ body: registerSchema }), async (req, res
         passwordHash,
         langPref,
         role: "FARMER", // self-service registration is farmer-only
+        phoneVerified: !isProd,
         farmerProfile: { create: {} },
         wallet: { create: {} },
       },
@@ -113,12 +131,24 @@ authRouter.post("/refresh", async (req, res, next) => {
     if (!refreshToken) throw badRequest("refreshToken required");
 
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: sha256(refreshToken) }, include: { user: true } });
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date() || stored.user.status !== "ACTIVE") {
+    if (!stored || stored.expiresAt < new Date() || stored.user.status !== "ACTIVE") {
       throw unauthorized("Refresh token invalid or expired");
     }
 
-    // Rotation: revoke old token, issue a fresh one.
-    await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    // Rotation with reuse detection: the claim must win exactly once. If a
+    // REVOKED token is replayed, assume theft and kill the whole family.
+    const claimed = await prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      await prisma.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw unauthorized("Refresh token invalid or expired");
+    }
+
     const newRaw = await issueRefreshToken(stored.userId, stored.deviceInfo ?? undefined);
 
     ok(res, {
@@ -151,8 +181,8 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
       where: { id: req.auth!.userId },
       select: {
         id: true, fullName: true, phone: true, email: true, role: true,
-        langPref: true, status: true, createdAt: true,
-        farmerProfile: { select: { membershipTier: true, district: true, upazila: true, address: true, joinedAt: true } },
+        langPref: true, status: true, phoneVerified: true, region: true, createdAt: true,
+        farmerProfile: { select: { membershipTier: true, membershipExpiresAt: true, district: true, upazila: true, address: true, joinedAt: true } },
         wallet: { select: { balancePaisa: true } },
       },
     });
@@ -185,6 +215,118 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
     });
     await audit({ actorId: user.id, action: "PROFILE_UPDATE", entityType: "User", entityId: user.id });
     ok(res, user);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---------------- Phone OTP verification ----------------
+
+const OTP_TTL_MINUTES = 5;
+const OTP_MAX_ATTEMPTS = 5;
+
+function hashOtp(phone: string, code: string): string {
+  return sha256(`${phone}:${code}:${env.JWT_ACCESS_SECRET}`);
+}
+
+/**
+ * Request an OTP for the authenticated user's own phone. The code is stored
+ * hashed; delivery goes through the SMS provider abstraction (sandbox logs
+ * it). Outside production the code is echoed back for testability.
+ */
+authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    if (!user) throw unauthorized();
+
+    await prisma.otpChallenge.updateMany({
+      where: { userId: user.id, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+
+    const code = String(randomInt(100000, 999999));
+    const challenge = await prisma.otpChallenge.create({
+      data: {
+        userId: user.id,
+        phone: user.phone,
+        codeHash: hashOtp(user.phone, code),
+        expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
+      },
+    });
+
+    // SMS provider adapter point: sandbox/none log only. A real gateway
+    // (SSL Wireless / Alpha SMS) plugs in here behind the same call.
+    if (env.SMS_PROVIDER === "sandbox") {
+      console.log(`[sms:sandbox] OTP for ${user.phone}: ${code} (valid ${OTP_TTL_MINUTES}m)`);
+    }
+
+    await audit({ actorId: user.id, action: "OTP_REQUESTED", entityType: "User", entityId: user.id });
+    ok(res, {
+      sent: true,
+      expiresAt: challenge.expiresAt,
+      ...(isProd ? {} : { devCode: env.SMS_PROVIDER === "none" ? undefined : code }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post("/otp/verify", requireAuth, validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }), async (req, res, next) => {
+  try {
+    const challenge = await prisma.otpChallenge.findFirst({
+      where: { userId: req.auth!.userId, consumedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!challenge) throw unprocessable("No active verification code. Please request a new one.");
+    if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw unprocessable("Too many attempts. Please request a new code.");
+
+    const valid = challenge.codeHash === hashOtp(challenge.phone, req.body.code as string);
+    if (!valid) {
+      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+      throw unprocessable("Incorrect verification code");
+    }
+
+    await prisma.$transaction([
+      prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
+      prisma.user.update({ where: { id: req.auth!.userId }, data: { phoneVerified: true } }),
+    ]);
+    await audit({ actorId: req.auth!.userId, action: "PHONE_VERIFIED", entityType: "User", entityId: req.auth!.userId });
+    ok(res, { phoneVerified: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---------------- Account deletion (self-service) ----------------
+/**
+ * Anonymizes identity fields and disables the account while retaining
+ * financial/ledger rows for legal integrity (see docs/data-protection.md).
+ * Irreversible; blocks when a withdrawal is still in flight.
+ */
+authRouter.delete("/me", requireAuth, async (req, res, next) => {
+  try {
+    const pending = await prisma.withdrawal.findFirst({
+      where: { userId: req.auth!.userId, status: { in: ["PENDING", "APPROVED"] } },
+    });
+    if (pending) throw unprocessable("Resolve pending withdrawals before deleting your account");
+
+    const userId = req.auth!.userId;
+    await prisma.$transaction(async (tx) => {
+      await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          fullName: "Deleted User",
+          email: null,
+          phone: `DEL-${userId}`,
+          passwordHash: randomBytes(32).toString("hex"),
+          status: "DISABLED",
+          notificationPrefs: null,
+        },
+      });
+    });
+    await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId });
+    ok(res, { deleted: true });
   } catch (e) {
     next(e);
   }

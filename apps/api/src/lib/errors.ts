@@ -19,3 +19,5 @@ export const conflict = (msg: string) => new AppError(409, "CONFLICT", msg);
 export const unprocessable = (msg: string, details?: unknown) => new AppError(422, "UNPROCESSABLE", msg, details);
 export const tooMany = (msg = "Too many requests, please try again later") =>
   new AppError(429, "RATE_LIMITED", msg);
+export const phoneNotVerified = () =>
+  new AppError(403, "PHONE_NOT_VERIFIED", "Phone number must be verified before this action");

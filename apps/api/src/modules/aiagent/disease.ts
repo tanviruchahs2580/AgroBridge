@@ -1,13 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { badRequest, notFound, forbidden } from "../../lib/errors.js";
 import { ok } from "../../middleware/context.js";
+import { getStorageProvider } from "../../providers/storage/index.js";
 import { notify } from "../../providers/notification/service.js";
 
 export const diseaseRouter = Router();
@@ -59,11 +58,12 @@ diseaseRouter.post(
         cropCycleIdValidated = cycle.id;
       }
 
-      const uploadDir = path.resolve("uploads/disease");
-      await mkdir(uploadDir, { recursive: true });
+      if (cropGuess && cropGuess.length > 120) throw badRequest("cropGuess too long");
+
+      // Storage abstraction: local disk in dev, S3-compatible in production.
       const ext = imagePart.mime === "image/png" ? ".png" : imagePart.mime === "image/webp" ? ".webp" : ".jpg";
       const fileName = `${randomUUID()}${ext}`;
-      await writeFile(path.join(uploadDir, fileName), imagePart.data);
+      await getStorageProvider().save(fileName, imagePart.data, imagePart.mime);
 
       const kase = await prisma.diseaseCase.create({
         data: {

@@ -3,6 +3,7 @@ import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 
 export type NotificationType = "SYSTEM" | "ORDER" | "BOOKING" | "PROCUREMENT" | "PAYMENT" | "WEATHER" | "AI" | "MEMBERSHIP";
+export type NotificationCategory = "CRITICAL" | "ACTION" | "INFO";
 
 /**
  * In-app notification service. SMS/email adapters plug in here later
@@ -12,6 +13,7 @@ export type NotificationType = "SYSTEM" | "ORDER" | "BOOKING" | "PROCUREMENT" | 
 export async function notify(params: {
   userId: string;
   type: NotificationType;
+  category?: NotificationCategory;
   titleBn: string;
   titleEn: string;
   bodyBn?: string;
@@ -26,6 +28,7 @@ export async function notify(params: {
       data: {
         userId: params.userId,
         type: params.type,
+        category: params.category ?? "INFO",
         title: lang === "bn" ? params.titleBn : params.titleEn,
         body:
           (lang === "bn" ? params.bodyBn : params.bodyEn) ??

@@ -19,10 +19,16 @@ model User {
   fullName     String
   role         String   @default("FARMER") // SUPER_ADMIN|ADMIN|REGIONAL_MANAGER|AREA_MANAGER|FIELD_AGENT|COLLECTION_MANAGER|WAREHOUSE_MANAGER|PROCUREMENT_MANAGER|SERVICE_PROVIDER|DEALER|CORPORATE|COOPERATIVE|FARMER
   langPref     String   @default("bn") // bn|en
-  status       String   @default("ACTIVE") // ACTIVE|SUSPENDED
+  status       String   @default("ACTIVE") // ACTIVE|SUSPENDED|DISABLED
+  region       String? // territory scope for manager roles (e.g., DHAKA_NORTH)
+  phoneVerified Boolean @default(false)
+  notificationPrefs String? // JSON {critical:boolean,action:boolean,info:boolean}
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  withdrawals       Withdrawal[]
+  otpChallenges     OtpChallenge[]
+  analyticsEvents   AnalyticsEvent[]
   refreshTokens     RefreshToken[]
   farmerProfile     FarmerProfile?
   farms             Farm[]
@@ -61,7 +67,8 @@ model FarmerProfile {
   district       String?
   upazila        String?
   membershipTier String    @default("BRONZE") // BRONZE|SILVER|GOLD
-  joinedAt       DateTime  @default(now())
+  membershipExpiresAt DateTime?
+  joinedAt      DateTime  @default(now())
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -235,6 +242,9 @@ model Order {
   deliveryFeePaisa Int     @default(0)
   totalPaisa     Int
   paymentStatus  String    @default("UNPAID") // UNPAID|PAID|REFUNDED
+  shippingName   String?
+  shippingPhone  String?
+  shippingAddress String?
   cancelReason   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -348,6 +358,8 @@ model Payment {
   method      String   @default("MOBILE_WALLET") // MOBILE_WALLET|CARD|BANK|WALLET_CREDIT
   providerRef String?
   status      String   @default("PENDING") // PENDING|SUCCEEDED|FAILED|REFUNDED
+  refundedAt  DateTime?
+  refundRef   String?
   metaStr     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -373,9 +385,56 @@ model WalletTransaction {
   balanceAfterPaisa Int
   refType        String?
   refId          String?
-  createdAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model Withdrawal {
+  id          String    @id @default(cuid())
+  refNo       String    @unique
+  userId      String
+  amountPaisa Int
+  status      String    @default("PENDING") // PENDING|APPROVED|REJECTED|PAID
+  channel     String    @default("BKASH") // BKASH|NAGAD|BANK
+  destination String? // masked payout destination (e.g., 017***4567)
+  note        String?
+  decidedBy   String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  phone      String
+  codeHash   String
+  purpose    String    @default("PHONE_VERIFY")
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String?
+  sessionId String?
+  propsStr  String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
 }
 
 model MembershipPlan {
@@ -391,6 +450,7 @@ model Notification {
   id       String    @id @default(cuid())
   userId   String
   type     String // SYSTEM|ORDER|BOOKING|PROCUREMENT|PAYMENT|WEATHER|AI|MEMBERSHIP
+  category String    @default("INFO") // CRITICAL|ACTION|INFO
   title    String
   body     String
   readAt   DateTime?

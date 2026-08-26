@@ -19,6 +19,7 @@ async function main() {
       email: "admin@agrobridge.demo",
       passwordHash: password,
       role: "ADMIN",
+      phoneVerified: true,
       langPref: "en",
       wallet: { create: {} },
     },
@@ -33,6 +34,7 @@ async function main() {
       email: "super@agrobridge.demo",
       passwordHash: password,
       role: "SUPER_ADMIN",
+      phoneVerified: true,
       langPref: "en",
       wallet: { create: {} },
     },
@@ -46,6 +48,7 @@ async function main() {
       phone: "01700000002",
       passwordHash: password,
       role: "FARMER",
+      phoneVerified: true,
       langPref: "bn",
       farmerProfile: {
         create: { district: "রংপুর", upazila: "পীরগাছা", membershipTier: "SILVER", address: "ডেমো ঠিকানা" },
@@ -63,6 +66,7 @@ async function main() {
       phone: "01700000003",
       passwordHash: password,
       role: "DEALER",
+      phoneVerified: true,
       wallet: { create: {} },
     },
   });
@@ -75,6 +79,7 @@ async function main() {
       phone: "01700000004",
       passwordHash: password,
       role: "PROCUREMENT_MANAGER",
+      phoneVerified: true,
       wallet: { create: {} },
     },
   });
