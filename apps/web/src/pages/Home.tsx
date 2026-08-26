@@ -74,6 +74,13 @@ export default function Home() {
 
       {error && <p className="card bg-red-50 text-sm text-red-700">{t("errorGeneric", lang)}</p>}
 
+      {farms.length === 0 && !localStorage.getItem("ab_onboarded") && (
+        <div className="card flex items-center justify-between bg-green-50">
+          <p className="text-sm font-medium text-green-900">{lang === "bn" ? "শুরু করতে ১ মিনিটের সেটআপ করুন" : "Get set up in 1 minute"}</p>
+          <Link to="/onboarding" className="btn-primary !py-2 text-sm">{lang === "bn" ? "শুরু করুন" : "Get started"}</Link>
+        </div>
+      )}
+
       {/* Decision-first: Today's tasks */}
       <div className="card">
         <h2 className="mb-3 font-semibold text-stone-700">✅ {lang === "bn" ? "আজকের কাজ" : "Today's tasks"}</h2>

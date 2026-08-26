@@ -12,6 +12,7 @@ import SellCrop from "./pages/SellCrop.jsx";
 import WalletPage from "./pages/Wallet.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import AdminPanel from "./pages/Admin.jsx";
+import Onboarding from "./pages/Onboarding.jsx";
 import { BottomNav, Sidebar } from "./components/ui.jsx";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -100,6 +101,7 @@ export default function App() {
       <Route path="/wallet" element={<Shell><WalletPage /></Shell>} />
       <Route path="/notifications" element={<Shell><Notifications /></Shell>} />
       <Route path="/admin" element={<Shell><AdminPanel /></Shell>} />
+      <Route path="/onboarding" element={<Shell><Onboarding /></Shell>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
