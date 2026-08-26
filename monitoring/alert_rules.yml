@@ -1,0 +1,63 @@
+# Alert rules materialized from docs/operations.md §"Alert rules".
+# Metric names come from apps/api/src/lib/metrics.ts.
+groups:
+  - name: agrobridge
+    rules:
+      - alert: High5xxRate
+        expr: >
+          sum(rate(agrobridge_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(agrobridge_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx rate above 5% for 5 minutes"
+          description: "Error ratio {{ $value | humanizePercentage }} over the last 5m. Check API logs by requestId and recent deploys."
+          runbook: docs/operations.md
+
+      - alert: ApiHighLatencyP95
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(agrobridge_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency above 500ms for 10 minutes"
+          description: "p95 latency is {{ $value | humanizeDuration }}. Inspect slow routes in the dashboard and DB query timings."
+
+      - alert: DbDown
+        expr: agrobridge_db_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database unreachable (/ready failing)"
+          description: "agrobridge_db_up has been 0 for 2m. See docs/runbooks/chaos-drills.md and disaster-recovery restore procedure."
+
+      - alert: PaymentFailures
+        expr: increase(agrobridge_payment_intents_total{status="failed"}[10m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 5 failed payment intents in 10 minutes"
+          description: "Check SSLCommerz gateway status and PAYMENT_PROVIDER sandbox/live labelling before user complaints arrive."
+
+      - alert: AiFallbackSpike
+        expr: increase(agrobridge_ai_requests_total{status="fallback_success"}[15m]) > 10
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI provider falling back to offline engine (>10 in 15m)"
+          description: "Advisories still answer via the grounded offline KB engine, but check provider quota/keys."
+
+      - alert: InstanceDown
+        expr: up == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scrape target down"
+          description: "Prometheus cannot reach {{ $labels.instance }} for 3m. Container may be crashed or network partitioned."

@@ -1,0 +1,142 @@
+# ⚠️ STAGING SCAFFOLD — fill secrets before use.
+# Required GitHub secrets before this workflow will work:
+#   STAGING_HOST      — VM hostname/IP
+#   STAGING_USER      — SSH user with docker group membership
+#   STAGING_SSH_KEY   — private key (PEM) of a deploy-only key
+# Optional repo VARIABLE: STAGING_BASE_URL (defaults to the placeholder below).
+#
+# Deploys images built from this repo to the staging VM using docker-compose.prod.yml
+# (see docs/deployment.md §5). Migrations stay manual by design — see echo hint in the deploy step.
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-push:
+    name: Build & push images to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # pin v4 -> commit SHA
+
+      - uses: docker/setup-buildx-action@v3 # pin v3 -> commit SHA
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3 # pin v3 -> commit SHA
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (api)
+        id: meta-api
+        uses: docker/metadata-action@v5 # pin v5 -> commit SHA
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/api
+          tags: |
+            type=sha
+            type=semver,pattern={{version}}
+
+      - name: Build & push api image
+        uses: docker/build-push-action@v6 # pin v6 -> commit SHA
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+
+      - name: Extract metadata (web)
+        id: meta-web
+        uses: docker/metadata-action@v5 # pin v5 -> commit SHA
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/web
+          tags: |
+            type=sha
+            type=semver,pattern={{version}}
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v6 # pin v6 -> commit SHA
+        with:
+          context: .
+          file: docker/web.Dockerfile
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+
+  deploy-staging:
+    name: Deploy to staging VM
+    needs: [build-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # pin v4 -> commit SHA
+
+      - name: Guard — staging secrets must be configured
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          missing=""
+          [ -z "$STAGING_HOST" ]    && missing="$missing STAGING_HOST"
+          [ -z "$STAGING_USER" ]    && missing="$missing STAGING_USER"
+          [ -z "$STAGING_SSH_KEY" ] && missing="$missing STAGING_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required GitHub secrets:$missing — this is a STAGING SCAFFOLD until filled."
+            exit 1
+          fi
+
+      - name: Copy production compose file to VM
+        uses: appleboy/scp-action@v1 # pin v1 -> commit SHA
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: ~/agrobridge/
+          overwrite: true
+
+      - name: Pull & restart stack
+        uses: appleboy/ssh-action@v1 # pin v1 -> commit SHA
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/agrobridge
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            echo "NOTE: migrations are NOT applied on boot."
+            echo "Apply manually if the release contains migrations:"
+            echo "  docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy"
+
+      - name: Post-deploy gate — health & readiness
+        uses: appleboy/ssh-action@v1 # pin v1 -> commit SHA
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/agrobridge
+            # /health + /ready live at API root (not behind the /api proxy), so probe in-network.
+            docker compose -f docker-compose.prod.yml exec -T api wget -qO- http://localhost:4000/health | grep -q ok
+            docker compose -f docker-compose.prod.yml exec -T api wget -qO- http://localhost:4000/ready | grep -q '"db":true'
+            echo "API health + readiness OK"
+
+      - name: Post-deploy gate — public HTTPS reachability
+        env:
+          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL || 'https://staging.agro.example.com' }} # PLACEHOLDER domain
+        run: |
+          curl -fsS --max-time 15 "${STAGING_BASE_URL}/" | grep -q '<div id="root">'
+          echo "Web OK at ${STAGING_BASE_URL}"

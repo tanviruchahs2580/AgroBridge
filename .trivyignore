@@ -1,0 +1,8 @@
+# Trivy accepted-risk suppressions (HIGH/CRITICAL gate in ci.yml trivy-scan).
+# Every entry MUST cross-reference SECURITY_WAIVERS.md with a reason,
+# compensating control and expiry date. Expired rows fail review — renew or fix.
+# Reviewed monthly with npm audit (docs/operations.md).
+
+# vitest dev-only test dependency (Moderate) — never installed in production
+# images; see SECURITY_WAIVERS.md (expiry 2026-09-30).
+GHSA-5xrq-8626-4rwp
