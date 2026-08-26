@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, setTokens } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
@@ -61,7 +61,7 @@ export default function Register() {
           </div>
         </div>
         {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        <button className="btn-primary w-full !py-3" disabled={busy}>{busy ? "..." : t("register", "bn")}</button>
+        <button type="submit" className="btn-primary w-full !py-3" disabled={busy}>{busy ? "..." : t("register", "bn")}</button>
         <p className="text-center text-sm text-stone-500">
           <Link to="/login" className="font-semibold text-green-700 hover:underline">{t("login", "bn")} →</Link>
         </p>
