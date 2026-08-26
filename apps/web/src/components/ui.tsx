@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes } from "react";
+import { NavLink } from "react-router-dom";
 
 // ── Design tokens (Tailwind-based) ──
 // Primary green scale: brand-50..800 (see tailwind.config.js)
@@ -98,5 +99,49 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
       <span>{message}</span>
       {code && <span className="ml-2 font-mono text-xs text-red-600">[{code}]</span>}
     </div>
+  );
+}
+
+// ── Navigation shells (Sprint A2) ──
+export function BottomNav({ items }: { items: { to: string; label: string; icon: string }[] }) {
+  if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
+  return (
+    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-200 bg-white/95 backdrop-blur md:hidden">
+      {items.map((it) => (
+        <NavLink
+          key={it.to}
+          to={it.to}
+          className={({ isActive }) =>
+            `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? "text-green-700" : "text-stone-600 hover:text-green-700"}`
+          }
+          style={{ minHeight: 44 }}
+        >
+          <span aria-hidden className="text-base">{it.icon}</span>
+          <span>{it.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+export function Sidebar({ items }: { items: { to: string; label: string; icon: string }[] }) {
+  if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
+  return (
+    <aside className="hidden w-56 shrink-0 border-r border-stone-200 bg-white md:block">
+      <nav className="sticky top-[57px] space-y-1 p-3">
+        {items.map((it) => (
+          <NavLink
+            key={it.to}
+            to={it.to}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? "bg-green-700 text-white" : "text-stone-700 hover:bg-green-50"}`
+            }
+          >
+            <span aria-hidden>{it.icon}</span>
+            <span>{it.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+    </aside>
   );
 }

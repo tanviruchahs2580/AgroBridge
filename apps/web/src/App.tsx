@@ -12,50 +12,58 @@ import SellCrop from "./pages/SellCrop.jsx";
 import WalletPage from "./pages/Wallet.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import AdminPanel from "./pages/Admin.jsx";
+import { BottomNav, Sidebar } from "./components/ui.jsx";
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { session, logout, setLang } = useSession();
   if (!session) return <Navigate to="/login" replace />;
   const lang = session.lang;
 
-  const navItems: { to: string; key: Parameters<typeof t>[0] }[] = [
-    { to: "/", key: "home" },
-    { to: "/farm", key: "myFarm" },
-    { to: "/advisor", key: "aiAgent" },
-    { to: "/market", key: "market" },
-    { to: "/services", key: "services" },
-    { to: "/sell", key: "sellCrop" },
-    { to: "/notifications", key: "notifications" },
+  const primaryNav: { to: string; key: Parameters<typeof t>[0]; icon: string }[] = [
+    { to: "/", key: "home", icon: "🏠" },
+    { to: "/farm", key: "myFarm", icon: "🚜" },
+    { to: "/advisor", key: "aiAgent", icon: "🤖" },
+    { to: "/market", key: "market", icon: "🛒" },
+    { to: "/wallet", key: "wallet", icon: "👛" },
+  ];
+  const secondaryNav: { to: string; key: Parameters<typeof t>[0]; icon: string }[] = [
+    { to: "/services", key: "services", icon: "🔧" },
+    { to: "/sell", key: "sellCrop", icon: "💰" },
+    { to: "/notifications", key: "notifications", icon: "🔔" },
   ];
 
+  const bottomItems = primaryNav.map((n) => ({ to: n.to, label: t(n.key, lang), icon: n.icon }));
+  const sidebarItems = [...primaryNav, ...secondaryNav].map((n) => ({ to: n.to, label: t(n.key, lang), icon: n.icon }));
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-stone-50">
       <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🌾</span>
+            <span className="text-xl" aria-hidden>🌾</span>
             <div>
               <div className="font-bold text-green-800">{t("appName", lang)}</div>
               <div className="hidden text-[10px] text-stone-500 sm:block">{t("tagline", lang)}</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"} onClick={() => setLang(lang === "bn" ? "en" : "bn")} className="rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100">
+            <button type="button" aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"} onClick={() => setLang(lang === "bn" ? "en" : "bn")} className="rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
               {lang === "bn" ? "EN" : "বাং"}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
               <NavLink to="/admin" className="btn-outline !py-1.5 !text-xs">{t("admin", lang)}</NavLink>
             )}
-            <button onClick={logout} className="text-sm font-medium text-stone-500 hover:text-red-600">{t("logout", lang)}</button>
+            <button onClick={logout} className="text-sm font-medium text-stone-500 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">{t("logout", lang)}</button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-2 pb-2 text-sm">
-          {navItems.map((n) => (
+        {/* Legacy top nav hidden when new shell active (md+) — keep for no-JS fallback */}
+        <nav className="mx-auto hidden max-w-6xl gap-1 overflow-x-auto px-2 pb-2 text-sm md:hidden">
+          {[...primaryNav, ...secondaryNav].map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               className={({ isActive }) =>
-                `whitespace-nowrap rounded-lg px-3 py-1.5 font-medium ${isActive ? "bg-green-700 text-white" : "text-stone-600 hover:bg-green-50"}`
+                `whitespace-nowrap rounded-lg px-3 py-1.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? "bg-green-700 text-white" : "text-stone-600 hover:bg-green-50"}`
               }
             >
               {t(n.key, lang)}
@@ -63,7 +71,11 @@ function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-5">{children}</main>
+      <div className="mx-auto flex max-w-6xl">
+        <Sidebar items={sidebarItems} />
+        <main className="min-w-0 flex-1 px-4 py-5 pb-20 md:pb-5">{children}</main>
+      </div>
+      <BottomNav items={bottomItems} />
     </div>
   );
 }
