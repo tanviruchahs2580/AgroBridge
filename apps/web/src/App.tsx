@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+﻿import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { useSession } from "./lib/session.js";
 import { t } from "./lib/i18n.js";
 import Login from "./pages/Login.jsx";
@@ -40,7 +40,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setLang(lang === "bn" ? "en" : "bn")} className="rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100">
+            <button type="button" aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"} onClick={() => setLang(lang === "bn" ? "en" : "bn")} className="rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100">
               {lang === "bn" ? "EN" : "বাং"}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
