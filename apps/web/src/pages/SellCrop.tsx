@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
@@ -13,7 +13,9 @@ interface ProcurementOrder {
   status: string;
 }
 
-const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"];
+const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
+// F-UX3: farmer-first bilingual labels (value stays API enum)
+const CROP_LABELS: Record<string, string> = { RICE: "ধান (RICE)", WHEAT: "গম (WHEAT)", JUTE: "পাট (JUTE)", MUSTARD: "সরিষা (MUSTARD)", MAIZE: "ভুট্টা (MAIZE)", POTATO: "আলু (POTATO)" };
 
 export default function SellCrop() {
   const { session } = useSession();
@@ -72,7 +74,7 @@ export default function SellCrop() {
         </select>
         <select name="crop" className="input" required defaultValue="">
           <option value="" disabled>{t("cropName", lang)}</option>
-          {CROPS.map((c) => <option key={c} value={c}>{c}</option>)}
+          {CROPS.map((c) => <option key={c} value={c}>{CROP_LABELS[c] ?? c}</option>)}
         </select>
         <input name="qty" type="number" min="1" step="1" className="input" placeholder={t("quantityKg", lang)} required />
         <div className="grid grid-cols-2 gap-3">

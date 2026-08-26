@@ -84,7 +84,8 @@ procurementRouter.post(
 
 procurementRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
+    // GAP-P-01: PROCUREMENT_MANAGER must see the review queue (read-only list).
+    const isPrivileged = ["ADMIN", "SUPER_ADMIN", "PROCUREMENT_MANAGER"].includes(req.auth!.role);
     const pos = await prisma.procurementOrder.findMany({
       where: isPrivileged ? {} : { userId: req.auth!.userId },
       include: { farm: { select: { name: true } }, user: { select: { fullName: true, phone: true } } },
