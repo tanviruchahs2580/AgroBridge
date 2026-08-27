@@ -5,6 +5,7 @@ import { t } from "../lib/i18n.js";
 import { formatDate } from "../lib/format.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { Bot, Camera, Sprout } from "lucide-react";
 import { Badge, Button, Card, ErrorBanner, Input, Skeleton } from "../components/ui.jsx";
 
 interface Answer {
@@ -74,7 +75,8 @@ export default function Advisor() {
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    chatEndRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
   }, [chat.length, busy]);
 
   async function ask(e: React.FormEvent) {
@@ -135,16 +137,16 @@ export default function Advisor() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🤖</span> {t("aiAgent", lang)}</h1>
-      <p className="text-xs text-stone-500">{t("advisoryDisclaimer", lang)}</p>
+      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Bot className="h-6 w-6 text-green-700" aria-hidden /> {t("aiAgent", lang)}</h1>
+      <p className="text-xs text-stone-600">{t("advisoryDisclaimer", lang)}</p>
 
       <Card className="space-y-2">
         <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
-          <span aria-hidden>📷</span> {t("uploadPhoto", lang)} · {t("diseaseCheck", lang)}
+          <Camera className="mr-2 inline h-5 w-5" aria-hidden /> {t("uploadPhoto", lang)} · {t("diseaseCheck", lang)}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={uploadImage} disabled={uploading} />
         </label>
         {uploading && (
-          <p className="flex items-center gap-2 text-sm text-stone-400">
+          <p className="flex items-center gap-2 text-sm text-stone-500">
             <Skeleton className="h-3 w-24" /> {t("compressingImage", lang)}
           </p>
         )}
@@ -159,7 +161,7 @@ export default function Advisor() {
 
         {cases.length > 0 ? (
           <div className="pt-1">
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{t("myCases", lang)}</h3>
+            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("myCases", lang)}</h3>
             <ul className="space-y-1.5">
               {visibleCases.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">
@@ -185,9 +187,9 @@ export default function Advisor() {
 
       <Card className="min-h-[300px] space-y-3">
         {chat.length === 0 && !busy && (
-          <div className="grid h-[280px] place-items-center text-center text-sm text-stone-400">
+          <div className="grid h-[280px] place-items-center text-center text-sm text-stone-500">
             <div>
-              <div className="mb-2 text-4xl" aria-hidden>🌾</div>
+              <Sprout className="mx-auto mb-2 h-10 w-10 text-green-700" aria-hidden />
               {t("exampleQuestion", lang)}
             </div>
           </div>
@@ -202,7 +204,7 @@ export default function Advisor() {
               {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike */}
               <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-stone-100 px-4 py-2.5 text-sm text-stone-800">{m.text}</div>
               {m.refs && m.refs.length > 0 && (
-                <ul className="space-y-0.5 px-1 text-[11px] text-stone-400">
+                <ul className="space-y-0.5 px-1 text-[11px] text-stone-500">
                   <li className="font-semibold">{t("advisorSource", lang)}</li>
                   {m.refs.map((r, ri) => (
                     <li key={ri}>· {r}</li>
@@ -219,7 +221,7 @@ export default function Advisor() {
           )
         )}
         {busy && (
-          <div className="flex items-center gap-2 text-sm text-stone-400">
+          <div className="flex items-center gap-2 text-sm text-stone-500">
             <Skeleton className="h-3 w-32" /> {t("loading", lang)}
           </div>
         )}

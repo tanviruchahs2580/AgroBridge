@@ -6,6 +6,7 @@ import { formatBDT, formatDateTime, takaToPaisa } from "../lib/format.js";
 import { channelLabel, reasonLabel, withdrawalStatusLabel } from "../lib/labels.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { Award, Check, Landmark, Receipt, Wallet } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Select, Skeleton, useConfirm, useToast,
 } from "../components/ui.jsx";
@@ -25,6 +26,7 @@ interface WalletSummary {
   monthCreditsPaisa: number;
   monthDebitsPaisa: number;
   pendingWithdrawalsPaisa: number;
+  membership?: { tier: string; expiresAt: string | null; discountPct: number };
 }
 interface Withdrawal {
   id: string;
@@ -173,8 +175,8 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>👛</span> {t("wallet", lang)}</h1>
+    <div className="min-w-0 space-y-6 overflow-hidden px-2 sm:px-0">
+      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Wallet className="h-6 w-6 text-green-700" aria-hidden /> {t("wallet", lang)}</h1>
 
       {loadError && (
         <div className="space-y-2">
@@ -184,16 +186,18 @@ export default function WalletPage() {
       )}
 
       {/* Summary cards row */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="bg-gradient-to-r from-green-700 to-green-800 text-white">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+        <Card className="min-w-0 overflow-hidden bg-gradient-to-r from-green-700 to-green-800 text-white">
           <p className="text-xs opacity-80">{t("balance", lang)}</p>
-          {wallet ? (
-            <p className="mt-0.5 text-2xl font-bold">{formatBDT(wallet.balancePaisa, lang)}</p>
-          ) : loading ? (
-            <Skeleton className="mt-1 h-8 w-28" />
-          ) : (
-            <p className="mt-0.5 text-2xl font-bold">—</p>
-          )}
+          <div aria-live="polite" aria-atomic="true">
+            {wallet ? (
+              <p className="mt-0.5 text-2xl font-bold">{formatBDT(wallet.balancePaisa, lang)}</p>
+            ) : loading ? (
+              <Skeleton className="mt-1 h-8 w-28" />
+            ) : (
+              <p className="mt-0.5 text-2xl font-bold">—</p>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -204,26 +208,26 @@ export default function WalletPage() {
             {t("withdrawTitle", lang)}
           </Button>
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">{t("monthIn", lang)}</p>
+        <Card className="min-w-0 overflow-hidden">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("monthIn", lang)}</p>
           {summary ? (
             <p className="mt-0.5 text-lg font-bold text-green-800">{formatBDT(summary.monthCreditsPaisa, lang)}</p>
           ) : (
             <Skeleton className="mt-1 h-6 w-20" />
           )}
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">{t("monthOut", lang)}</p>
+        <Card className="min-w-0 overflow-hidden">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("monthOut", lang)}</p>
           {summary ? (
             <p className="mt-0.5 text-lg font-bold text-red-600">{formatBDT(summary.monthDebitsPaisa, lang)}</p>
           ) : (
             <Skeleton className="mt-1 h-6 w-20" />
           )}
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">{t("pendingWithdrawals", lang)}</p>
+        <Card className="min-w-0 overflow-hidden">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("pendingWithdrawals", lang)}</p>
           {summary ? (
-            <p className="mt-0.5 text-lg font-bold text-stone-700">{formatBDT(summary.pendingWithdrawalsPaisa, lang)}</p>
+            <p className="mt-0.5 text-lg font-bold text-stone-700">{formatBDT(summary.pendingWithdrawalsPaisa, lang)}<span className="sr-only"> pending withdrawals</span></p>
           ) : (
             <Skeleton className="mt-1 h-6 w-20" />
           )}
@@ -232,19 +236,36 @@ export default function WalletPage() {
 
       {/* Membership */}
       <section>
-        <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>🎖️</span> {t("membership", lang)}</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><Award className="h-5 w-5 text-amber-600" aria-hidden /> {t("membership", lang)}</h2>
+        <div className="grid gap-2 sm:gap-4 sm:grid-cols-3">
           {plans.map((p) => (
-            <Card key={p.tier} className={p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}>
+            <Card key={p.tier} className={`min-w-0 overflow-hidden ${p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}`}>
               <h3 className="font-bold text-stone-800">{p.tier}</h3>
               <p className="my-1 text-xl font-bold text-green-800">
                 {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
               </p>
-              <ul className="mb-3 space-y-1 text-xs text-stone-500">
-                {p.benefits.map((b, i) => (
-                  <li key={i}><span aria-hidden>✓</span> {b}</li>
-                ))}
+              <ul className="mb-3 space-y-1 text-xs text-stone-600">
+                {p.benefits.map((b, i) => {
+                  const benefitMap: Record<string, { bn: string; en: string }> = {
+                    "Basic AI advisory": { bn: "বেসিক এআই পরামর্শ", en: "Basic AI advisory" },
+                    "Weekly weather digest": { bn: "সাপ্তাহিক আবহাওয়া সারাংশ", en: "Weekly weather digest" },
+                    "Unlimited AI advisory": { bn: "আনলিমিটেড এআই পরামর্শ", en: "Unlimited AI advisory" },
+                    "3% marketplace discount": { bn: "বাজারে ৩% ছাড়", en: "3% marketplace discount" },
+                    "5% marketplace discount": { bn: "বাজারে ৫% ছাড়", en: "5% marketplace discount" },
+                    "Priority soil testing": { bn: "অগ্রাধিকার মাটি পরীক্ষা", en: "Priority soil testing" },
+                    "Free drone spraying per season": { bn: "প্রতি মৌসুমে বিনামূল্যে ড্রোন স্প্রে", en: "Free drone spraying per season" },
+                    "Dedicated agronomist hotline": { bn: "নিবেদিত কৃষিবিদ হটলাইন", en: "Dedicated agronomist hotline" },
+                  };
+                  const label = benefitMap[b] ? (lang === "bn" ? benefitMap[b].bn : benefitMap[b].en) : b;
+                  return <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-green-600" aria-hidden /> {label}</li>;
+                })}
               </ul>
+              {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
+                const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);
+                if (daysLeft <= 7 && daysLeft >= 0) return <Badge className="mb-2 bg-amber-100 text-amber-800">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
+                if (daysLeft < 0) return <Badge className="mb-2 bg-red-100 text-red-700">{t("membershipExpired", lang)}</Badge>;
+                return null;
+              })()}
               {p.pricePaisa > 0 && (
                 <Button variant="outline" className="w-full" loading={planBusyTier === p.tier} onClick={() => void buyPlan(p.tier)}>
                   {t("payNow", lang)}
@@ -263,14 +284,15 @@ export default function WalletPage() {
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
           </Card>
         ) : (wallet?.transactions ?? []).length === 0 ? (
-          <EmptyState icon="🧾" title={t("noTransactions", lang)} />
+          <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
         ) : (
           <Card className="divide-y divide-stone-100 !p-0">
             {(wallet?.transactions ?? []).map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <p className="font-medium text-stone-700">{reasonLabel(tx.reason, lang)}</p>
-                  <p className="text-[11px] text-stone-400">{formatDateTime(tx.createdAt, lang)}</p>
+              <div key={tx.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{reasonLabel(tx.reason, lang)}</p>
+                  <p className="break-words text-[11px] text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(tx.createdAt, lang)}</p>
+                  <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{tx.id}</p>
                 </div>
                 <span className={`font-bold ${tx.direction === "CREDIT" ? "text-green-700" : "text-red-600"}`}>
                   {tx.direction === "CREDIT" ? "+" : "−"}{formatBDT(tx.amountPaisa, lang)}
@@ -289,16 +311,17 @@ export default function WalletPage() {
             {[0, 1].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
           </Card>
         ) : withdrawals.length === 0 ? (
-          <EmptyState icon="🏧" title={t("noWithdrawalsYet", lang)} />
+          <EmptyState icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
         ) : (
           <Card className="divide-y divide-stone-100 !p-0">
             {withdrawals.map((wd) => (
               <div key={wd.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <div>
-                  <p className="font-bold text-stone-700">{formatBDT(wd.amountPaisa, lang)} · {channelLabel(wd.channel, lang)}</p>
-                  <p className="text-[11px] text-stone-400">
+                <div className="min-w-0">
+                  <p className="break-words font-bold text-stone-700 [overflow-wrap:anywhere]">{formatBDT(wd.amountPaisa, lang)} · {channelLabel(wd.channel, lang)}</p>
+                  <p className="break-all text-[11px] text-stone-500 [overflow-wrap:anywhere]">
                     {wd.refNo}{wd.destination ? ` · ${t("destinationLabel", lang)}: ${wd.destination}` : ""} · {formatDateTime(wd.createdAt, lang)}
                   </p>
+                  <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{wd.id}</p>
                 </div>
                 <Badge
                   className={
@@ -330,10 +353,12 @@ export default function WalletPage() {
                 min="100"
                 step="0.01"
                 value={wdAmount}
-                onChange={(e) => setWdAmount(e.target.value)}
+                onChange={(e) => { setWdAmount(e.target.value); if (wdErr) setWdErr(""); }}
+                onBlur={() => { const taka = Number(wdAmount); if (wdAmount && (Number.isNaN(taka) || takaToPaisa(taka) < MIN_WITHDRAWAL_PAISA)) setWdErr(t("errAmountInvalid", lang)); }}
                 aria-invalid={Boolean(wdErr)}
+                aria-describedby={wdErr ? "wd-amount-err" : undefined}
               />
-              <p className="mt-1 text-[11px] text-stone-400">
+              <p className="mt-1 text-[11px] text-stone-500">
                 {t("withdrawMinNote", lang)}
                 {availablePaisa !== null && ` · ${t("withdrawAvailable", lang)}: ${formatBDT(availablePaisa, lang)}`}
               </p>
@@ -346,7 +371,7 @@ export default function WalletPage() {
                 ))}
               </Select>
             </div>
-            {wdErr && <ErrorBanner message={wdErr} />}
+            {wdErr && <div id="wd-amount-err" role="alert"><ErrorBanner message={wdErr} /></div>}
             <div className="flex gap-2 pt-1">
               <Button type="button" variant="ghost" className="flex-1" disabled={wdBusy} onClick={() => setWdOpen(false)}>
                 {t("cancel", lang)}

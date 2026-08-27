@@ -1,0 +1,48 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": { "jsx": true }
+  },
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "plugins": ["jsx-a11y", "react-hooks"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:jsx-a11y/recommended",
+    "plugin:jsx-a11y/strict",
+    "plugin:react-hooks/recommended"
+  ],
+  "settings": {
+    "react": { "version": "detect" }
+  },
+  "rules": {
+    "no-undef": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "jsx-a11y/aria-props": "error",
+    "jsx-a11y/aria-proptypes": "error",
+    "jsx-a11y/aria-unsupported-elements": "error",
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/anchor-has-content": "error",
+    "jsx-a11y/click-events-have-key-events": "error",
+    "jsx-a11y/no-noninteractive-element-interactions": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "jsx-a11y/label-has-associated-control": "off",
+    "jsx-a11y/media-has-caption": "warn",
+    "jsx-a11y/no-autofocus": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {
+        "jsx-a11y/no-autofocus": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist", "node_modules", "android"]
+}

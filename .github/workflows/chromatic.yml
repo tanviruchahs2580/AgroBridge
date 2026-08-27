@@ -1,0 +1,21 @@
+# Chromatic / Storybook visual-regression gate.
+# Manual trigger: requires a configured CHROMATIC_PROJECT_TOKEN repo secret and a
+# Storybook build (@storybook + "build-storybook" script). Until provisioned,
+# this stays on workflow_dispatch so it never breaks the push/pull_request gate.
+name: chromatic
+on:
+  workflow_dispatch:
+jobs:
+  chromatic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: apps/web
+      - uses: chromaui/action@v11 # latest-cadence action; pin to a release SHA when the project token is configured
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          workingDir: apps/web

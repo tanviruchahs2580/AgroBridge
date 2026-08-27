@@ -1,0 +1,92 @@
+/* ── AgroBridge Design Tokens — single source of truth (Step 1) ──
+ * All hex values live ONLY here. Components reference var(--token).
+ * See docs/design-tokens.md for usage.
+ */
+:root {
+  /* Brand — 11 shades (50–950), green soil. 700 is primary. All ≥4.5:1 on white except 50/100 (decoration). */
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+  --color-brand-900: #14532d;
+  --color-brand-950: #052e16;
+
+  /* Stone neutrals 50–900 */
+  --color-stone-50: #fafaf9;
+  --color-stone-100: #f5f5f4;
+  --color-stone-200: #e7e5e4;
+  --color-stone-300: #d6d3d1;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #78716c;
+  --color-stone-600: #57534e;
+  --color-stone-700: #44403c;
+  --color-stone-800: #292524;
+  --color-stone-900: #1c1917;
+
+  /* Semantic */
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-success-text: #166534;
+  --color-info-bg: #f5f5f4;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #92400e;
+
+  /* Spacing — 4/8pt grid */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Radius */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  /* Elevation — Linear/Stripe model: card=sm, modal=lg */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* Focus */
+  --ring-color: #16a34a;
+  --ring-offset: 2px;
+
+  /* Type scale (Step 7) — 6 sizes */
+  --text-xs: 11px; /* line-height 16px, letter-spacing 0.01em */
+  --text-sm: 13px; /* line-height 18px */
+  --text-base: 16px; /* line-height 24px */
+  --text-lg: 18px; /* line-height 28px */
+  --text-xl: 20px; /* line-height 28px */
+  --text-2xl: 28px; /* line-height 36px */
+  --leading-xs: 16px;
+  --leading-sm: 18px;
+  --leading-base: 24px;
+  --leading-lg: 28px;
+  --leading-xl: 28px;
+  --leading-2xl: 36px;
+  --tracking-xs: 0.01em;
+}
+
+/* Dark-mode ready (Step 14) — toggled via [data-theme="dark"] or prefers-color-scheme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-stone-50: #1c1917;
+    --color-stone-100: #292524;
+  }
+}
+[data-theme="dark"] {
+  --color-stone-50: #1c1917;
+  --color-stone-100: #292524;
+  --color-stone-900: #fafaf9;
+}

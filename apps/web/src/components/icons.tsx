@@ -1,0 +1,78 @@
+import type { LucideProps } from "lucide-react";
+import {
+  Award,
+  Bell,
+  BellOff,
+  Bot,
+  Camera,
+  Check,
+  CheckSquare,
+  ClipboardList,
+  CloudSun,
+  Coins,
+  Compass,
+  CreditCard,
+  Inbox,
+  Info,
+  Landmark,
+  Leaf,
+  MapPin,
+  Megaphone,
+  Package,
+  Phone,
+  Receipt,
+  Settings,
+  ShoppingBasket,
+  ShoppingCart,
+  Sprout,
+  Tractor,
+  Trash2,
+  TriangleAlert,
+  Wallet,
+  Wrench,
+  X,
+  Zap,
+} from "lucide-react";
+import type { ComponentType } from "react";
+
+export const Icons = {
+  Sprout,
+  Tractor,
+  Bot,
+  ShoppingCart,
+  Wallet,
+  Wrench,
+  Coins,
+  Bell,
+  BellOff,
+  TriangleAlert,
+  Check,
+  Info,
+  Inbox,
+  Phone,
+  MapPin,
+  Leaf,
+  CloudSun,
+  Zap,
+  CheckSquare,
+  Camera,
+  Package,
+  ShoppingBasket,
+  Trash2,
+  ClipboardList,
+  Receipt,
+  Landmark,
+  Award,
+  Compass,
+  Settings,
+  Megaphone,
+  CreditCard,
+  X,
+} as const;
+
+export type IconName = keyof typeof Icons;
+
+export function Icon({ name, className, ...props }: { name: IconName; className?: string } & LucideProps) {
+  const Cmp = Icons[name] as ComponentType<LucideProps>;
+  return <Cmp aria-hidden="true" className={className} {...props} />;
+}

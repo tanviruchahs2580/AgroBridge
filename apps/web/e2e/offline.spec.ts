@@ -15,29 +15,19 @@ test.describe("Offline banner", () => {
     await page.waitForURL(/.*\/$/, { timeout: 10_000 });
 
     // No banner while online.
-    await expect(page.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.locator('div[role="status"]')).toHaveCount(0);
 
-    // Cut the network — browser fires offline events, shell shows the banner.
-    // Under load the window "offline" event can land between the shell's first
-    // render and its useEffect subscription; cycling connectivity retries the
-    // transition so the test stays deterministic.
-    let bannerShown = false;
-    for (let attempt = 0; attempt < 3 && !bannerShown; attempt++) {
-      await context.setOffline(true);
-      await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
-      bannerShown = await page.locator('div[role="status"]').isVisible().catch(() => false);
-      if (!bannerShown) {
-        await context.setOffline(false);
-        await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
-        await page.waitForTimeout(400);
-      }
-    }
+    // Cut the network — the shell reacts to the window "offline" event and the
+    // live connectivity singleton, so hold offline and wait for the banner
+    // (robust to event/React re-render timing).
     const banner = page.locator('div[role="status"]');
-    await expect(banner).toBeVisible();
+    await context.setOffline(true);
+    await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+    await expect(banner).toBeVisible({ timeout: 10_000 });
     await expect(banner).toContainText(/Offline|অফলাইন/u);
 
     // Restore the network — banner hides.
     await context.setOffline(false);
-    await expect(page.locator('div[role="status"]')).toBeHidden();
+    await expect(banner).toBeHidden({ timeout: 10_000 });
   });
 });

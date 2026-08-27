@@ -18,6 +18,17 @@ export function isQueueable(url: string): boolean {
 }
 
 const listeners = new Set<(count: number) => void>();
+/** STEP 55: enqueue toast notifiers — App.tsx registers toast.info when a mutation is queued offline */
+const enqueueNotifiers = new Set<() => void>();
+export function onEnqueue(cb: () => void): () => void {
+  enqueueNotifiers.add(cb);
+  return () => enqueueNotifiers.delete(cb);
+}
+function notifyEnqueue() {
+  for (const cb of enqueueNotifiers) cb();
+  // also dispatch window event for non-React consumers
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("agrobridge:offline-queued"));
+}
 /** In-session flush attempt counters (not persisted — a fresh session gets a fresh retry budget). */
 const attempts = new Map<string, number>();
 
@@ -59,6 +70,8 @@ export function enqueue(m: Omit<QueuedMutation, "clientUuid"> & { clientUuid?: s
   if (list.some((e) => e.clientUuid === entry.clientUuid)) return entry.clientUuid;
   list.push(entry);
   save(list);
+  // STEP 55: notify UI that an offline mutation was queued (toast "অফলাইন — পরে পাঠানো হবে")
+  notifyEnqueue();
   return entry.clientUuid;
 }
 

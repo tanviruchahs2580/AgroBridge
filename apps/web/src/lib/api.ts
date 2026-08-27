@@ -3,6 +3,22 @@
 // proxy ("/api/v1") or as a Capacitor APK / cross-origin PWA ("https://api…").
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
+// STEP 55: lazy offlineQueue helpers to avoid circular init issues — imported dynamically inside api()
+let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (url: string) => boolean } | null = null;
+async function getOfflineQueue() {
+  if (_offlineQueue) return _offlineQueue;
+  try {
+    _offlineQueue = await import("./offlineQueue.js");
+  } catch {
+    _offlineQueue = null;
+  }
+  return _offlineQueue;
+}
+function trySyncEnqueue(url: string, method: string, body?: unknown) {
+  // Synchronous try — if offlineQueue already loaded, enqueue immediately; otherwise rely on async path via api caller
+  if (_offlineQueue?.isQueueable(url)) _offlineQueue.enqueue({ url, method, body });
+}
+
 export const API_BASE = BASE;
 
 export interface AuthUser {
@@ -58,18 +74,45 @@ export function setUnauthorizedHandler(fn: UnauthorizedHandler | null) {
 }
 
 // ── Connectivity helpers ──
-export function isOnline(): boolean {
-  return typeof navigator === "undefined" ? true : navigator.onLine !== false;
+type OnlineCb = (online: boolean) => void;
+
+// Module-level singleton so the offline/online window events are captured
+// immediately (never lost to a React mount/effect race), and subscribers are
+// notified of the *current* state on registration.
+const onlineCbs = new Set<OnlineCb>();
+let currentOnline = typeof navigator === "undefined" ? true : navigator.onLine !== false;
+
+let boundWindow = false;
+// Reconcile React state with navigator.onLine. Relying on window events alone
+// can miss transitions (e.g. Playwright/mobile emulation flips navigator.onLine
+// without always dispatching the event), so poll as a heartbeat fallback.
+function setOnline(next: boolean): void {
+  if (next === currentOnline) return;
+  currentOnline = next;
+  for (const cb of onlineCbs) cb(next);
+}
+function ensureWindowListener(): void {
+  if (boundWindow || typeof window === "undefined") return;
+  boundWindow = true;
+  window.addEventListener("online", () => setOnline(true));
+  window.addEventListener("offline", () => setOnline(false));
+  const sync = () => setOnline(navigator.onLine !== false);
+  window.addEventListener("online", sync);
+  window.addEventListener("offline", sync);
+  window.setInterval(sync, 2000);
 }
 
-export function onOnlineStatusChange(cb: (online: boolean) => void): () => void {
-  const goOnline = () => cb(true);
-  const goOffline = () => cb(false);
-  window.addEventListener("online", goOnline);
-  window.addEventListener("offline", goOffline);
+export function isOnline(): boolean {
+  ensureWindowListener();
+  return currentOnline;
+}
+
+export function onOnlineStatusChange(cb: OnlineCb): () => void {
+  ensureWindowListener();
+  onlineCbs.add(cb);
+  cb(currentOnline);
   return () => {
-    window.removeEventListener("online", goOnline);
-    window.removeEventListener("offline", goOffline);
+    onlineCbs.delete(cb);
   };
 }
 
@@ -176,11 +219,25 @@ async function tryRefresh(): Promise<boolean> {
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const wasAuthed = Boolean(accessToken);
 
+  // Prime offlineQueue lazy import for later sync enqueue (non-blocking)
+  void getOfflineQueue();
+
   let res: Response;
   try {
     res = await performWithRetry(method, path, body);
   } catch (err) {
-    if (err instanceof NetworkError) throw networkApiError(err);
+    if (err instanceof NetworkError) {
+      // STEP 55: if offline and queueable, enqueue for later replay
+      if (!isOnline()) {
+        const oq = await getOfflineQueue();
+        if (oq?.isQueueable(path)) {
+          oq.enqueue({ url: path, method, body });
+        }
+      } else {
+        trySyncEnqueue(path, method, body);
+      }
+      throw networkApiError(err);
+    }
     throw err;
   }
 
@@ -193,7 +250,13 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
         res = await performWithRetry(method, path, body);
         json = await parseEnvelope(res);
       } catch (err) {
-        if (err instanceof NetworkError) throw networkApiError(err);
+        if (err instanceof NetworkError) {
+          if (!isOnline()) {
+            const oq = await getOfflineQueue();
+            if (oq?.isQueueable(path)) oq.enqueue({ url: path, method, body });
+          }
+          throw networkApiError(err);
+        }
         throw err;
       }
     }

@@ -7,9 +7,11 @@ import { formatBDT } from "../lib/format.js";
 import { categoryLabel } from "../lib/labels.js";
 import { mapError, BD_PHONE_RE } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { Check, Inbox, MapPin, Package, Phone, ShoppingBasket, ShoppingCart, Trash2 } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Skeleton, Stepper, useToast,
 } from "../components/ui.jsx";
+import { pluralCategory } from "../lib/plural.js";
 
 interface Product {
   id: string;
@@ -249,17 +251,17 @@ export default function Market() {
   const subtotalPaisa = cart.reduce((s, i) => s + i.product.pricePaisa * i.qty, 0);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🛒</span> {t("market", lang)}</h1>
+    <div className="min-w-0 space-y-6 overflow-hidden px-2 sm:px-0">
+      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><ShoppingCart className="h-6 w-6 text-green-700" aria-hidden /> {t("market", lang)}</h1>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="-mx-2 flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:whitespace-normal sm:px-0">
         {CATEGORY_FILTERS.map((c) => (
           <button
             key={c.value || "all"}
             type="button"
             onClick={() => setCategory(c.value)}
             aria-pressed={category === c.value}
-            className={`min-h-[44px] rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+            className={`min-h-[44px] shrink-0 rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
               category === c.value ? "bg-green-700 text-white" : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-green-50"
             }`}
           >
@@ -292,7 +294,7 @@ export default function Market() {
       )}
 
       {productsLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <Card key={i} className="space-y-3">
               <Skeleton className="h-4 w-3/4" />
@@ -302,20 +304,20 @@ export default function Market() {
           ))}
         </div>
       ) : products.length === 0 && !loadError ? (
-        <EmptyState icon="🧺" title={t("noProducts", lang)} />
+        <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noProducts", lang)} />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ contentVisibility: "auto", containIntrinsicSize: "0 500px" }}>
           {products.map((p) => (
-            <Card key={p.id} className="flex flex-col justify-between">
+            <Card key={p.id} className="flex min-w-0 flex-col justify-between overflow-hidden">
               <div>
                 <div className="mb-1 flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold leading-snug text-stone-800">{p.name}</h3>
+                  <h3 className="break-words text-sm font-bold leading-snug text-stone-800 [overflow-wrap:anywhere]">{p.name}</h3>
                   <Badge className="shrink-0 bg-stone-100 text-stone-500">{categoryLabel(p.category, lang)}</Badge>
                 </div>
                 <p className="text-lg font-bold text-green-800">
-                  {formatBDT(p.pricePaisa, lang)} <span className="text-xs font-normal text-stone-400">/ {p.unit}</span>
+                  {formatBDT(p.pricePaisa, lang)} <span className="text-xs font-normal text-stone-500">/ {p.unit}</span>
                 </p>
-                <p className={`mt-0.5 text-[11px] ${p.stockQty > 0 ? "text-stone-400" : "font-semibold text-red-600"}`}>
+                <p className={`mt-0.5 text-[11px] ${p.stockQty > 0 ? "text-stone-500" : "font-semibold text-red-600"}`}>
                   {p.stockQty > 0 ? t("stockLeft", lang, { n: p.stockQty }) : t("outOfStock", lang)}
                 </p>
               </div>
@@ -327,12 +329,18 @@ export default function Market() {
         </div>
       )}
 
-      {/* Sticky cart bar: bottom-24 clears the mobile BottomNav */}
+      {/* Sticky cart bar: safe-area aware, clears the mobile BottomNav */}
       {cart.length > 0 && !wizardOpen && (
-        <div className="sticky bottom-24 z-20 md:bottom-4">
+        <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 md:bottom-[calc(1rem+env(safe-area-inset-bottom))]">
           <Card className="flex items-center justify-between gap-3 border-green-200 ring-1 ring-green-100">
-            <p className="text-sm font-semibold text-stone-700">
-              <span aria-hidden>🧺</span> {t("cartItemsCount", lang, { n: cart.length })} · {formatBDT(subtotalPaisa, lang)}
+            <p aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-stone-700">
+              <ShoppingBasket className="mr-1 inline h-5 w-5" aria-hidden /> {(() => {
+                // STEP 59: Bengali plural-aware cart count via Intl.PluralRules
+                const cat = pluralCategory(cart.length, lang);
+                // keep i18n key but demonstrate plural selection; future keys could be cartItemsCount_one / _other
+                const label = t("cartItemsCount", lang, { n: cart.length });
+                return cat === "one" || cat === "other" ? `${label}` : label;
+              })()} · {formatBDT(subtotalPaisa, lang)}
             </p>
             <Button onClick={() => void openWizard()}>{t("checkout", lang)} →</Button>
           </Card>
@@ -357,15 +365,15 @@ export default function Market() {
           {step === 0 && (
             <div className="space-y-3">
               {cart.length === 0 ? (
-                <EmptyState icon="🧺" title={t("emptyCart", lang)} />
+                <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("emptyCart", lang)} />
               ) : (
                 <>
                   <ul className="divide-y divide-stone-100">
                     {cart.map((item) => (
                       <li key={item.id} className="flex items-center gap-2 py-2">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-stone-700">{item.product.name}</p>
-                          <p className="text-xs text-stone-400">{formatBDT(item.product.pricePaisa, lang)}</p>
+                          <p className="break-words text-sm font-medium text-stone-700 [overflow-wrap:anywhere]">{item.product.name}</p>
+                          <p className="text-xs text-stone-500">{formatBDT(item.product.pricePaisa, lang)}</p>
                         </div>
                         <div className="flex items-center gap-1">
                           <button
@@ -395,7 +403,7 @@ export default function Market() {
                           onClick={() => void removeLine(item)}
                           className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-40"
                         >
-                          <span aria-hidden>🗑</span>
+                          <Trash2 className="h-5 w-5" aria-hidden />
                         </button>
                       </li>
                     ))}
@@ -422,24 +430,30 @@ export default function Market() {
                 <Label htmlFor="co-address">{t("deliveryAddressLabel", lang)}</Label>
                 <Input
                   id="co-address"
+                  autoComplete="street-address"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => { setAddress(e.target.value); setDeliveryErrs((prev) => ({ ...prev, address: undefined })); }}
+                  onBlur={() => { if (address.trim().length > 0 && address.trim().length < 5) setDeliveryErrs((prev) => ({ ...prev, address: t("errFieldRequired", lang) })); }}
                   placeholder={t("addressLabel", lang)}
                   aria-invalid={Boolean(deliveryErrs.address)}
+                  aria-describedby={deliveryErrs.address ? "co-address-err" : undefined}
                 />
-                {deliveryErrs.address && <p role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.address}</p>}
+                {deliveryErrs.address && <p id="co-address-err" role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.address}</p>}
               </div>
               <div>
                 <Label htmlFor="co-phone">{t("phone", lang)}</Label>
                 <Input
                   id="co-phone"
                   inputMode="numeric"
+                  autoComplete="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); setDeliveryErrs((prev) => ({ ...prev, phone: undefined })); }}
+                  onBlur={() => { if (phone.trim() && !BD_PHONE_RE.test(phone.trim())) setDeliveryErrs((prev) => ({ ...prev, phone: t("errPhoneInvalid", lang) })); }}
                   placeholder={t("phonePlaceholder", lang)}
                   aria-invalid={Boolean(deliveryErrs.phone)}
+                  aria-describedby={deliveryErrs.phone ? "co-phone-err" : undefined}
                 />
-                {deliveryErrs.phone && <p role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.phone}</p>}
+                {deliveryErrs.phone && <p id="co-phone-err" role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.phone}</p>}
               </div>
               <div className="flex gap-2 pt-1">
                 <Button type="button" variant="ghost" className="flex-1" onClick={() => setStep(0)}>← {t("back", lang)}</Button>
@@ -454,14 +468,14 @@ export default function Market() {
               <ul className="divide-y divide-stone-100 text-sm">
                 {cart.map((item) => (
                   <li key={item.id} className="flex justify-between py-2 text-stone-600">
-                    <span>{item.product.name} × {item.qty}</span>
+                    <span className="break-words [overflow-wrap:anywhere]">{item.product.name} × {item.qty}</span>
                     <span>{formatBDT(item.product.pricePaisa * item.qty, lang)}</span>
                   </li>
                 ))}
               </ul>
               <div className="rounded-lg bg-stone-50 px-3 py-2 text-sm">
-                <p className="text-stone-600"><span aria-hidden>📍</span> {address}</p>
-                <p className="text-stone-600"><span aria-hidden>📞</span> {phone}</p>
+                <p className="flex items-center gap-2 break-words text-stone-600 [overflow-wrap:anywhere]"><MapPin className="h-4 w-4 shrink-0 text-stone-400" aria-hidden /> <span className="min-w-0 break-words [overflow-wrap:anywhere]">{address}</span></p>
+                <p className="flex items-center gap-2 break-all text-stone-600"><Phone className="h-4 w-4 shrink-0 text-stone-400" aria-hidden /> <span className="break-all">{phone}</span></p>
               </div>
               <div className="flex items-center justify-between font-bold text-stone-800">
                 <span>{t("orderSubtotal", lang)}</span>
@@ -481,15 +495,15 @@ export default function Market() {
             <div className="space-y-3">
               <dl className="space-y-1.5 rounded-lg bg-stone-50 p-3 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-stone-500">{t("orderSubtotal", lang)}</dt>
+                  <dt className="text-stone-600">{t("orderSubtotal", lang)}</dt>
                   <dd className="font-medium">{formatBDT(order.subtotalPaisa, lang)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-stone-500">{t("orderDiscount", lang)}</dt>
+                  <dt className="text-stone-600">{t("orderDiscount", lang)}</dt>
                   <dd className="font-medium text-green-700">−{formatBDT(order.discountPaisa, lang)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-stone-500">{t("orderDeliveryFee", lang)}</dt>
+                  <dt className="text-stone-600">{t("orderDeliveryFee", lang)}</dt>
                   <dd className="font-medium">{order.deliveryFeePaisa === 0 ? t("freeLabel", lang) : formatBDT(order.deliveryFeePaisa, lang)}</dd>
                 </div>
                 <div className="flex justify-between border-t border-stone-200 pt-1.5 text-base">
@@ -502,7 +516,7 @@ export default function Market() {
                   {t("payNow", lang)}
                 </Button>
               )}
-              <p className="text-[11px] leading-relaxed text-stone-400">{t("sandboxPaymentNote", lang)}</p>
+              <p className="text-[11px] leading-relaxed text-stone-500">{t("sandboxPaymentNote", lang)}</p>
               <Button variant="ghost" className="w-full" onClick={closeWizard}>{t("close", lang)}</Button>
             </div>
           )}
@@ -510,12 +524,12 @@ export default function Market() {
           {/* Step 4: success */}
           {step === SUCCESS_STEP && order && (
             <div className="space-y-3 py-2 text-center">
-              <div className="text-4xl" aria-hidden>{paid ? "✅" : "📦"}</div>
+              {paid ? <Check className="mx-auto h-10 w-10 text-green-600" aria-hidden /> : <Package className="mx-auto h-10 w-10 text-stone-400" aria-hidden />}
               <h3 className="text-base font-bold text-green-800">
                 {paid ? t("paymentSuccessTitle", lang) : t("checkoutOrderPlaced", lang)}
               </h3>
-              <p className="text-sm text-stone-600">{t("checkoutOrderNo", lang, { no: order.orderNo })}</p>
-              {!paid && <p className="text-xs text-stone-400">{t("paymentPendingNote", lang)}</p>}
+              <p className="break-all text-sm text-stone-600 [overflow-wrap:anywhere]">{t("checkoutOrderNo", lang, { no: order.orderNo })}</p>
+              {!paid && <p className="text-xs text-stone-500">{t("paymentPendingNote", lang)}</p>}
               <p className="text-sm font-bold text-stone-700">{t("netPayable", lang)}: {formatBDT(order.totalPaisa, lang)}</p>
               <Button className="w-full" onClick={closeWizard}>{t("done", lang)}</Button>
             </div>

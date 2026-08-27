@@ -10,6 +10,21 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: undefined, // CI will start api + web via docker compose or npm run dev
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Pixel 5"],
+        viewport: { width: 390, height: 844 },
+        locale: "bn-BD",
+        isMobile: true,
+      },
+    },
+  ],
+  webServer: {
+    command: "npm run dev -- --port 5173 --strictPort",
+    url: "http://localhost:5173",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

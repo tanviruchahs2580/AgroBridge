@@ -2,9 +2,22 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+export default defineConfig(async () => {
+  // STEP 47: bundle analyzer — only active when ANALYZE=1 (see package.json script `analyze`)
+  const extraPlugins: any[] = [];
+  if (process.env.ANALYZE) {
+    try {
+      const mod: any = await import("rollup-plugin-visualizer");
+      const viz = mod.visualizer ?? mod.default;
+      if (viz) extraPlugins.push(viz({ filename: "dist/stats.html", gzipSize: true, brotliSize: true, open: false }));
+    } catch (e) {
+      console.warn("[vite] rollup-plugin-visualizer not installed, skipping analyze", e);
+    }
+  }
+  return {
   plugins: [
     react(),
+    ...extraPlugins,
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
@@ -58,4 +71,5 @@ export default defineConfig({
       "/api": { target: process.env.VITE_API_PROXY ?? "http://localhost:4000", changeOrigin: true },
     },
   },
+  };
 });

@@ -7,6 +7,7 @@ import { formatBDT } from "../lib/format.js";
 import { cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../lib/labels.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { Coins, Sprout } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, Stepper, useConfirm, useToast,
 } from "../components/ui.jsx";
@@ -118,7 +119,7 @@ export default function SellCrop() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>💰</span> {t("sellCrop", lang)}</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Coins className="h-6 w-6 text-green-700" aria-hidden /> {t("sellCrop", lang)}</h1>
       {loadError && (
         <div className="space-y-2">
           <ErrorBanner message={loadError} />
@@ -130,34 +131,34 @@ export default function SellCrop() {
         <form onSubmit={submit} noValidate className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="of-farm">{t("farmLabel", lang)}</Label>
-            <Select id="of-farm" name="farm" defaultValue="" aria-invalid={Boolean(formErrs.farm)}>
+            <Select id="of-farm" name="farm" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.farm; return n; })} aria-invalid={Boolean(formErrs.farm)} aria-describedby={formErrs.farm ? "of-farm-err" : undefined}>
               <option value="" disabled>{t("farmLabel", lang)}</option>
               {farms.map((f) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </Select>
-            {formErrs.farm && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
+            {formErrs.farm && <p id="of-farm-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
           </div>
           <div>
             <Label htmlFor="of-crop">{t("cropName", lang)}</Label>
-            <Select id="of-crop" name="crop" defaultValue="" aria-invalid={Boolean(formErrs.crop)}>
+            <Select id="of-crop" name="crop" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.crop; return n; })} aria-invalid={Boolean(formErrs.crop)} aria-describedby={formErrs.crop ? "of-crop-err" : undefined}>
               <option value="" disabled>{t("cropName", lang)}</option>
               {CROPS.map((c) => (
                 <option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>
               ))}
             </Select>
-            {formErrs.crop && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.crop}</p>}
+            {formErrs.crop && <p id="of-crop-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.crop}</p>}
           </div>
           <div>
             <Label htmlFor="of-qty">{t("quantityKg", lang)}</Label>
-            <Input id="of-qty" name="qty" type="number" min="1" step="1" aria-invalid={Boolean(formErrs.qty)} />
-            {formErrs.qty && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.qty}</p>}
+            <Input id="of-qty" name="qty" type="number" min="1" step="1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.qty; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v < 1) setFormErrs((prev) => ({ ...prev, qty: t("errAmountInvalid", lang) })); }} aria-invalid={Boolean(formErrs.qty)} aria-describedby={formErrs.qty ? "of-qty-err" : undefined} />
+            {formErrs.qty && <p id="of-qty-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.qty}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="of-moisture">{t("moisturePct", lang)}</Label>
-              <Input id="of-moisture" name="moisture" type="number" min="0" max="60" step="0.5" aria-invalid={Boolean(formErrs.moisture)} />
-              {formErrs.moisture && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.moisture}</p>}
+              <Input id="of-moisture" name="moisture" type="number" min="0" max="60" step="0.5" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.moisture; return n; })} aria-invalid={Boolean(formErrs.moisture)} aria-describedby={formErrs.moisture ? "of-moisture-err" : undefined} />
+              {formErrs.moisture && <p id="of-moisture-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.moisture}</p>}
             </div>
             <div>
               <Label htmlFor="of-grade">{t("qualityGrade", lang)}</Label>
@@ -172,7 +173,7 @@ export default function SellCrop() {
             {t("submit", lang)}
           </Button>
           {farms.length === 0 && !loading && (
-            <p className="text-xs text-stone-400 sm:col-span-2">{t("needFarmFirst", lang)}</p>
+            <p className="text-xs text-stone-500 sm:col-span-2">{t("needFarmFirst", lang)}</p>
           )}
         </form>
       </Card>
@@ -181,7 +182,7 @@ export default function SellCrop() {
       {loading ? (
         <Card><Skeleton className="h-16 w-full" /></Card>
       ) : orders.length === 0 ? (
-        <EmptyState icon="🌾" title={t("noOffers", lang)} />
+        <EmptyState icon={<Sprout className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noOffers", lang)} />
       ) : (
         <div className="space-y-2">
           {orders.map((o) => {
@@ -189,10 +190,10 @@ export default function SellCrop() {
               return (
                 <Card key={o.id} className="text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <span className="font-bold text-stone-800">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
+                    <div className="min-w-0">
+                      <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
                       {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
-                      <p className="text-xs text-stone-400">{o.poNo}</p>
+                      <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                     </div>
                     <div className="flex items-center gap-2 text-right">
                       <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
@@ -206,10 +207,10 @@ export default function SellCrop() {
             return (
               <Card key={o.id}>
                 <div className="mb-3 flex items-center justify-between gap-2 text-sm">
-                  <div>
-                    <span className="font-bold text-stone-800">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
+                  <div className="min-w-0">
+                    <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
                     {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
-                    <p className="text-xs text-stone-400">{o.poNo}</p>
+                    <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                   </div>
                   <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
                 </div>

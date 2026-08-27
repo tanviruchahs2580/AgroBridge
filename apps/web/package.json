@@ -8,10 +8,15 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "preview": "vite preview",
+    "analyze": "cross-env ANALYZE=1 vite build",
     "test:e2e": "playwright test",
-    "e2e:list": "playwright test --list"
+    "e2e:list": "playwright test --list",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.64.1",
+    "lucide-react": "^1.34.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.2"
@@ -24,9 +29,16 @@
     "@playwright/test": "^1.62.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^4.6.2",
     "postcss": "^8.4.49",
+    "rollup-plugin-visualizer": "^5.14.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",

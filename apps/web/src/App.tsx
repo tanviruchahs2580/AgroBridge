@@ -1,5 +1,6 @@
 ﻿import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, ShoppingCart, Sprout, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session.js";
 import { t } from "./lib/i18n.js";
@@ -7,19 +8,21 @@ import type { DictKey, Lang } from "./lib/i18n.js";
 import { isOnline, onOnlineStatusChange } from "./lib/api.js";
 import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue.js";
 import { track } from "./lib/analytics.js";
-import { BottomNav, Sidebar, Skeleton } from "./components/ui.jsx";
+import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
 import Login from "./pages/Login.jsx";
-import Register from "./pages/Register.jsx";
-import Home from "./pages/Home.jsx";
-import MyFarm from "./pages/MyFarm.jsx";
-import Market from "./pages/Market.jsx";
-import Services from "./pages/Services.jsx";
-import SellCrop from "./pages/SellCrop.jsx";
-import WalletPage from "./pages/Wallet.jsx";
-import Notifications from "./pages/Notifications.jsx";
-import Onboarding from "./pages/Onboarding.jsx";
 
-// Heavy/admin surfaces are code-split.
+// STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
+const Register = lazy(() => import("./pages/Register.jsx"));
+const Home = lazy(() => import("./pages/Home.jsx"));
+const MyFarm = lazy(() => import("./pages/MyFarm.jsx"));
+const Market = lazy(() => import("./pages/Market.jsx"));
+const Services = lazy(() => import("./pages/Services.jsx"));
+const SellCrop = lazy(() => import("./pages/SellCrop.jsx"));
+const WalletPage = lazy(() => import("./pages/Wallet.jsx"));
+const Notifications = lazy(() => import("./pages/Notifications.jsx"));
+const Onboarding = lazy(() => import("./pages/Onboarding.jsx"));
 const Advisor = lazy(() => import("./pages/Advisor.jsx"));
 const AdminPanel = lazy(() => import("./pages/Admin.jsx"));
 
@@ -64,8 +67,8 @@ function ReverseGuard({ children }: { children: ReactNode }) {
 function PageFallback() {
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm space-y-3">
-      <Skeleton className="h-6 w-40" />
-      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-6 w-32" />
+      <Skeleton className="h-20 w-full" />
       <Skeleton className="h-10 w-full" />
     </div>
   );
@@ -77,9 +80,9 @@ function NotFound() {
   return (
     <main id="main" className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 py-10 text-center shadow-sm">
-        <div aria-hidden className="text-4xl">🧭</div>
+        <Compass className="h-10 w-10 text-stone-400" aria-hidden />
         <h1 className="text-lg font-bold text-stone-800">{t("notFoundTitle", lang)}</h1>
-        <p className="max-w-sm text-sm text-stone-500">{t("notFoundBody", lang)}</p>
+        <p className="max-w-sm text-sm text-stone-600">{t("notFoundBody", lang)}</p>
         <Link to="/" className="mt-2 inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-4 py-2 font-semibold text-white hover:bg-green-800">
           {t("backHome", lang)}
         </Link>
@@ -95,17 +98,17 @@ function Shell({ children }: { children: ReactNode }) {
   if (!session) return <Navigate to="/login" replace />;
   const lang = session.lang;
 
-  const primaryNav: { to: string; key: Parameters<typeof t>[0]; icon: string }[] = [
-    { to: "/", key: "home", icon: "🏠" },
-    { to: "/farm", key: "myFarm", icon: "🚜" },
-    { to: "/advisor", key: "aiAgent", icon: "🤖" },
-    { to: "/market", key: "market", icon: "🛒" },
-    { to: "/wallet", key: "wallet", icon: "👛" },
+  const primaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
+    { to: "/", key: "home", icon: <HomeIcon className="h-5 w-5" /> },
+    { to: "/farm", key: "myFarm", icon: <Tractor className="h-5 w-5" /> },
+    { to: "/advisor", key: "aiAgent", icon: <Bot className="h-5 w-5" /> },
+    { to: "/market", key: "market", icon: <ShoppingCart className="h-5 w-5" /> },
+    { to: "/wallet", key: "wallet", icon: <WalletIcon className="h-5 w-5" /> },
   ];
-  const secondaryNav: { to: string; key: Parameters<typeof t>[0]; icon: string }[] = [
-    { to: "/services", key: "services", icon: "🔧" },
-    { to: "/sell", key: "sellCrop", icon: "💰" },
-    { to: "/notifications", key: "notifications", icon: "🔔" },
+  const secondaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
+    { to: "/services", key: "services", icon: <Wrench className="h-5 w-5" /> },
+    { to: "/sell", key: "sellCrop", icon: <Coins className="h-5 w-5" /> },
+    { to: "/notifications", key: "notifications", icon: <Bell className="h-5 w-5" /> },
   ];
 
   const bottomItems = primaryNav.map((n) => ({
@@ -120,17 +123,17 @@ function Shell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-stone-50">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[80] focus:min-h-[44px] focus:rounded-lg focus:bg-green-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-200"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[80] focus:min-h-[44px] focus:rounded-lg focus:bg-green-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
       >
         {t("skipToContent", lang)}
       </a>
       <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-xl" aria-hidden>🌾</span>
+            <Sprout className="h-6 w-6 text-green-700" aria-hidden />
             <div>
               <div className="font-bold text-green-800">{t("appName", lang)}</div>
-              <div className="hidden text-[10px] text-stone-500 sm:block">{t("tagline", lang)}</div>
+              <div className="hidden text-[10px] text-stone-600 sm:block">{t("tagline", lang)}</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -147,19 +150,19 @@ function Shell({ children }: { children: ReactNode }) {
                 {t("admin", lang)}
               </NavLink>
             )}
-            <button onClick={logout} className="min-h-[44px] text-sm font-medium text-stone-500 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">{t("logout", lang)}</button>
+            <button onClick={logout} className="min-h-[44px] text-sm font-medium text-stone-600 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">{t("logout", lang)}</button>
           </div>
         </div>
       </header>
       {!online && (
-        <div role="status" className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
-          ⚠ {t("offlineBanner", lang)}
-          {queued > 0 && <span className="ml-1">({queued})</span>}
+        <div role="status" aria-live="polite" className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
+          <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("offlineBanner", lang)}
+          {queued > 0 && <span aria-live="polite" aria-atomic="true" className="ml-1">({queued})</span>}
         </div>
       )}
       <div className="mx-auto flex max-w-6xl">
         <Sidebar items={sidebarItems} />
-        <main id="main" className="min-w-0 flex-1 px-4 py-5 pb-20 md:pb-5">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-20 outline-none md:pb-5">{children}</main>
       </div>
       <BottomNav items={bottomItems} />
     </div>
@@ -179,13 +182,28 @@ export default function App() {
     });
   }, []);
 
-  // Route-view analytics + bilingual document.title.
+  // STEP 55: offline toast when a mutation is queued
+  const toast = useToast();
+  useEffect(() => onOfflineEnqueue(() => toast.info("অফলাইন — পরে পাঠানো হবে")), [toast]);
+  // Also handle window event for cases where onEnqueue fires before React mount
+  useEffect(() => {
+    const h = () => toast.info("অফলাইন — পরে পাঠানো হবে");
+    window.addEventListener("agrobridge:offline-queued", h as EventListener);
+    return () => window.removeEventListener("agrobridge:offline-queued", h as EventListener);
+  }, [toast]);
+
+  // Route-view analytics + bilingual document.title + move focus to main on navigation.
   useEffect(() => {
     track("route_view", { path: location.pathname });
     const key = ROUTE_TITLES[location.pathname];
     document.title = key
       ? `${t(key, lang)} · ${t("appName", lang)}`
       : `${t("appName", lang)} — ${t("tagline", lang)}`;
+    // Move focus to the main landmark so screen-reader users land on page content.
+    const mainEl = document.getElementById("main");
+    if (mainEl && document.activeElement !== mainEl) {
+      (mainEl as HTMLElement).focus();
+    }
   }, [location.pathname, lang]);
 
   if (loading) {
@@ -195,17 +213,17 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<ReverseGuard><Login /></ReverseGuard>} />
-      <Route path="/register" element={<ReverseGuard><Register /></ReverseGuard>} />
-      <Route path="/" element={<Shell><Home /></Shell>} />
-      <Route path="/farm" element={<Shell><MyFarm /></Shell>} />
-      <Route path="/advisor" element={<Shell><Suspense fallback={<PageFallback />}><Advisor /></Suspense></Shell>} />
-      <Route path="/market" element={<Shell><Market /></Shell>} />
-      <Route path="/services" element={<Shell><Services /></Shell>} />
-      <Route path="/sell" element={<Shell><SellCrop /></Shell>} />
-      <Route path="/wallet" element={<Shell><WalletPage /></Shell>} />
-      <Route path="/notifications" element={<Shell><Notifications /></Shell>} />
-      <Route path="/admin" element={<Shell><Suspense fallback={<PageFallback />}><AdminPanel /></Suspense></Shell>} />
-      <Route path="/onboarding" element={<Shell><Onboarding /></Shell>} />
+      <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><Register /></Suspense></ReverseGuard>} />
+      <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Home /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><MyFarm /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Advisor /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Market /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Services /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><SellCrop /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><WalletPage /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Notifications /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><AdminPanel /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Onboarding /></Suspense></ErrorBoundary></Shell>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

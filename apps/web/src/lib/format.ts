@@ -1,7 +1,7 @@
 // Bilingual formatting + money conversion helpers.
 import type { Lang } from "./i18n.js";
 
-const CURRENCY_LOCALE: Record<Lang, string> = { bn: "bn-BD", en: "en-IN" };
+const CURRENCY_LOCALE: Record<Lang, string> = { bn: "bn-BD", en: "en-GB" };
 const DATE_LOCALE: Record<Lang, string> = { bn: "bn-BD", en: "en-GB" };
 
 type DateInput = Date | string | number;

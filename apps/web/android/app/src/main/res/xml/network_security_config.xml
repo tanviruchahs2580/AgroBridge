@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- STEP 51: Network security — prod: cleartext false; dev: allow 10.0.2.2 (emulator host) only -->
+<network-security-config>
+    <!-- Prod default: no cleartext -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Dev/emulator: allow http to 10.0.2.2 (Android emulator loopback to host) for local API -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- also allow localhost for completeness in dev builds -->
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

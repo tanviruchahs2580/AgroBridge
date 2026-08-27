@@ -60,7 +60,7 @@ export default function Onboarding() {
       <div className="h-2 w-full rounded-full bg-stone-200">
         <div className="h-2 rounded-full bg-green-700 transition-all" style={{ width: `${progress}%` }} />
       </div>
-      <p className="text-center text-xs text-stone-500">
+      <p className="text-center text-xs text-stone-600">
         {t("obStepOf", lang, { step: step + 1, total })} ·{" "}
         <button
           type="button"
@@ -77,7 +77,7 @@ export default function Onboarding() {
           <p className="text-sm text-stone-600">
             {session?.fullName} · <span className="text-xs">{session?.role}</span>
           </p>
-          <p className="text-xs text-stone-500">{t("obWhoHint", lang)}</p>
+          <p className="text-xs text-stone-600">{t("obWhoHint", lang)}</p>
         </Card>
       )}
       {step === 1 && (
@@ -117,7 +117,7 @@ export default function Onboarding() {
             ))}
           </div>
           {selectedCrops.length > 0 && (
-            <p className="text-xs text-stone-500">{t("selectedCropsLabel", lang)} {selectedCrops.map((c) => t(CROP_KEYS[c], lang)).join(", ")}</p>
+            <p className="text-xs text-stone-600">{t("selectedCropsLabel", lang)} {selectedCrops.map((c) => t(CROP_KEYS[c], lang)).join(", ")}</p>
           )}
         </Card>
       )}
