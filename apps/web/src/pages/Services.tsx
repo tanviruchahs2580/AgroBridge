@@ -6,6 +6,7 @@ import { formatBDT, formatDateTime } from "../lib/format.js";
 import { bookingStatusLabel, priceUnitLabel, serviceCategoryLabel } from "../lib/labels.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { ClipboardList, Tractor, TriangleAlert, X } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useConfirm, useToast,
 } from "../components/ui.jsx";
@@ -130,7 +131,7 @@ export default function Services() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🚜</span> {t("services", lang)}</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Tractor className="h-6 w-6 text-green-700" aria-hidden /> {t("services", lang)}</h1>
       {loadError && (
         <div className="space-y-2">
           <ErrorBanner message={loadError} />
@@ -139,7 +140,7 @@ export default function Services() {
       )}
       {!loading && !loadError && farms.length === 0 && (
         <Card className="bg-amber-50 text-sm text-amber-800">
-          <span aria-hidden>⚠️</span> {t("needFarmFirst", lang)}
+          <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("needFarmFirst", lang)}
         </Card>
       )}
 
@@ -158,7 +159,7 @@ export default function Services() {
                 <Badge className="bg-stone-100 text-stone-500">{serviceCategoryLabel(s.category, lang)}</Badge>
                 <p className="mt-1 text-sm font-semibold text-green-800">
                   {formatBDT(s.basePricePaisa, lang)}{" "}
-                  <span className="text-[10px] font-normal text-stone-400">{priceUnitLabel(s.priceUnit, lang)}</span>
+                  <span className="text-[10px] font-normal text-stone-500">{priceUnitLabel(s.priceUnit, lang)}</span>
                 </p>
               </div>
               <Button onClick={() => { setFormErrs({}); setSelected(s); }} disabled={farms.length === 0}>
@@ -175,23 +176,23 @@ export default function Services() {
           <form onSubmit={book} noValidate className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="bk-farm">{t("farmLabel", lang)}</Label>
-              <Select id="bk-farm" name="farm" defaultValue="" aria-invalid={Boolean(formErrs.farm)}>
+              <Select id="bk-farm" name="farm" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.farm; return n; })} aria-invalid={Boolean(formErrs.farm)} aria-describedby={formErrs.farm ? "bk-farm-err" : undefined}>
                 <option value="" disabled>{t("farmLabel", lang)}</option>
                 {farms.map((f) => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </Select>
-              {formErrs.farm && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
+              {formErrs.farm && <p id="bk-farm-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
             </div>
             <div>
               <Label htmlFor="bk-date">{t("scheduleLabel", lang)}</Label>
-              <Input id="bk-date" name="date" type="datetime-local" min={new Date().toISOString().slice(0, 16)} aria-invalid={Boolean(formErrs.date)} />
-              {formErrs.date && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.date}</p>}
+              <Input id="bk-date" name="date" type="datetime-local" min={new Date().toISOString().slice(0, 16)} onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.date; return n; })} onBlur={(e) => { const v = (e.target as HTMLInputElement).value; if (v && new Date(v).getTime() < Date.now() - 60_000) setFormErrs((prev) => ({ ...prev, date: t("errDateFuture", lang) })); }} aria-invalid={Boolean(formErrs.date)} aria-describedby={formErrs.date ? "bk-date-err" : undefined} />
+              {formErrs.date && <p id="bk-date-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.date}</p>}
             </div>
             <div>
               <Label htmlFor="bk-area">{t("areaBigha", lang)}</Label>
-              <Input id="bk-area" name="area" type="number" step="0.1" min="0.1" aria-invalid={Boolean(formErrs.area)} />
-              {formErrs.area && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.area}</p>}
+              <Input id="bk-area" name="area" type="number" step="0.1" min="0.1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.area; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v <= 0) setFormErrs((prev) => ({ ...prev, area: t("errAreaInvalid", lang) })); }} aria-invalid={Boolean(formErrs.area)} aria-describedby={formErrs.area ? "bk-area-err" : undefined} />
+              {formErrs.area && <p id="bk-area-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.area}</p>}
             </div>
             <div>
               <Label htmlFor="bk-provider">{t("providerLabel", lang)}</Label>
@@ -206,7 +207,7 @@ export default function Services() {
             </div>
             <div className="flex gap-2 sm:col-span-2">
               <Button type="button" variant="outline" className="flex-1" aria-label={t("cancel", lang)} onClick={() => setSelected(null)}>
-                ✕ <span className="sr-only">{t("cancel", lang)}</span>
+                <X className="h-4 w-4" aria-hidden /> <span className="sr-only">{t("cancel", lang)}</span>
               </Button>
               <Button type="submit" className="flex-[3]" loading={busy}>{t("submit", lang)}</Button>
             </div>
@@ -216,11 +217,11 @@ export default function Services() {
 
       {/* My bookings */}
       <section>
-        <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>📋</span> {t("myBookings", lang)}</h2>
+        <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><ClipboardList className="h-5 w-5 text-stone-600" aria-hidden /> {t("myBookings", lang)}</h2>
         {loading && !loadError ? (
           <Card><Skeleton className="h-12 w-full" /></Card>
         ) : bookings.length === 0 ? (
-          <EmptyState icon="📋" title={t("noBookings", lang)} />
+          <EmptyState icon={<ClipboardList className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noBookings", lang)} />
         ) : (
           <div className="space-y-2">
             {bookings.map((b) => (
@@ -240,7 +241,7 @@ export default function Services() {
                       {bookingStatusLabel(b.status, lang)}
                     </Badge>
                   </p>
-                  <p className="mt-0.5 text-xs text-stone-400">
+                  <p className="mt-0.5 text-xs text-stone-500">
                     {formatDateTime(b.scheduledFor, lang)} · {b.farm?.name} ·{" "}
                     {t("estimatedPrice", lang)}: {formatBDT(b.estimatedPricePaisa, lang)}
                     {b.provider ? ` · ${t("providerLabel", lang)}: ${b.provider.name}` : ""}

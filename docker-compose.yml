@@ -34,6 +34,8 @@ services:
       db:
         condition: service_healthy
     ports:
+      # DEV ONLY — production (docker-compose.prod.yml) keeps api on the
+      # internal network and never publishes 4000 (nginx bridges edge→internal).
       - "4000:4000"
 
   web:

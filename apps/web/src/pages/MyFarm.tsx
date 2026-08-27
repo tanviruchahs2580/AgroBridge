@@ -6,6 +6,7 @@ import type { DictKey } from "../lib/i18n.js";
 import { cropLabel, stageLabel } from "../lib/labels.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
+import { Leaf, MapPin, Tractor } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast,
 } from "../components/ui.jsx";
@@ -138,7 +139,7 @@ export default function MyFarm() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🚜</span> {t("myFarm", lang)}</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Tractor className="h-6 w-6 text-green-700" aria-hidden /> {t("myFarm", lang)}</h1>
         <Button onClick={() => setShowFarmForm((s) => !s)} aria-expanded={showFarmForm}>
           + {t("addFarm", lang)}
         </Button>
@@ -155,8 +156,8 @@ export default function MyFarm() {
           <form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3">
             <div>
               <Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label>
-              <Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} />
-              {formErrs.name && <p role="alert" className="mt-1 text-xs text-red-600">{formErrs.name}</p>}
+              <Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} aria-describedby={formErrs.name ? "fm-name-err" : undefined} />
+              {formErrs.name && <p id="fm-name-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.name}</p>}
             </div>
             <div>
               <Label htmlFor="fm-district">{t("districtPh", lang)}</Label>
@@ -172,7 +173,7 @@ export default function MyFarm() {
       )}
 
       {!loading && !loadError && farms.length === 0 && !showFarmForm && (
-        <EmptyState icon="🚜" title={t("noFarmsYet", lang)} />
+        <EmptyState icon={<Tractor className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noFarmsYet", lang)} />
       )}
       {loading && !loadError && (
         <Card><Skeleton className="h-16 w-full" /></Card>
@@ -182,8 +183,8 @@ export default function MyFarm() {
         <Card key={farm.id} className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-bold text-stone-800">{farm.name}</h2>
-              <p className="text-xs text-stone-500">
+              <h2 className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{farm.name}</h2>
+              <p className="text-xs text-stone-600">
                 {[farm.district, farm.totalAreaBigha !== undefined ? `${farm.totalAreaBigha} ${t("bighaShort", lang)}` : null]
                   .filter(Boolean)
                   .join(" · ")}
@@ -218,8 +219,8 @@ export default function MyFarm() {
             {farm.plots.map((plot) => (
               <li key={plot.id} className="rounded-lg border border-stone-100 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-stone-700">
-                    <span aria-hidden>📍</span> {plot.name} ({plot.areaBigha} {t("bighaShort", lang)})
+                  <span className="break-words text-sm font-semibold text-stone-700 [overflow-wrap:anywhere]">
+                    <MapPin className="mr-1 inline h-4 w-4 text-stone-400" aria-hidden /> {plot.name} ({plot.areaBigha} {t("bighaShort", lang)})
                   </span>
                   <Button
                     variant="outline"
@@ -245,16 +246,16 @@ export default function MyFarm() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {plot.cropCycles.map((c) => (
                       <Badge key={c.id} className="bg-green-100 text-green-900">
-                        <span aria-hidden>🌱</span> {cropLabel(c.cropName, lang)} · {stageLabel(c.stage, lang)}
+                        <Leaf className="mr-1 inline h-4 w-4 text-green-600" aria-hidden /> {cropLabel(c.cropName, lang)} · {stageLabel(c.stage, lang)}
                       </Badge>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-stone-400">{t("noPlotsYet", lang)}</p>
+                  <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>
                 )}
               </li>
             ))}
-            {farm.plots.length === 0 && <li className="text-xs text-stone-400">{t("noPlotsYet", lang)}</li>}
+            {farm.plots.length === 0 && <li className="text-xs text-stone-500">{t("noPlotsYet", lang)}</li>}
           </ul>
         </Card>
       ))}

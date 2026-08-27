@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
@@ -6,6 +7,8 @@ import type { DictKey } from "../lib/i18n.js";
 import { formatDateTime } from "../lib/format.js";
 import { mapError } from "../lib/errors-ui.js";
 import { notifCategoryLabel } from "../lib/labels.js";
+import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Package, Settings, Sprout, Tractor } from "lucide-react";
+import { pluralCategory } from "../lib/plural.js";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Label, Skeleton, useToast,
 } from "../components/ui.jsx";
@@ -26,9 +29,15 @@ interface Prefs {
   info: boolean;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  ORDER: "📦", BOOKING: "🚜", PROCUREMENT: "🌾", PAYMENT: "💳",
-  WEATHER: "🌦️", AI: "🤖", MEMBERSHIP: "🎖️", SYSTEM: "📢",
+const TYPE_ICONS: Record<string, ReactNode> = {
+  ORDER: <Package className="h-5 w-5" aria-hidden />,
+  BOOKING: <Tractor className="h-5 w-5" aria-hidden />,
+  PROCUREMENT: <Sprout className="h-5 w-5" aria-hidden />,
+  PAYMENT: <CreditCard className="h-5 w-5" aria-hidden />,
+  WEATHER: <CloudSun className="h-5 w-5" aria-hidden />,
+  AI: <Bot className="h-5 w-5" aria-hidden />,
+  MEMBERSHIP: <Award className="h-5 w-5" aria-hidden />,
+  SYSTEM: <Megaphone className="h-5 w-5" aria-hidden />,
 };
 
 type TabKey = "ALL" | "CRITICAL" | "ACTION" | "INFO";
@@ -126,17 +135,17 @@ export default function Notifications() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-stone-800">
-          <span aria-hidden>🔔</span> {t("notifications", lang)}{" "}
-          {unread > 0 && <Badge className="bg-red-100 text-red-700">{unread}</Badge>}
+        <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800">
+          <Bell className="h-6 w-6 text-green-700" aria-hidden /> {t("notifications", lang)}{" "}
+          {unread > 0 && (() => { const cat = pluralCategory(unread, lang); return <Badge aria-live="polite" aria-atomic="true" aria-label={`${unread} ${cat === "one" ? "unread" : "unread"} notifications`} className="bg-red-100 text-red-700">{unread}<span className="sr-only"> {cat === "one" ? "unread notification" : "unread notifications"}</span></Badge>; })()}
         </h1>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" aria-expanded={prefsOpen} onClick={() => setPrefsOpen((v) => !v)}>
-            ⚙ {t("prefsTitle", lang)}
+            <Settings className="mr-1 inline h-4 w-4" aria-hidden /> {t("prefsTitle", lang)}
           </Button>
           {unread > 0 && (
             <Button variant="outline" size="sm" loading={markingAll} onClick={() => void markAll()}>
-              ✓ {t("markAllRead", lang)}
+              <Check className="mr-1 inline h-4 w-4" aria-hidden /> {t("markAllRead", lang)}
             </Button>
           )}
         </div>
@@ -160,11 +169,11 @@ export default function Notifications() {
               }`}
             >
               {t(tb.key, lang)}
-              {count !== null && count > 0 && (
-                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/20" : "bg-red-100 text-red-700"}`}>
-                  {count}
+              {count !== null && count > 0 && (() => { const cat = pluralCategory(count, lang); return (
+                <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/20" : "bg-red-100 text-red-700"}`}>
+                  {count}<span className="sr-only"> {cat === "one" ? "notification" : "notifications"}</span>
                 </span>
-              )}
+              ); })()}
             </button>
           );
         })}
@@ -175,7 +184,7 @@ export default function Notifications() {
         (prefs ? (
           <Card>
             <h2 className="font-semibold text-stone-700">{t("prefsTitle", lang)}</h2>
-            <p className="mb-3 mt-1 text-xs text-stone-500">{t("prefsDescription", lang)}</p>            <div className="space-y-2">
+            <p className="mb-3 mt-1 text-xs text-stone-600">{t("prefsDescription", lang)}</p>            <div className="space-y-2">
               {([
                 ["critical", "prefCategoryCritical"],
                 ["action", "prefCategoryAction"],
@@ -225,12 +234,12 @@ export default function Notifications() {
           ))}
         </div>
       ) : items.length === 0 && !loadError ? (
-        <EmptyState icon="🔕" title={t("noNotifications", lang)} />
+        <EmptyState icon={<BellOff className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noNotifications", lang)} />
       ) : (
         <div className="space-y-2">
           {items.map((n) => (
             <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-green-200 bg-green-50/50" : ""}`}>
-              <span className="text-xl" aria-hidden>{TYPE_ICONS[n.type] ?? "📢"}</span>
+              <span className="flex items-center text-stone-500" aria-hidden>{TYPE_ICONS[n.type] ?? <Megaphone className="h-5 w-5" aria-hidden />}</span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-stone-800">
                   {n.title}
@@ -240,8 +249,8 @@ export default function Notifications() {
                     </Badge>
                   )}
                 </p>
-                <p className="text-xs text-stone-500">{n.body}</p>
-                <p className="mt-1 text-[10px] text-stone-400">{formatDateTime(n.createdAt, lang)}</p>
+                <p className="text-xs text-stone-600">{n.body}</p>
+                <p className="mt-1 text-[10px] text-stone-500">{formatDateTime(n.createdAt, lang)}</p>
               </div>
             </Card>
           ))}

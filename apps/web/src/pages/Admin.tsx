@@ -211,6 +211,11 @@ export default function AdminPanel() {
 
   return (
     <div className="space-y-5">
+      <nav aria-label="Breadcrumb" className="text-sm text-stone-600">
+        <ol className="flex items-center gap-1">
+          <li><a href="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Home</a> / Admin</li>
+        </ol>
+      </nav>
       <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🛡️</span> {t("adminControlTower", lang)}</h1>
 
       {loadError && (
@@ -230,7 +235,7 @@ export default function AdminPanel() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {cards.map((c) => (
             <Card key={c.labelKey} className="!p-3">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">{t(c.labelKey, lang)}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t(c.labelKey, lang)}</p>
               <p className="mt-0.5 truncate text-lg font-bold text-green-800">{c.value}</p>
             </Card>
           ))}
@@ -254,7 +259,7 @@ export default function AdminPanel() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-stone-200 text-[11px] uppercase text-stone-400">
+              <tr className="border-b border-stone-200 text-[11px] uppercase text-stone-500">
                 <th className="px-2 py-2">{t("thName", lang)}</th>
                 <th className="px-2 py-2">{t("thPhone", lang)}</th>
                 <th className="px-2 py-2">{t("thRole", lang)}</th>
@@ -311,7 +316,7 @@ export default function AdminPanel() {
                 </tr>
               ))}
               {!loading && users.length === 0 && (
-                <tr><td colSpan={7} className="py-4 text-center text-stone-400">—</td></tr>
+                <tr><td colSpan={7} className="py-4 text-center text-stone-500">—</td></tr>
               )}
             </tbody>
           </table>
@@ -322,7 +327,7 @@ export default function AdminPanel() {
       <Card>
         <h2 className="mb-3 font-semibold text-stone-700"><span aria-hidden>🏧</span> {t("withdrawalsQueue", lang)}</h2>
         {withdrawals.length === 0 ? (
-          <p className="text-sm text-stone-400">{t("noWithdrawals", lang)}</p>
+          <p className="text-sm text-stone-500">{t("noWithdrawals", lang)}</p>
         ) : (
           <ul className="divide-y divide-stone-100">
             {withdrawals.map((w) => (
@@ -331,7 +336,7 @@ export default function AdminPanel() {
                   <p className="font-bold text-stone-700">
                     {formatBDT(w.amountPaisa, lang)} · {channelLabel(w.channel, lang)}
                   </p>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-stone-500">
                     {w.refNo} · {w.user?.fullName ?? "—"}{w.destination ? ` · ${t("destinationLabel", lang)}: ${w.destination}` : ""} ·{" "}
                     {formatDateTime(w.createdAt, lang)}
                   </p>
@@ -372,7 +377,7 @@ export default function AdminPanel() {
           </div>
         ) : analytics ? (
           analytics.events.length === 0 ? (
-            <p className="text-sm text-stone-400">—</p>
+            <p className="text-sm text-stone-500">—</p>
           ) : (
             <ul className="max-h-60 space-y-1 overflow-y-auto text-sm">
               {analytics.events.map((ev) => (
@@ -398,10 +403,10 @@ export default function AdminPanel() {
                 <b className="text-stone-700">{a.action}</b> · {a.entityType ?? ""}{" "}
                 {a.actor?.fullName ? `· ${a.actor.fullName} (${roleLabel(a.actor.role ?? "", lang)})` : ""}
               </span>
-              <span className="shrink-0 text-stone-400">{formatDateTime(a.createdAt, lang)}</span>
+              <span className="shrink-0 text-stone-500">{formatDateTime(a.createdAt, lang)}</span>
             </div>
           ))}
-          {audit.length === 0 && <p className="p-2 text-center text-stone-400">—</p>}
+          {audit.length === 0 && <p className="p-2 text-center text-stone-500">—</p>}
         </div>
       </Card>
     </div>

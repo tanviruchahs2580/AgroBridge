@@ -16,6 +16,7 @@
     </style>
 
 
+    <!-- STEP 50: SplashScreen — launchShowDuration 1500ms via Capacitor SplashScreen plugin (capacitor.config.ts) -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
     </style>

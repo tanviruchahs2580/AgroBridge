@@ -257,7 +257,9 @@ authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) 
     // SMS provider adapter point: sandbox/none log only. A real gateway
     // (SSL Wireless / Alpha SMS) plugs in here behind the same call.
     if (env.SMS_PROVIDER === "sandbox") {
-      console.log(`[sms:sandbox] OTP for ${user.phone}: ${code} (valid ${OTP_TTL_MINUTES}m)`);
+      const masked = `${user.phone.slice(0, 3)}***${user.phone.slice(-4)}`;
+      const { logger } = await import("../../lib/logger.js");
+      logger.info({ phoneMasked: masked, ttlMinutes: OTP_TTL_MINUTES }, "sms(sandbox) OTP issued");
     }
 
     await audit({ actorId: user.id, action: "OTP_REQUESTED", entityType: "User", entityId: user.id });

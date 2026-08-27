@@ -1,0 +1,21 @@
+# Lighthouse CI gate for the built SPA (preview server on :4173).
+# Manual trigger: depends on @lhci/cli being installed in apps/web and the
+# lighthouserc.json assertions. Kept on workflow_dispatch (not push) so an
+# unprovisioned LHCI config can never block the main CI gate.
+name: lighthouse
+on:
+  workflow_dispatch:
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+      - uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # pin v12
+        with:
+          configPath: ./apps/web/lighthouserc.json

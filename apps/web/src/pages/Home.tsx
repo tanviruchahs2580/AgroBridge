@@ -6,6 +6,7 @@ import { t } from "../lib/i18n.js";
 import type { DictKey } from "../lib/i18n.js";
 import { formatBDT } from "../lib/format.js";
 import { stageLabel, weatherRiskActionLabel } from "../lib/labels.js";
+import { Bell, Bot, CheckSquare, CloudSun, Coins, Leaf, Tractor, Wallet, Zap } from "lucide-react";
 import { Badge, Button, Card, ErrorBanner, Skeleton } from "../components/ui.jsx";
 
 interface FarmShape {
@@ -75,10 +76,10 @@ export default function Home() {
   }).format(new Date());
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-6 overflow-hidden px-2 sm:px-0">
       <section>
         <h1 className="text-xl font-bold text-stone-800">{t("greeting", lang, { name: session?.fullName ?? "" })}</h1>
-        <p className="text-sm text-stone-500">{todayStr} · {t("tagline", lang)}</p>
+        <p className="text-sm text-stone-600">{todayStr} · {t("tagline", lang)}</p>
       </section>
 
       {error && (
@@ -89,7 +90,7 @@ export default function Home() {
       )}
 
       {farms.length === 0 && !localStorage.getItem("ab_onboarded") && (
-        <Card className="flex flex-wrap items-center justify-between gap-3 bg-green-50">
+        <Card className="flex flex-wrap items-center justify-between gap-4 bg-green-50">
           <p className="text-sm font-medium text-green-900">{t("setupBanner", lang)}</p>
           <Link to="/onboarding" className="inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800">
             {t("getStarted", lang)}
@@ -99,8 +100,8 @@ export default function Home() {
 
       {/* Decision-first: Today's tasks */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700">
-          <span aria-hidden>✅</span> {t("todayTasks", lang)}
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-stone-700">
+          <CheckSquare className="h-5 w-5 text-green-700" aria-hidden /> {t("todayTasks", lang)}
         </h2>
         <ul className="space-y-2">
           {TASK_KEYS.map((task) => (
@@ -112,14 +113,14 @@ export default function Home() {
                 className="h-5 w-5 rounded border-stone-300 text-green-700 focus:ring-green-600"
                 aria-label={t(task.key, lang)}
               />
-              <span className={`text-sm ${(tasks[task.id] ?? false) ? "text-stone-400 line-through" : "text-stone-700"}`}>
+              <span className={`text-sm ${(tasks[task.id] ?? false) ? "text-stone-500 line-through" : "text-stone-700"}`}>
                 {t(task.key, lang)}
               </span>
             </li>
           ))}
         </ul>
         {activeCrops.length === 0 && (
-          <p className="mt-3 text-xs text-stone-500">
+          <p className="mt-3 text-xs text-stone-600">
             {t("addFirstCropHint", lang)}{" "}
             <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
           </p>
@@ -129,7 +130,7 @@ export default function Home() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Weather card with paired action lines */}
         <Card>
-          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>🌦️</span> {t("weather", lang)}</h2>
+          <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><CloudSun className="h-5 w-5 text-sky-600" aria-hidden /> {t("weather", lang)}</h2>
           {!loaded && !weather ? (
             <div className="space-y-2">
               <Skeleton className="h-8 w-24" />
@@ -140,9 +141,9 @@ export default function Home() {
             <>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-green-800">{weather.current.tempC}°</span>
-                <span className="text-sm text-stone-500">{weather.current.condition}</span>
+                <span className="text-sm text-stone-600">{weather.current.condition}</span>
               </div>
-              <p className="mt-1 text-xs text-stone-400">
+              <p className="mt-1 text-xs text-stone-500">
                 {t("humidityLabel", lang)} {weather.current.humidityPct}% · {t("windLabel", lang)} {weather.current.windKmh} km/h
               </p>
               <div className="mt-3 space-y-2">
@@ -158,13 +159,13 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-stone-400">—</p>
+            <p className="text-sm text-stone-500">—</p>
           )}
         </Card>
 
         {/* Active crops */}
         <Card>
-          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>🌱</span> {t("activeCropsTitle", lang)}</h2>
+          <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><Leaf className="h-5 w-5 text-green-700" aria-hidden /> {t("activeCropsTitle", lang)}</h2>
           {activeCrops.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {activeCrops.map((c) => (
@@ -175,7 +176,7 @@ export default function Home() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-stone-400">
+            <p className="text-sm text-stone-500">
               {t("noCropsYet", lang)}{" "}
               <Link to="/farm" className="font-semibold text-green-700 hover:underline">{t("myFarm", lang)} →</Link>
             </p>
@@ -184,7 +185,7 @@ export default function Home() {
 
         {/* Wallet teaser */}
         <Card>
-          <h2 className="mb-2 font-semibold text-stone-700"><span aria-hidden>👛</span> {t("wallet", lang)}</h2>
+          <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><Wallet className="h-5 w-5 text-green-700" aria-hidden /> {t("wallet", lang)}</h2>
           {walletBal !== null ? (
             <p className="text-2xl font-bold text-green-800">{formatBDT(walletBal, lang)}</p>
           ) : loaded ? (
@@ -192,7 +193,7 @@ export default function Home() {
           ) : (
             <Skeleton className="h-8 w-28" />
           )}
-          <p className="text-xs text-stone-500">{t("availableBalance", lang)}</p>
+          <p className="text-xs text-stone-600">{t("availableBalance", lang)}</p>
           <Link
             to="/wallet"
             className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"
@@ -203,13 +204,13 @@ export default function Home() {
 
         {/* Quick actions */}
         <Card className="flex flex-col gap-2 sm:col-span-2 lg:col-span-3">
-          <h2 className="mb-1 font-semibold text-stone-700"><span aria-hidden>⚡</span> {t("quickActions", lang)}</h2>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Link to="/advisor" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>🤖</span> {t("aiAgent", lang)}</Link>
-            <Link to="/services" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>🚜</span> {t("services", lang)}</Link>
-            <Link to="/sell" className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><span aria-hidden>💰</span> {t("sellCrop", lang)}</Link>
-            <Link to="/notifications" className="relative inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50">
-              <span aria-hidden>🔔</span> {t("notifications", lang)}
+          <h2 className="mb-1 flex items-center gap-2 font-semibold text-stone-700"><Zap className="h-5 w-5 text-amber-600" aria-hidden /> {t("quickActions", lang)}</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <Link to="/advisor" className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><Bot className="h-5 w-5" aria-hidden /> {t("aiAgent", lang)}</Link>
+            <Link to="/services" className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><Tractor className="h-5 w-5" aria-hidden /> {t("services", lang)}</Link>
+            <Link to="/sell" className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50"><Coins className="h-5 w-5" aria-hidden /> {t("sellCrop", lang)}</Link>
+            <Link to="/notifications" className="relative inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50">
+              <Bell className="h-5 w-5" aria-hidden /> {t("notifications", lang)}
               {unread > 0 && (
                 <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{unread}</span>
               )}

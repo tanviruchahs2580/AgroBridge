@@ -298,6 +298,7 @@ export const dict = {
   membershipConfirmTitle: { bn: "মেম্বারশিপ কিনবেন?", en: "Buy this membership?" },
   membershipConfirmBody: { bn: "{tier} প্ল্যানের জন্য {price} পরিশোধ করতে হবে (স্যান্ডবক্স)।", en: "{price} will be charged for the {tier} plan (sandbox)." },
   membershipActiveToast: { bn: "✅ {tier} মেম্বারশিপ সক্রিয় (স্যান্ডবক্স)।", en: "✅ {tier} membership activated (sandbox)." },
+  membershipExpired: { bn: "মেম্বারশিপ মেয়াদ শেষ", en: "Membership expired" },
   noWithdrawalsYet: { bn: "কোনো উত্তোলনের ইতিহাস নেই।", en: "No withdrawal history yet." },
   channelLabel: { bn: "মাধ্যম", en: "Channel" },
   destinationLabel: { bn: "গন্তব্য", en: "Destination" },

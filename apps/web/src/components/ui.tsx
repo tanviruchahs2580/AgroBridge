@@ -1,14 +1,94 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 // ── Design tokens (Tailwind-based) ──
 // Primary green scale: brand-50..800 (see tailwind.config.js)
-// Neutrals: stone-*, Focus: ring-green-200, Radius: lg/xl, Elevation: shadow-sm/md
+// Neutrals: stone-*, Focus: ring-green-600, Radius: lg/xl, Elevation: shadow-sm/md
 
 type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
+
+/** Accessible spinner used for loading states (replaces bare "…" text). */
+export function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`animate-spin ${className}`} width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-90" />
+    </svg>
+  );
+}
+
+/** Focusable-query helper for modal focus trapping. */
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+}
+
+/**
+ * Accessible dialog behavior (WCAG 2.4.3 / 2.1.2):
+ * - traps Tab focus inside the dialog
+ * - locks body scroll (preserving scrollbar width)
+ * - closes on Escape when closable
+ * - restores focus to the trigger on unmount
+ */
+function useDialogA11y(open: boolean, onClose?: () => void) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    previouslyFocused.current = document.activeElement as HTMLElement;
+    const prevOverflow = document.body.style.overflow;
+    const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (scrollbarW > 0) document.body.style.paddingRight = `${scrollbarW}px`;
+    // STEP 35: make background inert while dialog is open (a11y + scroll already locked)
+    const mainEl = document.getElementById("main");
+    const hadInert = mainEl?.hasAttribute("inert");
+    if (mainEl && !hadInert) mainEl.setAttribute("inert", "");
+
+    const container = containerRef.current;
+    if (container) {
+      const focusables = getFocusable(container);
+      (focusables[0] ?? container).focus();
+    }
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Tab" && container) {
+        const f = getFocusable(container);
+        if (f.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+      if (e.key === "Escape" && onClose) onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = "";
+      if (mainEl && !hadInert) mainEl.removeAttribute("inert");
+      previouslyFocused.current?.focus?.();
+    };
+  }, [open, onClose]);
+
+  return containerRef;
+}
 
 export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean }>(function Button(
   {
@@ -35,8 +115,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
     danger: "bg-red-600 text-white hover:bg-red-700",
   };
   return (
-    <button ref={ref} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} disabled={disabled || loading} {...props}>
-      {loading ? "..." : children}
+    <button ref={ref} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
+      {loading ? <Spinner className="h-4 w-4" /> : children}
     </button>
   );
 });
@@ -52,7 +132,7 @@ export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabe
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-200 disabled:bg-stone-50 ${className}`}
+      className={`w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base text-stone-800 focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-stone-50 ${className}`}
       {...props}
     />
   );
@@ -61,7 +141,7 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base focus:border-green-600 focus:outline-none focus:ring-2 focus:ring-green-200 ${className}`}
+      className={`w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-800 focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${className}`}
       {...props}
     >
       {children}
@@ -70,60 +150,79 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
 }
 
 export function Badge({ className = "", ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={`inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-600 ${className}`} {...props} />;
+  return <span className={`inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 ${className}`} {...props} />;
 }
 
 export function Skeleton({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={`animate-pulse rounded-lg bg-stone-200 ${className}`} {...props} />;
+  return <div aria-hidden="true" className={`animate-pulse rounded-lg bg-stone-200 ${className}`} {...props} />;
 }
 
 export function EmptyState({
-  icon = "📭",
+  icon = <Inbox className="h-10 w-10 text-stone-300" aria-hidden />,
   title,
   description,
   action,
 }: {
-  icon?: string;
+  icon?: ReactNode;
   title: string;
   description?: string;
   action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 py-8 text-center shadow-sm">
-      <div className="text-3xl" aria-hidden>{icon}</div>
-      <h3 className="text-sm font-semibold text-stone-700">{title}</h3>
-      {description && <p className="max-w-sm text-sm text-stone-500">{description}</p>}
+      <div aria-hidden>{icon}</div>
+      <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
+      {description && <p className="max-w-sm text-sm text-stone-600">{description}</p>}
       {action}
     </div>
   );
 }
 
 export function ErrorBanner({ code, message }: { code?: string; message: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code ? `${message} [${code}]` : message);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard may be unavailable in insecure context
+    }
+  }
   return (
-    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-      <span>{message}</span>
-      {code && <span className="ml-2 font-mono text-xs text-red-600">[{code}]</span>}
+    <div role="alert" className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <span>{message}{code && <span className="ml-2 font-mono text-xs text-red-600">[{code}]</span>}</span>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        className="shrink-0 rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
     </div>
   );
 }
 
 // ── Navigation shells (Sprint A2) ──
-export function BottomNav({ items }: { items: { to: string; label: string; icon: string; badge?: boolean }[] }) {
+export function BottomNav({ items }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
-    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-200 bg-white/95 backdrop-blur md:hidden">
+    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
       {items.map((it) => (
         <NavLink
           key={it.to}
           to={it.to}
+          aria-current={undefined}
           className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? "text-green-700" : "text-stone-600 hover:text-green-700"}`
+            `flex flex-1 flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+              isActive ? "border-green-700 text-green-700" : "border-transparent text-stone-600 hover:text-green-700"
+            }`
           }
           style={{ minHeight: 44 }}
         >
           <span aria-hidden className="relative text-base">
             {it.icon}
-            {it.badge && <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />}
+            {it.badge && <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"><span className="sr-only"> new notifications</span></span>}
           </span>
           <span>{it.label}</span>
         </NavLink>
@@ -132,7 +231,7 @@ export function BottomNav({ items }: { items: { to: string; label: string; icon:
   );
 }
 
-export function Sidebar({ items }: { items: { to: string; label: string; icon: string }[] }) {
+export function Sidebar({ items }: { items: { to: string; label: string; icon: ReactNode }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
     <aside className="hidden w-56 shrink-0 border-r border-stone-200 bg-white md:block">
@@ -142,7 +241,9 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: s
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${isActive ? "bg-green-700 text-white" : "text-stone-700 hover:bg-green-50"}`
+              `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+                isActive ? "bg-green-700 text-white" : "text-stone-700 hover:bg-green-50"
+              }`
             }
           >
             <span aria-hidden>{it.icon}</span>
@@ -170,14 +271,15 @@ interface ToastItem {
 }
 
 const TOAST_KIND_CLASS: Record<ToastItem["kind"], string> = {
-  success: "bg-green-800",
-  error: "bg-red-600",
-  info: "bg-stone-800",
+  success: "border border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
+  error: "border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] text-[var(--color-danger-text)]",
+  info: "border border-stone-200 bg-[var(--color-info-bg)] text-stone-700",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(0);
+  const swipeStart = useRef<{ id: number; x: number } | null>(null);
 
   const dismiss = useCallback((id: number) => {
     setItems((prev) => prev.filter((tst) => tst.id !== id));
@@ -205,16 +307,35 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      {/* Fixed viewport, bottom-center above bottom-nav (bottom-20 mobile / bottom-6 desktop). */}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
+      {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware). */}
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         {items.map((tst) => (
           <div
             key={tst.id}
             role={tst.kind === "error" ? "alert" : undefined}
             aria-live={tst.kind === "error" ? "assertive" : undefined}
-            className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-200 ${TOAST_KIND_CLASS[tst.kind]}`}
+            onTouchStart={(e) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
+            onTouchMove={(e) => {
+              const s = swipeStart.current;
+              if (s && s.id === tst.id) {
+                const dx = e.touches[0].clientX - s.x;
+                if (Math.abs(dx) > 10) (e.currentTarget as HTMLElement).style.transform = `translateX(${dx}px)`;
+                (e.currentTarget as HTMLElement).style.opacity = `${Math.max(0.2, 1 - Math.abs(dx) / 200)}`;
+              }
+            }}
+            onTouchEnd={(e) => {
+              const s = swipeStart.current;
+              (e.currentTarget as HTMLElement).style.transform = "";
+              (e.currentTarget as HTMLElement).style.opacity = "";
+              if (s && s.id === tst.id) {
+                const dx = e.changedTouches[0].clientX - s.x;
+                if (Math.abs(dx) > 60) dismiss(tst.id);
+              }
+              swipeStart.current = null;
+            }}
+            className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${TOAST_KIND_CLASS[tst.kind]}`}
           >
-            <span aria-hidden>{tst.kind === "success" ? "✓" : tst.kind === "error" ? "⚠" : "ℹ"}</span>
+            <span aria-hidden>{tst.kind === "success" ? <Check className="h-5 w-5" aria-hidden /> : tst.kind === "error" ? <TriangleAlert className="h-5 w-5" aria-hidden /> : <Info className="h-5 w-5" aria-hidden />}</span>
             <span className="flex-1">{tst.msg}</span>
           </div>
         ))}
@@ -228,7 +349,7 @@ export function useToast(): ToastApi {
 }
 
 // ── Modal ──
-/** Simple overlay container used by ConfirmDialog and available for wizards. */
+/** Accessible overlay: focus-trapped, scroll-locked, Escape-closable, focus-restoring. */
 export function Modal({
   title,
   onClose,
@@ -240,15 +361,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  useEffect(() => {
-    if (!onClose) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
+  const dialogRef = useDialogA11y(Boolean(onClose), onClose);
   return (
     <div
       className="fixed inset-0 z-[65] flex items-end justify-center bg-black/40 p-4 sm:items-center"
@@ -256,11 +369,11 @@ export function Modal({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl">
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
           <h2 className="text-base font-bold text-stone-800">{title}</h2>
           {onClose && (
-            <button type="button" aria-label="Close" onClick={onClose} className="touch-target -mr-2 text-lg text-stone-500 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+            <button type="button" aria-label="Close" onClick={onClose} className="touch-target -mr-2 text-lg text-stone-600 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
               ✕
             </button>
           )}
@@ -292,7 +405,6 @@ interface PendingConfirm {
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
-  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const confirm = useCallback<ConfirmFn>(
     (opts) =>
@@ -309,9 +421,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  useEffect(() => {
-    if (pending) confirmBtnRef.current?.focus();
-  }, [pending]);
+  const dialogRef = useDialogA11y(Boolean(pending), pending ? () => settle(false) : undefined);
 
   return (
     <>
@@ -323,14 +433,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             if (e.target === e.currentTarget) settle(false);
           }}
         >
-          <div role="dialog" aria-modal="true" aria-label={pending.opts.title} className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={pending.opts.title} className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
             <h2 className={`text-base font-bold ${pending.opts.danger ? "text-red-700" : "text-stone-800"}`}>{pending.opts.title}</h2>
             {pending.opts.body && <p className="mt-2 text-sm leading-relaxed text-stone-600">{pending.opts.body}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => settle(false)}>
                 {pending.opts.cancelLabel ?? "Cancel"}
               </Button>
-              <Button ref={confirmBtnRef} variant={pending.opts.danger ? "danger" : "primary"} onClick={() => settle(true)}>
+              <Button variant={pending.opts.danger ? "danger" : "primary"} onClick={() => settle(true)}>
                 {pending.opts.confirmLabel ?? "OK"}
               </Button>
             </div>
@@ -352,7 +462,7 @@ export interface StepItem {
   state: "done" | "current" | "todo";
 }
 
-/** Horizontal stepper; wraps on mobile. done=✓ green, current=ringed, todo=muted. */
+/** Horizontal stepper; wraps on mobile. done=check green, current=ringed, todo=muted. */
 export function Stepper({ steps }: { steps: StepItem[] }) {
   return (
     <ol className="flex flex-wrap items-start gap-x-1 gap-y-3">
@@ -364,13 +474,13 @@ export function Stepper({ steps }: { steps: StepItem[] }) {
               step.state === "done"
                 ? "border-green-700 bg-green-700 text-white"
                 : step.state === "current"
-                  ? "border-green-600 bg-white text-green-800 ring-2 ring-green-200"
-                  : "border-stone-300 bg-white text-stone-400"
+                  ? "border-green-600 bg-white text-green-800 ring-2 ring-green-600"
+                  : "border-stone-300 bg-white text-stone-500"
             }`}
           >
-            {step.state === "done" ? "✓" : i + 1}
+            {step.state === "done" ? <Check className="h-4 w-4" aria-hidden /> : i + 1}
           </span>
-          <span className={`text-center text-[11px] font-medium leading-tight ${step.state === "todo" ? "text-stone-400" : step.state === "done" ? "text-green-800" : "text-stone-700"}`}>
+          <span className={`text-center text-[11px] font-medium leading-tight ${step.state === "todo" ? "text-stone-500" : step.state === "done" ? "text-green-800" : "text-stone-700"}`}>
             {step.label}
           </span>
         </li>
