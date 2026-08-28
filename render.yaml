@@ -33,8 +33,7 @@ services:
           property: connectionString
       - key: CORS_ORIGINS
         value: https://agrobridge-web.vercel.app
-      # JWT secrets - generate manually in Render dashboard after first deploy
       - key: JWT_ACCESS_SECRET
-        value: CHANGE_ME_REPLACE_WITH_64_CHAR_RANDOM
+        generateValue: true
       - key: JWT_REFRESH_SECRET
-        value: CHANGE_ME_REPLACE_WITH_64_CHAR_RANDOM
+        generateValue: true
