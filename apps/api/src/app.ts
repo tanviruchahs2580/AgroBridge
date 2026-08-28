@@ -5,9 +5,8 @@ import rateLimit from "express-rate-limit";
 import { env, isProd } from "./config/env.js";
 import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
-import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
+import { metricsMiddleware } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
@@ -28,7 +27,6 @@ import { adminRouter } from "./modules/admin/routes.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
 import { analyticsRouter } from "./modules/analytics/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
-import { metricsGuard } from "./middleware/metricsGuard.js";
 
 export function createApp() {
 const app = express();
@@ -99,8 +97,8 @@ const app = express();
   logger.info("AgroBridge API routes mounted");
 
   // DEBUG: test routes
-  app.get("/debug/app-routes", (req, res) => {
-    res.json({ routes: app._router.stack.map((l) => l.route?.path || l.name).filter(Boolean) });
+  app.get("/debug/app-routes", (_req, res) => {
+    res.json({ routes: app._router.stack.map((layer: any) => layer.route?.path || layer.name).filter(Boolean) });
   });
   v1.get("/debug/routes", (req, res) => {
     res.json({ routes: v1.stack.map((l) => l.route?.path || l.name).filter(Boolean) });
