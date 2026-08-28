@@ -44,6 +44,7 @@ export default defineConfig(async () => {
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: "index.html",
         runtimeCaching: [
           {
@@ -66,10 +67,20 @@ export default defineConfig(async () => {
     }),
   ],
   server: {
+    host: "0.0.0.0",
     port: 5173,
+    strictPort: true,
+    cors: true,
+    hmr: { host: "192.168.0.105", clientPort: 5173 },
     proxy: {
       "/api": { target: process.env.VITE_API_PROXY ?? "http://localhost:4000", changeOrigin: true },
     },
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 4173,
+    strictPort: true,
+    cors: true,
   },
   };
 });

@@ -207,15 +207,15 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
 export function BottomNav({ items }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
-    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav aria-label="Primary navigation" className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-stone-200 bg-white p-1 shadow-lg md:hidden" style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}>
       {items.map((it) => (
         <NavLink
           key={it.to}
           to={it.to}
           aria-current={undefined}
           className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-0.5 border-t-2 py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-              isActive ? "border-green-700 text-green-700" : "border-transparent text-stone-600 hover:text-green-700"
+            `flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+              isActive ? "bg-green-50 text-[#14532d]" : "text-stone-600 hover:bg-stone-50 hover:text-green-700"
             }`
           }
           style={{ minHeight: 44 }}
@@ -224,7 +224,7 @@ export function BottomNav({ items }: { items: { to: string; label: string; icon:
             {it.icon}
             {it.badge && <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"><span className="sr-only"> new notifications</span></span>}
           </span>
-          <span>{it.label}</span>
+          <span className="leading-none">{it.label}</span>
         </NavLink>
       ))}
     </nav>

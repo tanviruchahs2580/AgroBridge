@@ -1,6 +1,6 @@
 ﻿import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, ShoppingCart, Sprout, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, ShoppingCart, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session.js";
 import { t } from "./lib/i18n.js";
@@ -11,20 +11,21 @@ import { track } from "./lib/analytics.js";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
-import Login from "./pages/Login.jsx";
+import Login from "./pages/Login";
 
 // STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
-const Register = lazy(() => import("./pages/Register.jsx"));
-const Home = lazy(() => import("./pages/Home.jsx"));
-const MyFarm = lazy(() => import("./pages/MyFarm.jsx"));
-const Market = lazy(() => import("./pages/Market.jsx"));
-const Services = lazy(() => import("./pages/Services.jsx"));
-const SellCrop = lazy(() => import("./pages/SellCrop.jsx"));
-const WalletPage = lazy(() => import("./pages/Wallet.jsx"));
-const Notifications = lazy(() => import("./pages/Notifications.jsx"));
-const Onboarding = lazy(() => import("./pages/Onboarding.jsx"));
-const Advisor = lazy(() => import("./pages/Advisor.jsx"));
-const AdminPanel = lazy(() => import("./pages/Admin.jsx"));
+// Fixed: remove .jsx extension — Vite resolves .tsx correctly for dev & preview (prevents "Failed to fetch" on LAN/preview)
+const Register = lazy(() => import("./pages/Register"));
+const Home = lazy(() => import("./pages/Home"));
+const MyFarm = lazy(() => import("./pages/MyFarm"));
+const Market = lazy(() => import("./pages/Market"));
+const Services = lazy(() => import("./pages/Services"));
+const SellCrop = lazy(() => import("./pages/SellCrop"));
+const WalletPage = lazy(() => import("./pages/Wallet"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Advisor = lazy(() => import("./pages/Advisor"));
+const AdminPanel = lazy(() => import("./pages/Admin"));
 
 const ROUTE_TITLES: Record<string, DictKey> = {
   "/": "home",
@@ -127,30 +128,29 @@ function Shell({ children }: { children: ReactNode }) {
       >
         {t("skipToContent", lang)}
       </a>
-      <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-10 bg-[#14532d] shadow-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <Sprout className="h-6 w-6 text-green-700" aria-hidden />
-            <div>
-              <div className="font-bold text-green-800">{t("appName", lang)}</div>
-              <div className="hidden text-[10px] text-stone-600 sm:block">{t("tagline", lang)}</div>
-            </div>
+            <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-lg leading-none">🌾</span>
+            <div className="font-bold text-white">{t("appName", lang)}</div>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"}
               onClick={() => setLang(lang === "bn" ? "en" : "bn")}
-              className="touch-target !min-h-0 rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {lang === "bn" ? "EN" : "বাং"}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
-              <NavLink to="/admin" className="inline-flex min-h-[36px] items-center rounded-lg border border-green-700 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-50">
+              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[36px] items-center rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
                 {t("admin", lang)}
               </NavLink>
             )}
-            <button onClick={logout} className="min-h-[44px] text-sm font-medium text-stone-600 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">{t("logout", lang)}</button>
+            <button onClick={logout} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <LogOut className="h-4 w-4" aria-hidden /> {t("logout", lang)}
+            </button>
           </div>
         </div>
       </header>
@@ -162,7 +162,7 @@ function Shell({ children }: { children: ReactNode }) {
       )}
       <div className="mx-auto flex max-w-6xl">
         <Sidebar items={sidebarItems} />
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-20 outline-none md:pb-5">{children}</main>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-24 outline-none md:pb-5">{children}</main>
       </div>
       <BottomNav items={bottomItems} />
     </div>

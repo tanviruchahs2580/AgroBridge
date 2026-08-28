@@ -63,8 +63,26 @@
 }
 
 :root {
-  font-family: "Inter", "Noto Sans Bengali", "Hind Siliguri", system-ui, -apple-system, sans-serif;
+  font-family: "Hind Siliguri", "Noto Sans Bengali", "Inter", system-ui, -apple-system, sans-serif;
   color-scheme: light;
+}
+
+/* Gap Analysis §4.8 — dot pattern for premium surface */
+.bg-dot-pattern {
+  background-color: #f8faf5;
+  background-image: radial-gradient(#e7e5e4 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Shimmer skeleton — Gap Analysis motion */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #e8eee9 25%, #f8faf7 50%, #e8eee9 75%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 /* Respect reduced-motion preference (WCAG 2.3.3) */
