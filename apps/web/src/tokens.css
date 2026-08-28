@@ -28,6 +28,27 @@
   --color-stone-800: #292524;
   --color-stone-900: #1c1917;
 
+  /* Enterprise Supporting Colors — Master Prompt §4 + Gap Analysis §4.1 */
+  --color-earth: #78350f;
+  --color-earth-50: #fefce8;
+  --color-soil-beige: #f5f1e8;
+  --color-soil-50: #fdf6ee;
+  --color-sky: #0ea5e9;
+  --color-sky-50: #f0f9ff;
+  --color-ai-indigo: #4f46e5;
+  --color-ai-indigo-light: #eef2ff;
+  --color-warning: #f59e0b;
+  --color-critical: #ef4444;
+  --color-neutral-bg: #f8fafc;
+  --color-dark-enterprise: #0f172a;
+  /* International surface system — Gap Analysis §4.1 */
+  --color-surface-bg: #f8faf5;
+  --color-surface-card: #ffffff;
+  --color-surface-border: #e7e5e4;
+  --color-surface-muted: #78716c;
+  --color-orange-50: #fff7ed;
+  --color-orange-600: #ea580c;
+
   /* Semantic */
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
@@ -48,15 +69,22 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  /* Radius */
+  /* Radius — Gap Analysis §4.1 */
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
+  --radius-card: 20px;
+  --radius-button: 12px;
+  --radius-chip: 999px;
+  --radius-iconBox: 14px;
 
-  /* Elevation — Linear/Stripe model: card=sm, modal=lg */
+  /* Elevation — Gap Analysis §4.1 */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-card: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+  --shadow-cardHover: 0 8px 32px rgba(21,128,61,.12), 0 2px 8px rgba(0,0,0,.06);
+  --shadow-button: 0 4px 14px rgba(21,128,61,.25);
 
   /* Focus */
   --ring-color: #16a34a;
@@ -76,6 +104,16 @@
   --leading-xl: 28px;
   --leading-2xl: 36px;
   --tracking-xs: 0.01em;
+}
+
+/* Motion — enterprise subtle entrance (Apple/Linear level) */
+@keyframes enterprise-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-enterprise { animation: enterprise-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-enterprise { animation: none; }
 }
 
 /* Dark-mode ready (Step 14) — toggled via [data-theme="dark"] or prefers-color-scheme */

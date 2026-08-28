@@ -61,6 +61,9 @@ test.describe("Accessibility scans", () => {
     for (const route of ["/", "/market", "/wallet"]) {
       await page.goto(route);
       await expect(page.locator("#main")).toBeVisible();
+      // Ensure dynamic data (weather, farms) has loaded before axe — avoids skeleton false positives
+      await page.waitForTimeout(800);
+      await page.waitForLoadState("networkidle").catch(() => {});
       await assertNoCriticalSerious(page);
     }
   });
