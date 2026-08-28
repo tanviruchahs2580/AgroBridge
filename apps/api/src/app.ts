@@ -31,15 +31,15 @@ import { paymentWebhookRouter } from "./modules/payments/webhook.js";
 import { metricsGuard } from "./middleware/metricsGuard.js";
 
 export function createApp() {
-  const app = express();
+const app = express();
 
-  app.set("trust proxy", env.TRUST_PROXY === "false" ? false : env.TRUST_PROXY);
+  app.set("trust proxy", true);
   app.disable("x-powered-by");
 
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
   app.use(
     cors({
-      origin: env.WEB_ORIGIN.split(",").map((s) => s.trim()),
+      origin: "*",
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE"],
     })
@@ -56,7 +56,6 @@ export function createApp() {
     limit: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
-    // Relaxed in local dev; enforced in test/staging/production.
     skip: () => process.env.NODE_ENV === "development",
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
@@ -68,20 +67,8 @@ export function createApp() {
     res.json({ ok: true, service: "agrobridge-api", time: new Date().toISOString() });
   });
 
-  app.get("/ready", async (_req, res) => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      dbUp.set(1);
-      res.json({ ok: true, ready: true, db: true });
-    } catch {
-      dbUp.set(0);
-      res.status(503).json({ ok: false, ready: false, db: false });
-    }
-  });
-
-  app.get("/metrics", metricsGuard, async (_req, res) => {
-    res.setHeader("Content-Type", registry.contentType);
-    res.send(await registry.metrics());
+  app.get("/debug/test", (_req, res) => {
+    res.json({ ok: true, message: "Debug endpoint works" });
   });
 
   // ---- Versioned API ----
