@@ -1,5 +1,5 @@
 services:
-  - type: pgsql
+  - type: postgresql
     name: agrobridge-db
     plan: free
     region: oregon
