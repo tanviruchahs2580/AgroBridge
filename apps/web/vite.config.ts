@@ -71,7 +71,7 @@ export default defineConfig(async () => {
     port: 5173,
     strictPort: true,
     cors: true,
-    hmr: { host: "192.168.0.105", clientPort: 5173 },
+    hmr: { host: process.env.AGRO_HMR_HOST ?? "10.23.41.26", clientPort: 5173 },
     proxy: {
       "/api": { target: process.env.VITE_API_PROXY ?? "http://localhost:4000", changeOrigin: true },
     },
