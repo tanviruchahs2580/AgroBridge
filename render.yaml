@@ -1,0 +1,38 @@
+services:
+  - type: pgsql
+    name: agrobridge-db
+    plan: free
+    region: oregon
+    databaseName: agrobridge
+    user: agrobridge
+    version: "16"
+
+  - type: web_service
+    name: agrobridge-api
+    plan: free
+    region: oregon
+    repo: https://github.com/tanviruchahs2580/AgroBridge
+    branch: main
+    buildCommand: cd apps/api && npm ci && npm run build
+    startCommand: cd apps/api && node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: WEATHER_PROVIDER
+        value: mock
+      - key: AI_PROVIDER
+        value: offline
+      - key: PAYMENT_PROVIDER
+        value: sandbox
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agrobridge-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://agrobridge-web.vercel.app
