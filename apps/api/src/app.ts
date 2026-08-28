@@ -111,7 +111,10 @@ export function createApp() {
 
   logger.info("AgroBridge API routes mounted");
 
-  // DEBUG: test route
+  // DEBUG: test routes
+  app.get("/debug/app-routes", (req, res) => {
+    res.json({ routes: app._router.stack.map((l) => l.route?.path || l.name).filter(Boolean) });
+  });
   v1.get("/debug/routes", (req, res) => {
     res.json({ routes: v1.stack.map((l) => l.route?.path || l.name).filter(Boolean) });
   });
