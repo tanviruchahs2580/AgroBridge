@@ -8,13 +8,12 @@ services:
     version: "16"
 
   - type: web_service
-    name: agrobridge-api
+    name: agrobridge-api-node
     plan: free
     region: oregon
     repo: https://github.com/tanviruchahs2580/AgroBridge
     branch: main
     rootDir: apps/api
-    buildCommand: npm ci && npm run build
     buildCommand: npm ci && npm run build
     preDeployCommand: npx prisma db push && npx prisma db seed
     startCommand: node dist/server.js
