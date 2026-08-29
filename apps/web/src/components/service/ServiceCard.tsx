@@ -29,9 +29,20 @@ const HERO_MAP: Record<string, string> = {
   TRACTOR: "/images/services/tractor.jpg",
 };
 
-export function ServiceCard({ title, category, pricePaisa, priceUnit, description, providers, lang, onBook, onDetails }: Props) {
+export function ServiceCard({
+  title,
+  category,
+  pricePaisa,
+  priceUnit,
+  description,
+  providers,
+  lang,
+  onBook,
+  onDetails,
+}: Props) {
   const hero = HERO_MAP[category] ?? HERO_MAP.TRACTOR;
   const providerCount = providers.length;
+
   return (
     <motion.article
       layout
@@ -42,27 +53,40 @@ export function ServiceCard({ title, category, pricePaisa, priceUnit, descriptio
       whileHover={{ y: -2 }}
       className="group flex flex-col overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:shadow-cardHover hover:border-[#DCFCE7] focus-within:ring-2 focus-within:ring-[#15803D] focus-within:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
     >
-      <div className="relative h-[148px] w-full overflow-hidden rounded-t-[20px] bg-[#F8FAF7]">
+      {/* Image area — Land Leveller full-bleed, all images same size */}
+      <div className="relative h-44 w-full overflow-hidden rounded-t-[20px] bg-[#F8FAF7]">
         <img
           src={hero}
           alt={title}
           className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
           loading="lazy"
-          onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.opacity = "0";
+          }}
         />
-        <div className="absolute inset-0 rounded-t-[20px] bg-gradient-to-t from-black/15 via-transparent to-transparent" aria-hidden />
-        <div className="absolute bottom-3 left-3 z-10 rounded-[14px] bg-white p-1 shadow-md ring-1 ring-black/5">
-          <AgriIconBox category={category} size={40} />
-        </div>
+        <div className="absolute inset-0 rounded-t-[20px] bg-gradient-to-t from-black/10 via-transparent to-transparent" aria-hidden />
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#15803D]">{serviceCategoryLabel(category, lang)}</p>
-        <h3 className="mt-1.5 line-clamp-1 text-[16px] font-bold leading-6 text-[#1A1F1C] text-balance">{title}</h3>
+        <div className="flex items-center gap-2">
+          <AgriIconBox category={category} size={32} withMotion={false} />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#15803D]">
+            {serviceCategoryLabel(category, lang)}
+          </p>
+        </div>
+        <h3 className="mt-1.5 line-clamp-1 text-[16px] font-bold leading-6 text-[#1A1F1C] text-balance">
+          {title}
+        </h3>
         {description ? (
-          <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-[#57534E]">{description}</p>
+          <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-[#57534E]">
+            {description}
+          </p>
         ) : (
-          <p className="mt-1.5 text-[13px] leading-5 text-[#57534E]">{lang === "bn" ? "মাঠের কাজ দ্রুত ও নির্ভরযোগ্য" : "Fast and reliable field service"}</p>
+          <p className="mt-1.5 text-[13px] leading-5 text-[#57534E]">
+            {lang === "bn"
+              ? "মাঠের কাজ দ্রুত ও নির্ভরযোগ্য"
+              : "Fast and reliable field service"}
+          </p>
         )}
 
         <div className="my-4 h-px bg-[#F5F5F4]" aria-hidden />
@@ -70,8 +94,12 @@ export function ServiceCard({ title, category, pricePaisa, priceUnit, descriptio
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
-              <span className="text-[18px] font-bold tabular-nums leading-none text-[#1A1F1C]">{formatBDT(pricePaisa, lang)}</span>
-              <span className="text-[12px] font-normal text-[#78716C]">{priceUnitLabel(priceUnit, lang)}</span>
+              <span className="text-[18px] font-bold tabular-nums leading-none text-[#1A1F1C]">
+                {formatBDT(pricePaisa, lang)}
+              </span>
+              <span className="text-[12px] font-normal text-[#78716C]">
+                {priceUnitLabel(priceUnit, lang)}
+              </span>
             </div>
             <p className="mt-1 flex items-center gap-1 text-[12px] leading-4 text-[#78716C]">
               <Clock className="h-3 w-3" aria-hidden />
@@ -80,7 +108,8 @@ export function ServiceCard({ title, category, pricePaisa, priceUnit, descriptio
                 <>
                   <span aria-hidden>•</span>
                   <span className="inline-flex items-center gap-1">
-                    <Users className="h-3 w-3" aria-hidden /> {providerCount} {lang === "bn" ? "প্রদানকারী" : "providers"}
+                    <Users className="h-3 w-3" aria-hidden /> {providerCount}{" "}
+                    {lang === "bn" ? "প্রদানকারী" : "providers"}
                   </span>
                 </>
               )}
@@ -112,7 +141,7 @@ export function ServiceCard({ title, category, pricePaisa, priceUnit, descriptio
 export function ServiceCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card">
-      <div className="h-[148px] w-full animate-pulse bg-[#F5F5F4]" />
+      <div className="aspect-[16/10] w-full animate-pulse bg-[#F5F5F4]" />
       <div className="p-5">
         <div className="h-3 w-24 animate-pulse rounded bg-[#F0FDF4]" />
         <div className="mt-2 h-5 w-3/4 animate-pulse rounded bg-[#F5F5F4]" />
