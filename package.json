@@ -10,6 +10,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "npx --prefix apps/api prisma generate",
     "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
     "test": "npm run test --workspace apps/api",
