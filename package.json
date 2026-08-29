@@ -18,6 +18,9 @@
     "db:migrate": "npm run db:migrate --workspace apps/api",
     "db:seed": "npm run db:seed --workspace apps/api"
   },
+  "dependencies": {
+    "@prisma/client": "^6.5.0"
+  },
   "devDependencies": {
     "prisma": "^6.5.0"
   },
