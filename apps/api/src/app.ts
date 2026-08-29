@@ -111,6 +111,10 @@ export function createApp() {
 
   logger.info("AgroBridge API routes mounted");
 
+  app.get("/", (_req, res) => {
+    res.json({ ok: true, service: "agrobridge-api", message: "AgroBridge API is running", docs: "/health", version: "1.0" });
+  });
+
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;
