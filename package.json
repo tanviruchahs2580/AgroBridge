@@ -10,13 +10,16 @@
     "node": ">=20"
   },
   "scripts": {
-    "postinstall": "npx prisma generate --schema=apps/api/prisma/schema.prisma",
+    "postinstall": "prisma generate --schema=apps/api/prisma/schema.prisma",
     "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
     "test": "npm run test --workspace apps/api",
     "typecheck": "npm run typecheck --workspace apps/api && npm run typecheck --workspace apps/web",
     "db:migrate": "npm run db:migrate --workspace apps/api",
     "db:seed": "npm run db:seed --workspace apps/api"
+  },
+  "devDependencies": {
+    "prisma": "^6.5.0"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,
