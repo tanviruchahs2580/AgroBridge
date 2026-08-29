@@ -5,8 +5,9 @@ import rateLimit from "express-rate-limit";
 import { env, isProd } from "./config/env.js";
 import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
-import { metricsMiddleware } from "./lib/metrics.js";
+import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
@@ -27,17 +28,18 @@ import { adminRouter } from "./modules/admin/routes.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
 import { analyticsRouter } from "./modules/analytics/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
+import { metricsGuard } from "./middleware/metricsGuard.js";
 
 export function createApp() {
-const app = express();
+  const app = express();
 
-  app.set("trust proxy", true);
+  app.set("trust proxy", env.TRUST_PROXY === "false" ? false : env.TRUST_PROXY);
   app.disable("x-powered-by");
 
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
   app.use(
     cors({
-      origin: "*",
+      origin: env.WEB_ORIGIN.split(",").map((s) => s.trim()),
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE"],
     })
@@ -54,6 +56,7 @@ const app = express();
     limit: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    // Relaxed in local dev; enforced in test/staging/production.
     skip: () => process.env.NODE_ENV === "development",
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
@@ -65,8 +68,20 @@ const app = express();
     res.json({ ok: true, service: "agrobridge-api", time: new Date().toISOString() });
   });
 
-  app.get("/debug/test", (_req, res) => {
-    res.json({ ok: true, message: "Debug endpoint works" });
+  app.get("/ready", async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbUp.set(1);
+      res.json({ ok: true, ready: true, db: true });
+    } catch {
+      dbUp.set(0);
+      res.status(503).json({ ok: false, ready: false, db: false });
+    }
+  });
+
+  app.get("/metrics", metricsGuard, async (_req, res) => {
+    res.setHeader("Content-Type", registry.contentType);
+    res.send(await registry.metrics());
   });
 
   // ---- Versioned API ----
@@ -95,14 +110,6 @@ const app = express();
   app.use("/api/v1", v1);
 
   logger.info("AgroBridge API routes mounted");
-
-  // DEBUG: test routes
-  app.get("/debug/app-routes", (_req, res) => {
-    res.json({ routes: app._router.stack.map((layer: any) => layer.route?.path || layer.name).filter(Boolean) });
-  });
-  v1.get("/debug/routes", (req, res) => {
-    res.json({ routes: v1.stack.map((l) => l.route?.path || l.name).filter(Boolean) });
-  });
 
   app.use(notFoundHandler);
   app.use(errorHandler);
