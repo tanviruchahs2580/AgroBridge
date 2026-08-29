@@ -10,7 +10,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "postinstall": "npx prisma generate --schema=apps/api/prisma/schema.prisma",
+    "postinstall": "npx prisma@6.5.0 generate --schema=apps/api/prisma/schema.prisma",
     "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
     "test": "npm run test --workspace apps/api",
