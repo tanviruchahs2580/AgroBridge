@@ -1,17 +1,14 @@
-# AgroBridge Web — static SPA served by nginx
-FROM node:22-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /app
-
 COPY package.json package-lock.json ./
-COPY apps/web/package.json apps/web/
-RUN npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
-
-COPY apps/web apps/web
-ARG VITE_API_BASE=/api/v1
-RUN npm run build --workspace @agrobridge/web
-
-FROM nginx:1.27-alpine AS runtime
-COPY docker/web.nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/api/package.json ./apps/api/package.json
+RUN npm ci --workspace apps/web
+COPY . .
+WORKDIR /app/apps/web
+ENV VITE_API_BASE_URL=/api/v1
+RUN npm run build
+FROM nginx:alpine
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+COPY docker/web.nginx.prod.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost/ || exit 1
