@@ -24,7 +24,7 @@ services:
       PORT: "4000"
       # NOTE: production uses the postgres schema variant (see docs/deployment.md)
       DATABASE_URL: ${API_DATABASE_URL:?set API_DATABASE_URL}
-      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://10.23.41.26:8080}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
       WEATHER_PROVIDER: ${WEATHER_PROVIDER:-mock}
