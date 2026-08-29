@@ -13,9 +13,9 @@ services:
     region: oregon
     repo: https://github.com/tanviruchahs2580/AgroBridge
     branch: main
-    buildCommand: npm ci && npx --prefix apps/api prisma generate && npm run build --workspace apps/api
+    buildCommand: npm install --include=dev && sed -i s/sqlite/postgresql/ apps/api/prisma/schema.prisma && npx prisma generate --schema=apps/api/prisma/schema.prisma && npm run build --workspace apps/api
     startCommand: node apps/api/dist/server.js
-    preDeployCommand: npx --prefix apps/api prisma db push && npx --prefix apps/api prisma db seed
+    preDeployCommand: cd apps/api && npx prisma db push && npx prisma db seed
     envVars:
       - key: NODE_ENV
         value: production
