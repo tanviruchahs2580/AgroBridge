@@ -14,7 +14,7 @@ export const bookingsRouter = Router();
 
 servicesRouter.use(requireAuth);
 
-servicesRouter.get("/", async (req, res, next) => {
+servicesRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const services = await prisma.service.findMany({
       where: { isActive: true },
@@ -38,7 +38,7 @@ const serviceBody = z.object({
   description: z.string().trim().max(1000).optional(),
 });
 
-servicesRouter.post("/", requirePermission("services:manage"), validate({ body: serviceBody }), async (req, res, next) => {
+servicesRouter.post("/", requirePermission("services:manage"), validate({ body: serviceBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     ok(res, await prisma.service.create({ data: req.body as never }), 201);
   } catch (e) {
@@ -54,7 +54,7 @@ const providerBody = z.object({
   district: z.string().trim().max(60).optional(),
 });
 
-servicesRouter.post("/providers", requirePermission("providers:manage"), validate({ body: providerBody }), async (req, res, next) => {
+servicesRouter.post("/providers", requirePermission("providers:manage"), validate({ body: providerBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     ok(res, await prisma.serviceProvider.create({ data: req.body as never }), 201);
   } catch (e) {
@@ -76,7 +76,7 @@ const bookingCreate = z.object({
 bookingsRouter.post(
   "/",
   validate({ body: bookingCreate }),
-  async (req, res, next) => {
+  async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
       const b = req.body as z.infer<typeof bookingCreate>;
 
@@ -128,7 +128,7 @@ bookingsRouter.post(
   }
 );
 
-bookingsRouter.get("/", async (req, res, next) => {
+bookingsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
     const bookings = await prisma.booking.findMany({
@@ -145,7 +145,7 @@ bookingsRouter.get("/", async (req, res, next) => {
 
 const assignSchema = z.object({ providerId: z.string().min(5) });
 
-bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validate({ body: assignSchema }), async (req, res, next) => {
+bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validate({ body: assignSchema }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const booking = await prisma.booking.findUnique({ where: { id: req.params.id! } });
     if (!booking) throw notFound("Booking");
@@ -175,7 +175,7 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
   }
 });
 
-bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]), reason: z.string().max(300).optional() }) }), async (req, res, next) => {
+bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]), reason: z.string().max(300).optional() }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const role = req.auth!.role;
     const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
@@ -221,7 +221,7 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
 
 const ratingSchema = z.object({ rating: z.number().int().min(1).max(5) });
 
-bookingsRouter.post("/:id/rating", validate({ body: ratingSchema }), async (req, res, next) => {
+bookingsRouter.post("/:id/rating", validate({ body: ratingSchema }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const booking = await prisma.booking.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
     if (!booking) throw forbidden("Not your booking");

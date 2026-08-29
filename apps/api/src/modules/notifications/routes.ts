@@ -23,7 +23,7 @@ notificationsRouter.get("/", async (req, res, next) => {
     ]);
     ok(res, {
       items: notifications,
-      unread: notifications.filter((n) => !n.readAt).length,
+      unread: notifications.filter((n: { readAt: Date | null }) => !n.readAt).length,
       counts: { critical: unreadCritical, action: unreadAction, info: unreadInfo },
     });
   } catch (e) {

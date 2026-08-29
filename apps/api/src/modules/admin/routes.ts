@@ -139,7 +139,7 @@ adminRouter.get("/ai-usage", requirePermission("admin:metrics"), async (_req, re
       _count: { _all: true },
       _avg: { latencyMs: true },
     });
-    ok(res, byProvider.map((p) => ({ provider: p.provider, count: p._count._all, avgLatencyMs: p._avg.latencyMs })));
+    ok(res, byProvider.map((p: { provider: string; _count: { _all: number }; _avg: { latencyMs: number | null } }) => ({ provider: p.provider, count: p._count._all, avgLatencyMs: p._avg.latencyMs })));
   } catch (e) {
     next(e);
   }
@@ -175,7 +175,7 @@ adminRouter.post(
   async (req, res, next) => {
     try {
       const { action, note } = req.body as { action: string; note?: string };
-      const w = await prisma.$transaction(async (tx) => {
+      const w = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         if (action === "APPROVE") {
           // APPROVE debits the wallet now and holds the amount for transfer.
           const claimed = await tx.withdrawal.updateMany({
@@ -259,9 +259,9 @@ adminRouter.get("/analytics/summary", requirePermission("admin:metrics"), async 
       }),
     ]);
 
-    ok(res, {
+ok(res, {
       windowDays: days,
-      events: byName.map((b) => ({ name: b.name, count: b._count._all })),
+      events: byName.map((b: { name: string; _count: { _all: number } }) => ({ name: b.name, count: b._count._all })),
       activeDaysSample: dau.length,
     });
   } catch (e) {

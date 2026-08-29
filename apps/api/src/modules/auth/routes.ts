@@ -312,8 +312,8 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     });
     if (pending) throw unprocessable("Resolve pending withdrawals before deleting your account");
 
-    const userId = req.auth!.userId;
-    await prisma.$transaction(async (tx) => {
+const userId = req.auth!.userId;
+    await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.user.update({
         where: { id: userId },
