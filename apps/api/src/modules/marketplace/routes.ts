@@ -97,7 +97,7 @@ async function getOrCreateCart(userId: string) {
 cartRouter.get("/", async (req, res, next) => {
   try {
     const cart = await getOrCreateCart(req.auth!.userId);
-    const subtotalPaisa = cart.items.reduce((s, i) => s + i.product.pricePaisa * i.qty, 0);
+    const subtotalPaisa = cart.items.reduce((s: number, i: { product: { pricePaisa: number }; qty: number }) => s + i.product.pricePaisa * i.qty, 0);
     ok(res, { ...cart, subtotalPaisa });
   } catch (e) {
     next(e);
@@ -188,7 +188,7 @@ ordersRouter.post("/checkout", async (req, res, next) => {
     const membership = await getActiveMembership(req.auth!.userId);
     const discountPct = membership.discountPct;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const cart = await tx.cart.findUnique({
         where: { userId: req.auth!.userId },
         include: { items: { include: { product: true } } },
@@ -230,7 +230,7 @@ ordersRouter.post("/checkout", async (req, res, next) => {
           totalPaisa,
           ...(shipping ?? {}),
           items: {
-            create: cart.items.map((i) => ({
+            create: cart.items.map((i: { productId: string; product: { name: string; sku: string; pricePaisa: number }; qty: number }) => ({
               productId: i.productId,
               nameSnapshot: i.product.name,
               skuSnapshot: i.product.sku,

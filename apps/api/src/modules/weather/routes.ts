@@ -11,7 +11,7 @@ weatherRouter.use(requireAuth);
 weatherRouter.get(
   "/",
   validate({ query: z.object({ lat: z.coerce.number().min(-90).max(90), lng: z.coerce.number().min(-180).max(180), cropStage: z.string().optional() }) }),
-  async (req, res, next) => {
+  async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
       const { lat, lng, cropStage } = req.query as unknown as { lat: number; lng: number; cropStage?: string };
       const provider = getWeatherProvider();

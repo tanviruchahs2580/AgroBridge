@@ -98,7 +98,7 @@ paymentsRouter.post(
 
       // Cancel any stale PENDING intents for the same purpose so exactly one
       // live intent exists at a time (prevents double-confirm double-spend).
-      const payment = await prisma.$transaction(async (tx) => {
+      const payment = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         await tx.payment.updateMany({
           where: { purposeType, purposeId, status: "PENDING" },
           data: { status: "FAILED", metaStr: JSON.stringify({ cancelledReason: "superseded_by_new_intent" }) },
@@ -147,7 +147,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
     if (!payment) throw notFound("Payment");
     if (payment.status !== "PENDING") throw conflict(`Payment already ${payment.status}`);
 
-    await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
         data: { status: "SUCCEEDED" },
@@ -284,7 +284,7 @@ paymentsRouter.post(
       if (po.status !== "COLLECTED") throw unprocessable(`Cannot pay out PO in status ${po.status}`);
       if (po.netPayablePaisa <= 0) throw unprocessable("Nothing payable");
 
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         // Atomic claim: only the first COLLECTED -> PAID transition wins; concurrent
         // payouts lose the race and abort (prevents double-crediting under PostgreSQL).
         const claimed = await tx.procurementOrder.updateMany({
@@ -410,7 +410,7 @@ walletRouter.post("/withdrawals", validate({ body: withdrawalSchema }), async (r
 
     const { amountPaisa, channel } = req.body as { amountPaisa: number; channel: string };
 
-    const withdrawal = await prisma.$transaction(async (tx) => {
+    const withdrawal = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const wallet = await tx.wallet.upsert({
         where: { userId: req.auth!.userId },
         update: {},

@@ -17,7 +17,7 @@ import { sslcommerzSignature, applyPaymentSideEffects } from "./routes.js";
  */
 export const paymentWebhookRouter = Router();
 
-paymentWebhookRouter.post("/webhook/sslcommerz", async (req, res, next) => {
+paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const params = (req.body ?? {}) as Record<string, string>;
     if (!params || typeof params !== "object") throw badRequest("Invalid webhook payload");
@@ -47,7 +47,7 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req, res, next) => {
       return ok(res, { received: true, processed: false, reason: "already_final" });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
         data: { status: "SUCCEEDED", providerRef: valId || payment.providerRef, metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },

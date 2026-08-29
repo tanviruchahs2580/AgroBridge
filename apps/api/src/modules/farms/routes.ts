@@ -34,13 +34,13 @@ async function assertFarmAccess(farmId: string, userId: string, role: string) {
   throw forbidden("Not your farm");
 }
 
-farmsRouter.get("/", async (req, res, next) => {
+farmsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const userId = req.auth!.userId;
     const role = req.auth!.role;
     // Corporate/cooperative see org farms; farmers see owned; admins see owned (but could see all via admin panel)
     const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
-    const orgIds = orgMemberships.map((m) => m.organizationId);
+    const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
     const where: Record<string, unknown> = {};
     if (["CORPORATE", "COOPERATIVE"].includes(role) && orgIds.length > 0) {
       where.OR = [{ ownerId: userId }, { organizationId: { in: orgIds } }];
@@ -67,7 +67,7 @@ farmsRouter.get("/", async (req, res, next) => {
   }
 });
 
-farmsRouter.post("/", validate({ body: farmBody }), async (req, res, next) => {
+farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const data = req.body as z.infer<typeof farmBody>;
     if (data.organizationId) {
@@ -84,7 +84,7 @@ farmsRouter.post("/", validate({ body: farmBody }), async (req, res, next) => {
   }
 });
 
-farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req, res, next) => {
+farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
     // organizationId is NOT patchable by owners — org linking is an
@@ -249,7 +249,7 @@ export function cropsRouter() {
           include: { plot: { select: { name: true, farm: { select: { name: true } } } } },
           orderBy: { plantedAt: "desc" },
         });
-        ok(res, cycles.map((c) => ({ ...c, stageAuto: cropStageFor(c.plantedAt), calendar: cropCalendar(c.stage) })));
+        ok(res, cycles.map((c: { id: string; stage: string; plantedAt: Date; plot: { name: string; farm: { name: string } } }) => ({ ...c, stageAuto: cropStageFor(c.plantedAt), calendar: cropCalendar(c.stage) })));
       } catch (e) {
         next(e);
       }
@@ -263,9 +263,9 @@ export function cropsRouter() {
             status: z.enum(["ACTIVE", "HARVESTED", "FAILED"]).optional(),
             yieldKg: z.number().positive().max(1_000_000).optional(),
           })
-          .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" }),
+.refine((b) => Object.keys(b).length > 0, { message: "No fields to update" })
       }),
-      async (req, res, next) => {
+      async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
         try {
           const existing = await prisma.cropCycle.findFirst({
             where: { id: req.params.cropId!, plot: { farm: { ownerId: req.auth!.userId } } },
@@ -293,52 +293,59 @@ const eventBody = z.object({
 });
 
 export function eventsRouter() {
-  return Router({ mergeParams: true })
-    .get("/events", async (req, res, next) => {
-      try {
-        const limit = Math.min(Number(req.query.limit ?? 50), 200);
-        const events = await prisma.farmEvent.findMany({
-          where: { farm: { ownerId: req.auth!.userId } },
-          include: { plot: { select: { name: true } }, cropCycle: { select: { cropName: true } } },
-          orderBy: { occurredAt: "desc" },
-          take: limit,
-        });
-        ok(res, events);
-      } catch (e) {
-        next(e);
-      }
-    })
-    .post("/events", validate({ body: eventBody }), async (req, res, next) => {
-      try {
-        const body = req.body as z.infer<typeof eventBody>;
-        const farm = await prisma.farm.findFirst({ where: { id: req.params.id!, ownerId: req.auth!.userId } });
-        if (!farm) throw notFound("Farm");
+  const router = Router({ mergeParams: true });
 
-        if (body.clientUuid) {
-          const dupe = await prisma.farmEvent.findUnique({ where: { clientUuid: body.clientUuid } });
-          if (dupe) return ok(res, dupe); // idempotent offline sync replay
-        }
+  const getEventsHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+    try {
+      const limit = Math.min(Number(req.query.limit ?? 50), 200);
+      const events = await prisma.farmEvent.findMany({
+        where: { farm: { ownerId: req.auth!.userId } },
+        include: { plot: { select: { name: true } }, cropCycle: { select: { cropName: true } } },
+        orderBy: { occurredAt: "desc" },
+        take: limit,
+      });
+      ok(res, events);
+    } catch (e) {
+      next(e);
+    }
+  };
 
-        const created = await prisma.farmEvent.create({
-          data: {
-            farmId: farm.id,
-            actorId: req.auth!.userId,
-            type: body.type,
-            title: body.title,
-            notes: body.notes,
-            plotId: body.plotId,
-            cropCycleId: body.cropCycleId,
-            metadataStr: body.metadata ? JSON.stringify(body.metadata) : undefined,
-            occurredAt: body.occurredAt,
-            clientUuid: body.clientUuid,
-            source: "APP",
-          },
-        });
-        ok(res, created, 201);
-      } catch (e) {
-        next(e);
+  const postEventHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+    try {
+      const body = req.body as z.infer<typeof eventBody>;
+      const farm = await prisma.farm.findFirst({ where: { id: req.params.id!, ownerId: req.auth!.userId } });
+      if (!farm) throw notFound("Farm");
+
+      if (body.clientUuid) {
+        const dupe = await prisma.farmEvent.findUnique({ where: { clientUuid: body.clientUuid } });
+        if (dupe) return ok(res, dupe);
       }
-    });
+
+      const created = await prisma.farmEvent.create({
+        data: {
+          farmId: farm.id,
+          actorId: req.auth!.userId,
+          type: body.type,
+          title: body.title,
+          notes: body.notes,
+          plotId: body.plotId,
+          cropCycleId: body.cropCycleId,
+          metadataStr: body.metadata ? JSON.stringify(body.metadata) : undefined,
+          occurredAt: body.occurredAt,
+          clientUuid: body.clientUuid,
+          source: "APP",
+        },
+      });
+      ok(res, created, 201);
+    } catch (e) {
+      next(e);
+    }
+  };
+
+  router.get("/events", getEventsHandler);
+  router.post("/events", validate({ body: eventBody }), postEventHandler);
+
+  return router;
 }
 
 // Mount farm-scoped sub-resources (mergeParams propagates :id into nested routers)

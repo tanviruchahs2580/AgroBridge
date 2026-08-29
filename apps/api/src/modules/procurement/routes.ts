@@ -134,7 +134,7 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
 
     // Transactional conditional transition: prevents two reviewers racing
     // past each other (check-then-write TOCTOU).
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const claimed = await tx.procurementOrder.updateMany({
         where: { id: po.id, status: { in: t.from } },
         data: { status: t.to, qcNotes: qcNotes ?? po.qcNotes },
