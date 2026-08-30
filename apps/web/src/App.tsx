@@ -10,6 +10,7 @@ import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "
 import { track } from "./lib/analytics.js";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { PageTransition } from "./components/PageTransition.jsx";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
 import Login from "./pages/Login";
 
@@ -218,7 +219,7 @@ export default function App() {
       <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><MyFarm /></Suspense></ErrorBoundary></Shell>} />
       <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Advisor /></Suspense></ErrorBoundary></Shell>} />
       <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Market /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Services /></Suspense></ErrorBoundary></Shell>} />
+      <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Services /></PageTransition></Suspense></ErrorBoundary></Shell>} />
       <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><SellCrop /></Suspense></ErrorBoundary></Shell>} />
       <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><WalletPage /></Suspense></ErrorBoundary></Shell>} />
       <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Notifications /></Suspense></ErrorBoundary></Shell>} />

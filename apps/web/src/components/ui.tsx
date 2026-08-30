@@ -3,9 +3,10 @@ import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo,
 import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
-// ── Design tokens (Tailwind-based) ──
-// Primary green scale: brand-50..800 (see tailwind.config.js)
-// Neutrals: stone-*, Focus: ring-green-600, Radius: lg/xl, Elevation: shadow-sm/md
+// ── Design System — Enterprise Tokens (single source of truth) ──
+// Colors: brand-50..950, stone-50..900, text-primary/strong/secondary/tertiary/muted, surface, semantic (success/warning/danger/info)
+// Spacing: 4/8/12/16/24/32/48/64, Radius: lg/xl/2xl/card/button/chip/iconBox, Elevation: sm/md/lg/card/cardHover/button
+// Motion: fast 0.15 normal 0.25 slow 0.4, spring snappy/gentle, press 0.98 — see src/lib/tokens.ts + src/lib/motion.ts
 
 type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -203,28 +204,28 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
   );
 }
 
-// ── Navigation shells (Sprint A2) ──
+// ── Navigation shells — Enterprise Refinement ──
 export function BottomNav({ items }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
-    <nav aria-label="Primary navigation" className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-stone-200 bg-white p-1 shadow-lg md:hidden" style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}>
+    <nav aria-label="Primary navigation" className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-stone-200 bg-white/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/90 md:hidden" style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}>
       {items.map((it) => (
         <NavLink
           key={it.to}
           to={it.to}
           aria-current={undefined}
           className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-              isActive ? "bg-green-50 text-[#14532d]" : "text-stone-600 hover:bg-stone-50 hover:text-green-700"
+            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+              isActive ? "bg-green-50 text-[#14532d] shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-green-700"
             }`
           }
           style={{ minHeight: 44 }}
         >
-          <span aria-hidden className="relative text-base">
+          <span aria-hidden className="relative text-[18px]">
             {it.icon}
             {it.badge && <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"><span className="sr-only"> new notifications</span></span>}
           </span>
-          <span className="leading-none">{it.label}</span>
+          <span className="leading-none tracking-[-0.01em]">{it.label}</span>
         </NavLink>
       ))}
     </nav>
@@ -241,12 +242,12 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: R
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-                isActive ? "bg-green-700 text-white" : "text-stone-700 hover:bg-green-50"
+              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+                isActive ? "bg-green-700 text-white shadow-sm" : "text-stone-700 hover:bg-green-50 hover:text-green-800"
               }`
             }
           >
-            <span aria-hidden>{it.icon}</span>
+            <span aria-hidden className="text-[18px]">{it.icon}</span>
             <span>{it.label}</span>
           </NavLink>
         ))}
