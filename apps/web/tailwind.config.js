@@ -50,6 +50,15 @@ export default {
           border: "var(--color-surface-border)",
           muted: "var(--color-surface-muted)",
         },
+        text: {
+          primary: "var(--text-primary)",
+          strong: "var(--text-strong)",
+          secondary: "var(--text-secondary)",
+          tertiary: "var(--text-tertiary)",
+          muted: "var(--text-muted)",
+          disabled: "var(--text-disabled)",
+          inverse: "var(--text-on-light)",
+        },
         orange: {
           50: "var(--color-orange-50)",
           600: "var(--color-orange-600)",

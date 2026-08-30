@@ -49,6 +49,16 @@
   --color-orange-50: #fff7ed;
   --color-orange-600: #ea580c;
 
+  /* Semantic text — hierarchy for Bangla + English */
+  --text-primary: #1A1F1C;
+  --text-strong: #292524;
+  --text-secondary: #57534E;
+  --text-tertiary: #78716C;
+  --text-muted: #A8A29E;
+  --text-disabled: #D6D3D1;
+  --text-on-light: #FFFFFF;
+  --text-inverse: #FFFFFF;
+
   /* Semantic */
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
