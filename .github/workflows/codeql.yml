@@ -33,10 +33,4 @@ jobs:
         uses: github/codeql-action/analyze@v3 # pin v3 -> commit SHA
         with:
           category: "/language:javascript-typescript"
-
-      - name: Upload SARIF artifact (audit trail)
-        uses: actions/upload-artifact@v4 # pin v4 -> commit SHA
-        with:
-          name: codeql-sarif
-          path: ../results/*.sarif
-          if-no-files-found: ignore
+          output: "${{ runner.temp }}/codeql-results"
