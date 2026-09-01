@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App.jsx";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -44,19 +45,21 @@ function SwUpdateAnnouncer() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <ConfirmProvider>
-          <BrowserRouter>
-            <SessionProvider>
-              <ErrorBoundary>
-                <App />
-              </ErrorBoundary>
-            </SessionProvider>
-          </BrowserRouter>
-          <SwUpdateAnnouncer />
-        </ConfirmProvider>
-      </ToastProvider>
-    </QueryClientProvider>
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <ConfirmProvider>
+            <BrowserRouter>
+              <SessionProvider>
+                <ErrorBoundary>
+                  <App />
+                </ErrorBoundary>
+              </SessionProvider>
+            </BrowserRouter>
+            <SwUpdateAnnouncer />
+          </ConfirmProvider>
+        </ToastProvider>
+      </QueryClientProvider>
+    </MotionConfig>
   </React.StrictMode>
 );

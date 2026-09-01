@@ -11,7 +11,9 @@ import { track } from "./lib/analytics.js";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { PageTransition } from "./components/PageTransition.jsx";
+import { TopBar } from "./components/TopBar.jsx";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
+import { motion } from "framer-motion";
 import Login from "./pages/Login";
 
 // STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
@@ -155,11 +157,19 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      <TopBar />
       {!online && (
-        <div role="status" aria-live="polite" className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-800">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          role="status"
+          aria-live="polite"
+          className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-800 motion-reduce:transition-none"
+        >
           <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("offlineBanner", lang)}
           {queued > 0 && <span aria-live="polite" aria-atomic="true" className="ml-1">({queued})</span>}
-        </div>
+        </motion.div>
       )}
       <div className="mx-auto flex max-w-6xl">
         <Sidebar items={sidebarItems} />
