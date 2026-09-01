@@ -126,6 +126,19 @@
   .animate-enterprise { animation: none; }
 }
 
+/* Micro-interaction keyframes — only for transient validation/press states */
+@keyframes agro-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+.animate-shake { animation: agro-shake 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake { animation: none; }
+}
+@keyframes agro-pulse { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.35); } 100% { box-shadow: 0 0 0 8px rgba(22,163,74,0); } }
+.animate-success-pulse { animation: agro-pulse 0.5s ease-out; }
+
 /* Dark-mode ready (Step 14) — toggled via [data-theme="dark"] or prefers-color-scheme */
 @media (prefers-color-scheme: dark) {
   :root {

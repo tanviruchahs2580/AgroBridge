@@ -2,6 +2,8 @@ import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHT
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { motionTokens } from "../lib/motion.js";
 
 // ── Design System — Enterprise Tokens (single source of truth) ──
 // Colors: brand-50..950, stone-50..900, text-primary/strong/secondary/tertiary/muted, surface, semantic (success/warning/danger/info)
@@ -123,7 +125,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
 });
 
 export function Card({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={`rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-[box-shadow,border-color] hover:border-stone-300 hover:shadow-sm motion-reduce:transition-none ${className}`} {...props} />;
+  return <div className={`rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${className}`} {...props} />;
 }
 
 export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
@@ -131,18 +133,20 @@ export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabe
 }
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  const isInvalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
   return (
     <input
-      className={`w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base text-stone-800 focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-stone-50 ${className}`}
+      className={`w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base text-stone-800 transition-[border-color,box-shadow,transform] focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-stone-50 motion-reduce:transition-none ${isInvalid ? "animate-shake border-red-300" : ""} ${className}`}
       {...props}
     />
   );
 }
 
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const isInvalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
   return (
     <select
-      className={`w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-800 focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${className}`}
+      className={`w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-800 transition-[border-color,box-shadow,transform] focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 motion-reduce:transition-none ${isInvalid ? "animate-shake border-red-300" : ""} ${className}`}
       {...props}
     >
       {children}
@@ -310,36 +314,42 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware). */}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
-        {items.map((tst) => (
-          <div
-            key={tst.id}
-            role={tst.kind === "error" ? "alert" : undefined}
-            aria-live={tst.kind === "error" ? "assertive" : undefined}
-            onTouchStart={(e) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
-            onTouchMove={(e) => {
-              const s = swipeStart.current;
-              if (s && s.id === tst.id) {
-                const dx = e.touches[0].clientX - s.x;
-                if (Math.abs(dx) > 10) (e.currentTarget as HTMLElement).style.transform = `translateX(${dx}px)`;
-                (e.currentTarget as HTMLElement).style.opacity = `${Math.max(0.2, 1 - Math.abs(dx) / 200)}`;
-              }
-            }}
-            onTouchEnd={(e) => {
-              const s = swipeStart.current;
-              (e.currentTarget as HTMLElement).style.transform = "";
-              (e.currentTarget as HTMLElement).style.opacity = "";
-              if (s && s.id === tst.id) {
-                const dx = e.changedTouches[0].clientX - s.x;
-                if (Math.abs(dx) > 60) dismiss(tst.id);
-              }
-              swipeStart.current = null;
-            }}
-            className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${TOAST_KIND_CLASS[tst.kind]}`}
-          >
-            <span aria-hidden>{tst.kind === "success" ? <Check className="h-5 w-5" aria-hidden /> : tst.kind === "error" ? <TriangleAlert className="h-5 w-5" aria-hidden /> : <Info className="h-5 w-5" aria-hidden />}</span>
-            <span className="flex-1">{tst.msg}</span>
-          </div>
-        ))}
+        <AnimatePresence>
+          {items.map((tst) => (
+            <motion.div
+              key={tst.id}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
+              role={tst.kind === "error" ? "alert" : undefined}
+              aria-live={tst.kind === "error" ? "assertive" : undefined}
+              onTouchStart={(e: any) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
+              onTouchMove={(e: any) => {
+                const s = swipeStart.current;
+                if (s && s.id === tst.id) {
+                  const dx = e.touches[0].clientX - s.x;
+                  if (Math.abs(dx) > 10) (e.currentTarget as HTMLElement).style.transform = `translateX(${dx}px)`;
+                  (e.currentTarget as HTMLElement).style.opacity = `${Math.max(0.2, 1 - Math.abs(dx) / 200)}`;
+                }
+              }}
+              onTouchEnd={(e: any) => {
+                const s = swipeStart.current;
+                (e.currentTarget as HTMLElement).style.transform = "";
+                (e.currentTarget as HTMLElement).style.opacity = "";
+                if (s && s.id === tst.id) {
+                  const dx = e.changedTouches[0].clientX - s.x;
+                  if (Math.abs(dx) > 60) dismiss(tst.id);
+                }
+                swipeStart.current = null;
+              }}
+              className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${TOAST_KIND_CLASS[tst.kind]} motion-reduce:transition-none`}
+            >
+              <span aria-hidden>{tst.kind === "success" ? <Check className="h-5 w-5" aria-hidden /> : tst.kind === "error" ? <TriangleAlert className="h-5 w-5" aria-hidden /> : <Info className="h-5 w-5" aria-hidden />}</span>
+              <span className="flex-1">{tst.msg}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastCtx.Provider>
   );
@@ -364,13 +374,28 @@ export function Modal({
 }) {
   const dialogRef = useDialogA11y(Boolean(onClose), onClose);
   return (
-    <div
-      className="fixed inset-0 z-[65] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: motionTokens.duration.fast, ease: motionTokens.ease.enter }}
+      className="fixed inset-0 z-[65] flex items-end justify-center bg-black/40 p-4 sm:items-center motion-reduce:transition-none"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl">
+      <motion.div
+        ref={dialogRef as unknown as React.RefObject<HTMLDivElement>}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        initial={{ y: 16, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 16, opacity: 0 }}
+        transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
+        className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl motion-reduce:transform-none motion-reduce:transition-none"
+      >
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
           <h2 className="text-base font-bold text-stone-800">{title}</h2>
           {onClose && (
@@ -381,8 +406,8 @@ export function Modal({
         </div>
         <div className="overflow-y-auto p-4">{children}</div>
         {footer && <div className="border-t border-stone-200 px-4 py-3">{footer}</div>}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -428,13 +453,27 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <>
       <ConfirmCtx.Provider value={confirm}>{children}</ConfirmCtx.Provider>
       {pending && (
-        <div
-          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: motionTokens.duration.fast, ease: motionTokens.ease.enter }}
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 sm:items-center motion-reduce:transition-none"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) settle(false);
           }}
         >
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={pending.opts.title} className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+          <motion.div
+            ref={dialogRef as unknown as React.RefObject<HTMLDivElement>}
+            role="dialog"
+            aria-modal="true"
+            aria-label={pending.opts.title}
+            initial={{ y: 16, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 16, opacity: 0 }}
+            transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl motion-reduce:transform-none motion-reduce:transition-none"
+          >
             <h2 className={`text-base font-bold ${pending.opts.danger ? "text-red-700" : "text-stone-800"}`}>{pending.opts.title}</h2>
             {pending.opts.body && <p className="mt-2 text-sm leading-relaxed text-stone-600">{pending.opts.body}</p>}
             <div className="mt-5 flex justify-end gap-2">
@@ -445,8 +484,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 {pending.opts.confirmLabel ?? "OK"}
               </Button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
     </>
   );
