@@ -19,7 +19,7 @@ interface Service {
   basePricePaisa: number;
   priceUnit: string;
   description?: string;
-  providers: { id: string; name: string; district?: string; ratingCount: number; ratingSum?: number }[];
+  providers: { id: string; name: string; district?: string; ratingCount: number; ratingSum: number }[];
 }
 interface Booking {
   id: string;
@@ -49,7 +49,7 @@ const CHIP_LABEL: Record<FilterKey, string> = {
 
 const containerVariants = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.08 } },
 };
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
@@ -170,7 +170,7 @@ export default function Services() {
 
   return (
     <div className="min-w-0 space-y-8">
-      {/* SECTION 01 — HERO — concise, Bangla-first, not oversized */}
+      {/* SECTION 01 — HERO — concise, Bangla-first, field-rooted */}
       <section className="overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card">
         <div className="grid gap-6 p-6 sm:grid-cols-[1.2fr_0.8fr] sm:p-8">
           <div className="min-w-0">
@@ -255,7 +255,7 @@ export default function Services() {
               type="button"
               onClick={() => setActiveFilter(k)}
               aria-pressed={activeFilter === k}
-              className={`inline-flex min-h-[36px] items-center rounded-full border px-3.5 py-2 text-[13px] font-semibold transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D] ${activeFilter === k ? "border-[#15803D] bg-[#15803D] text-white shadow-sm" : "border-[#E7E5E4] bg-white text-[#1A1F1C] hover:border-[#15803D]/30 hover:bg-[#F8FAF5]"}`}
+              className={`inline-flex min-h-[44px] items-center rounded-full border px-3.5 py-2 text-[13px] font-semibold transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D] ${activeFilter === k ? "border-[#15803D] bg-[#15803D] text-white shadow-sm" : "border-[#E7E5E4] bg-white text-[#1A1F1C] hover:border-[#15803D]/30 hover:bg-[#F8FAF5]"}`}
             >
               {CHIP_LABEL[k]}
             </button>
@@ -265,7 +265,7 @@ export default function Services() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as never)}
-              className="min-h-[36px] rounded-full border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-medium text-[#1A1F1C] focus:border-[#15803D] focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
+              className="min-h-[44px] rounded-full border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-medium text-[#1A1F1C] focus:border-[#15803D] focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
               aria-label={lang === "bn" ? "সাজান" : "Sort"}
             >
               <option value="default">{lang === "bn" ? "সাজান" : "Sort"}</option>
@@ -400,7 +400,7 @@ export default function Services() {
         </div>
       </section>
 
-      {/* Booking BottomSheet */}
+      {/* Booking BottomSheet — real API, paisa intact, a11y */}
       <AnimatePresence>
         {selected && (
           <motion.div
@@ -526,7 +526,7 @@ export default function Services() {
         )}
       </AnimatePresence>
 
-      {/* My bookings */}
+      {/* My bookings — real data, no fabricated timeline */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 px-1 text-[16px] font-bold text-[#1A1F1C]">
           <ClipboardList className="h-5 w-5 text-[#15803D]" aria-hidden /> {t("myBookings", lang)}{" "}

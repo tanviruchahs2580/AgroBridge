@@ -40,6 +40,7 @@ export const serviceCategoryLabel = (raw: string, lang: Lang): string => fromMap
 // ── Service price units ──
 const PRICE_UNIT_KEYS: Record<string, DictKey> = {
   PER_BIGHA: "unitPER_BIGHA", PER_ACRE: "unitPER_ACRE", PER_HOUR: "unitPER_HOUR", PER_DAY: "unitPER_DAY",
+  PER_VISIT: "unitPER_VISIT", PER_SAMPLE: "unitPER_SAMPLE", PER_MAUND: "unitPER_MAUND", PER_KG: "unitPER_KG",
 };
 export function priceUnitLabel(raw: string, lang: Lang): string {
   const key = PRICE_UNIT_KEYS[raw];

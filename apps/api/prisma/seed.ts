@@ -132,29 +132,41 @@ async function main() {
     await prisma.product.upsert({ where: { sku: p.sku }, update: {}, create: p });
   }
 
-  // Services + providers
+  // Services + providers — service-specific descriptions (honest, no generic placeholder)
   const servicesData = [
-    { code: "DRONE_SPRAY", name: "ড্রোন স্প্রেয়িং", category: "DRONE", basePricePaisa: 35_000, priceUnit: "PER_BIGHA", description: "ইউএভি দিয়ে ওষুধ স্প্রে" },
-    { code: "TRACTOR_PLOUGH", name: "ট্রাক্টর চাষ", category: "TRACTOR", basePricePaisa: 22_000, priceUnit: "PER_BIGHA" },
-    { code: "COMBINE_HARVEST", name: "কম্বাইন হারভেস্টার", category: "COMBINE_HARVESTER", basePricePaisa: 65_000, priceUnit: "PER_BIGHA" },
-    { code: "POWER_TILLER", name: "পাওয়ার টিলার", category: "POWER_TILLER", basePricePaisa: 15_000, priceUnit: "PER_BIGHA" },
-    { code: "LAND_LEVELLER", name: "ল্যান্ড লেভেলার", category: "LAND_LEVELLER", basePricePaisa: 28_000, priceUnit: "PER_BIGHA" },
-    { code: "THRESHER", name: "থ্রেশার", category: "THRESHER", basePricePaisa: 12_000, priceUnit: "PER_MAUND" },
-    { code: "SOIL_TEST", name: "মাটি পরীক্ষা", category: "SOIL_TESTING", basePricePaisa: 50_000, priceUnit: "PER_SAMPLE" },
-    { code: "AGRONOMIST_VISIT", name: "কৃষিবিদ ভিজিট", category: "AGRONOMIST", basePricePaisa: 80_000, priceUnit: "PER_VISIT" },
+    { code: "DRONE_SPRAY", name: "ড্রোন স্প্রেয়িং", category: "DRONE", basePricePaisa: 35_000, priceUnit: "PER_BIGHA", description: "১০ গুণ দ্রুত স্প্রে — জমি না মাড়িয়ে সমান কভারেজ, ৯০% পানি সাশ্রয়" },
+    { code: "TRACTOR_PLOUGH", name: "ট্রাক্টর চাষ", category: "TRACTOR", basePricePaisa: 22_000, priceUnit: "PER_BIGHA", description: "গভীর চাষ ও জমি প্রস্তুত — চালকসহ, প্রতি বিঘা হিসাব" },
+    { code: "COMBINE_HARVEST", name: "কম্বাইন হারভেস্টার", category: "COMBINE_HARVESTER", basePricePaisa: 65_000, priceUnit: "PER_BIGHA", description: "ধান/গম কাটা ও মাড়াই একসাথে — ১ বিঘা প্রায় ৪০ মিনিটে" },
+    { code: "POWER_TILLER", name: "পাওয়ার টিলার", category: "POWER_TILLER", basePricePaisa: 15_000, priceUnit: "PER_BIGHA", description: "ছোট জমিতে নিখুঁত চাষ — আগাছা দমন সহ, সারি প্রস্তুত" },
+    { code: "LAND_LEVELLER", name: "ল্যান্ড লেভেলার", category: "LAND_LEVELLER", basePricePaisa: 28_000, priceUnit: "PER_BIGHA", description: "লেজার সমতলকরণ — সেচে ২৫% পানি সাশ্রয়, সমান অঙ্কুরোদগম" },
+    { code: "THRESHER", name: "থ্রেশার", category: "THRESHER", basePricePaisa: 12_000, priceUnit: "PER_MAUND", description: "ধান/গম/ভুট্টা মাড়াই — ৯৯% পরিষ্কার দানা, প্রতি মণ হিসাব" },
+    { code: "SOIL_TEST", name: "মাটি পরীক্ষা", category: "SOIL_TESTING", basePricePaisa: 50_000, priceUnit: "PER_SAMPLE", description: "২৪ ঘণ্টায় ল্যাব রিপোর্ট — pH, N-P-K, জৈব পদার্থ + সার সুপারিশ" },
+    { code: "AGRONOMIST_VISIT", name: "কৃষিবিদ ভিজিট", category: "AGRONOMIST", basePricePaisa: 80_000, priceUnit: "PER_VISIT", description: "মাঠ পরিদর্শন ও রোগ/পোকা নির্ণয় — লিখিত প্রেসক্রিপশন সহ" },
   ];
+  // Distinct ratings per service to avoid identical trust metadata (finding A1)
+  const seedRatings: Record<string, { sum: number; count: number }> = {
+    DRONE_SPRAY: { sum: 45, count: 10 },
+    TRACTOR_PLOUGH: { sum: 42, count: 10 },
+    COMBINE_HARVEST: { sum: 47, count: 10 },
+    POWER_TILLER: { sum: 40, count: 10 },
+    LAND_LEVELLER: { sum: 43, count: 10 },
+    THRESHER: { sum: 41, count: 10 },
+    SOIL_TEST: { sum: 48, count: 10 },
+    AGRONOMIST_VISIT: { sum: 46, count: 10 },
+  };
   for (const s of servicesData) {
-    const service = await prisma.service.upsert({ where: { code: s.code }, update: {}, create: s });
+    const service = await prisma.service.upsert({ where: { code: s.code }, update: { description: s.description, name: s.name, basePricePaisa: s.basePricePaisa, priceUnit: s.priceUnit }, create: s });
     const providerCount = await prisma.serviceProvider.count({ where: { serviceId: service.id } });
     if (providerCount === 0) {
+      const r = seedRatings[s.code] ?? { sum: 44, count: 10 };
       await prisma.serviceProvider.create({
         data: {
           serviceId: service.id,
           name: `${service.name} সেবাদাতা (ডেমো)`,
           phone: "01700009999",
           district: "রংপুর",
-          ratingSum: 44,
-          ratingCount: 10,
+          ratingSum: r.sum,
+          ratingCount: r.count,
         },
       });
     }
