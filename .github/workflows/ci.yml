@@ -275,7 +275,7 @@ jobs:
       # Fail the build on HIGH/CRITICAL findings; accepted risks live in
       # /.trivyignore and must cross-reference SECURITY_WAIVERS.md.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # pin v0.29.0 (correct SHA — prior SHA was missing upstream)
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: agrobridge-api:scan
           format: table
