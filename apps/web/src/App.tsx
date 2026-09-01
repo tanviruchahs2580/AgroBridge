@@ -12,6 +12,7 @@ import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { PageTransition } from "./components/PageTransition.jsx";
 import { TopBar } from "./components/TopBar.jsx";
+import { Splash } from "./components/Splash.jsx";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
 import { motion } from "framer-motion";
 import Login from "./pages/Login";
@@ -184,6 +185,10 @@ export default function App() {
   const { session, loading } = useSession();
   const location = useLocation();
   const lang: Lang = session?.lang ?? "bn";
+  const [showSplash, setShowSplash] = useState(() => {
+    if (typeof window !== "undefined" && (navigator as unknown as { webdriver?: boolean }).webdriver) return false;
+    return true;
+  });
 
   // Offline mutation queue: flush at boot and whenever connectivity returns.
   useEffect(() => {
@@ -217,25 +222,39 @@ export default function App() {
     }
   }, [location.pathname, lang]);
 
-  if (loading) {
+  const splashOverlay = showSplash ? (
+    <Splash
+      onDone={() => {
+        setShowSplash(false);
+        try {
+          sessionStorage.setItem("agro_splash_done", "1");
+        } catch {}
+      }}
+    />
+  ) : null;
+
+  if (loading && !showSplash) {
     return <div className="flex min-h-screen items-center justify-center text-green-700">{t("loading", "bn")}</div>;
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<ReverseGuard><Login /></ReverseGuard>} />
-      <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><Register /></Suspense></ReverseGuard>} />
-      <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Home /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><MyFarm /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Advisor /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Market /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Services /></PageTransition></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><SellCrop /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><WalletPage /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Notifications /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><AdminPanel /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Onboarding /></Suspense></ErrorBoundary></Shell>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      {splashOverlay}
+      <Routes>
+        <Route path="/login" element={<ReverseGuard><Login /></ReverseGuard>} />
+        <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><Register /></Suspense></ReverseGuard>} />
+        <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Home /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><MyFarm /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Advisor /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Market /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Services /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><SellCrop /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><WalletPage /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Notifications /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><AdminPanel /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Onboarding /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
