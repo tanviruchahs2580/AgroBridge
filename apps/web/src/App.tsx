@@ -228,7 +228,9 @@ export default function App() {
         setShowSplash(false);
         try {
           sessionStorage.setItem("agro_splash_done", "1");
-        } catch {}
+        } catch {
+          // ignore storage errors (private mode / quota)
+        }
       }}
     />
   ) : null;

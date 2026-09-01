@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "AgroBridge — Integrated Digital Agriculture Platform (Green Soil. Smart Farm. Secure Future.)",
+  "license": "MIT",
   "workspaces": [
     "apps/*"
   ],

@@ -66,16 +66,34 @@ export default function MyFarm() {
   const [selectedFarm, setSelectedFarm] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
 
+  async function getWeatherCoords(): Promise<{ lat: number; lng: number }> {
+    // Try browser geolocation first (user's actual location), fall back to Rangpur default
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, maximumAge: 300000 })
+        );
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      } catch {
+        // fall through to default
+      }
+    }
+    return { lat: 25.9, lng: 89.1 };
+  }
+
   async function load() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [farmsData, weatherData] = await Promise.all([
-        api<Farm[]>("GET", "/farms"),
-        api<{ risks: WeatherAdvisory[] }>("GET", "/weather?lat=25.9&lng=89.1").catch(() => ({ risks: [] })),
-      ]);
+      const farmsData = await api<Farm[]>("GET", "/farms");
       setFarms(farmsData);
-      setWeather(weatherData as { risks: WeatherAdvisory[] });
+      try {
+        const coords = await getWeatherCoords();
+        const weatherData = await api<{ risks: WeatherAdvisory[] }>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
+        setWeather(weatherData as { risks: WeatherAdvisory[] });
+      } catch {
+        setWeather({ risks: [] });
+      }
     } catch (err) {
       setLoadError(mapError(err, lang));
     } finally {
