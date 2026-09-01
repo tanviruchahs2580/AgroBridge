@@ -38,6 +38,17 @@ const otpLimiter = rateLimit({
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
 });
 
+// Registration limiter: prevents mass account creation abuse
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  store: sharedStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many registration attempts. Please try again later." } },
+});
+
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   phone: z.string().regex(/^01[3-9]\d{8}$/, "Valid Bangladeshi mobile number required (e.g., 01712345678)"),
@@ -64,7 +75,7 @@ async function issueRefreshToken(userId: string, deviceInfo?: string): Promise<s
   return raw;
 }
 
-authRouter.post("/register", validate({ body: registerSchema }), async (req, res, next) => {
+authRouter.post("/register", registerLimiter, validate({ body: registerSchema }), async (req, res, next) => {
   try {
     const { fullName, phone, email, password, langPref } = req.body as z.infer<typeof registerSchema>;
 

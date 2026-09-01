@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes, TouchEvent } from "react";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -200,7 +200,7 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
       <button
         type="button"
         onClick={() => void copy()}
-        className="shrink-0 rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        className="shrink-0 min-h-[44px] rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
       >
         {copied ? "Copied!" : "Copy"}
       </button>
@@ -324,8 +324,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
               role={tst.kind === "error" ? "alert" : undefined}
               aria-live={tst.kind === "error" ? "assertive" : undefined}
-              onTouchStart={(e: any) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
-              onTouchMove={(e: any) => {
+              onTouchStart={(e: TouchEvent<HTMLDivElement>) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
+              onTouchMove={(e: TouchEvent<HTMLDivElement>) => {
                 const s = swipeStart.current;
                 if (s && s.id === tst.id) {
                   const dx = e.touches[0].clientX - s.x;
@@ -333,7 +333,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   (e.currentTarget as HTMLElement).style.opacity = `${Math.max(0.2, 1 - Math.abs(dx) / 200)}`;
                 }
               }}
-              onTouchEnd={(e: any) => {
+              onTouchEnd={(e: TouchEvent<HTMLDivElement>) => {
                 const s = swipeStart.current;
                 (e.currentTarget as HTMLElement).style.transform = "";
                 (e.currentTarget as HTMLElement).style.opacity = "";

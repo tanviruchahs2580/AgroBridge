@@ -31,20 +31,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     return () => clearTimeout(t);
   }, [shouldReduce, staticOnly, onDone]);
 
-  if (shouldReduce || staticOnly) {
-    return (
-      <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[#0A2F1F] via-[#1A4A32] to-[#2E7D4F] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur">
-          <span aria-hidden className="text-[40px] leading-none">🌱</span>
-        </div>
-        <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">এগ্রোব্রিজ</h1>
-        <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">AI-powered Farm Intelligence</p>
-        <p className="mt-6 text-[13px] font-medium text-white/80">{statusFor(100)}</p>
-      </div>
-    );
-  }
-
   useEffect(() => {
+    if (shouldReduce || staticOnly) return;
     let cancelled = false;
     // Phase timing: seed 0-1.1s, brand 0.9-1.6s (overlap), loading 1.1-2.6s, exit 2.6-2.8s
     const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 900);
@@ -84,7 +72,20 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
       clearTimeout(tDone);
       cancelAnimationFrame(raf);
     };
-  }, [onDone]);
+  }, [shouldReduce, staticOnly, onDone]);
+
+  if (shouldReduce || staticOnly) {
+    return (
+      <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[#0A2F1F] via-[#1A4A32] to-[#2E7D4F] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur">
+          <span aria-hidden className="text-[40px] leading-none">🌱</span>
+        </div>
+        <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">এগ্রোব্রিজ</h1>
+        <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">AI-powered Farm Intelligence</p>
+        <p className="mt-6 text-[13px] font-medium text-white/80">{statusFor(100)}</p>
+      </div>
+    );
+  }
 
   const ringCircumference = 2 * Math.PI * 54;
   const ringOffset = ringCircumference * (1 - progress / 100);

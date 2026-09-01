@@ -136,7 +136,6 @@ export default function Login() {
                 onClick={() => setShowPass((v) => !v)}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#64748B] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D]"
                 aria-label={showPass ? "Hide password" : "Show password"}
-                tabIndex={-1}
               >
                 {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
