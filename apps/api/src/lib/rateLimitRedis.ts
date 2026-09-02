@@ -6,7 +6,7 @@ import type { Store, Options, ClientRateLimitInfo } from "express-rate-limit";
  * Redis. Enabled automatically when REDIS_URL is configured; otherwise
  * callers keep the default in-memory store (single instance).
  */
-export function createRedisStore(redisUrl: string): Store {
+export function createRedisStore(redisUrl: string, windowMs?: number): Store {
   const client = new Redis(redisUrl, {
     lazyConnect: false,
     maxRetriesPerRequest: 2,
@@ -15,9 +15,11 @@ export function createRedisStore(redisUrl: string): Store {
     // Never crash the app over limiter connectivity — increment() fails open.
   });
 
-  async function bump(key: string, windowMs: number): Promise<ClientRateLimitInfo> {
+  let configuredWindowMs = windowMs;
+
+  async function bump(key: string, winMs: number): Promise<ClientRateLimitInfo> {
     const redisKey = `rl:${key}`;
-    const windowSec = Math.ceil(windowMs / 1000);
+    const windowSec = Math.ceil(winMs / 1000);
     try {
       const count = await client.incr(redisKey);
       if (count === 1) await client.expire(redisKey, windowSec);
@@ -34,13 +36,12 @@ export function createRedisStore(redisUrl: string): Store {
   }
 
   return {
-    async init(_options: Options) {
-      /* nothing to warm up */
+    async init(options: Options) {
+      if (!configuredWindowMs && options.windowMs) configuredWindowMs = options.windowMs;
     },
     async increment(key: string): Promise<ClientRateLimitInfo> {
-      // 15-minute fixed window matches the strictest limiter (auth); the
-      // global limiter's window is configured identically via env default.
-      return await bump(key, 15 * 60_000);
+      const win = configuredWindowMs ?? 15 * 60_000;
+      return await bump(key, win);
     },
     async decrement(key: string): Promise<void> {
       try {

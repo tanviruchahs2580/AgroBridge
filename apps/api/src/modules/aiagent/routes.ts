@@ -6,16 +6,20 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
+import { env } from "../../config/env.js";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
 // AI endpoints are expensive -> stricter limit than global (Section 33).
+const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  store: aiStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "AI advisory limit reached for this hour. Please try later." } },
 });
 

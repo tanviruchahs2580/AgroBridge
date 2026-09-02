@@ -12,8 +12,10 @@ import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 
-// Multi-instance-safe limiter store when REDIS_URL configured.
-const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
+// Multi-instance-safe limiter stores — separate per window to avoid windowMs drift (Phase 5).
+const loginStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
+const otpStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+const registerStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 
 export const authRouter = Router();
 
@@ -24,7 +26,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development",
-  store: sharedStore,
+  store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
 });
 
@@ -35,6 +37,7 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
 });
 
@@ -45,7 +48,7 @@ const registerLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
-  store: sharedStore,
+  store: registerStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many registration attempts. Please try again later." } },
 });
 
