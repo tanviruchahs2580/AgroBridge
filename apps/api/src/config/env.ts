@@ -49,6 +49,36 @@ if (parsed.data.NODE_ENV === "production") {
     parsed.data.JWT_REFRESH_SECRET.includes("change-me") ||
     parsed.data.JWT_ACCESS_SECRET.startsWith("dev-");
   if (weak) throw new Error("Refusing to start production with default JWT secrets");
+  // Phase 4: fail-fast — mock/none providers are forbidden in production (no silent degradation).
+  if (parsed.data.SMS_PROVIDER === "none") {
+    throw new Error("SMS_PROVIDER configured as none in production — startup aborted (OTP would be undelivered)");
+  }
+  if (parsed.data.SMS_PROVIDER === "sandbox") {
+    throw new Error("SMS_PROVIDER sandbox forbidden in production — configure real SMS provider");
+  }
+  if (parsed.data.WEATHER_PROVIDER === "mock") {
+    throw new Error("WEATHER_PROVIDER mock forbidden in production — configure openweather with OPENWEATHER_API_KEY");
+  }
+  if (parsed.data.WEATHER_PROVIDER === "openweather" && !parsed.data.OPENWEATHER_API_KEY) {
+    throw new Error("OPENWEATHER_API_KEY missing for WEATHER_PROVIDER=openweather in production — startup aborted");
+  }
+  if (parsed.data.AI_PROVIDER === "offline") {
+    throw new Error("AI_PROVIDER offline forbidden in production — configure openai-compatible with OPENAI_API_KEY");
+  }
+  if (parsed.data.AI_PROVIDER === "openai-compatible" && !parsed.data.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY missing for AI_PROVIDER=openai-compatible in production — startup aborted");
+  }
+  if (parsed.data.STORAGE_PROVIDER === "s3") {
+    const missing = ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"].filter(
+      (k) => !parsed.data[k as keyof typeof parsed.data],
+    );
+    if (missing.length) throw new Error(`STORAGE_PROVIDER=s3 missing in production: ${missing.join(", ")} — startup aborted`);
+  }
+  if (parsed.data.PAYMENT_PROVIDER === "sslcommerz") {
+    if (!parsed.data.SSLCOMMERZ_STORE_ID || !parsed.data.SSLCOMMERZ_STORE_PASSWORD) {
+      throw new Error("SSLCOMMERZ_STORE_ID/PASSWORD missing for PAYMENT_PROVIDER=sslcommerz in production — startup aborted");
+    }
+  }
 }
 
 export const env = parsed.data;

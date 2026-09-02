@@ -32,10 +32,14 @@ async function monthlyBudgetExceeded(): Promise<boolean> {
   return (agg._sum.costEstimatePaisa ?? 0) >= env.AI_MONTHLY_BUDGET_PAISA;
 }
 
-/** AI Gateway: single entry point with usage logging + graceful fallback (Section 33/55). */
+/** AI Gateway: single entry point with usage logging + explicit failure chain (Phase 4). */
 export async function askAgroAgent(question: string, ctx: AiContext & { userId?: string }): Promise<AiAnswer> {
   let provider = resolveProvider();
   if (provider.name === "openai-compatible" && (await monthlyBudgetExceeded())) {
+    if (isProd) {
+      const { AppError } = await import("../../lib/errors.js");
+      throw new AppError(429, "AI_BUDGET_EXCEEDED", "AI monthly budget exceeded");
+    }
     logger.warn("AI monthly budget exceeded — serving from offline engine");
     aiRequestsTotal.inc({ provider: "offline-engine", status: "budget_fallback" });
     provider = new OfflineAgroEngine();
@@ -49,7 +53,13 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     await persistQuery(ctx.userId, question, answer);
     return answer;
   } catch (err) {
-    logger.warn({ err: (err as Error).message }, "primary AI provider failed; falling back to offline engine");
+    logger.warn({ err: (err as Error).message }, "primary AI provider failed");
+    if (isProd) {
+      const { markDown } = await import("../health.js");
+      markDown("ai", (err as Error).message);
+      const { AppError } = await import("../../lib/errors.js");
+      throw new AppError(502, "AI_PROVIDER_UNAVAILABLE", "AI provider unavailable");
+    }
     const fallback = new OfflineAgroEngine();
     const answer = await fallback.ask(question, ctx);
     aiRequestsTotal.inc({ provider: fallback.name, status: "fallback_success" });
