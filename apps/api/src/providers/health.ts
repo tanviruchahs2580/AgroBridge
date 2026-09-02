@@ -9,7 +9,7 @@ export interface ProviderHealth {
   lastCheckedAt: string;
 }
 
-let health: Record<string, ProviderHealth> = {};
+const health: Record<string, ProviderHealth> = {};
 
 function set(provider: string, status: HealthStatus, reason?: string) {
   health[provider] = { provider, status, reason, lastCheckedAt: new Date().toISOString() };

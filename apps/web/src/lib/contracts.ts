@@ -12,7 +12,7 @@ export type Lang = z.infer<typeof LangSchema>;
 
 export const IdSchema = z.string().min(1);
 export const IsoDateSchema = z.coerce.date();
-export const DateStringSchema = z.string().datetime({ offset: true }).or(z.string()).transform((v) => new Date(v as string));
+export const DateStringSchema = z.string().datetime({ offset: true }).or(z.string()).transform((v: string) => new Date(v as string));
 
 // Allow unknown extra keys on API objects — backend may add fields without breaking frontend.
 // Use .passthrough() so additional keys are retained.
