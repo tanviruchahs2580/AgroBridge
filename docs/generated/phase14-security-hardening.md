@@ -192,7 +192,7 @@ For the local tier, copy the same 4 header lines + `X-Request-Id` handling to `d
 | Tool | File | Status |
 |---|---|---|
 | **Gitleaks** | `.github/workflows/ci.yml:217-228` `gitleaks` job — `actions/checkout fetch-depth:0` + `gitleaks/gitleaks-action@ff9810…` pin `v2.3.9`, `GITHUB_TOKEN`, `timeout 20m` | ✅ green |
-| **Heuristic fallback** | `ci.yml:303-313` `security-scan` step — `BEGIN PRIVATE KEY` + `postgres://…:…@` scan with allow-list `dummy|ci-password|example|changeme` | ✅ defense-in-depth |
+| **Heuristic fallback** | `ci.yml:303-313` `security-scan` step — `BEGIN␣PRIVATE␣KEY` (private-key header) + `postgres://…:…@` scan with allow-list `dummy|ci-password|example|changeme` | ✅ defense-in-depth |
 | **Logger redaction** | `apps/api/src/lib/logger.ts:3,8` `redactPaths` incl. `authorization, cookie, *.password, *.token, S3_SECRET_ACCESS_KEY` | ✅ live — `docs/REMEDIATION_REPORT.md:40` already fixed top-level `password` leak |
 
 **No change needed** — Phase 14 links these three as “secret scanning”.
