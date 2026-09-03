@@ -32,7 +32,7 @@ services:
           name: agrobridge-db
           property: connectionString
       - key: CORS_ORIGINS
-        value: https://agrobridge-web.vercel.app,http://10.23.41.26:8080
+        value: https://agrobridge-web.vercel.app,https://agrobridge-vfbz.onrender.com,https://localhost,capacitor://localhost,http://10.23.41.26:8080
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
