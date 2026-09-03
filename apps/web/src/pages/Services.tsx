@@ -75,6 +75,22 @@ export default function Services() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("ALL");
   const [sort, setSort] = useState<"default" | "priceAsc" | "priceDesc">("default");
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+
+  // Booking sheet dialog semantics: move focus in, close on Escape, restore focus out.
+  useEffect(() => {
+    if (!selected) return;
+    const prev = document.activeElement as HTMLElement | null;
+    sheetRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      prev?.focus?.();
+    };
+  }, [selected]);
 
   async function load() {
     setLoading(true);
@@ -413,11 +429,16 @@ export default function Services() {
             }}
           >
             <motion.div
+              ref={sheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={selected.name}
+              tabIndex={-1}
               initial={{ y: 24, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 24, opacity: 0 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="max-h-[85vh] w-full max-w-lg overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-xl"
+              className="max-h-[85vh] w-full max-w-lg overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-xl focus-visible:outline-none"
             >
               <div className="relative h-28 w-full overflow-hidden">
                 <img

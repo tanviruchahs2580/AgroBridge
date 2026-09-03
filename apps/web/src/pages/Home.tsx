@@ -91,7 +91,7 @@ export default function Home() {
       {/* Greeting */}
       <section className="animate-enterprise px-1" style={{ animationDelay: "0ms" } as React.CSSProperties}>
         <h1 className="text-[17px] font-bold leading-tight text-stone-800 sm:text-xl">
-          {t("greeting", lang, { name: session?.fullName ?? "" })} 👋
+          {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
         <p className="mt-1 flex items-center gap-1.5 text-[13px] text-stone-600">
           <span aria-hidden className="inline-flex h-4 w-4 items-center justify-center rounded-sm border border-stone-300 bg-white text-[10px]">📅</span>

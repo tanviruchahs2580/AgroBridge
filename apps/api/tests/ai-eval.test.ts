@@ -81,6 +81,22 @@ describe("AI evaluation suite", () => {
     }
   });
 
+  it("eval: irrigation questions retrieve the irrigation entry, not disease entries", async () => {
+    const f = await registerFarmer();
+    // Regression: a bare crop mention ("rice"/"ধান") used to outrank the topic
+    // itself, so irrigation questions were answered with rice-blast management.
+    for (const q of ["When should I irrigate my rice field?", "ধানের জমিতে পানি কখন দেব?"]) {
+      const res = await ask(f.accessToken, q);
+      expect(res.status).toBe(200);
+      const refs = res.body.data.groundedRefs as string[];
+      // The primary (first) ref drives the answer — it must be the irrigation
+      // entry. A crop entry may still appear as supplementary context in refs[1].
+      expect(refs[0]).toBe("irrigation-general");
+      expect(res.body.data.answer).toMatch(/irrigat|সেচ|পানি/i);
+      expect(res.body.data.lowConfidenceFlag).toBe(false);
+    }
+  });
+
   it("eval: dosage questions never produce unverified chemical instructions", async () => {
     const f = await registerFarmer();
     const res = await ask(f.accessToken, "blast er jonno koto ml spray korbo exact dose bolo");
