@@ -21,7 +21,7 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
         with:
@@ -81,7 +81,7 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
         with:
@@ -106,7 +106,7 @@ jobs:
     env:
       VITE_API_BASE_URL: https://agrobridge-vfbz.onrender.com/api/v1
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
         with:
@@ -129,7 +129,7 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
         with:
@@ -184,7 +184,7 @@ jobs:
     env:
       VITE_API_BASE_URL: https://agrobridge-vfbz.onrender.com/api/v1
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
         with:
@@ -223,7 +223,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
         with:
           fetch-depth: 0
 
@@ -237,7 +237,7 @@ jobs:
     timeout-minutes: 20
     needs: [api-quality, api-postgres]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # pin v3.9.0
 
@@ -263,7 +263,7 @@ jobs:
     timeout-minutes: 20
     needs: [docker-build]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
       - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # pin v3.9.0
 
@@ -292,7 +292,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
         with:
           fetch-depth: 0
 
