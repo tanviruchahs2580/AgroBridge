@@ -26,7 +26,7 @@ jobs:
     name: Build & push images to GHCR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin v4 -> commit SHA
+      - uses: actions/checkout@v7 # pin v4 -> commit SHA
 
       - uses: docker/setup-buildx-action@v3 # pin v3 -> commit SHA
 
@@ -78,7 +78,7 @@ jobs:
     needs: [build-push]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin v4 -> commit SHA
+      - uses: actions/checkout@v7 # pin v4 -> commit SHA
 
       - name: Guard — staging secrets must be configured
         env:
