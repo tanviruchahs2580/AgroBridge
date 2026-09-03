@@ -117,7 +117,8 @@ export function onOnlineStatusChange(cb: OnlineCb): () => void {
 }
 
 // ── Transport ──
-const REQUEST_TIMEOUT_MS = 10_000;
+// Render free plan cold start ~30s, so APK needs longer timeout (was 10s → network error on first login after idle)
+const REQUEST_TIMEOUT_MS = 30_000;
 const GET_RETRY_DELAYS_MS = [300, 900];
 
 class NetworkError extends Error {
