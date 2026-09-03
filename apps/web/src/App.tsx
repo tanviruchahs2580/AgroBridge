@@ -98,9 +98,13 @@ function NotFound() {
 
 function Shell({ children }: { children: ReactNode }) {
   const { session, logout, setLang } = useSession();
+  const location = useLocation();
   const online = useIsOnline();
   const queued = useQueuedCount();
-  if (!session) return <Navigate to="/login" replace />;
+  // Preserve the intended destination: the session hydrates asynchronously, so a
+  // cold load of a deep link passes through /login — hand the path back so
+  // ReverseGuard returns the user to where they were heading.
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   const lang = session.lang;
 
   const primaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
