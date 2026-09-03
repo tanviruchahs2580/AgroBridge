@@ -109,6 +109,12 @@ export default function Notifications() {
     setMarkingAll(true);
     try {
       await api("POST", "/notifications/read", { all: true });
+      // {all:true} marks every notification read server-side, so the counters
+      // are deterministically zero. The visible tab's list reloads below, but a
+      // filtered tab never recomputes `unread`/`metaCounts` (load() only does
+      // that on the ALL tab) — zero them here or the header badge goes stale.
+      setUnread(0);
+      setMetaCounts({ critical: 0, action: 0 });
       await load(tab);
     } catch (err) {
       toast.error(mapError(err, lang));

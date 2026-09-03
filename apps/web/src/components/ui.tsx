@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes, TouchEvent } from "react";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -360,7 +361,11 @@ export function useToast(): ToastApi {
 }
 
 // ── Modal ──
-/** Accessible overlay: focus-trapped, scroll-locked, Escape-closable, focus-restoring. */
+/** Accessible overlay: focus-trapped, scroll-locked, Escape-closable, focus-restoring.
+ *  Rendered through a portal to document.body: pages are free to use transform-bearing
+ *  entrance animations (which create stacking contexts) and `useDialogA11y` marks `#main`
+ *  inert while open — an inline modal inside `#main` would trap itself (unclickable)
+ *  and paint below the fixed nav layers. */
 export function Modal({
   title,
   onClose,
@@ -373,7 +378,7 @@ export function Modal({
   footer?: ReactNode;
 }) {
   const dialogRef = useDialogA11y(Boolean(onClose), onClose);
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -407,7 +412,8 @@ export function Modal({
         <div className="overflow-y-auto p-4">{children}</div>
         {footer && <div className="border-t border-stone-200 px-4 py-3">{footer}</div>}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
