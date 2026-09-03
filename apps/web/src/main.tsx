@@ -11,6 +11,7 @@ import { ConfirmProvider, ToastProvider, useToast } from "./components/ui.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { t } from "./lib/i18n.js";
 import "./index.css";
+import "./dark.css"; // designed dark token layer — after index.css so it cascades last
 
 // PWA service worker: auto-update; announce readiness as a toast, then reload.
 const updateSW = registerSW({

@@ -203,7 +203,7 @@ export default function MyFarm() {
       {/* Intelligent Farm Overview */}
       {!loading && farms.length > 0 && (
         <section className="rounded-[20px] border border-[#E7E5E4] bg-white p-5 shadow-card">
-          <h2 className="text-[16px] font-bold text-[#1A1F1C]">{lang==="bn"?"আজ আপনার খামারে ৩টি গুরুত্বপূর্ণ কাজ আছে":"You have 3 important tasks on your farm today"}</h2>
+          <h2 className="text-[16px] font-bold text-[#1A1F1C]">{lang==="bn"?`আজ আপনার খামারে ${todayTasks.length}টি গুরুত্বপূর্ণ কাজ আছে`:`You have ${todayTasks.length} important task${todayTasks.length===1?"":"s"} on your farm today`}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">🔴 {lang==="bn"?"জরুরি":"Urgent"} — {todayTasks.filter((t)=>t.label==="জরুরি").length}</span>
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">🟡 {lang==="bn"?"আজ করতে হবে":"Due today"} — {todayTasks.filter((t)=>t.label==="আজ করতে হবে").length}</span>

@@ -1,0 +1,62 @@
+/* ── AgroBridge Dark Theme — designed token set (v1) ──
+ * Additive layer: renders ONLY under OS dark scheme. The locked light design
+ * is untouched (all rules live inside the media query). Components pick colors
+ * up automatically because every utility maps to tokens.css variables; the
+ * few literal utilities (`bg-white`, dot pattern, shimmer) are remapped here.
+ * Warm dark greens keep the brand; the green-700 primary and white-on-green
+ * text carry over unchanged for contrast.
+ * Imported in main.tsx AFTER index.css so these cascade wins apply. */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* Stone ramp — inverted, warm-dark so text hierarchy survives */
+    --color-stone-50: #171917;
+    --color-stone-100: #20241f;
+    --color-stone-200: #2c312b;
+    --color-stone-300: #3b413a;
+    --color-stone-400: #857f78;
+    --color-stone-500: #a29c95;
+    --color-stone-600: #bfb9b2;
+    --color-stone-700: #d5d1cb;
+    --color-stone-800: #e8e5e1;
+    --color-stone-900: #f4f2ef;
+
+    /* Surfaces follow the ramp */
+    --color-surface-bg: #171917;
+    --color-surface-card: #20241f;
+    --color-surface-border: #2c312b;
+    --color-surface-muted: #a29c95;
+
+    /* Semantic text on dark surfaces */
+    --text-primary: #f0ede9;
+    --text-strong: #f4f2ef;
+    --text-secondary: #bfb9b2;
+    --text-tertiary: #a29c95;
+
+    --color-info-bg: #20241f;
+  }
+
+  /* Card sheets: Tailwind's literal white utility drives every card. */
+  .bg-white {
+    background-color: var(--color-surface-card);
+  }
+
+  /* BottomNav / list-item hover on the dark surface */
+  .hover\:bg-stone-50:hover {
+    background-color: var(--color-stone-100);
+  }
+
+  /* Premium dotted surface (index.css) — dark variant */
+  .bg-dot-pattern {
+    background-color: var(--color-surface-bg);
+    background-image: radial-gradient(#2c312b 1px, transparent 1px);
+  }
+
+  /* Shimmer skeleton — dark-safe highlight sweep */
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #232722 25%, #2d322c 50%, #232722 75%);
+    background-size: 400% 100%;
+  }
+}

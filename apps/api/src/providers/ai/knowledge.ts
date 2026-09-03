@@ -83,15 +83,30 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "irrigation-general",
     crop: "general",
-    keywords: ["irrigation", "সেচ", "water schedule", "পানি দেওয়া"],
+    keywords: [
+      "irrigat", "সেচ", "water schedule", "watering", "পানি দেওয়া",
+      "পানি দিন", "পানি দেব", "পানি কখন", "পানি কত", "ড্রিপ",
+    ],
     titleEn: "Irrigation best practice",
     answerEn:
       "Irrigate early morning or evening to cut evaporation losses. For most field crops, alternate wetting and drying beats constant flooding. Watch AgroBridge weather advisories — irrigate before forecast heat waves and skip irrigation within 48h of heavy rain.",
     answerBn:
-      "সকালে বা বিকেলে সেচ দিন — পানি বাষ্পীভবনে কম নষ্ট হবে। বেশিরভাগ ফসলে জমাত পানি না রেখে ভেজা-শুকনা পর্যায় ভালো। তাপপ্রবাহের আগে সেচ দিন এবং ভারী বৃষ্টির ৪৮ ঘণ্টার মধ্যে সেচ এড়িয়ে চলুন।",
+      "সকালে বা বিকালে সেচ দিন — পানি বাষ্পীভবনে কম নষ্ট হবে। বেশিরভাগ ফসলে জমাত পানি না রেখে ভেজা-শুকনা পর্যায় ভালো। তাপপ্রবাহের আগে সেচ দিন এবং ভারী বৃষ্টির ৪৮ ঘণ্টার মধ্যে সেচ এড়িয়ে চলুন।",
     confidence: 0.85,
   },
 ];
+
+/** Crop-name aliases per crop. Matching these is *weak* evidence: every entry of
+ *  a crop repeats them, so a bare crop mention must never outrank an entry that
+ *  actually matched the question's topic (e.g. "irrigate my rice field" used to
+ *  retrieve the blast-disease entry because "rice" scored the same as
+ *  "irrigation"). */
+const CROP_ALIASES: Record<string, string[]> = {
+  rice: ["rice", "ধান"],
+  wheat: ["wheat", "গম"],
+  jute: ["jute", "পাট"],
+  mustard: ["mustard", "সরিষা"],
+};
 
 /** Strip instruction-like patterns to reduce prompt-injection surface (Section 33). */
 export function sanitizeQuestion(raw: string): string {
@@ -104,16 +119,40 @@ export function sanitizeQuestion(raw: string): string {
 }
 
 export function retrieve(questionLower: string, hintCrop?: string): { entries: KbEntry[]; scores: number[] } {
-  const scored = KNOWLEDGE_BASE.map((entry) => {
+  const hint = hintCrop?.toLowerCase();
+  const scored = KNOWLEDGE_BASE.map((entry, index) => {
+    const aliases = new Set([...(CROP_ALIASES[entry.crop] ?? []), entry.crop]);
     let score = 0;
-    if (hintCrop && entry.crop === hintCrop.toLowerCase()) score += 2;
-    for (const kw of entry.keywords) {
-      if (questionLower.includes(kw)) score += entry.crop === "general" ? 1 : 1.5;
+    let strongHits = 0; // topical keyword evidence
+    let weakHits = 0; // bare crop-name repeats
+    if (hint && entry.crop === hint) {
+      // Caller-provided crop context is authoritative — treat as strong.
+      score += 2;
+      strongHits++;
     }
-    return { entry, score };
+    for (const kw of entry.keywords) {
+      if (!questionLower.includes(kw)) continue;
+      if (aliases.has(kw)) {
+        // Weak: counted once per entry so crop mentions cannot pile up.
+        if (weakHits === 0) {
+          score += 0.5;
+          weakHits++;
+        }
+      } else {
+        // Strong: multi-word phrases are the most specific evidence.
+        score += kw.includes(" ") ? 2.2 : 1.5;
+        strongHits++;
+      }
+    }
+    return { entry, score, strongHits, index };
   }).filter((s) => s.score > 0);
 
-  scored.sort((a, b) => b.score - a.score);
+  // Tier by topical evidence first, then score, then KB authoring order
+  // (stable sort) so long-standing retrieval behaviour is preserved.
+  scored.sort(
+    (a, b) =>
+      (b.strongHits > 0 ? 1 : 0) - (a.strongHits > 0 ? 1 : 0) || b.score - a.score || a.index - b.index
+  );
   return {
     entries: scored.slice(0, 2).map((s) => s.entry),
     scores: scored.slice(0, 2).map((s) => s.score),
