@@ -72,7 +72,7 @@ export default function Login() {
         <h1 className="mt-3 text-[30px] font-extrabold leading-none tracking-[-0.02em] text-[#0F172A]" style={{ fontFamily: "'Hind Siliguri', system-ui, sans-serif" }}>
           এগ্রো ব্রিজ
         </h1>
-        <p className="mt-1 text-[12px] font-medium tracking-[0.02em] text-[#64748B]">স্মার্ট কৃষি, সমৃদ্ধ ভবিষ্যৎ</p>
+        <p className="mt-1 text-[12px] font-medium tracking-[0.02em] text-[#64748B]">AI কৃষকের হাতে</p>
       </div>
 
       {/* Card — exact as screenshot */}
