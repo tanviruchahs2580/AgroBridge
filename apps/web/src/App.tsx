@@ -247,18 +247,18 @@ export default function App() {
     <>
       {splashOverlay}
       <Routes>
-        <Route path="/login" element={<ReverseGuard><Login /></ReverseGuard>} />
-        <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><Register /></Suspense></ReverseGuard>} />
-        <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Home /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><MyFarm /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Advisor /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Market /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/login" element={<ReverseGuard><PageTransition><Login /></PageTransition></ReverseGuard>} />
+        <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><PageTransition><Register /></PageTransition></Suspense></ReverseGuard>} />
+        <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Home /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><MyFarm /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Advisor /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/market" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Market /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/services" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Services /></PageTransition></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><SellCrop /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><WalletPage /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Notifications /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><AdminPanel /></Suspense></ErrorBoundary></Shell>} />
-        <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><Onboarding /></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><SellCrop /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><WalletPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Notifications /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><AdminPanel /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Onboarding /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

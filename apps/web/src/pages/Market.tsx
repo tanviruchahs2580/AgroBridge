@@ -62,6 +62,7 @@ export default function Market() {
   const [loadError, setLoadError] = useState(false);
   const [category, setCategory] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [cartBusyIds, setCartBusyIds] = useState<Set<string>>(new Set());
   const [cartError, setCartError] = useState(false);
 
@@ -127,6 +128,10 @@ export default function Market() {
       await api("POST", "/cart/items", { productId: p.id, qty: 1 });
       track("product_added_to_cart", { productId: p.id });
       await loadCart();
+      // Instant success acknowledgment (enterprise feedback <100ms rule);
+      // transient only — button returns to its at-rest label after 1.2s.
+      setJustAddedId(p.id);
+      window.setTimeout(() => setJustAddedId((cur) => (cur === p.id ? null : cur)), 1200);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -307,8 +312,8 @@ export default function Market() {
         <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noProducts", lang)} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ contentVisibility: "auto", containIntrinsicSize: "0 500px" }}>
-          {products.map((p) => (
-            <Card key={p.id} className="flex min-w-0 flex-col justify-between overflow-hidden">
+          {products.map((p, i) => (
+            <Card key={p.id} className="animate-enterprise flex min-w-0 flex-col justify-between overflow-hidden" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}>
               <div>
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <h3 className="break-words text-sm font-bold leading-snug text-stone-800 [overflow-wrap:anywhere]">{p.name}</h3>
@@ -322,7 +327,7 @@ export default function Market() {
                 </p>
               </div>
               <Button className="mt-3 w-full" disabled={p.stockQty === 0} loading={cartBusyIds.has(p.id)} onClick={() => void addToCart(p)}>
-                + {t("addToCart", lang)}
+                {justAddedId === p.id ? <>✓ {t("addedToCart", lang)}</> : <>+ {t("addToCart", lang)}</>}
               </Button>
             </Card>
           ))}

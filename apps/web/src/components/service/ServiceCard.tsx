@@ -16,6 +16,8 @@ interface Props {
   lang: Lang;
   onBook: () => void;
   onDetails?: () => void;
+  /** Grid position — staggers the entrance choreography (transient only). */
+  index?: number;
 }
 
 const HERO_MAP: Record<string, string> = {
@@ -57,6 +59,7 @@ export function ServiceCard({
   lang,
   onBook,
   onDetails,
+  index = 0,
 }: Props) {
   const hero = HERO_MAP[category] ?? HERO_MAP.TRACTOR;
   const providerCount = providers.length;
@@ -76,7 +79,7 @@ export function ServiceCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
-      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1], delay: Math.min(index, 11) * 0.05 }}
       whileHover={{ y: -2 }}
       className="group flex flex-col overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:border-[#DCFCE7] hover:shadow-cardHover focus-within:ring-2 focus-within:ring-[#15803D] focus-within:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
     >
