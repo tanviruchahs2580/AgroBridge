@@ -2,6 +2,20 @@
 
 All notable changes to AgroBridge are documented here.
 
+## [1.3.6] - 2026-09-05
+
+### Changed
+- **Branding:** Login tagline replaced — "স্মার্ট কৃষি, সমৃদ্ধ ভবিষ্যৎ" → "AI কৃষকের হাতে" (single active UI location, zero-regression swap).
+
+### Added
+- **Motion (UI at-rest unchanged):** unified `PageTransition` on all 12 routes (was /services only); Market product-grid entrance stagger (0–180ms); Services card stagger (50ms/card, capped); add-to-cart instant "✓ কার্টে যোগ হয়েছে" acknowledgment (transient, 1.2s) with bilingual `addedToCart` key. All transform/opacity-only, `prefers-reduced-motion` honored.
+
+## [1.3.5] - 2026-09-04
+- APK cold-start timeout 10s→30s (Render free-plan wake), fixed API base URL + Capacitor CORS. See git log.
+
+## [1.3.4] - 2026-09-04
+- APK version-code bump for fixed API URL. See git log.
+
 ## [1.3.3] - 2026-09-03
 
 ### Fixed

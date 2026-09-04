@@ -309,9 +309,10 @@ export default function Services() {
         />
       ) : (
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((s) => (
+          {filtered.map((s, i) => (
             <motion.div key={s.id} variants={itemVariants} className="motion-reduce:transform-none">
               <ServiceCard
+                index={i}
                 title={s.name}
                 category={s.category}
                 pricePaisa={s.basePricePaisa}

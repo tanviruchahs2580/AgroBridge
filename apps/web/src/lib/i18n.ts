@@ -298,6 +298,7 @@ export const dict = {
   stockLeft: { bn: "স্টক: {n}", en: "Stock: {n}" },
   outOfStock: { bn: "স্টক নেই", en: "Out of stock" },
   addToCart: { bn: "কার্টে যোগ করুন", en: "Add to cart" },
+  addedToCart: { bn: "কার্টে যোগ হয়েছে", en: "Added to cart" },
   incrQty: { bn: "পরিমাণ বাড়ান", en: "Increase quantity" },
   decrQty: { bn: "পরিমাণ কমান", en: "Decrease quantity" },
   removeItem: { bn: "কার্ট থেকে অপসারণ", en: "Remove from cart" },
