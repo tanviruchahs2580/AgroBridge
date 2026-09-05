@@ -116,6 +116,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
 
+      - name: Unit tests (vitest)
+        working-directory: apps/web
+        run: npm run test:unit
+
       - name: Build (includes type check)
         working-directory: apps/web
         run: npm run build

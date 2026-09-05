@@ -21,6 +21,7 @@ import {
   reasonLabel,
   weatherRiskActionLabel,
   notifCategoryLabel,
+  paymentPurposeLabel,
 } from "./labels.js";
 
 // Helper to get guest lang fallback (characterization — lock current behavior)
@@ -228,5 +229,19 @@ describe("lib/labels — raw enum → localized label helpers", () => {
     expect(notifCategoryLabel("CRITICAL", "en")).toBe("Critical");
     expect(notifCategoryLabel("INFO", "bn")).toBe("তথ্য");
     expect(notifCategoryLabel("UNKNOWN", "en")).toBe("UNKNOWN");
+  });
+
+  it("paymentPurposeLabel maps wallet Payment.purposeType values (Wallet tx merge)", () => {
+    expect(paymentPurposeLabel("ORDER", "en")).toBe("Order payment");
+    expect(paymentPurposeLabel("BOOKING", "en")).toBe("Service booking payment");
+    expect(paymentPurposeLabel("PROCUREMENT", "en")).toBe("Crop sale payment");
+    expect(paymentPurposeLabel("MEMBERSHIP", "en")).toBe("Membership fee");
+    // bn coverage must exist and differ from the English string
+    for (const raw of ["ORDER", "BOOKING", "PROCUREMENT", "MEMBERSHIP"]) {
+      const bn = paymentPurposeLabel(raw, "bn");
+      expect(bn.length).toBeGreaterThan(0);
+      expect(bn).not.toBe(paymentPurposeLabel(raw, "en"));
+    }
+    expect(paymentPurposeLabel("SOMETHING_NEW", "en")).toBe("SOMETHING_NEW");
   });
 });

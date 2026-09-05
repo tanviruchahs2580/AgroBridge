@@ -143,7 +143,7 @@ export default function Login() {
             {fieldErrs.password && <p id="password-err" role="alert" className="mt-1 text-xs font-medium text-red-600">{fieldErrs.password}</p>}
           </div>
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center pt-1">
             <label className="flex cursor-pointer items-center gap-2">
               <span className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-2 ${remember ? "border-[#15803D] bg-[#15803D] text-white" : "border-[#CBD5E1] bg-white"}`}>
                 {remember && <span className="text-[11px] leading-none">✓</span>}
@@ -151,9 +151,6 @@ export default function Login() {
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="sr-only" />
               <span className="text-[13px] font-medium text-[#334155]">আমাকে মনে রাখুন</span>
             </label>
-            <Link to="#" onClick={(e) => e.preventDefault()} className="text-[13px] font-medium text-[#15803D] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D] rounded">
-              পাসওয়ার্ড ভুলে গেছেন?
-            </Link>
           </div>
 
           {error && <ErrorBanner message={error} />}
@@ -168,22 +165,28 @@ export default function Login() {
 
           {inputInvalid && !busy && <p className="text-center text-[11px] text-[#64748B]">{t("fixErrorsNote", lang)}</p>}
 
-          <div className="flex items-center gap-3 py-1">
-            <span className="h-px flex-1 bg-[#E2E8F0]" aria-hidden />
-            <span className="text-[13px] font-medium text-[#57534E]">অথবা</span>
-            <span className="h-px flex-1 bg-[#E2E5E4]" aria-hidden />
-          </div>
+          {/* Google sign-in is not wired to a backend flow yet; the affordance
+              ships hidden until it is (set VITE_GOOGLE_SIGNIN=1 at build time). */}
+          {import.meta.env.VITE_GOOGLE_SIGNIN === "1" && (
+            <>
+              <div className="flex items-center gap-3 py-1">
+                <span className="h-px flex-1 bg-[#E2E8F0]" aria-hidden />
+                <span className="text-[13px] font-medium text-[#57534E]">অথবা</span>
+                <span className="h-px flex-1 bg-[#E2E5E4]" aria-hidden />
+              </div>
 
-          <button
-            type="button"
-            onClick={() => alert(lang === "bn" ? "Google সাইন-ইন শীঘ্রই আসছে" : "Google sign-in coming soon")}
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0F172A] shadow-sm transition hover:bg-[#F8FAF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D]"
-          >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
-              <span className="bg-gradient-to-r from-[#4285F4] via-[#34A853] to-[#EA4335] bg-clip-text text-[18px] font-extrabold text-transparent">G</span>
-            </span>
-            <span className="text-[#1A1F1C]">Google <span className="font-normal text-[#475569]">দিয়ে চালিয়ে যান</span></span>
-          </button>
+              <button
+                type="button"
+                onClick={() => alert(lang === "bn" ? "Google সাইন-ইন শীঘ্রই আসছে" : "Google sign-in coming soon")}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[12px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#0F172A] shadow-sm transition hover:bg-[#F8FAF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D]"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
+                  <span className="bg-gradient-to-r from-[#4285F4] via-[#34A853] to-[#EA4335] bg-clip-text text-[18px] font-extrabold text-transparent">G</span>
+                </span>
+                <span className="text-[#1A1F1C]">Google <span className="font-normal text-[#475569]">দিয়ে চালিয়ে যান</span></span>
+              </button>
+            </>
+          )}
         </form>
       </div>
 

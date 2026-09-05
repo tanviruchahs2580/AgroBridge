@@ -21,6 +21,21 @@ function trySyncEnqueue(url: string, method: string, body?: unknown) {
 
 export const API_BASE = BASE;
 
+/**
+ * Cold-start wake ping. The hosted API runs on a free Render tier that spins
+ * down when idle; the first request after a quiet period can take 30–60s just
+ * to accept the connection. Firing this fire-and-forget GET at app boot warms
+ * the instance while the user is still on the splash/login screen, so the
+ * login POST itself hits a warm server instead of timing out ("internet
+ * issue" reports on the APK). Errors are intentionally swallowed — this is
+ * strictly an optimization.
+ */
+export function wakeBackend(): void {
+  if (!BASE.startsWith("http")) return; // dev proxy / same-origin: already warm
+  const root = BASE.replace(/\/api\/v1$/, "");
+  void fetch(`${root}/health`, { method: "GET", mode: "cors", cache: "no-store" }).catch(() => undefined);
+}
+
 export interface AuthUser {
   id: string;
   fullName: string;
@@ -97,6 +112,10 @@ function ensureWindowListener(): void {
   window.addEventListener("online", () => setOnline(true));
   window.addEventListener("offline", () => setOnline(false));
   const sync = () => setOnline(navigator.onLine !== false);
+  // Reconcile immediately on bind: a transition that fired between module load
+  // and this first subscription would otherwise be missed for up to 2s (or
+  // forever if no further event fires — caught by the api unit suite).
+  sync();
   window.addEventListener("online", sync);
   window.addEventListener("offline", sync);
   window.setInterval(sync, 2000);
@@ -117,8 +136,10 @@ export function onOnlineStatusChange(cb: OnlineCb): () => void {
 }
 
 // ── Transport ──
-// Render free plan cold start ~30s, so APK needs longer timeout (was 10s → network error on first login after idle)
-const REQUEST_TIMEOUT_MS = 30_000;
+// Render free-plan cold start measured at ~35s when idle; 30s still lost logins
+// (and 10s before that was the original "internet issue" in v1.3.3 APKs).
+// wakeBackend() normally pre-warms, but keep the ceiling above worst case.
+const REQUEST_TIMEOUT_MS = 45_000;
 const GET_RETRY_DELAYS_MS = [300, 900];
 
 class NetworkError extends Error {
