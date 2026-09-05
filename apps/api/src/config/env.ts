@@ -49,21 +49,25 @@ if (parsed.data.NODE_ENV === "production") {
     parsed.data.JWT_REFRESH_SECRET.includes("change-me") ||
     parsed.data.JWT_ACCESS_SECRET.startsWith("dev-");
   if (weak) throw new Error("Refusing to start production with default JWT secrets");
-  // Phase 4: fail-fast — mock/none providers are forbidden in production (no silent degradation).
-  if (parsed.data.SMS_PROVIDER === "none") {
-    throw new Error("SMS_PROVIDER configured as none in production — startup aborted (OTP would be undelivered)");
-  }
-  if (parsed.data.SMS_PROVIDER === "sandbox") {
-    throw new Error("SMS_PROVIDER sandbox forbidden in production — configure real SMS provider");
-  }
-  if (parsed.data.WEATHER_PROVIDER === "mock") {
-    throw new Error("WEATHER_PROVIDER mock forbidden in production — configure openweather with OPENWEATHER_API_KEY");
+  // Phase 4: fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
+  // startup unless the operator explicitly acknowledges them via ALLOW_PLACEHOLDER_PROVIDERS=1.
+  // No silent degradation either way: without the flag the process refuses to boot; with it,
+  // every placeholder is listed as a startup warning.
+  const placeholders: string[] = [];
+  if (parsed.data.SMS_PROVIDER === "none") placeholders.push("SMS_PROVIDER=none (OTP would be undelivered)");
+  if (parsed.data.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent)");
+  if (parsed.data.WEATHER_PROVIDER === "mock") placeholders.push("WEATHER_PROVIDER=mock (fixture weather data)");
+  if (parsed.data.AI_PROVIDER === "offline") placeholders.push("AI_PROVIDER=offline (KB-only answers, no LLM)");
+  if (placeholders.length) {
+    if (process.env.ALLOW_PLACEHOLDER_PROVIDERS !== "1") {
+      throw new Error(
+        `Placeholder provider(s) in production: ${placeholders.join("; ")} — configure real providers or set ALLOW_PLACEHOLDER_PROVIDERS=1 to accept them explicitly`,
+      );
+    }
+    console.warn(`[env] Placeholder provider(s) EXPLICITLY ACCEPTED via ALLOW_PLACEHOLDER_PROVIDERS=1: ${placeholders.join("; ")}`);
   }
   if (parsed.data.WEATHER_PROVIDER === "openweather" && !parsed.data.OPENWEATHER_API_KEY) {
     throw new Error("OPENWEATHER_API_KEY missing for WEATHER_PROVIDER=openweather in production — startup aborted");
-  }
-  if (parsed.data.AI_PROVIDER === "offline") {
-    throw new Error("AI_PROVIDER offline forbidden in production — configure openai-compatible with OPENAI_API_KEY");
   }
   if (parsed.data.AI_PROVIDER === "openai-compatible" && !parsed.data.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY missing for AI_PROVIDER=openai-compatible in production — startup aborted");
