@@ -10,7 +10,7 @@ jobs:
     name: Signed AAB + release APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin v4 -> commit SHA
+      - uses: actions/checkout@v7 # pin v4 -> commit SHA
 
       - name: Fail fast if signing secrets are absent
         env:

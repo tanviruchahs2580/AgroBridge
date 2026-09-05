@@ -18,7 +18,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # pin v4 -> replace tag with full commit SHA before production
+        uses: actions/checkout@v7 # pin v4 -> replace tag with full commit SHA before production
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3 # pin v3 -> commit SHA
