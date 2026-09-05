@@ -1,0 +1,48 @@
+# Debug APK build pipeline (no signing secrets needed — debug keystore is public).
+# Produces the installable test APK: CI is the single source of truth for release
+# artifacts (local dev machines may not carry an Android SDK).
+name: Android Debug APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-apk:
+    name: Build debug APK (Capacitor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pin v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install web workspace deps
+        run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
+
+      - name: Build web bundle (production, live API baked in)
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Sync Capacitor android project
+        working-directory: apps/web
+        run: npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: apps/web/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --console=plain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agrobridge-debug-apk
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
