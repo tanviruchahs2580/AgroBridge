@@ -12,7 +12,7 @@ export class OfflineAgroEngine implements AiProvider {
 
   async ask(question: string, ctx: AiContext): Promise<AiAnswer> {
     const q = question.toLowerCase();
-    const { entries } = retrieve(q, ctx.cropName);
+    const { entries, scores } = retrieve(q, ctx.cropName);
 
     if (entries.length === 0) {
       const answer =
@@ -33,8 +33,13 @@ export class OfflineAgroEngine implements AiProvider {
     const primary = entries[0];
     const answer = (ctx.lang === "bn" ? primary.answerBn : primary.answerEn) + "\n\n— " + primary.titleEn;
 
-    // Confidence blends KB entry confidence with match breadth.
-    const confidence = Math.min(0.95, primary.confidence + (entries.length > 1 ? 0.03 : 0));
+    // Calibrated confidence: an entry's stored confidence is only earned by
+    // multi-hit / phrase matches; a single keyword hit lands in "probably right
+    // topic" territory. Reporting the stored value verbatim (the old behaviour)
+    // advertised off-topic answers at 85% just because one keyword matched.
+    const topScore = scores[0] ?? 0;
+    const matchQuality = Math.min(1, 0.75 + Math.max(0, topScore - 1.5) * 0.125);
+    const confidence = Math.min(0.95, primary.confidence * matchQuality + (entries.length > 1 ? 0.03 : 0));
 
     let text = answer;
     if (confidence < LOW_CONFIDENCE_THRESHOLD) {

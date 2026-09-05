@@ -5,7 +5,7 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-route
 import { useSession } from "./lib/session.js";
 import { t } from "./lib/i18n.js";
 import type { DictKey, Lang } from "./lib/i18n.js";
-import { isOnline, onOnlineStatusChange } from "./lib/api.js";
+import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api.js";
 import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue.js";
 import { track } from "./lib/analytics.js";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
@@ -191,11 +191,19 @@ export default function App() {
   const lang: Lang = session?.lang ?? "bn";
   const [showSplash, setShowSplash] = useState(() => {
     if (typeof window !== "undefined" && (navigator as unknown as { webdriver?: boolean }).webdriver) return false;
+    // Cold start only: once the splash has played this browser session, deep links
+    // and reloads must not replay it (flag is set in onDone below).
+    try {
+      if (sessionStorage.getItem("agro_splash_done") === "1") return false;
+    } catch {
+      // ignore storage errors (private mode / quota)
+    }
     return true;
   });
 
   // Offline mutation queue: flush at boot and whenever connectivity returns.
   useEffect(() => {
+    wakeBackend(); // warm the idle-spun-down hosted API during splash/login
     void flushAll();
     return onOnlineStatusChange((online) => {
       if (online) void flushAll();

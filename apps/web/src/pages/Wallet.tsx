@@ -3,7 +3,7 @@ import { api } from "../lib/api.js";
 import { useSession } from "../lib/session.js";
 import { t } from "../lib/i18n.js";
 import { formatBDT, formatDateTime, takaToPaisa } from "../lib/format.js";
-import { channelLabel, reasonLabel, withdrawalStatusLabel } from "../lib/labels.js";
+import { channelLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../lib/labels.js";
 import { mapError } from "../lib/errors-ui.js";
 import { track } from "../lib/analytics.js";
 import { Award, Check, Landmark, Receipt, Wallet } from "lucide-react";
@@ -37,6 +37,15 @@ interface Withdrawal {
   destination?: string | null;
   createdAt: string;
 }
+interface PaymentRecord {
+  id: string;
+  refNo: string;
+  purposeType: string;
+  amountPaisa: number;
+  method: string;
+  status: string; // PENDING|SUCCEEDED|FAILED|REFUNDED
+  createdAt: string;
+}
 interface Plan {
   tier: string;
   pricePaisa: number;
@@ -55,6 +64,7 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [summary, setSummary] = useState<WalletSummary | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -71,16 +81,18 @@ export default function WalletPage() {
     setLoadError(false);
     setLoading(true);
     try {
-      const [w, s, wd, p] = await Promise.all([
+      const [w, s, wd, p, pay] = await Promise.all([
         api<WalletData>("GET", "/wallet"),
         api<WalletSummary>("GET", "/wallet/summary"),
         api<Withdrawal[]>("GET", "/wallet/withdrawals"),
         api<Plan[]>("GET", "/membership/plans"),
+        api<PaymentRecord[]>("GET", "/payments"),
       ]);
       setWallet(w);
       setSummary(s);
       setWithdrawals(wd);
       setPlans(p);
+      setPayments(pay);
     } catch {
       setLoadError(true);
     } finally {
@@ -95,14 +107,16 @@ export default function WalletPage() {
 
   async function reloadBalances() {
     try {
-      const [w, s, wd] = await Promise.all([
+      const [w, s, wd, pay] = await Promise.all([
         api<WalletData>("GET", "/wallet"),
         api<WalletSummary>("GET", "/wallet/summary"),
         api<Withdrawal[]>("GET", "/wallet/withdrawals"),
+        api<PaymentRecord[]>("GET", "/payments"),
       ]);
       setWallet(w);
       setSummary(s);
       setWithdrawals(wd);
+      setPayments(pay);
     } catch (err) {
       toast.error(mapError(err, lang));
     }
@@ -276,31 +290,57 @@ export default function WalletPage() {
         </div>
       </section>
 
-      {/* Transactions */}
+      {/* Transactions — wallet ledger merged with payment records (orders/bookings
+          paid outside the wallet balance; WALLET_CREDIT skipped to avoid double rows) */}
       <section>
         <h2 className="mb-2 font-semibold text-stone-700">{t("transactionsTitle", lang)}</h2>
         {!wallet && loading ? (
           <Card className="space-y-2">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
           </Card>
-        ) : (wallet?.transactions ?? []).length === 0 ? (
-          <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
-        ) : (
-          <Card className="divide-y divide-stone-100 !p-0">
-            {(wallet?.transactions ?? []).map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
-                <div className="min-w-0">
-                  <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{reasonLabel(tx.reason, lang)}</p>
-                  <p className="break-words text-[11px] text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(tx.createdAt, lang)}</p>
-                  <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{tx.id}</p>
+        ) : (() => {
+          const txnRows = (wallet?.transactions ?? []).map((tx) => ({
+            id: tx.id,
+            label: reasonLabel(tx.reason, lang),
+            ref: tx.id,
+            amountPaisa: tx.amountPaisa,
+            credit: tx.direction === "CREDIT",
+            createdAt: tx.createdAt,
+          }));
+          const paymentRows = payments
+            .filter((p) => (p.status === "SUCCEEDED" || p.status === "REFUNDED") && p.method !== "WALLET_CREDIT")
+            .map((p) => ({
+              id: p.id,
+              label: p.status === "REFUNDED"
+                ? `${paymentPurposeLabel(p.purposeType, lang)} · ${t("walletREFUND", lang)}`
+                : paymentPurposeLabel(p.purposeType, lang),
+              ref: p.refNo,
+              amountPaisa: p.amountPaisa,
+              credit: p.status === "REFUNDED",
+              createdAt: p.createdAt,
+            }));
+          const rows = [...txnRows, ...paymentRows].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          return rows.length === 0 ? (
+            <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
+          ) : (
+            <Card className="divide-y divide-stone-100 !p-0">
+              {rows.map((row) => (
+                <div key={row.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{row.label}</p>
+                    <p className="break-words text-[11px] text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(row.createdAt, lang)}</p>
+                    <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{row.ref}</p>
+                  </div>
+                  <span className={`font-bold ${row.credit ? "text-green-700" : "text-red-600"}`}>
+                    {row.credit ? "+" : "−"}{formatBDT(row.amountPaisa, lang)}
+                  </span>
                 </div>
-                <span className={`font-bold ${tx.direction === "CREDIT" ? "text-green-700" : "text-red-600"}`}>
-                  {tx.direction === "CREDIT" ? "+" : "−"}{formatBDT(tx.amountPaisa, lang)}
-                </span>
-              </div>
-            ))}
-          </Card>
-        )}
+              ))}
+            </Card>
+          );
+        })()}
       </section>
 
       {/* Withdrawal history */}

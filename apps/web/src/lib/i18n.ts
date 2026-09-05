@@ -319,6 +319,11 @@ export const dict = {
   paymentPendingNote: { bn: "অর্ডার তৈরি হয়েছে — অনলাইন পেমেন্ট শীঘ্রই চালু হবে; এর আগে নোটিফিকেশন দেখুন।", en: "Order created — online payment is coming soon; watch your notifications meanwhile." },
   checkoutStepSuccess: { bn: "সম্পন্ন", en: "Success" },
 
+  // Payment records shown in the wallet (payments module, read-only merge)
+  paymentPurposeORDER: { bn: "অর্ডার পেমেন্ট", en: "Order payment" },
+  paymentPurposeBOOKING: { bn: "সেবা বুকিং পেমেন্ট", en: "Service booking payment" },
+  paymentPurposePROCUREMENT: { bn: "ফসল বিক্রির পেমেন্ট", en: "Crop sale payment" },
+
   // ── Wallet page ──
   balance: { bn: "ব্যালেন্স", en: "Balance" },
   monthIn: { bn: "এই মাসে আয়", en: "In this month" },

@@ -17,7 +17,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "rice-blast",
     crop: "rice",
-    keywords: ["rice", "ধান", "blast", "blight", "পাতা মোড়ানো", "মড়ানো", "fungus on rice", "brown spot"],
+    keywords: ["rice", "ধান", "blast", "blight", "পাতা মোড়ানো", "মড়ানো", "fungus on rice", "brown spot", "দাগ", "সিগার", "ধূসর"],
     titleEn: "Rice blast / fungal leaf disease management",
     answerEn:
       "Rice blast appears as spindle-shaped lesions with grey centres on leaves. Management: 1) Keep fields drained rather than continuously flooded when infection appears. 2) Avoid excess nitrogen fertiliser which worsens blast. 3) Use recommended fungicides (e.g., tricyclazole or isoprothiolane group) applied at early lesion stage — confirm product choice with a licensed dealer or DAE agronomist. 4) Remove and burn infected stubble after harvest.",
@@ -50,7 +50,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "jute-stem-rot",
     crop: "jute",
-    keywords: ["jute", "পাট", "stem rot", "কাণ্ড পচা", "yellowing jute"],
+    keywords: ["jute", "পাট", "stem rot", "কাণ্ড পচা", "yellowing jute", "কান্ড পচ", "পচে", "পচন", "ড্ড পচ"],
     titleEn: "Jute stem rot & yellowing",
     answerEn:
       "Stem rot in jute often follows waterlogging. Ensure drainage, avoid wounding plants during weeding, and apply potash as per soil test since potassium deficiency increases susceptibility. Rotate with rice to break disease cycles.",
@@ -61,7 +61,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "mustard-aphid",
     crop: "mustard",
-    keywords: ["mustard", "সরিষা", "aphid", "এফিড", "green insects mustard"],
+    keywords: ["mustard", "সরিষা", "aphid", "এফিড", "green insects mustard", "সবুজ পোকা", "পোকা জড়ো"],
     titleEn: "Mustard aphid control",
     answerEn:
       "Aphids cluster on flowering shoots causing curling and poor pod set. Spray water jet first for light infestations; if populations are high, use an approved insecticide in late afternoon (protects bees), rotate actives between sprays, and harvest timely. Encourage ladybird beetles — natural predators.",
@@ -72,7 +72,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "soil-test",
     crop: "general",
-    keywords: ["soil test", "মাটি পরীক্ষা", "soil health", "ph"],
+    keywords: ["soil test", "মাটি পরীক্ষা", "soil health", "soil ph"],
     titleEn: "Soil testing guidance",
     answerEn:
       "Test your soil every 2–3 years before the major season. Collect samples from 15 cm depth across 8–10 spots of the plot, mix, and take ~500 g to the nearest SRDI/DAE office. Fertiliser recommendations based on soil test typically save 20–30% fertiliser cost. AgroBridge offers soil testing service booking under Services.",
@@ -86,6 +86,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     keywords: [
       "irrigat", "সেচ", "water schedule", "watering", "পানি দেওয়া",
       "পানি দিন", "পানি দেব", "পানি কখন", "পানি কত", "ড্রিপ",
+      "পানি", "সেচন", "সিনচন", "সেচে", "সিন্চন",
     ],
     titleEn: "Irrigation best practice",
     answerEn:
@@ -101,12 +102,75 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
  *  actually matched the question's topic (e.g. "irrigate my rice field" used to
  *  retrieve the blast-disease entry because "rice" scored the same as
  *  "irrigation"). */
-const CROP_ALIASES: Record<string, string[]> = {
+export const CROP_ALIASES: Record<string, string[]> = {
   rice: ["rice", "ধান"],
   wheat: ["wheat", "গম"],
   jute: ["jute", "পাট"],
   mustard: ["mustard", "সরিষা"],
 };
+
+/**
+ * Query/keyword normalization used by `retrieve`. Lowercases, collapses the two
+ * য় spellings (single codepoint U+09DF vs the য+nuqta sequence this KB was
+ * authored with) and strips Bengali joiner marks (hasanta ্, ZWJ) so spelling
+ * variants collide: "সিন্চন"→"সিনচন", "কাড্ড"→"কাডড". Match relations that do not
+ * cross a joiner are preserved, so it is safe to apply to queries and keywords alike.
+ */
+export function normalizeQuery(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\u09DF/g, "\u09AF\u09BC")
+    .replace(/[\u09CD\u200D]/g, "");
+}
+
+/**
+ * Banglish (romanized-Bengali) spellings of existing keywords. Farmers type
+ * "paani"/"sinchon"/"dhan" in Latin script; the live engine used to return zero
+ * matches for such questions. Matching (see `compileRule`) is anchored at Latin
+ * word boundaries and prefix-tolerant — "sec" also hits "secane" — which accepts
+ * rare false positives (e.g. "second") in exchange for free-typing coverage.
+ * Aliases inherit the tier (weak/strong) of their canonical keyword.
+ */
+const BANGLISH_ALIASES: Record<string, string[]> = {
+  // Strong topical keywords
+  "\u09b8\u09c7\u099a": ["sec", "sinch", "shinch"],
+  "\u09aa\u09be\u09a8\u09bf": ["paani", "pani"],
+  "\u0987\u0989\u09b0\u09bf\u09af\u09bc\u09be": ["yuria", "iuria"],
+  "\u09ae\u09b0\u09bf\u099a\u09be": ["moricha"],
+  "\u09b8\u09ac\u09c1\u099c \u09aa\u09cb\u0995\u09be": ["shabuj poka", "sabuj poka"],
+  "\u09ae\u09be\u099f\u09bf \u09aa\u09b0\u09c0\u0995\u09b7\u09be": ["mati porikkha", "matir porikkha", "mati poriksha"],
+  // Weak crop aliases (same tier as their canonical form)
+  "\u09a7\u09be\u09a8": ["dhan", "dhaan"],
+  "\u0997\u09ae": ["gom"],
+  "\u09aa\u09be\u099f": ["paat"],
+  "\u09b8\u09b0\u09bf\u09b7\u09be": ["shorisha", "sorisha", "shorish"],
+};
+
+interface MatchRule {
+  weak: boolean; // crop-name evidence: counts once per entry, never grounds an answer alone
+  phrase: boolean; // multi-word keywords are the most specific evidence
+  asciiRe: RegExp | null; // Latin keywords: word-anchored, prefix-tolerant match
+  literal: string | null; // non-Latin keywords: substring match on normalized text
+}
+
+function compileRule(canonical: string, weak: boolean): MatchRule {
+  const n = normalizeQuery(canonical);
+  if (/^[\x20-\x7E]+$/.test(n)) {
+    const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return { weak, phrase: n.includes(" "), asciiRe: new RegExp(`(^|[^a-z0-9])${esc}`), literal: null };
+  }
+  return { weak, phrase: n.includes(" "), asciiRe: null, literal: n };
+}
+
+const COMPILED = KNOWLEDGE_BASE.map((entry) => {
+  const aliases = new Set([...(CROP_ALIASES[entry.crop] ?? []), entry.crop].map(normalizeQuery));
+  const rules = entry.keywords.flatMap((kw) => {
+    const n = normalizeQuery(kw);
+    const weak = aliases.has(n);
+    return [kw, ...(BANGLISH_ALIASES[n] ?? [])].map((alias) => compileRule(alias, weak));
+  });
+  return { entry, rules };
+});
 
 /** Strip instruction-like patterns to reduce prompt-injection surface (Section 33). */
 export function sanitizeQuestion(raw: string): string {
@@ -119,40 +183,40 @@ export function sanitizeQuestion(raw: string): string {
 }
 
 export function retrieve(questionLower: string, hintCrop?: string): { entries: KbEntry[]; scores: number[] } {
-  const hint = hintCrop?.toLowerCase();
-  const scored = KNOWLEDGE_BASE.map((entry, index) => {
-    const aliases = new Set([...(CROP_ALIASES[entry.crop] ?? []), entry.crop]);
+  const nq = normalizeQuery(questionLower);
+  const hint = hintCrop ? normalizeQuery(hintCrop) : undefined;
+  const scored = COMPILED.map(({ entry, rules }, index) => {
     let score = 0;
-    let strongHits = 0; // topical keyword evidence
-    let weakHits = 0; // bare crop-name repeats
-    if (hint && entry.crop === hint) {
-      // Caller-provided crop context is authoritative — treat as strong.
+    let topical = 0; // topical-keyword evidence — required to ground an answer
+    let weakMatched = false; // a crop mention counts at most once per entry
+    if (hint && normalizeQuery(entry.crop) === hint) {
+      // Crop context from farm state is a tie-breaker among entries that already
+      // have topical evidence — never grounding on its own. (Regression: a farmer
+      // with an active rice cycle asking about irrigation timing got rice-blast
+      // management advice at the entry's full stored confidence, because the hint
+      // alone made every rice entry a "strong" match.)
       score += 2;
-      strongHits++;
     }
-    for (const kw of entry.keywords) {
-      if (!questionLower.includes(kw)) continue;
-      if (aliases.has(kw)) {
-        // Weak: counted once per entry so crop mentions cannot pile up.
-        if (weakHits === 0) {
+    for (const rule of rules) {
+      const hit = rule.asciiRe ? rule.asciiRe.test(nq) : rule.literal !== null && nq.includes(rule.literal);
+      if (!hit) continue;
+      if (rule.weak) {
+        if (!weakMatched) {
           score += 0.5;
-          weakHits++;
+          weakMatched = true;
         }
       } else {
         // Strong: multi-word phrases are the most specific evidence.
-        score += kw.includes(" ") ? 2.2 : 1.5;
-        strongHits++;
+        score += rule.phrase ? 2.2 : 1.5;
+        topical++;
       }
     }
-    return { entry, score, strongHits, index };
-  }).filter((s) => s.score > 0);
+    return { entry, score, topical, index };
+  }).filter((s) => s.topical > 0); // topical gate: a bare crop mention never grounds an answer
 
-  // Tier by topical evidence first, then score, then KB authoring order
-  // (stable sort) so long-standing retrieval behaviour is preserved.
-  scored.sort(
-    (a, b) =>
-      (b.strongHits > 0 ? 1 : 0) - (a.strongHits > 0 ? 1 : 0) || b.score - a.score || a.index - b.index
-  );
+  // Rank by total evidence (topical hits + crop-context tie-break), then KB
+  // authoring order (stable sort) so long-standing ranking is preserved.
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
   return {
     entries: scored.slice(0, 2).map((s) => s.entry),
     scores: scored.slice(0, 2).map((s) => s.score),

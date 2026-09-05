@@ -88,6 +88,13 @@ const ROLE_KEYS: Record<string, DictKey> = {
 };
 export const roleLabel = (raw: string, lang: Lang): string => fromMap(ROLE_KEYS, raw, lang);
 
+// ── Payment record purposes (Wallet page transactions merge) ──
+const PAYMENT_PURPOSE_KEYS: Record<string, DictKey> = {
+  ORDER: "paymentPurposeORDER", BOOKING: "paymentPurposeBOOKING",
+  PROCUREMENT: "paymentPurposePROCUREMENT", MEMBERSHIP: "walletMEMBERSHIP_FEE",
+};
+export const paymentPurposeLabel = (raw: string, lang: Lang): string => fromMap(PAYMENT_PURPOSE_KEYS, raw, lang);
+
 // ── Wallet transaction reasons (free-text on the API; prefix-matched) ──
 const REASON_PREFIXES: [RegExp, DictKey][] = [
   [/^(top-?up|টাকা যোগ)/i, "walletTOPUP"],
