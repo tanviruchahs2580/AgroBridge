@@ -31,8 +31,12 @@ services:
         fromDatabase:
           name: agrobridge-db
           property: connectionString
-      - key: CORS_ORIGINS
-        value: https://agrobridge-web.vercel.app,https://agrobridge-vfbz.onrender.com,https://localhost,capacitor://localhost,http://10.23.41.26:8080
+      # NOTE: the API reads WEB_ORIGIN (see apps/api/src/config/env.ts); the
+      # Capacitor WebView (androidScheme "https") sends Origin: https://localhost.
+      # WARNING: this service was originally created via dashboard, so keep
+      # this value in sync with the dashboard's WEB_ORIGIN setting.
+      - key: WEB_ORIGIN
+        value: https://agrobridge-web.vercel.app,https://agrobridge-vfbz.onrender.com,https://localhost,capacitor://localhost,http://localhost,http://10.23.41.26:8080
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
