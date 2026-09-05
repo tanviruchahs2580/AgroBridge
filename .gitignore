@@ -50,3 +50,7 @@ apps/web/android/capacitor-cordova-android-plugins/build/
 apps/web/android/local.properties
 apps/web/test-results/
 apps/web/playwright-report/
+.vercel
+.env*
+!.env.example
+!.env.production
