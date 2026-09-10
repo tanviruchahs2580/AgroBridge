@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import { formatBDT, formatDateTime, takaToPaisa } from "../lib/format.js";
-import { channelLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../lib/labels.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import { formatBDT, formatDateTime, takaToPaisa } from "../lib/format";
+import { channelLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../lib/labels";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { Award, Check, Landmark, Receipt, Wallet } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Select, Skeleton, useConfirm, useToast,
-} from "../components/ui.jsx";
+} from "../components/ui";
 
 interface Tx {
   id: string;

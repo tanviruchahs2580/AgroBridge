@@ -318,7 +318,7 @@ export function broadcastLogout(): void {
 // Future wires (not executed in this doc-only phase, to respect "do not modify
 // existing source"):
 //   lib/api.ts — replace `let accessToken = localStorage.getItem("ab_at")`
-//                with `import { getTokens, setTokens, clearTokens } from "./sessionManager.js"`
+//                with `import { getTokens, setTokens, clearTokens } from "./sessionManager"`
 //                and read `getTokens().accessToken` inside rawRequest/tryRefresh.
 //   lib/session.tsx — replace `if (!localStorage.getItem("ab_at"))` (line 33)
 //                    with `if (!getTokens().accessToken)` and subscribe via

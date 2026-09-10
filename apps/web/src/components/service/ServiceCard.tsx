@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
 import { Star, Users } from "lucide-react";
-import { formatBDT } from "../../lib/format.js";
-import { serviceCategoryLabel, priceUnitLabel } from "../../lib/labels.js";
-import { t } from "../../lib/i18n.js";
-import type { Lang } from "../../lib/i18n.js";
-import { AgriIconBox } from "../icons/AgriIcons.jsx";
+import { formatBDT } from "../../lib/format";
+import { serviceCategoryLabel, priceUnitLabel } from "../../lib/labels";
+import { t } from "../../lib/i18n";
+import type { Lang } from "../../lib/i18n";
+import { AgriIconBox } from "../icons/AgriIcons";
 
 interface Props {
   title: string;

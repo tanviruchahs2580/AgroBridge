@@ -220,6 +220,10 @@ export const dict = {
   errRateLimited: { bn: "অনেকবার চেষ্টা হয়েছে — কিছুক্ষণ পরে আবার চেষ্টা করুন।", en: "Too many attempts — please try again later." },
   errInsufficientStock: { bn: "দুঃখিত — পর্যাপ্ত স্টক নেই।", en: "Sorry — insufficient stock." },
   errInsufficientBalance: { bn: "উত্তোলনযোগ্য ব্যালেন্স পর্যাপ্ত নয় (অপেক্ষমাণ উত্তোলন বাদে)।", en: "Insufficient available balance (excluding pending withdrawals)." },
+  errActiveCrop: { bn: "এই প্লটের একটি সক্রিয় ফসল আছে।", en: "This plot already has an active crop." },
+  errBookingConflict: { bn: "এই সেবার একটা বুকিং আগেই আছে।", en: "A booking for this service already exists." },
+  errCartConflict: { bn: "কোনো কারণে কার্টে যোগ করা যাচ্ছে না।", en: "Unable to add to cart — please try again." },
+  errOfferConflict: { bn: "এই অফারের আগেই একটি প্রক্রিয়াধীন অবস্থা আছে।", en: "There is already a pending process for this offer." },
   referenceLabel: { bn: "রেফারেন্স", en: "Reference" },
 
   // ── Form validation ──
@@ -418,7 +422,7 @@ export const dict = {
   bighaShort: { bn: "বিঘা", en: "bigha" },
   plotNamePh: { bn: "প্লটের নাম", en: "Plot name" },
   soilTypePh: { bn: "মাটির ধরন", en: "Soil type" },
-  noPlotsYet: { bn: "এখনো প্লট যোগ করা হয়নি।", en: "No plots added yet." },
+  noPlotsYet: { bn: "এখনো কোনো ফসল নাই।", en: "No crops on this plot yet." },
   noFarmsYet: { bn: "কোনো ফার্ম নেই — উপরের বোতাম থেকে যোগ করুন।", en: "No farms yet — use the button above to add one." },
   farmCreatedToast: { bn: "ফার্ম যোগ হয়েছে ✓", en: "Farm created ✓" },
   plotCreatedToast: { bn: "প্লট যোগ হয়েছে ✓", en: "Plot created ✓" },

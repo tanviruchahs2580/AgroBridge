@@ -1,7 +1,7 @@
 // Offline mutation queue: durable (localStorage) generic queue for allow-listed
 // sync endpoints. Enqueued while offline, flushed on `online` event + app boot.
 // Dedupe by clientUuid; auth failures re-queue once then drop (never throws).
-import { api, isOnline, ApiError } from "./api.js";
+import { api, isOnline, ApiError } from "./api";
 
 export interface QueuedMutation {
   url: string;

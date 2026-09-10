@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBDT, paisaToTaka, takaToPaisa } from "./format.js";
+import { formatBDT, paisaToTaka, takaToPaisa } from "./format";
 
 /**
  * Regression guard for the money-line audit: every displayed amount comes from

@@ -1,6 +1,6 @@
 // Raw enum/string → localized label helpers (single source of truth per axis).
-import { t } from "./i18n.js";
-import type { DictKey, Lang } from "./i18n.js";
+import { t } from "./i18n";
+import type { DictKey, Lang } from "./i18n";
 
 function fromMap(map: Record<string, DictKey>, raw: string, lang: Lang): string {
   const key = map[raw];

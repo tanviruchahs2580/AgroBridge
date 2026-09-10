@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
-import { Button, Card, ErrorBanner, Input, Label } from "../components/ui.jsx";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
+import { Button, Card, ErrorBanner, Input, Label } from "../components/ui";
 
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
 const CROP_KEYS: Record<string, DictKey> = {

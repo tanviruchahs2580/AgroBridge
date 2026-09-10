@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { motionTokens } from "../lib/motion.js";
+import { motionTokens } from "../lib/motion";
 
 // ── Design System — Enterprise Tokens (single source of truth) ──
 // Colors: brand-50..950, stone-50..900, text-primary/strong/secondary/tertiary/muted, surface, semantic (success/warning/danger/info)
@@ -399,7 +399,7 @@ export function Modal({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 16, opacity: 0 }}
         transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
-        className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl motion-reduce:transform-none motion-reduce:transition-none"
+        className="flex max-h-[95vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl motion-reduce:transform-none motion-reduce:transition-none"
       >
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
           <h2 className="text-base font-bold text-stone-800">{title}</h2>

@@ -1,8 +1,8 @@
 // User-facing error mapping: API error codes → bilingual messages,
 // always appending the backend support reference when present.
-import { ApiError } from "./api.js";
-import { t } from "./i18n.js";
-import type { DictKey, Lang } from "./i18n.js";
+import { ApiError } from "./api";
+import { t } from "./i18n";
+import type { DictKey, Lang } from "./i18n";
 
 /** Mirrors the API zod rule (auth register): BD mobile 01[3-9]XXXXXXXX. */
 export const BD_PHONE_RE = /^01[3-9]\d{8}$/;
@@ -10,7 +10,6 @@ export const BD_PHONE_RE = /^01[3-9]\d{8}$/;
 const CODE_KEYS: Record<string, DictKey> = {
   INVALID_CREDENTIALS: "errInvalidCredentials",
   UNAUTHORIZED: "sessionExpired",
-  CONFLICT: "errPhoneTaken",
   VALIDATION_ERROR: "errValidation",
   BAD_REQUEST: "errValidation",
   UNPROCESSABLE: "errValidation",
@@ -26,21 +25,183 @@ const CODE_KEYS: Record<string, DictKey> = {
 };
 
 /**
+ * Code → dictionary key mapping.
+ * Known auth errors get dictionary copy; CONFLICT is deliberately _not_
+ * pre-mapped because the backend already returns a clear, domain-specific
+ * message ("This plot already has an active crop cycle", "Duplicate booking"…).
+ * Fallback below uses that server message directly.
+ */
+const AUTH_CODE_KEYS: Record<string, DictKey> = {
+  PHONE_TAKEN: "errPhoneTaken",
+  WEAK_PASSWORD: "errWeakPassword",
+  PHONE_INVALID: "errPhoneInvalid",
+  PHONE_NOT_VERIFIED: "errPhoneNotVerified",
+};
+
+/**
  * Map any thrown error to a localized display string.
- * Known ApiError codes use dictionary copy; unknown codes fall back to the
- * server message; non-API errors use the generic copy. A small-print
- * reference line is appended whenever the envelope carried one.
+ *
+ * Strategy per HTTP code:
+ * - Auth codes (PHONE_TAKEN, WEAK_PASSWORD, etc.) → dictionary copy
+ * - CONFLICT → _always_ use the server's domain-specific message
+ *   (e.g. "This plot already has an active crop cycle") because a
+ *   generic 409 key would be wrong for every non-auth conflict.
+ * - VALIDATION_ERROR/BAD_REQUEST/UNPROCESSABLE → try field-level mapping
+ *   first; fall back to the server message, then to generic.
+ * - 5xx / network → server message when present, else generic.
+ *
+ * A small-print reference line is appended whenever the envelope carried
+ * a support/reference id.
  */
 export function mapError(e: unknown, lang: Lang): string {
-  let msg: string;
-  if (e instanceof ApiError) {
-    const key = CODE_KEYS[e.code];
-    msg = key ? t(key, lang) : e.message || t("errorGeneric", lang);
-  } else if (e instanceof Error && e.message) {
-    msg = e.message;
-  } else {
-    msg = t("errorGeneric", lang);
+  if (!(e instanceof ApiError)) {
+    return e instanceof Error && e.message ? e.message : t("errorGeneric", lang);
   }
-  const ref = e instanceof ApiError && e.reference ? `\n${t("referenceLabel", lang)}: ${e.reference}` : "";
-  return `${msg}${ref}`;
+
+  // ── Auth-specific code keys ──
+  const authKey = AUTH_CODE_KEYS[e.code];
+  if (authKey) return `${t(authKey, lang)}${_refLine(lang, e)}`;
+
+  // ── CONFLICT: domain-specific message mapping ──
+  if (e.code === "CONFLICT" && e.message) {
+    // Normalize the server message for pattern matching
+    const msg = e.message;
+    const msgLower = msg.toLowerCase();
+    // Plot already has an active crop cycle — be crop-specific so we
+    // don't catch auth registration errors ("An account … already exists").
+    // Only match when the message contains a crop/farm/plot domain keyword
+    // alongside the "active" or "already" signal.
+    const cropDomain = /plot|crop|farm|field|harvest|seed|plant|planting|cycle|active crop|active cycle/i;
+    if ((msgLower.includes("active crop") || msgLower.includes("active cycle")) && cropDomain.test(msg)) {
+      return `${t("errActiveCrop", lang)}${_refLine(lang, e)}`;
+    }
+    // Also catch "plot already has …" or "crop already …" patterns
+    if (cropDomain.test(msgLower) && (msgLower.includes("already has") || msgLower.includes("already"))) {
+      return `${t("errActiveCrop", lang)}${_refLine(lang, e)}`;
+    }
+    // Booking conflict (e.g. duplicate service booking)
+    if (msgLower.includes("duplicate booking") || msgLower.includes("booking conflict") || msgLower.includes("already booked")) {
+      return `${t("errBookingConflict", lang)}${_refLine(lang, e)}`;
+    }
+    // Cart / stock conflict
+    if (msgLower.includes("cart") || msgLower.includes("stock")) {
+      return `${t("errCartConflict", lang)}${_refLine(lang, e)}`;
+    }
+    // Procurement / sale conflict
+    if (msgLower.includes("procurement") || msgLower.includes("sale") || msgLower.includes("offer")) {
+      return `${t("errOfferConflict", lang)}${_refLine(lang, e)}`;
+    }
+    // Unknown CONFLICT → use server message directly
+    return `${msg}${_refLine(lang, e)}`;
+  }
+
+  // ── Validation / unprocessable → try field-level details ──
+  if (e.code === "VALIDATION_ERROR" || e.code === "BAD_REQUEST" || e.code === "UNPROCESSABLE") {
+    return mapValidationError(e, lang) ?? `${e.message ?? t("errValidation", lang)}${_refLine(lang, e)}`;
+  }
+
+  // ── Known generic code keys ──
+  const key = CODE_KEYS[e.code];
+  if (key) return `${t(key, lang)}${_refLine(lang, e)}`;
+
+  // ── Unknown / server message ──
+  return e.message ? `${e.message}${_refLine(lang, e)}` : t("errorGeneric", lang);
+}
+
+function _refLine(lang: Lang, err: ApiError): string {
+  return err.reference ? `\n${t("referenceLabel", lang)}: ${err.reference}` : "";
+}
+
+/** Known backend field names → Bengali display labels. */
+const FIELD_LABELS: Record<string, string> = {
+  fullName: "পূর্ণ নাম",
+  phone: "মোবাইল নম্বর",
+  password: "পাসওয়ার্ড",
+  confirmPassword: "পাসওয়ার্ড নিশ্চিতকরণ",
+  email: "ইমেইল",
+  name: "নাম",
+  district: "জেলা",
+  upazila: "উপজেলা",
+  area: "জমির পরিমাণ",
+  areaBigha: "জমির পরিমাণ",
+  farm: "ফার্ম",
+  farmId: "ফার্ম",
+  service: "সেবা",
+  serviceId: "সেবা",
+  plot: "প্লট",
+  plotId: "প্লট",
+  cropName: "ফসলের নাম",
+  crop: "ফসল",
+  date: "তারিখ",
+  plantedAt: "রোপণের তারিখ",
+  scheduledFor: "সময়",
+  address: "ঠিকানা",
+  deliveryAddress: "ডেলিভারি ঠিকানা",
+  amount: "টাকার পরিমাণ",
+  qty: "পরিমাণ",
+  grade: "মানের গ্রেড",
+  qualityGrade: "মানের গ্রেড",
+  moisture: "আর্দ্রতা",
+  moisturePct: "আর্দ্রতা",
+  unit: "একক",
+  category: "বিভাগ",
+  reason: "কারণ",
+  method: "পদ্ধতি",
+  destination: "গন্তব্য",
+  withdrawalAmount: "উত্তোলনের পরিমাণ",
+  provider: "প্রদানকারী",
+  providerId: "প্রদানকারী",
+};
+
+/**
+ * Attempt to render per-field validation errors.
+ * Returns null when the error has no field details.
+ */
+function mapValidationError(err: ApiError, lang: Lang): string | null {
+  const details = err.details as Array<{ field?: string; message?: string } | null> | undefined;
+  if (!Array.isArray(details) || details.length === 0) return null;
+
+  const fields: Record<string, string> = {};
+  for (const d of details) {
+    if (!d || !d.field || !d.message) continue;
+    // If message already contains Bengali text, use it directly
+    const msg = d.message;
+    const hasBengali = /[০-৯\u0980-\u09FF]/.test(msg);
+    if (!hasBengali) {
+      // Map English error message to Bengali
+      const mapped = mapValidationMessage(msg, d.field);
+      if (mapped) {
+        // Use the mapped Bengali message
+        const fieldLabel = FIELD_LABELS[d.field] ?? d.field;
+        fields[fieldLabel] = mapped;
+        continue;
+      }
+    }
+    // Group multiple messages per field
+    fields[d.field] = (fields[d.field] ? fields[d.field] + "; " : "") + msg;
+  }
+
+  // If there's a single field, show just that field's message
+  const keys = Object.keys(fields);
+  if (keys.length === 1) {
+    return `${t("errFieldRequired", lang)}: ${fields[keys[0]]}`;
+  }
+
+  // Multiple fields: list them compactly
+  return keys.map((k) => `${k}: ${fields[k]}`).join(" · ");
+}
+
+/** Map a common English validation message to Bengali. */
+function mapValidationMessage(msg: string, field?: string): string | null {
+  const m = msg.toLowerCase();
+  if (m.includes("required") || m.includes("must be")) return `${FIELD_LABELS[field ?? ""] ?? field} প্রয়োজন`;
+  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return `${FIELD_LABELS[field ?? ""] ?? field} সঠিক নয়`;
+  if (m.includes("too short") || m.includes("less than")) return `${FIELD_LABELS[field ?? ""] ?? field} খুব ছোট`;
+  if (m.includes("too long")) return `${FIELD_LABELS[field ?? ""] ?? field} খুব বড়`;
+  if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return `${FIELD_LABELS[field ?? ""] ?? field} সংখ্যা হতে হবে`;
+  if (m.includes("must be positive") || m.includes("must be greater than 0")) return `${FIELD_LABELS[field ?? ""] ?? field} শূন্যের বেশি হতে হবে`;
+  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return `${FIELD_LABELS[field ?? ""] ?? field} বৈধ নয়`;
+  if (m.includes("duplicate") || m.includes("already")) return `${FIELD_LABELS[field ?? ""] ?? field} ইতিমধ্যে বিদ্যমান`;
+  if (m.includes("password")) return "পাসওয়ার্ড সঠিক নয়";
+  return null;
 }

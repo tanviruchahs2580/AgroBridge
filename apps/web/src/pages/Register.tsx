@@ -1,11 +1,11 @@
 ﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { api, setTokens } from "../lib/api.js";
-import { track } from "../lib/analytics.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import { Button, Card, ErrorBanner, Input, Label } from "../components/ui.jsx";
-import { BD_PHONE_RE, mapError } from "../lib/errors-ui.js";
+import { api, setTokens } from "../lib/api";
+import { track } from "../lib/analytics";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import { Button, Card, ErrorBanner, Input, Label } from "../components/ui";
+import { BD_PHONE_RE, mapError } from "../lib/errors-ui";
 
 export default function Register() {
   const { session } = useSession();

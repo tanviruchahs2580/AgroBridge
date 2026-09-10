@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { motionTokens } from "../lib/motion.js";
+import { motionTokens } from "../lib/motion";
 
 export function TopBar() {
   const location = useLocation();

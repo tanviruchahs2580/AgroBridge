@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import { formatDate } from "../lib/format.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import { formatDate } from "../lib/format";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { Bot, Camera, Sprout } from "lucide-react";
-import { Badge, Button, Card, ErrorBanner, Input, Skeleton } from "../components/ui.jsx";
+import { Badge, Button, Card, ErrorBanner, Input, Skeleton } from "../components/ui";
 
 interface Answer {
   answer: string;

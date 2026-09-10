@@ -1,24 +1,23 @@
 ﻿import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, ShoppingCart, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Package, ShoppingCart, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useSession } from "./lib/session.js";
-import { t } from "./lib/i18n.js";
-import type { DictKey, Lang } from "./lib/i18n.js";
-import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api.js";
-import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue.js";
-import { track } from "./lib/analytics.js";
-import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui.jsx";
-import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { PageTransition } from "./components/PageTransition.jsx";
-import { TopBar } from "./components/TopBar.jsx";
-import { Splash } from "./components/Splash.jsx";
-import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue.js";
+import { useSession } from "./lib/session";
+import { t } from "./lib/i18n";
+import type { DictKey, Lang } from "./lib/i18n";
+import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
+import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
+import { track } from "./lib/analytics";
+import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PageTransition } from "./components/PageTransition";
+import { TopBar } from "./components/TopBar";
+import { Splash } from "./components/Splash";
+import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue";
 import { motion } from "framer-motion";
 import Login from "./pages/Login";
 
 // STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
-// Fixed: remove .jsx extension — Vite resolves .tsx correctly for dev & preview (prevents "Failed to fetch" on LAN/preview)
 const Register = lazy(() => import("./pages/Register"));
 const Home = lazy(() => import("./pages/Home"));
 const MyFarm = lazy(() => import("./pages/MyFarm"));
@@ -30,6 +29,7 @@ const Notifications = lazy(() => import("./pages/Notifications"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Advisor = lazy(() => import("./pages/Advisor"));
 const AdminPanel = lazy(() => import("./pages/Admin"));
+const MyOrdersPage = lazy(() => import("./pages/MyOrders"));
 
 const ROUTE_TITLES: Record<string, DictKey> = {
   "/": "home",
@@ -39,6 +39,7 @@ const ROUTE_TITLES: Record<string, DictKey> = {
   "/services": "services",
   "/sell": "sellCrop",
   "/wallet": "wallet",
+  "/orders": "myOrders",
   "/notifications": "notifications",
   "/admin": "admin",
   "/onboarding": "onboarding",
@@ -113,6 +114,7 @@ function Shell({ children }: { children: ReactNode }) {
     { to: "/advisor", key: "aiAgent", icon: <Bot className="h-5 w-5" /> },
     { to: "/market", key: "market", icon: <ShoppingCart className="h-5 w-5" /> },
     { to: "/wallet", key: "wallet", icon: <WalletIcon className="h-5 w-5" /> },
+    { to: "/orders", key: "myOrders", icon: <Package className="h-5 w-5" /> },
   ];
   const secondaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
     { to: "/services", key: "services", icon: <Wrench className="h-5 w-5" /> },
@@ -265,6 +267,7 @@ export default function App() {
         <Route path="/sell" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><SellCrop /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/wallet" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><WalletPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/notifications" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Notifications /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/orders" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><MyOrdersPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><AdminPanel /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Onboarding /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="*" element={<NotFound />} />

@@ -83,6 +83,12 @@ export class ApiError extends Error {
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
+// ── Critical-flow tracking: block session-destroy during checkout/payment ──
+let criticalInProgress = false;
+export function setCriticalFlow(active: boolean) {
+  criticalInProgress = active;
+}
+
 /** Register the callback invoked when an authenticated session is definitively rejected (final 401). */
 export function setUnauthorizedHandler(fn: UnauthorizedHandler | null) {
   unauthorizedHandler = fn;
@@ -265,37 +271,56 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
   let json = await parseEnvelope(res);
 
-  if (res.status === 401) {
-    // Try one silent refresh + replay.
-    if (await tryRefresh()) {
-      try {
-        res = await performWithRetry(method, path, body);
-        json = await parseEnvelope(res);
-      } catch (err) {
-        if (err instanceof NetworkError) {
-          if (!isOnline()) {
-            const oq = await getOfflineQueue();
-            if (oq?.isQueueable(path)) oq.enqueue({ url: path, method, body });
+    if (res.status === 401) {
+      // Try one silent refresh + replay.
+      if (await tryRefresh()) {
+        try {
+          res = await performWithRetry(method, path, body);
+          json = await parseEnvelope(res);
+        } catch (err) {
+          if (err instanceof NetworkError) {
+            if (!isOnline()) {
+              const oq = await getOfflineQueue();
+              if (oq?.isQueueable(path)) oq.enqueue({ url: path, method, body });
+            }
+            throw networkApiError(err);
           }
-          throw networkApiError(err);
+          throw err;
         }
-        throw err;
+      }
+      if (res.status === 401) {
+        // Refresh failed OR replay STILL returned 401 → session is dead.
+        // ── Critical-flow guard: during checkout/payment, DO NOT clear
+        //    tokens or redirect. The page handles the error UX and will
+        //    destroy tokens after the user dismisses the dialog. ──
+        if (criticalInProgress) {
+          // Throw the error so the caller can show a user-friendly message;
+          // the caller will clear tokens after the user acknowledges.
+          const e = new ApiError(
+            res.status,
+            json.error?.code ?? "UNAUTHORIZED",
+            json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
+            json.error?.details,
+            json.error?.reference
+          );
+          (e as { isRetryable?: boolean }).isRetryable = true;
+          throw e;
+        }
+        clearTokens();
+        if (wasAuthed) unauthorizedHandler?.();
+        const msg = json.error?.message ?? "UNAUTHORIZED";
+        // Return a special flag so callers can provide retry UX (checkout wizard, etc.)
+        const e = new ApiError(
+          res.status,
+          msg === "UNAUTHORIZED" ? "UNAUTHORIZED" : json.error?.code ?? "UNAUTHORIZED",
+          json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
+          json.error?.details,
+          json.error?.reference
+        );
+        (e as { isRetryable?: boolean }).isRetryable = true;
+        throw e;
       }
     }
-    if (res.status === 401) {
-      // Refresh failed OR replay STILL returned 401 → session is dead.
-      // Clear tokens and notify the app layer (previously tokens were kept).
-      clearTokens();
-      if (wasAuthed) unauthorizedHandler?.();
-      throw new ApiError(
-        res.status,
-        json.error?.code ?? "UNAUTHORIZED",
-        json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
-        json.error?.details,
-        json.error?.reference
-      );
-    }
-  }
 
   if (!res.ok || !json.ok) {
     const err = json.error ?? {};

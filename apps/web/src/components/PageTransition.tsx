@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
-import { motionTokens } from "../lib/motion.js";
+import { motionTokens } from "../lib/motion";
 
 export function PageTransition({ children }: { children: ReactNode }) {
   return (

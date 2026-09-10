@@ -4,8 +4,8 @@
  * Tests both `bn` and `en` dictionaries, interpolation, and all label helpers.
  */
 import { describe, it, expect } from "vitest";
-import { t, dict } from "./i18n.js";
-import type { Lang } from "./i18n.js";
+import { t, dict } from "./i18n";
+import type { Lang } from "./i18n";
 import {
   cropLabel,
   stageLabel,
@@ -22,7 +22,7 @@ import {
   weatherRiskActionLabel,
   notifCategoryLabel,
   paymentPurposeLabel,
-} from "./labels.js";
+} from "./labels";
 
 // Helper to get guest lang fallback (characterization — lock current behavior)
 function guestLang(session: { lang?: Lang } | null): Lang {

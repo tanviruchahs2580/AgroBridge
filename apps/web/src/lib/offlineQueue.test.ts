@@ -17,8 +17,8 @@ vi.mock("./api.js", async () => {
   };
 });
 
-import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue } from "./offlineQueue.js";
-import { ApiError } from "./api.js";
+import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue } from "./offlineQueue";
+import { ApiError } from "./api";
 
 const STORAGE_KEY = "agrobridge.mutationQueue";
 

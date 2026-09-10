@@ -30,20 +30,24 @@ services:
       WEATHER_PROVIDER: ${WEATHER_PROVIDER:-mock}
       AI_PROVIDER: ${AI_PROVIDER:-offline}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-sandbox}
-    depends_on:
-      db:
-        condition: service_healthy
+      SMS_PROVIDER: ${SMS_PROVIDER:-sandbox}
+      ALLOW_PLACEHOLDER_PROVIDERS: "1"
     ports:
-      # DEV ONLY — production (docker-compose.prod.yml) keeps api on the
-      # internal network and never publishes 4000 (nginx bridges edge→internal).
       - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   web:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "8080:80"
 

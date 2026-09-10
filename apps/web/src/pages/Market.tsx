@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { formatBDT } from "../lib/format.js";
-import { categoryLabel } from "../lib/labels.js";
-import { mapError, BD_PHONE_RE } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api, setCriticalFlow } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { formatBDT } from "../lib/format";
+import { categoryLabel } from "../lib/labels";
+import { mapError, BD_PHONE_RE } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { Check, Inbox, MapPin, Package, Phone, ShoppingBasket, ShoppingCart, Trash2 } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Skeleton, Stepper, useToast,
-} from "../components/ui.jsx";
-import { pluralCategory } from "../lib/plural.js";
+} from "../components/ui";
+import { pluralCategory } from "../lib/plural";
 
 interface Product {
   id: string;
@@ -77,6 +77,7 @@ export default function Market() {
   const [paid, setPaid] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [placeOrderError, setPlaceOrderError] = useState<string | null>(null);
 
   const loadProducts = useCallback(
     async (cat: string) => {
@@ -179,6 +180,7 @@ export default function Market() {
     setOrder(null);
     setPaid(false);
     setDeliveryErrs({});
+    setCriticalFlow(true);  // Guard: prevent session-destroy during checkout
     if (!prefillDone) {
       setPrefillDone(true);
       try {
@@ -195,6 +197,7 @@ export default function Market() {
 
   function closeWizard() {
     setWizardOpen(false);
+    setCriticalFlow(false);
   }
 
   function goDelivery() {
@@ -213,6 +216,7 @@ export default function Market() {
 
   async function placeOrder() {
     setPlacing(true);
+    setPlaceOrderError(null);
     try {
       const o = await api<Order>("POST", "/orders/checkout");
       setOrder(o);
@@ -220,7 +224,12 @@ export default function Market() {
       // Order already created; a failed refresh must not block payment.
       loadCart().catch((e) => console.warn("[market] post-checkout cart refresh failed", e));
     } catch (err) {
-      toast.error(mapError(err, lang));
+      const msg = mapError(err, lang);
+      // CRITICAL: show inline error in the wizard so user sees WHAT went wrong
+      // (toast auto-dismisses in 6s and is easy to miss during checkout)
+      setPlaceOrderError(msg);
+      // Also toast as fallback
+      toast.error(msg);
     } finally {
       setPlacing(false);
     }
@@ -470,6 +479,9 @@ export default function Market() {
           {/* Step 2: review before creating the order */}
           {step === REVIEW_STEP && (
             <div className="space-y-3">
+              {placeOrderError && (
+                <ErrorBanner code="PLACE_ORDER_ERROR" message={placeOrderError} />
+              )}
               <ul className="divide-y divide-stone-100 text-sm">
                 {cart.map((item) => (
                   <li key={item.id} className="flex justify-between py-2 text-stone-600">
@@ -537,6 +549,10 @@ export default function Market() {
               {!paid && <p className="text-xs text-stone-500">{t("paymentPendingNote", lang)}</p>}
               <p className="text-sm font-bold text-stone-700">{t("netPayable", lang)}: {formatBDT(order.totalPaisa, lang)}</p>
               <Button className="w-full" onClick={closeWizard}>{t("done", lang)}</Button>
+              {/* Accessibility fallback: close on Escape is handled by Modal; this redundant button ensures clickability even if z-index overlay occurs */}
+              <button type="button" className="mt-1 inline-flex w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2.5 text-sm font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600" onClick={closeWizard}>
+                {t("checkoutStepSuccess", lang)}
+              </button>
             </div>
           )}
         </Modal>

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { cropLabel, stageLabel } from "../lib/labels.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { cropLabel, stageLabel } from "../lib/labels";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { Leaf, MapPin, Tractor, CalendarClock, AlertTriangle, Sprout, Droplets, Sun, CloudRain, Bot, Wrench, ShoppingBag, ChevronRight, Plus, Clock } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast } from "../components/ui.jsx";
+import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast } from "../components/ui";
 
 const STAGES = ["SEED", "GERMINATION", "VEGETATIVE", "FLOWERING", "GRAIN_FRUIT_DEVELOPMENT", "HARVEST"] as const;
 function cropStageFor(plantedAt: string | Date, now = new Date()): string {

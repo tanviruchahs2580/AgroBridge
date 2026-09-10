@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { formatDateTime } from "../lib/format.js";
-import { mapError } from "../lib/errors-ui.js";
-import { notifCategoryLabel } from "../lib/labels.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { formatDateTime } from "../lib/format";
+import { mapError } from "../lib/errors-ui";
+import { notifCategoryLabel } from "../lib/labels";
 import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Package, Settings, Sprout, Tractor } from "lucide-react";
-import { pluralCategory } from "../lib/plural.js";
+import { pluralCategory } from "../lib/plural";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Label, Skeleton, useToast,
-} from "../components/ui.jsx";
+} from "../components/ui";
 
 interface Notification {
   id: string;

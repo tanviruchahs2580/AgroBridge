@@ -1,8 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import type { Lang } from "../lib/i18n.js";
-import { t } from "../lib/i18n.js";
+import type { Lang } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import { TriangleAlert } from "lucide-react";
-import { Button, ErrorBanner } from "./ui.jsx";
+import { Button, ErrorBanner } from "./ui";
 
 interface Props {
   children: ReactNode;

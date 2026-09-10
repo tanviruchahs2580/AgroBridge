@@ -1,16 +1,16 @@
 ﻿import { useEffect, useState } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { formatBDT } from "../lib/format.js";
-import { cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../lib/labels.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { formatBDT } from "../lib/format";
+import { cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../lib/labels";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { Coins, Sprout } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, Stepper, useConfirm, useToast,
-} from "../components/ui.jsx";
+} from "../components/ui";
 
 interface ProcurementOrder {
   id: string;

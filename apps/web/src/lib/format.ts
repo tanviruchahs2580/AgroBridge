@@ -1,5 +1,5 @@
 // Bilingual formatting + money conversion helpers.
-import type { Lang } from "./i18n.js";
+import type { Lang } from "./i18n";
 
 const CURRENCY_LOCALE: Record<Lang, string> = { bn: "bn-BD", en: "en-GB" };
 const DATE_LOCALE: Record<Lang, string> = { bn: "bn-BD", en: "en-GB" };

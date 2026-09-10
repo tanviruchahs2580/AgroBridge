@@ -1,7 +1,7 @@
 // Lightweight product analytics: batched beacon POSTs, offline-safe.
 // Events buffer in memory and flush every 5s or at 10 events via
 // navigator.sendBeacon (fallback: fetch keepalive). Silently no-ops offline.
-import { API_BASE } from "./api.js";
+import { API_BASE } from "./api";
 
 interface EventRecord {
   name: string;

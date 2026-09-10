@@ -3,13 +3,13 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { registerSW } from "virtual:pwa-register";
-import App from "./App.jsx";
+import App from "./App";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "./lib/queryClient.js";
-import { SessionProvider } from "./lib/session.jsx";
-import { ConfirmProvider, ToastProvider, useToast } from "./components/ui.jsx";
-import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { t } from "./lib/i18n.js";
+import { queryClient } from "./lib/queryClient";
+import { SessionProvider } from "./lib/session";
+import { ConfirmProvider, ToastProvider, useToast } from "./components/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { t } from "./lib/i18n";
 import "./index.css";
 import "./dark.css"; // designed dark token layer — after index.css so it cascades last
 

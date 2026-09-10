@@ -43,13 +43,13 @@ vi.mock("./i18n.js", async () => {
     t: vi.fn((k: string, lang: string, vars?: Record<string, unknown>) => act.t(k as any, lang as any, vars as any)),
   };
 });
-import { t as mockT } from "./i18n.js";
+import { t as mockT } from "./i18n";
 const tSpy = mockT as unknown as ReturnType<typeof vi.fn>;
 
 const mockToastError = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastInfo = vi.fn();
-vi.mock("../components/ui.jsx", () => ({
+vi.mock("../components/ui", () => ({
   useToast: () => ({
     error: (...args: unknown[]) => mockToastError(...args),
     success: (...args: unknown[]) => mockToastSuccess(...args),
@@ -69,7 +69,7 @@ vi.mock("react-router-dom", async () => {
 });
 
 // Import under test AFTER mocks
-import { SessionProvider, useSession } from "./session.js";
+import { SessionProvider, useSession } from "./session";
 
 async function renderSession(initialPath = "/") {
   mockLocation = { pathname: initialPath, search: "" };

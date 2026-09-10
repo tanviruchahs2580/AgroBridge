@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { formatBDT, formatDateTime } from "../lib/format.js";
-import { channelLabel, roleLabel, userStatusLabel } from "../lib/labels.js";
-import { mapError } from "../lib/errors-ui.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { formatBDT, formatDateTime } from "../lib/format";
+import { channelLabel, roleLabel, userStatusLabel } from "../lib/labels";
+import { mapError } from "../lib/errors-ui";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Skeleton, useConfirm, useToast,
-} from "../components/ui.jsx";
+} from "../components/ui";
 
 interface Metrics {
   farmers: number; activeFarmers: number; farms: number; activeCrops: number;

@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api, clearTokens, setUnauthorizedHandler } from "./api.js";
-import { identify, track } from "./analytics.js";
-import { t } from "./i18n.js";
-import { useToast } from "../components/ui.jsx";
+import { api, clearTokens, setUnauthorizedHandler } from "./api";
+import { identify, track } from "./analytics";
+import { t } from "./i18n";
+import { useToast } from "../components/ui";
 
 export interface Session {
   userId: string;

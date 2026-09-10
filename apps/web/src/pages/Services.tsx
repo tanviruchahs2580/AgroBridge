@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import { formatBDT, formatDateTime } from "../lib/format.js";
-import { bookingStatusLabel } from "../lib/labels.js";
-import { mapError } from "../lib/errors-ui.js";
-import { track } from "../lib/analytics.js";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import { formatBDT, formatDateTime } from "../lib/format";
+import { bookingStatusLabel } from "../lib/labels";
+import { mapError } from "../lib/errors-ui";
+import { track } from "../lib/analytics";
 import { ClipboardList, Search, SlidersHorizontal, Tractor, TriangleAlert, X, CheckCircle2, CalendarClock, ArrowRight, ShieldCheck, Leaf, Wrench, Phone } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useConfirm, useToast } from "../components/ui.jsx";
-import { ServiceCard, ServiceCardSkeleton } from "../components/service/ServiceCard.jsx";
+import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useConfirm, useToast } from "../components/ui";
+import { ServiceCard, ServiceCardSkeleton } from "../components/service/ServiceCard";
 
 interface Service {
   id: string;

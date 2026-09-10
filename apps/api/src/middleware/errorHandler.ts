@@ -17,13 +17,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   const reference = referenceCode();
 
   if (err instanceof AppError) {
-    logger.info({ requestId: req.requestId, reference, code: err.code, status: err.status }, "app error");
+    logger.info({ requestId: req.requestId, method: req.method, path: req.path, reference, code: err.code, status: err.status }, "app error");
     return fail(res, err.status, err.code, err.message, err.details, reference);
   }
 
   // Prisma known errors -> structured API errors (avoid leaking internals)
   const anyErr = err as { code?: string; message?: string };
   if (anyErr?.code === "P2002") {
+    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma P2002 conflict");
     return fail(res, 409, "CONFLICT", "A record with these unique values already exists", undefined, reference);
   }
   if (anyErr?.code === "P2025") {
@@ -40,7 +41,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   logger.error(
-    { requestId: req.requestId, reference, err: anyErr?.message, stack: anyErr instanceof Error ? anyErr.stack : undefined },
+    { requestId: req.requestId, method: req.method, path: req.path, reference, err: anyErr?.message, stack: anyErr instanceof Error ? anyErr.stack : undefined },
     "unhandled error"
   );
 
@@ -56,5 +57,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 }
 
 export function notFoundHandler(req: Request, res: Response) {
-  fail(res, 404, "ROUTE_NOT_FOUND", `No route for ${req.method} ${req.path}`, undefined, referenceCode());
+  const reference = referenceCode();
+  logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "route not found");
+  fail(res, 404, "ROUTE_NOT_FOUND", `No route for ${req.method} ${req.path}`, undefined, reference);
 }

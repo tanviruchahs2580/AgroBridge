@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
-import { t } from "../lib/i18n.js";
-import type { DictKey } from "../lib/i18n.js";
-import { formatBDT } from "../lib/format.js";
-import { stageLabel, weatherRiskActionLabel } from "../lib/labels.js";
-import { Button, ErrorBanner, Skeleton } from "../components/ui.jsx";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../lib/i18n";
+import { formatBDT } from "../lib/format";
+import { stageLabel, weatherRiskActionLabel } from "../lib/labels";
+import { Button, ErrorBanner, Skeleton } from "../components/ui";
 
 interface FarmShape {
   id: string;
