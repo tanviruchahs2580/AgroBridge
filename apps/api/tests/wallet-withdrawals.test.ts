@@ -21,7 +21,7 @@ async function requestWithdrawal(token: string, amountPaisa: number, channel = "
 async function walletState(token: string) {
   const res = await request(app).get("/api/v1/wallet").set("Authorization", `Bearer ${token}`);
   expect(res.status).toBe(200);
-  return res.body.data as { balancePaisa: number; transactions: { direction: string; refType?: string; refId?: string; amountPaisa: number }[] };
+  return res.body.data as { balancePaisa: number; transactions: { direction: string; refType?: string; refId?: string; amountPaisa: number; balanceAfterPaisa?: number }[] };
 }
 
 describe("Wallet withdrawals — farmer requests", () => {
@@ -98,7 +98,7 @@ describe("Wallet withdrawals — admin decisions", () => {
     expect(ledger).toBeTruthy();
     expect(ledger!.direction).toBe("DEBIT");
     expect(ledger!.amountPaisa).toBe(20_000);
-    expect((ledger as any).balanceAfterPaisa).toBe(80_000);
+    expect(ledger!.balanceAfterPaisa).toBe(80_000);
 
     // Manual bKash transfer done -> finalize.
     const paid = await request(app)
