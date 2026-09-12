@@ -98,7 +98,7 @@ describe("Wallet withdrawals — admin decisions", () => {
     expect(ledger).toBeTruthy();
     expect(ledger!.direction).toBe("DEBIT");
     expect(ledger!.amountPaisa).toBe(20_000);
-    expect(ledger!.balanceAfterPaisa).toBe(80_000);
+    expect((ledger as any).balanceAfterPaisa).toBe(80_000);
 
     // Manual bKash transfer done -> finalize.
     const paid = await request(app)

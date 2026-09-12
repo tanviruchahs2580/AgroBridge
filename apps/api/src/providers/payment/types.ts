@@ -10,6 +10,8 @@ export interface PaymentIntent {
   provider: string;
   providerRef: string;
   redirectUrl?: string; // hosted checkout in real providers
+  /** Extra metadata returned by the provider (e.g. SSLCommerz val_id for verifyPayment). */
+  meta?: Record<string, unknown>;
 }
 
 /**

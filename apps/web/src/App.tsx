@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Package, ShoppingCart, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -18,18 +18,18 @@ import { motion } from "framer-motion";
 import Login from "./pages/Login";
 
 // STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
-const Register = lazy(() => import("./pages/Register"));
-const Home = lazy(() => import("./pages/Home"));
-const MyFarm = lazy(() => import("./pages/MyFarm"));
-const Market = lazy(() => import("./pages/Market"));
-const Services = lazy(() => import("./pages/Services"));
-const SellCrop = lazy(() => import("./pages/SellCrop"));
-const WalletPage = lazy(() => import("./pages/Wallet"));
-const Notifications = lazy(() => import("./pages/Notifications"));
-const Onboarding = lazy(() => import("./pages/Onboarding"));
-const Advisor = lazy(() => import("./pages/Advisor"));
-const AdminPanel = lazy(() => import("./pages/Admin"));
-const MyOrdersPage = lazy(() => import("./pages/MyOrders"));
+const Register = lazy(() => import("./features/auth/Register"));
+const Home = lazy(() => import("./features/home/Home"));
+const MyFarm = lazy(() => import("./features/farms/MyFarm"));
+const Market = lazy(() => import("./features/marketplace/Market"));
+const Services = lazy(() => import("./features/services/Services"));
+const SellCrop = lazy(() => import("./features/sell-crop/SellCrop"));
+const WalletPage = lazy(() => import("./features/wallet/Wallet"));
+const Notifications = lazy(() => import("./features/notifications/Notifications"));
+const Onboarding = lazy(() => import("./features/onboarding/Onboarding"));
+const Advisor = lazy(() => import("./features/advisor/Advisor"));
+const AdminPanel = lazy(() => import("./features/admin-panel/Admin"));
+const MyOrdersPage = lazy(() => import("./features/orders/MyOrders"));
 
 const ROUTE_TITLES: Record<string, DictKey> = {
   "/": "home",

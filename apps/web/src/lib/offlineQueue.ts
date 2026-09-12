@@ -1,6 +1,7 @@
 // Offline mutation queue: durable (localStorage) generic queue for allow-listed
 // sync endpoints. Enqueued while offline, flushed on `online` event + app boot.
-// Dedupe by clientUuid; auth failures re-queue once then drop (never throws).
+// Dedupe by clientUuid AND SHA-256 payload hash — prevents duplicate mutations
+// even when the same URL is hit multiple times while offline.
 import { api, isOnline, ApiError } from "./api";
 
 export interface QueuedMutation {
@@ -8,13 +9,14 @@ export interface QueuedMutation {
   method: string;
   body?: unknown;
   clientUuid: string;
+  payloadHash: string; // SHA-256 of method+url+body for dedupe
 }
 
 const KEY = "agrobridge.mutationQueue";
 
-/** Allow-list: farm events sync endpoints. */
+/** Allow-list: farm events, cart, and orders sync endpoints. */
 export function isQueueable(url: string): boolean {
-  return url.includes("/events");
+  return url.includes("/events") || url.includes("/cart") || url.includes("/orders");
 }
 
 const listeners = new Set<(count: number) => void>();
@@ -31,6 +33,19 @@ function notifyEnqueue() {
 }
 /** In-session flush attempt counters (not persisted — a fresh session gets a fresh retry budget). */
 const attempts = new Map<string, number>();
+
+/** Compute a deterministic sync hash from the method + URL + body for dedupe. */
+function payloadHashFn(method: string, url: string, body?: unknown): string {
+  const raw = `${method}|${url}|${body ? JSON.stringify(body) : ""}`;
+  // djb2 hash — fast, deterministic, no crypto dependency needed for dedupe
+  let h = 5381;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    h = ((h << 5) + h) + c;
+    h |= 0; // clamp to 32-bit int
+  }
+  return (Math.abs(h).toString(16).padStart(8, "0"));
+}
 
 function load(): QueuedMutation[] {
   try {
@@ -62,17 +77,33 @@ function uuid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Queue a mutation for later replay. Non-allow-listed URLs are ignored silently. Dedupes by clientUuid. */
-export function enqueue(m: Omit<QueuedMutation, "clientUuid"> & { clientUuid?: string }): string | null {
+/** Queue a mutation for later replay. Non-allow-listed URLs are ignored silently.
+ * Dedupes by clientUuid first (primary), then by hash (secondary for auto-generated).
+ * When an explicit clientUuid is given, only that UUID is checked — preventing
+ * false-positive dedup that would block identical payloads with different UUIDs. */
+export function enqueue(m: Omit<QueuedMutation, "clientUuid" | "payloadHash"> & { clientUuid?: string }): string | null {
   if (!isQueueable(m.url)) return null;
-  const entry: QueuedMutation = { method: m.method.toUpperCase(), url: m.url, body: m.body, clientUuid: m.clientUuid ?? uuid() };
+  const clientUuid = m.clientUuid ?? uuid();
+  const hash = payloadHashFn(m.method.toUpperCase(), m.url, m.body);
   const list = load();
-  if (list.some((e) => e.clientUuid === entry.clientUuid)) return entry.clientUuid;
+
+  const hasExplicitUuid = Boolean(m.clientUuid);
+
+  if (hasExplicitUuid) {
+    // Explicit clientUuid: dedupe only by UUID (caller owns idempotency).
+    if (list.some((e) => e.clientUuid === clientUuid)) return null;
+  } else {
+    // Auto-generated: dedupe by UUID first, then by hash to avoid
+    // duplicates of the same mutation sent multiple times while offline.
+    if (list.some((e) => e.clientUuid === clientUuid || e.payloadHash === hash)) return null;
+  }
+
+  const entry: QueuedMutation = { method: m.method.toUpperCase(), url: m.url, body: m.body, clientUuid, payloadHash: hash };
   list.push(entry);
   save(list);
   // STEP 55: notify UI that an offline mutation was queued (toast "অফলাইন — পরে পাঠানো হবে")
   notifyEnqueue();
-  return entry.clientUuid;
+  return clientUuid;
 }
 
 export function size(): number {

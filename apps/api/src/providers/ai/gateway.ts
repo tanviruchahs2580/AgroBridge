@@ -37,7 +37,7 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
   let provider = resolveProvider();
   if (provider.name === "openai-compatible" && (await monthlyBudgetExceeded())) {
     if (isProd) {
-      const { AppError } = await import("../../lib/errors.js");
+      const { AppError } = await import("../../shared/errors/index.js");
       throw new AppError(429, "AI_BUDGET_EXCEEDED", "AI monthly budget exceeded");
     }
     logger.warn("AI monthly budget exceeded — serving from offline engine");
@@ -57,7 +57,7 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     if (isProd) {
       const { markDown } = await import("../health.js");
       markDown("ai", (err as Error).message);
-      const { AppError } = await import("../../lib/errors.js");
+      const { AppError } = await import("../../shared/errors/index.js");
       throw new AppError(502, "AI_PROVIDER_UNAVAILABLE", "AI provider unavailable");
     }
     const fallback = new OfflineAgroEngine();

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
-import { unauthorized } from "../lib/errors.js";
+import { unauthorized } from "../shared/errors/index.js";
 import { prisma } from "../lib/prisma.js";
 
 export interface AccessPayload {

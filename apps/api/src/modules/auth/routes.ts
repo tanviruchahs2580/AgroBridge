@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { badRequest, unauthorized, conflict, unprocessable } from "../../lib/errors.js";
+import { badRequest, unauthorized, conflict, unprocessable } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
@@ -321,6 +321,12 @@ authRouter.post("/otp/verify", requireAuth, validate({ body: z.object({ code: z.
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
+    // Block deletion if the user has active orders (financial integrity)
+    const pendingOrder = await prisma.order.findFirst({
+      where: { userId: req.auth!.userId, status: { notIn: ["CANCELLED", "DELETED"] } },
+    });
+    if (pendingOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
+
     const pending = await prisma.withdrawal.findFirst({
       where: { userId: req.auth!.userId, status: { in: ["PENDING", "APPROVED"] } },
     });

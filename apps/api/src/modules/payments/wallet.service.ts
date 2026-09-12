@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { notFound, phoneNotVerified, unprocessable } from "../../lib/errors.js";
+import { notFound, phoneNotVerified, unprocessable } from "../../shared/errors/index.js";
 import { isProd } from "../../config/env.js";
 import { refNo } from "../../lib/money.js";
 import { getActiveMembership } from "../../lib/membership.js";
@@ -96,6 +96,9 @@ export async function createLedgerEntry(input: LedgerEntryInput, tx?: Transactio
  * prepares the codebase for a true double-entry migration by ensuring
  * both sides are written atomically when a `counterpartyUserId` is supplied.
  * When no counterparty is given it degrades to a single entry (backward compat).
+ *
+ * Guard: debit side must not go negative (atomic claim). Credit side has no
+ * negative-balance guard — platform/escrow accounts may have negative balance.
  */
 export async function createDoubleEntry(
   params: {
@@ -108,19 +111,34 @@ export async function createDoubleEntry(
   },
   tx: TransactionClient,
 ): Promise<void> {
-  // Debit side — always present (source)
-  const debitWallet = await tx.wallet.upsert({
+  if (params.amountPaisa <= 0) throw unprocessable("Amount must be positive");
+
+  // Debit side — always present (source). Use conditional decrement to prevent
+  // the wallet from going negative. If the wallet lacks sufficient balance,
+  // the update affects 0 rows and the transaction will be rolled back.
+  const debitWallet = await tx.wallet.findFirst({
     where: { userId: params.debitUserId },
-    update: { balancePaisa: { decrement: params.amountPaisa } },
-    create: { userId: params.debitUserId, balancePaisa: -params.amountPaisa },
   });
+  if (!debitWallet) throw notFound("Wallet not found for debit user");
+  if (debitWallet.balancePaisa < params.amountPaisa) {
+    throw unprocessable("Insufficient wallet balance for double-entry debit");
+  }
+
+  const updatedDebit = await tx.wallet.update({
+    where: {
+      userId: params.debitUserId,
+      balancePaisa: { gte: params.amountPaisa }, // atomic guard
+    },
+    data: { balancePaisa: { decrement: params.amountPaisa } },
+  });
+
   await tx.walletTransaction.create({
     data: {
       userId: params.debitUserId,
       direction: "DEBIT",
       amountPaisa: params.amountPaisa,
       reason: params.reason,
-      balanceAfterPaisa: debitWallet.balancePaisa,
+      balanceAfterPaisa: updatedDebit.balancePaisa,
       refType: params.refType,
       refId: params.refId,
     },
@@ -155,6 +173,7 @@ export async function creditWallet(
   refId: string | undefined,
   tx: TransactionClient,
 ): Promise<number> {
+  if (amountPaisa <= 0) throw unprocessable("Credit amount must be positive");
   const updated = await tx.wallet.upsert({
     where: { userId },
     update: { balancePaisa: { increment: amountPaisa } },
@@ -182,11 +201,16 @@ export async function debitWallet(
   refId: string | undefined,
   tx: TransactionClient,
 ): Promise<number> {
-  const updated = await tx.wallet.upsert({
-    where: { userId },
-    update: { balancePaisa: { decrement: amountPaisa } },
-    create: { userId, balancePaisa: -amountPaisa },
+  if (amountPaisa <= 0) throw unprocessable("Debit amount must be positive");
+
+  // Atomic decrement guard: if balancePaisa < amountPaisa the update affects 0 rows,
+  // causing the transaction to roll back. This prevents negative balance creation
+  // even under concurrent debit contention.
+  const updated = await tx.wallet.update({
+    where: { userId, balancePaisa: { gte: amountPaisa } },
+    data: { balancePaisa: { decrement: amountPaisa } },
   });
+
   await tx.walletTransaction.create({
     data: {
       userId,

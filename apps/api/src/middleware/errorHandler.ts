@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomBytes } from "node:crypto";
-import { AppError } from "../lib/errors.js";
+import { AppError } from "../shared/errors/index.js";
 import { logger } from "../lib/logger.js";
 import { isProd } from "../config/env.js";
 import { fail } from "./context.js";

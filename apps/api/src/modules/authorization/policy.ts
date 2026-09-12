@@ -1,5 +1,5 @@
 import { hasPermission, PERMISSIONS } from "../../middleware/rbac.js";
-import { forbidden } from "../../lib/errors.js";
+import { forbidden } from "../../shared/errors/index.js";
 
 /**
  * Centralized authorization policy.

@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodSchema } from "zod";
-import { badRequest } from "../lib/errors.js";
+import { badRequest } from "../shared/errors/index.js";
 
 type Part = "body" | "query" | "params";
 

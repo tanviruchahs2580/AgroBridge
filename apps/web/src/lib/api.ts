@@ -1,6 +1,13 @@
 // API client: token storage, single-flight refresh, timeout + retry resilience.
 // Base URL is build-time configurable so the same bundle works behind nginx
 // proxy ("/api/v1") or as a Capacitor APK / cross-origin PWA ("https://api…").
+//
+// Token truth: all read/write goes through sessionManager (not localStorage).
+// This eliminates the dual-truth bug where api.ts held stale module vars while
+// session.tsx read storage directly.
+
+import { getTokens, setTokens as smSetTokens, clearTokens as smClearTokens } from "./sessionManager";
+
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
 // STEP 55: lazy offlineQueue helpers to avoid circular init issues — imported dynamically inside api()
@@ -8,7 +15,7 @@ let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown 
 async function getOfflineQueue() {
   if (_offlineQueue) return _offlineQueue;
   try {
-    _offlineQueue = await import("./offlineQueue.js");
+    _offlineQueue = await import("./offlineQueue");
   } catch {
     _offlineQueue = null;
   }
@@ -43,25 +50,16 @@ export interface AuthUser {
   langPref: "bn" | "en";
 }
 
-let accessToken = localStorage.getItem("ab_at") ?? "";
-let refreshToken = localStorage.getItem("ab_rt") ?? "";
-
 export function setTokens(at: string, rt: string) {
-  accessToken = at;
-  refreshToken = rt;
-  localStorage.setItem("ab_at", at);
-  localStorage.setItem("ab_rt", rt);
+  smSetTokens(at, rt);
 }
 
 export function clearTokens() {
-  accessToken = "";
-  refreshToken = "";
-  localStorage.removeItem("ab_at");
-  localStorage.removeItem("ab_rt");
+  smClearTokens();
 }
 
 export function hasToken() {
-  return Boolean(accessToken);
+  return Boolean(getTokens().accessToken);
 }
 
 export class ApiError extends Error {
@@ -163,7 +161,7 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
       method,
       headers: {
         ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(getTokens().accessToken ? { Authorization: `Bearer ${getTokens().accessToken}` } : {}),
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
       signal: ctrl.signal,
@@ -223,13 +221,14 @@ function parseEnvelope(res: Response): Promise<Envelope> {
 /** Single-flight refresh to avoid stampedes on 401. */
 let refreshing: Promise<boolean> | null = null;
 async function tryRefresh(): Promise<boolean> {
-  if (!refreshToken) return false;
+  const tokens = getTokens();
+  if (!tokens.refreshToken) return false;
   refreshing ??= (async () => {
     try {
       const res = await fetch(`${BASE}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
       });
       if (!res.ok) return false;
       const j = await res.json();
@@ -245,7 +244,7 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  const wasAuthed = Boolean(accessToken);
+  const wasAuthed = Boolean(getTokens().accessToken);
 
   // Prime offlineQueue lazy import for later sync enqueue (non-blocking)
   void getOfflineQueue();

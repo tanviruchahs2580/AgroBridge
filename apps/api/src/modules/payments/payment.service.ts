@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../../shared/errors/index.js";
 import { refNo } from "../../lib/money.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { env, isProd } from "../../config/env.js";

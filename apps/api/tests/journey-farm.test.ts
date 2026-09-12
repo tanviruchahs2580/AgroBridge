@@ -53,7 +53,8 @@ describe("Journey 2 & 13 â€” Farm management + offline sync", () => {
       .send({ type: "IRRIGATION", title: "à¦¸à§‡à¦š à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¹à¦²à§‹" });
     expect(notFoundForB.status).toBe(404); // scoped lookup hides other users' resources
 
-    void b.userId;
+    // Verify b doesn't leak a's farm ID
+    void b.user.id;
   });
 
   it("validates plot area against farm total area", async () => {

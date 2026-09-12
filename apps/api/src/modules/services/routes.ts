@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { notFound, forbidden, unprocessable } from "../../lib/errors.js";
+import { notFound, forbidden, unprocessable } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";

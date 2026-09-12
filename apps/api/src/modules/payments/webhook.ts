@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
-import { badRequest } from "../../lib/errors.js";
+import { badRequest } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";

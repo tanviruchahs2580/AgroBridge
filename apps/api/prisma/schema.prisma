@@ -253,6 +253,7 @@ model Order {
 
   @@index([userId])
   @@index([status])
+  @@index([status, createdAt])
 }
 
 model OrderItem {
@@ -367,6 +368,7 @@ model Payment {
 
   @@index([userId])
   @@index([purposeType, purposeId])
+  @@index([status, createdAt])
 }
 
 model Wallet {
@@ -406,6 +408,7 @@ model Withdrawal {
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  @@index([status, createdAt])
   @@index([userId, status])
 }
 

@@ -86,10 +86,10 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
     const first = enqueue({ url: "/farms/1/events", method: "POST", body: { a: 1 }, clientUuid: uuid });
     const second = enqueue({ url: "/farms/1/events", method: "POST", body: { a: 2 }, clientUuid: uuid });
     expect(first).toBe(uuid);
-    expect(second).toBe(uuid);
-    const q = readQueue() as any[];
-    expect(q).toHaveLength(1);
+    // Same explicit clientUuid => deduped (no second entry added)
+    expect(size()).toBe(1);
     // body from first call is retained
+    const q = readQueue() as any[];
     expect(q[0].body).toEqual({ a: 1 });
   });
 
@@ -101,10 +101,11 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
   });
 
   it("auto-generates clientUuid when not provided", () => {
-    const id1 = enqueue({ url: "/farms/1/events", method: "POST" });
-    const id2 = enqueue({ url: "/farms/1/events", method: "POST" });
+    // Use different bodies so hash dedupe doesn't collapse them (same URL+method would produce identical hashes)
+    const id1 = enqueue({ url: "/farms/1/events", method: "POST", body: { n: 1 } });
+    const id2 = enqueue({ url: "/farms/1/events", method: "POST", body: { n: 2 } });
     expect(id1).not.toBe(id2);
-    expect(readQueue()).toHaveLength(2);
+    expect(size()).toBe(2);
   });
 
   it("size() reflects persisted queue length", () => {
@@ -331,10 +332,12 @@ describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documen
     expect(isQueueable("/products")).toBe(false);
   });
 
-  it("GAP: dedupe is clientUuid-only — identical payloads with different UUIDs are treated as distinct mutations (no payload dedupe)", () => {
+  it("GAP: dedupe uses clientUuid AND payload hash — identical payloads with different auto-generated UUIDs are collapsed by hash dedupe", () => {
     const a = enqueue({ url: "/farms/1/events", method: "POST", body: { title: "same", type: "FERTILIZER" } });
     const b = enqueue({ url: "/farms/1/events", method: "POST", body: { title: "same", type: "FERTILIZER" } });
-    expect(a).not.toBe(b);
-    expect(size()).toBe(2);
+    // Hash dedupe: same method+url+body => same hash => second is rejected
+    expect(size()).toBe(1);
+    expect(a).toBeTruthy();
+    expect(b).toBeNull(); // second identical payload is deduped
   });
 });

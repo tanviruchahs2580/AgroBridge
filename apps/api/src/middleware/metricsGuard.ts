@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { env, isProd } from "../config/env.js";
-import { forbidden } from "../lib/errors.js";
+import { forbidden } from "../shared/errors/index.js";
 
 const PRIVATE_RANGES = [
   /^127\./,

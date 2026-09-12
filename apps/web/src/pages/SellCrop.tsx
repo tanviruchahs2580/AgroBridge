@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { t } from "../lib/i18n";

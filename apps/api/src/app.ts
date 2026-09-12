@@ -18,7 +18,7 @@ import { authRouter } from "./modules/auth/routes.js";
 import { farmsRouter } from "./modules/farms/routes.js";
 import { weatherRouter } from "./modules/weather/routes.js";
 import { aiRouter } from "./modules/aiagent/routes.js";
-import { diseaseRouter } from "./modules/aiagent/disease.js";
+import { diseaseRouter } from "./modules/disease/routes.js";
 import { productsRouter, cartRouter, ordersRouter } from "./modules/marketplace/routes.js";
 import { servicesRouter, bookingsRouter } from "./modules/services/routes.js";
 import { procurementRouter } from "./modules/procurement/routes.js";

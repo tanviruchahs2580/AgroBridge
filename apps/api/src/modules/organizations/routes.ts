@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
-import { forbidden, notFound } from "../../lib/errors.js";
+import { forbidden, notFound } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 
 export const organizationsRouter = Router();

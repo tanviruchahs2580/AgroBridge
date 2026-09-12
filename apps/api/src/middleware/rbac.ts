@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { forbidden } from "../lib/errors.js";
+import { forbidden } from "../shared/errors/index.js";
 
 /**
  * Server-side RBAC. Roles are never trusted from the client; permissions
