@@ -36,7 +36,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: actions/setup-node@v4 # pin v4 -> commit SHA
+      - uses: actions/setup-node@v7 # pin v4 -> commit SHA
         with:
           node-version: 22
           cache: npm
