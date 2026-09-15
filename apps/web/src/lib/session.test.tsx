@@ -36,6 +36,16 @@ vi.mock("./analytics.js", () => ({
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
+// session.tsx clears tokens via sessionManager (not the api layer) — route the
+// spy there so clearTokens assertions track the real call site.
+vi.mock("./sessionManager.js", async () => {
+  const actual = await vi.importActual<typeof import("./sessionManager.js")>("./sessionManager.js");
+  return {
+    ...actual,
+    clearTokens: (...args: unknown[]) => mockClearTokens(...args),
+  };
+});
+
 vi.mock("./i18n.js", async () => {
   const act = await vi.importActual<typeof import("./i18n.js")>("./i18n.js");
   return {
@@ -71,8 +81,8 @@ vi.mock("react-router-dom", async () => {
 // Import under test AFTER mocks
 import { SessionProvider, useSession } from "./session";
 
-async function renderSession(initialPath = "/") {
-  mockLocation = { pathname: initialPath, search: "" };
+async function renderSession(initialPath = "/", initialSearch = "") {
+  mockLocation = { pathname: initialPath, search: initialSearch };
   const container = document.createElement("div");
   document.body.appendChild(container);
   let ctx: ReturnType<typeof useSession> | null = null;
@@ -148,7 +158,7 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "Karim", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     expect(mockApi).toHaveBeenCalledWith("GET", "/auth/me");
-    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn" });
+    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn", dark: false });
     expect(getCtx().loading).toBe(false);
     expect(mockIdentify).toHaveBeenCalledWith("u1");
     expect(document.documentElement.lang).toBe("bn");
@@ -264,7 +274,7 @@ describe("lib/session — expired token handling (unauthorizedHandler)", () => {
   it("when handler invoked while authed, clears tokens, tracks, toasts, and navigates to /login with from", async () => {
     localStorage.setItem("ab_at", "at");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "en" });
-    const { getCtx, unmount } = await renderSession("/farm");
+    const { getCtx, unmount } = await renderSession("/farm", "?x=1");
     expect(getCtx().session?.lang).toBe("en");
     tSpy.mockClear();
     mockToastError.mockClear();
@@ -284,7 +294,7 @@ describe("lib/session — expired token handling (unauthorizedHandler)", () => {
     // We lock current behavior: it uses `session?.lang ?? "bn"` where session is from useState at handler creation time.
     // So after login as en, it should call t("sessionExpired", "en")
     expect(mockToastError).toHaveBeenCalled();
-    const toastMsg = mockToastError.mock.calls[0][0] as string;
+    const _toastMsg = mockToastError.mock.calls[0][0] as string;
     // toast message should be the translation for sessionExpired in en (if session was en) or bn
     // Since we mocked t to forward to real t, we can check it was called
     expect(tSpy).toHaveBeenCalledWith("sessionExpired", expect.any(String));

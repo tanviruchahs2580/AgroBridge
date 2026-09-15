@@ -71,6 +71,26 @@ export const dict = {
   haveAccount: { bn: "অ্যাকাউন্ট আছে? লগইন করুন", en: "Have an account? Log in" },
   noAccount: { bn: "অ্যাকাউন্ট নেই? রেজিস্ট্রেশন করুন", en: "No account yet? Register" },
   forgotPassword: { bn: "পাসওয়ার্ড ভুলে গেছেন?", en: "Forgot password?" },
+  // ── Auth surfaces (v2 unified premium auth) ──
+  authWelcome: { bn: "স্বাগতম", en: "Welcome" },
+  authWelcomeSub: { bn: "আপনার অ্যাকাউন্টে লগইন করুন", en: "Sign in to your account" },
+  authRegisterSub: { bn: "মিনিটেই আপনার ফার্ম অ্যাকাউন্ট খুলুন", en: "Create your farm account in minutes" },
+  authHeroHeadline: { bn: "বাংলাদেশের কৃষকের বিশ্বস্ত ডিজিটাল সঙ্গী", en: "The trusted digital companion for Bangladeshi farmers" },
+  authHeroValue1: { bn: "AI দিয়ে ফসলের রোগ নির্ণয় ও পরামর্শ", en: "AI crop disease detection and advice" },
+  authHeroValue2: { bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যখাদু নেই", en: "Direct marketplace — fair prices, no middlemen" },
+  authHeroValue3: { bn: "যন্ত্রপাতি ও কৃষি সেবা এক অ্যাপেই", en: "Machinery and agri services in one app" },
+  authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
+  rememberMe: { bn: "আমাকে মনে রাখুন", en: "Remember me" },
+  showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
+  hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
+  orDivider: { bn: "অথবা", en: "or" },
+  googleContinue: { bn: "Google দিয়ে চালিয়ে যান", en: "Continue with Google" },
+  googleComingSoon: { bn: "Google সাইন-ইন শীঘ্রই আসছে", en: "Google sign-in coming soon" },
+  // ── Home dashboard (v2) ──
+  aiFarmAttention: { bn: "মাঠে মনোযোগ দরকার", en: "Your field needs attention" },
+  aiFarmAttentionSub: { bn: "আবহাওয়ার ঝুঁকি শনাক্ত হয়েছে — আগাম ব্যবস্থা নিন।", en: "Weather risks detected — take precautionary action." },
+  aiFarmHealthySub: { bn: "এআই বিশ্লেষণে আপনার জমি, ফসল ও আবহাওয়া অনুকূল পর্যায়ে আছে।", en: "AI analysis shows your soil, crops and weather are in favorable condition." },
+  activeLabel: { bn: "সক্রিয়", en: "Active" },
   errInvalidCredentials: { bn: "মোবাইল নম্বর বা পাসওয়ার্ড সঠিক নয়।", en: "Wrong mobile number or password." },
   errPhoneTaken: { bn: "এই নম্বরে একটি অ্যাকাউন্ট আছে — লগইন করুন।", en: "An account with this number already exists — log in." },
   errWeakPassword: { bn: "পাসওয়ার্ড দুর্বল — কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", en: "Weak password — use at least 8 strong characters." },
@@ -350,6 +370,8 @@ export const dict = {
   groundedAnswer: { bn: "গ্রাউন্ডেড উত্তর", en: "Grounded answer" },
   myCases: { bn: "আমার রোগ নির্ণয়", en: "My disease checks" },
   showLess: { bn: "কম দেখুন", en: "Show less" },
+  expandDetails: { bn: "বিস্তারিত দেখুন", en: "Expand details" },
+  collapseDetails: { bn: "বিস্তারিত লুকান", en: "Collapse details" },
   compressingImage: { bn: "ছবি প্রস্তুত করা হচ্ছে...", en: "Preparing image..." },
   questionInputLabel: { bn: "আপনার প্রশ্ন", en: "Your question" },
 
@@ -482,6 +504,38 @@ export const dict = {
   obCropsTitle: { bn: "প্রধান ফসল", en: "Primary crops" },
   selectedCropsLabel: { bn: "নির্বাচিত:", en: "Selected:" },
   obFarmTitle: { bn: "প্রথম ফার্ম তৈরি করুন", en: "Create first farm" },
+
+  // ── Splash (v2: bilingual, respects pre-login language choice) ──
+  splashStatusConnect: { bn: "ফার্ম ডেটা সংযুক্ত হচ্ছে...", en: "Connecting farm data..." },
+  splashStatusAi: { bn: "AI বিশ্লেষণ চলছে...", en: "Running AI analysis..." },
+  splashStatusReady: { bn: "আপনার ফার্ম প্রস্তুত", en: "Your farm is ready" },
+  splashTagline: { bn: "এআই-চালিত ফার্ম ইন্টেলিজেন্স", en: "AI-powered Farm Intelligence" },
+  splashLoadingLabel: { bn: "এগ্রোব্রিজ লোড হচ্ছে", en: "AgroBridge loading" },
+
+  // ── Services discovery (v2: chips/search/sort/count/empty via dictionary) ──
+  svcFilterAll: { bn: "সব", en: "All" },
+  svcFilterMech: { bn: "যন্ত্রপাতি", en: "Machinery" },
+  svcFilterAdvisory: { bn: "পরামর্শ", en: "Advisory" },
+  svcFilterTest: { bn: "পরীক্ষা", en: "Testing" },
+  svcSearchPh: { bn: "সেবা খুঁজুন… (ড্রোন, ট্রাক্টর, মাটি)", en: "Search services… (drone, tractor, soil)" },
+  svcSearchLabel: { bn: "সেবা খুঁজুন", en: "Search services" },
+  svcSortLabel: { bn: "সাজান", en: "Sort" },
+  svcSortAsc: { bn: "দাম: কম থেকে বেশি", en: "Price: Low to High" },
+  svcSortDesc: { bn: "দাম: বেশি থেকে কম", en: "Price: High to Low" },
+  svcCount: { bn: "{n} টি সেবা", en: "{n} services" },
+  svcFoundWord: { bn: "পাওয়া গেছে", en: "found" },
+  svcEmptyTitle: { bn: "কোন সেবা পাওয়া যায়নি", en: "No services found" },
+  svcEmptyHint: { bn: "অন্য ক্যাটাগরি বা সার্চ শব্দ চেষ্টা করুন।", en: "Try another search or filter." },
+  svcBookingEmptyHint: { bn: "উপরে যেকোনো সেবা থেকে বুক করুন — ফিল্ডে কাজ দ্রুত শুরু হবে।", en: "Book any service above — field work starts fast." },
+
+  // ── MyOrders (v2: tabs/empty/states via dictionary) ──
+  ordTabActive: { bn: "সক্রিয়", en: "Active" },
+  ordTabDelivered: { bn: "ডেলিভার্ড", en: "Delivered" },
+  ordEmptyTitle: { bn: "কোনো অর্ডার নাই", en: "No orders yet" },
+  ordEmptyAllHint: { bn: "আপনার এখনো কোনো অর্ডার নাই। বাজার থেকে পণ্য কিনে শুরু করুন।", en: "You don't have any orders yet. Start shopping from the market." },
+  ordEmptyFilteredHint: { bn: "এই ক্যাটাগরিতে কোনো অর্ডার নাই।", en: "No orders in this category yet." },
+  ordItemsTitle: { bn: "পণ্যসমূহ", en: "Items" },
+  ordLastUpdated: { bn: "সর্বশেষ হালনাগাদ", en: "Last updated" },
 } as const;
 
 export type DictKey = keyof typeof dict;

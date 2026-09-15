@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Package, ShoppingCart, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, ShoppingCart, Sprout, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { t } from "./lib/i18n";
@@ -15,9 +15,10 @@ import { TopBar } from "./components/TopBar";
 import { Splash } from "./components/Splash";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue";
 import { motion } from "framer-motion";
-import Login from "./pages/Login";
+// Login is eager (critical path); all other pages are code-split via lazy + Suspense.
+import Login from "./features/auth/Login";
 
-// STEP 42: Login remains eager (critical path); all other pages are code-split via lazy + Suspense.
+// STEP 42: all non-auth pages are code-split via lazy + Suspense.
 const Register = lazy(() => import("./features/auth/Register"));
 const Home = lazy(() => import("./features/home/Home"));
 const MyFarm = lazy(() => import("./features/farms/MyFarm"));
@@ -72,7 +73,7 @@ function ReverseGuard({ children }: { children: ReactNode }) {
 
 function PageFallback() {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm space-y-3">
+    <div className="rounded-xl border border-surface-border bg-surface-card p-4 shadow-sm space-y-3">
       <Skeleton className="h-6 w-32" />
       <Skeleton className="h-20 w-full" />
       <Skeleton className="h-10 w-full" />
@@ -85,11 +86,11 @@ function NotFound() {
   const lang: Lang = session?.lang ?? "bn";
   return (
     <main id="main" className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 py-10 text-center shadow-sm">
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-surface-border bg-surface-card p-4 py-10 text-center shadow-sm">
         <Compass className="h-10 w-10 text-stone-400" aria-hidden />
         <h1 className="text-lg font-bold text-stone-800">{t("notFoundTitle", lang)}</h1>
         <p className="max-w-sm text-sm text-stone-600">{t("notFoundBody", lang)}</p>
-        <Link to="/" className="mt-2 inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-4 py-2 font-semibold text-white hover:bg-green-800">
+        <Link to="/" className="mt-2 inline-flex min-h-[44px] items-center rounded-button bg-action px-4 py-2 font-semibold text-white shadow-button hover:bg-action-hover">
           {t("backHome", lang)}
         </Link>
       </div>
@@ -98,7 +99,7 @@ function NotFound() {
 }
 
 function Shell({ children }: { children: ReactNode }) {
-  const { session, logout, setLang } = useSession();
+  const { session, dark, logout, setLang, toggleDark } = useSession();
   const location = useLocation();
   const online = useIsOnline();
   const queued = useQueuedCount();
@@ -131,34 +132,50 @@ function Shell({ children }: { children: ReactNode }) {
   const sidebarItems = [...primaryNav, ...secondaryNav].map((n) => ({ to: n.to, label: t(n.key, lang), icon: n.icon }));
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="agro-shell min-h-screen">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[80] focus:min-h-[44px] focus:rounded-lg focus:bg-green-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
       >
         {t("skipToContent", lang)}
       </a>
-      <header className="sticky top-0 z-10 bg-[#14532d] shadow-sm">
+      <header className="agro-header sticky top-0 z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15 text-lg leading-none">🌾</span>
-            <div className="font-bold text-white">{t("appName", lang)}</div>
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-brand-300 ring-1 ring-white/20">
+              <Sprout className="h-5 w-5" strokeWidth={2.2} />
+            </span>
+            <div>
+              <div className="text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
+              <div className="mt-0.5 text-[10px] font-medium tracking-wide text-white/70">{t("tagline", lang)}</div>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Dark/Light Mode Toggle — driven by session context (reactive) */}
+            <button
+              type="button"
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-pressed={dark}
+              onClick={toggleDark}
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              title={dark ? "Light Mode" : "Dark Mode"}
+            >
+              {dark ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
+            </button>
             <button
               type="button"
               aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"}
               onClick={() => setLang(lang === "bn" ? "en" : "bn")}
-              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {lang === "bn" ? "EN" : "বাং"}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
-              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[36px] items-center rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
+              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[36px] items-center rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
                 {t("admin", lang)}
               </NavLink>
             )}
-            <button onClick={logout} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <button onClick={logout} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/25 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <LogOut className="h-4 w-4" aria-hidden /> {t("logout", lang)}
             </button>
           </div>
@@ -172,7 +189,7 @@ function Shell({ children }: { children: ReactNode }) {
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           role="status"
           aria-live="polite"
-          className="bg-amber-100 px-4 py-1.5 text-center text-xs font-semibold text-amber-800 motion-reduce:transition-none"
+          className="border-b border-warning-border bg-warning-bg px-4 py-1.5 text-center text-xs font-semibold text-warning-text motion-reduce:transition-none"
         >
           <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("offlineBanner", lang)}
           {queued > 0 && <span aria-live="polite" aria-atomic="true" className="ml-1">({queued})</span>}

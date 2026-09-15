@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Sprout } from "lucide-react";
+import { t } from "../lib/i18n";
+import type { DictKey, Lang } from "../lib/i18n";
 
 interface SplashProps {
   onDone?: () => void;
@@ -7,20 +10,33 @@ interface SplashProps {
   staticOnly?: boolean;
 }
 
-const STATUS = [
-  { upTo: 30, text: "ফার্ম ডেটা সংযুক্ত হচ্ছে..." },
-  { upTo: 70, text: "AI বিশ্লেষণ চলছে..." },
-  { upTo: 100, text: "আপনার ফার্ম প্রস্তুত" },
+/** Pre-login language (same key as AuthShell) so the splash respects the user's choice. */
+function splashLang(): Lang {
+  try {
+    const stored = localStorage.getItem("agrobridge.auth_lang");
+    if (stored === "bn" || stored === "en") return stored;
+  } catch {
+    // ignore storage errors (private mode)
+  }
+  return "bn";
+}
+
+const STATUS: { upTo: number; key: DictKey }[] = [
+  { upTo: 30, key: "splashStatusConnect" },
+  { upTo: 70, key: "splashStatusAi" },
+  { upTo: 100, key: "splashStatusReady" },
 ] as const;
 
-function statusFor(p: number) {
-  return STATUS.find((s) => p <= s.upTo)?.text ?? STATUS[2].text;
+function statusFor(p: number, lang: Lang) {
+  const found = STATUS.find((s) => p <= s.upTo) ?? STATUS[2];
+  return t(found.key, lang);
 }
 
 export function Splash({ onDone, staticOnly = false }: SplashProps) {
   const shouldReduce = useReducedMotion();
+  const [lang] = useState<Lang>(splashLang);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<string>(STATUS[0].text);
+  const [status, setStatus] = useState<string>(() => statusFor(0, splashLang()));
   const [phase, setPhase] = useState<"seed" | "brand" | "loading" | "exit">("seed");
   const [exiting, setExiting] = useState(false);
 
@@ -53,7 +69,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
       }
       const p = Math.min(100, (elapsed / duration) * 100);
       setProgress(p);
-      setStatus(statusFor(p));
+      setStatus(statusFor(p, lang));
       if (p < 100) raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
@@ -72,17 +88,17 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
       clearTimeout(tDone);
       cancelAnimationFrame(raf);
     };
-  }, [shouldReduce, staticOnly, onDone]);
+  }, [shouldReduce, staticOnly, onDone, lang]);
 
   if (shouldReduce || staticOnly) {
     return (
-      <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[#0A2F1F] via-[#1A4A32] to-[#2E7D4F] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur">
-          <span aria-hidden className="text-[40px] leading-none">🌱</span>
+          <Sprout className="h-10 w-10 text-white" strokeWidth={2} aria-hidden />
         </div>
-        <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">এগ্রোব্রিজ</h1>
-        <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">AI-powered Farm Intelligence</p>
-        <p className="mt-6 text-[13px] font-medium text-white/80">{statusFor(100)}</p>
+        <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
+        <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
+        <p className="mt-6 text-[13px] font-medium text-white/80">{statusFor(100, lang)}</p>
       </div>
     );
   }
@@ -99,9 +115,9 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.28, ease: [0.4, 0, 1, 1] }}
           data-testid="splash"
-          className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#0A2F1F] via-[#1A4A32] to-[#2E7D4F] px-6"
+          className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6"
           style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-          aria-label="AgroBridge loading"
+          aria-label={t("splashLoadingLabel", lang)}
         >
           {/* Subtle field texture — low opacity, performance friendly */}
           <div
@@ -125,8 +141,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 120 120" aria-hidden>
               <defs>
                 <linearGradient id="agro-ring" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#4ADE80" />
-                  <stop offset="100%" stopColor="#22C55E" />
+                  <stop offset="0%" stopColor="var(--color-brand-400)" />
+                  <stop offset="100%" stopColor="var(--color-brand-500)" />
                 </linearGradient>
                 <linearGradient id="agro-shimmer" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="transparent" />
@@ -173,7 +189,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 initial={{ scaleY: 0 }}
                 animate={{ scaleY: phase === "seed" ? 0 : 1 }}
                 transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute bottom-[18px] left-1/2 h-[28px] w-[3px] origin-bottom -translate-x-1/2 rounded-full bg-[#15803D]"
+                className="absolute bottom-[18px] left-1/2 h-[28px] w-[3px] origin-bottom -translate-x-1/2 rounded-full bg-[var(--color-brand-700)]"
                 aria-hidden
               />
               {/* Seed base */}
@@ -181,7 +197,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 initial={{ scale: 0.15 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 180, damping: 14 }}
-                className="absolute bottom-[14px] left-1/2 h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[#14532D] shadow-sm"
+                className="absolute bottom-[14px] left-1/2 h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[var(--color-brand-900)] shadow-sm"
                 aria-hidden
               />
               {/* Left leaf */}
@@ -189,7 +205,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 initial={{ scale: 0, rotate: -35, x: -6, y: 6 }}
                 animate={{ scale: phase === "seed" ? 0 : 1, rotate: phase === "seed" ? -35 : 0, x: phase === "seed" ? -6 : 0, y: phase === "seed" ? 6 : 0 }}
                 transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.55 }}
-                className="absolute bottom-[26px] right-[30px] h-[18px] w-[14px] origin-bottom-right rounded-[10px] bg-[#22C55E] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
+                className="absolute bottom-[26px] right-[30px] h-[18px] w-[14px] origin-bottom-right rounded-[10px] bg-[var(--color-brand-500)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
                 style={{ borderRadius: "10px 10px 10px 2px" }}
                 aria-hidden
               />
@@ -198,7 +214,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 initial={{ scale: 0, rotate: 35, x: 6, y: 6 }}
                 animate={{ scale: phase === "seed" ? 0 : 1, rotate: phase === "seed" ? 35 : 0, x: phase === "seed" ? 6 : 0, y: phase === "seed" ? 6 : 0 }}
                 transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.6 }}
-                className="absolute bottom-[26px] left-[30px] h-[18px] w-[14px] origin-bottom-left rounded-[10px] bg-[#4ADE80] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
+                className="absolute bottom-[26px] left-[30px] h-[18px] w-[14px] origin-bottom-left rounded-[10px] bg-[var(--color-brand-400)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
                 style={{ borderRadius: "10px 10px 2px 10px" }}
                 aria-hidden
               />
@@ -232,9 +248,9 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             className="mt-5 text-center"
           >
             <h1 className="text-[26px] font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
-              এগ্রোব্রিজ
+              {t("appName", lang)}
             </h1>
-            <p className="mt-1 text-[11px] font-medium tracking-[0.14em] text-white/70">AI-powered Farm Intelligence</p>
+            <p className="mt-1 text-[11px] font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
           </motion.div>
 
           {/* Status text */}

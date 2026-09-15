@@ -1,9 +1,20 @@
 /**
  * Development/demo seed data ONLY (Section 38).
  * Never use real personal information. Passwords here are public demo values.
+ *
+ * Production guard: render.yaml runs `prisma db seed` on every deploy, so
+ * without this guard every production database gains a SUPER_ADMIN/ADMIN pair
+ * with the public password Demo@1234 (P0 exposure found in QA 2026-09-15).
+ * Seeding demo identities in production now requires the explicit opt-in
+ * ALLOW_DEMO_SEED=1 (staging/demo instances only).
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "1") {
+  console.log("Seed skipped: NODE_ENV=production and ALLOW_DEMO_SEED not set (demo accounts must never be seeded into production).");
+  process.exit(0);
+}
 
 const prisma = new PrismaClient();
 

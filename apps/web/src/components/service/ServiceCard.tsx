@@ -81,10 +81,10 @@ export function ServiceCard({
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1], delay: Math.min(index, 11) * 0.05 }}
       whileHover={{ y: -2 }}
-      className="group flex flex-col overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:border-[#DCFCE7] hover:shadow-cardHover focus-within:ring-2 focus-within:ring-[#15803D] focus-within:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none"
+      className="group flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:border-brand-200 hover:shadow-cardHover focus-within:ring-2 focus-within:ring-[var(--ring-color)] focus-within:ring-offset-2 ring-offset-[var(--color-surface-bg)] motion-reduce:transform-none motion-reduce:transition-none"
     >
       {/* Hero — fixed 16:10, consistent visual grammar (fixes A7) */}
-      <div className="relative h-44 w-full overflow-hidden rounded-t-[20px] bg-[#F8FAF7]">
+      <div className="relative h-44 w-full overflow-hidden rounded-t-card bg-surface-subdued">
         <img
           src={hero}
           alt={`${title} — ${catLabel}`}
@@ -96,44 +96,44 @@ export function ServiceCard({
           }}
         />
         {/* subtle top highlight, not heavy overlay — keeps contrast WCAG AA */}
-        <div className="absolute inset-0 rounded-t-[20px] bg-gradient-to-t from-black/10 via-transparent to-transparent" aria-hidden />
+        <div className="absolute inset-0 rounded-t-card bg-gradient-to-t from-black/10 via-transparent to-transparent" aria-hidden />
       </div>
 
       <div className="flex flex-1 flex-col p-5">
         {/* Category — distinct from title (fixes A3) */}
         <div className="flex items-center gap-2">
           <AgriIconBox category={category} size={32} withMotion={false} />
-          <p className="text-[11px] font-semibold tracking-[0.06em] text-[#15803D]">{catLabel}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-link">{catLabel}</p>
         </div>
 
-        <h3 className="mt-1.5 line-clamp-1 text-balance text-[16px] font-bold leading-6 text-[#1A1F1C]">{title}</h3>
+        <h3 className="mt-1.5 line-clamp-1 text-balance text-base font-bold leading-6 text-stone-800">{title}</h3>
 
         {/* Service-specific description — no verbatim repetition across unrelated services (fixes A2) */}
-        <p className="mt-1.5 line-clamp-2 min-h-[2.75rem] text-[13px] leading-5 text-[#57534E]">{desc}</p>
+        <p className="mt-1.5 line-clamp-2 min-h-[2.75rem] text-sm leading-5 text-stone-600">{desc}</p>
 
-        <div className="my-4 h-px bg-[#F5F5F4]" aria-hidden />
+        <div className="my-4 h-px bg-surface-border" aria-hidden />
 
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
-              <span className="text-[18px] font-bold tabular-nums leading-none text-[#1A1F1C]">{formatBDT(pricePaisa, lang)}</span>
-              <span className="text-[12px] font-normal tabular-nums text-[#78716C]">{priceUnitLabel(priceUnit, lang)}</span>
+              <span className="text-lg font-bold tabular-nums leading-none text-stone-800">{formatBDT(pricePaisa, lang)}</span>
+              <span className="text-xs font-normal tabular-nums text-stone-500">{priceUnitLabel(priceUnit, lang)}</span>
             </div>
             {/* Honest meta — rating from real aggregation or explicit fallback, provider count (fixes A1, A4) */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {avg !== null ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#F8FAF5] px-2.5 py-1 text-[11px] font-semibold text-[#1A1F1C]">
-                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden />
+                <span className="inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
+                  <Star className="h-3 w-3 fill-enterprise-warning text-enterprise-warning" aria-hidden />
                   {avg.toFixed(1)}
-                  <span className="font-normal text-[#57534E]">({totals.count})</span>
+                  <span className="font-normal text-stone-600">({totals.count})</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full bg-[#F5F5F4] px-2.5 py-1 text-[11px] font-medium text-[#57534E]">
+                <span className="inline-flex items-center rounded-chip bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-600">
                   {lang === "bn" ? "নতুন — এখনো রেটিং নেই" : "New — no ratings yet"}
                 </span>
               )}
               {providerCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#F8FAF5] px-2.5 py-1 text-[11px] font-medium text-[#57534E]">
+                <span className="inline-flex items-center gap-1 rounded-chip bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-600">
                   <Users className="h-3 w-3" aria-hidden />
                   {providerCount} {lang === "bn" ? "প্রদানকারী" : providerCount === 1 ? "provider" : "providers"}
                 </span>
@@ -147,14 +147,14 @@ export function ServiceCard({
           <button
             type="button"
             onClick={onDetails}
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-[12px] border border-[#E7E5E4] bg-white px-3 py-2.5 text-[13px] font-semibold text-[#1A1F1C] transition hover:border-[#CBD5E1] hover:bg-[#F8FAF5] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D] motion-reduce:transition-none"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-button border border-surface-border-strong bg-surface-card px-3 py-2.5 text-[13px] font-semibold text-stone-800 transition hover:border-stone-300 hover:bg-stone-100 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
           >
             {t("viewDetails", lang)}
           </button>
           <motion.button
             whileTap={{ scale: 0.985 }}
             onClick={onBook}
-            className="inline-flex min-h-[44px] flex-[1.2] items-center justify-center rounded-[12px] bg-[#15803D] px-4 py-2.5 text-[14px] font-bold text-white shadow-button transition hover:bg-[#14532D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803D] focus-visible:ring-offset-2 motion-reduce:transition-none"
+            className="inline-flex min-h-[44px] flex-[1.2] items-center justify-center rounded-button bg-action px-4 py-2.5 text-sm font-bold text-white shadow-button transition hover:bg-action-hover active:bg-action-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] motion-reduce:transition-none"
           >
             {t("bookNow", lang)}
           </motion.button>
@@ -166,20 +166,20 @@ export function ServiceCard({
 
 export function ServiceCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[20px] border border-[#E7E5E4] bg-white shadow-card">
-      <div className="aspect-[16/10] w-full animate-pulse bg-[#F5F5F4]" />
+    <div className="overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card" aria-hidden>
+      <div className="skeleton-shimmer aspect-[16/10] w-full" />
       <div className="p-5">
-        <div className="h-3 w-24 animate-pulse rounded bg-[#F0FDF4]" />
-        <div className="mt-2 h-5 w-3/4 animate-pulse rounded bg-[#F5F5F4]" />
-        <div className="mt-2 h-3 w-full animate-pulse rounded bg-[#F5F5F4]" />
-        <div className="my-4 h-px bg-[#F5F5F4]" />
+        <div className="skeleton-shimmer h-3 w-24 rounded-full" />
+        <div className="skeleton-shimmer mt-2 h-5 w-3/4 rounded-lg" />
+        <div className="skeleton-shimmer mt-2 h-3 w-full rounded-lg" />
+        <div className="my-4 h-px bg-surface-border" />
         <div className="flex justify-between">
-          <div className="h-5 w-20 animate-pulse rounded bg-[#F5F5F4]" />
-          <div className="h-4 w-24 animate-pulse rounded bg-[#F5F5F4]" />
+          <div className="skeleton-shimmer h-5 w-20 rounded-lg" />
+          <div className="skeleton-shimmer h-4 w-24 rounded-full" />
         </div>
         <div className="mt-4 flex gap-2">
-          <div className="h-11 flex-1 animate-pulse rounded-[12px] bg-[#F5F5F4]" />
-          <div className="h-11 flex-[1.2] animate-pulse rounded-[12px] bg-[#DCFCE7]" />
+          <div className="skeleton-shimmer h-11 flex-1 rounded-button" />
+          <div className="skeleton-shimmer h-11 flex-[1.2] rounded-button" />
         </div>
       </div>
     </div>

@@ -11,21 +11,32 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
     <link rel="maskable" href="/icons/icon-512.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <!-- Self-hosted Inter + Noto Sans Bengali + Hind Siliguri (Gap Analysis §4.2) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@600;700&family=Inter:wght@400;500;700&family=Noto+Sans+Bengali:wght@400;500;700&display=swap" rel="stylesheet" />
-    <link rel="preload" href="/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Self-hosted Hind Siliguri + Noto Sans Bengali + Inter (offline-safe, no Google CSS dependency) -->
+    <link rel="preload" href="/fonts/hind-siliguri-bengali-600.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/hind-siliguri-latin-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/noto-bengali-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/noto-bengali-500.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/noto-bengali-700.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AgroBridge" />
     <title>AgroBridge — Green Soil. Smart Farm. Secure Future.</title>
+    <!-- Theme boot: apply the persisted (or OS) theme before first paint so a
+         dark-mode reload never flashes light. Mirrors lib/session.tsx logic. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("agro_dark_mode") ?? sessionStorage.getItem("agro_dark_mode");
+          var dark = stored !== null ? stored === "true" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-stone-50">
+  <body class="bg-surface-bg">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

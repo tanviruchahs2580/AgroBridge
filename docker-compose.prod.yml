@@ -6,7 +6,7 @@
 #
 # NOTE: migrations are NOT applied on boot by design.
 # Apply manually per docs/deployment.md §5:
-#   docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy
+#   docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy --schema prisma/postgres/schema.prisma
 services:
   db:
     image: postgres:17-alpine # aligns with CI (ci.yml api-postgres job)

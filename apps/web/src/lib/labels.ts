@@ -111,6 +111,22 @@ export function reasonLabel(raw: string, lang: Lang): string {
   return raw;
 }
 
+// ── Weather condition (API returns free text, e.g. "Partly cloudy") ──
+const WEATHER_CONDITIONS: [RegExp, { bn: string; en: string }][] = [
+  [/clear|sunny|sun/i, { bn: "পরিষ্কার আকাশ", en: "Clear sky" }],
+  [/partly|few clouds|broken/i, { bn: "আংশিক মেঘলা", en: "Partly cloudy" }],
+  [/cloud|overcast/i, { bn: "মেঘলা", en: "Cloudy" }],
+  [/rain|drizzle|shower/i, { bn: "বৃষ্টি", en: "Rain" }],
+  [/thunder|storm/i, { bn: "ঝড়/বজ্রপাত", en: "Thunderstorm" }],
+  [/haze|mist|fog/i, { bn: "কুয়াশা", en: "Haze" }],
+];
+export function weatherConditionLabel(raw: string, lang: Lang): string {
+  for (const [re, label] of WEATHER_CONDITIONS) {
+    if (re.test(raw)) return lang === "bn" ? label.bn : label.en;
+  }
+  return raw;
+}
+
 // ── Weather risk types → paired ACTION line keys ──
 const WEATHER_RISK_KEYS: Record<string, DictKey> = {
   SPRAY_WARNING: "weatherRiskSPRAY_WARNING",

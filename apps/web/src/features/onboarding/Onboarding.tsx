@@ -108,7 +108,7 @@ export default function Onboarding() {
                 type="button"
                 aria-pressed={selectedCrops.includes(c)}
                 onClick={() => setSelectedCrops((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))}
-                className={`min-h-[44px] rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+                className={`min-h-[44px] rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
                   selectedCrops.includes(c) ? "bg-green-700 text-white" : "bg-white ring-1 ring-stone-200 hover:bg-green-50"
                 }`}
               >

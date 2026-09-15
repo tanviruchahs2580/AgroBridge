@@ -1,4 +1,4 @@
-/** Tailwind config — design tokens via CSS variables (Steps 1-5). */
+/** Tailwind config — design tokens via CSS variables (design system v2). */
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -37,8 +37,14 @@ export default {
           "soil-50": "var(--color-soil-50)",
           sky: "var(--color-sky)",
           "sky-50": "var(--color-sky-50)",
+          "sky-100": "var(--color-sky-100)",
+          "sky-200": "var(--color-sky-200)",
+          "sky-600": "var(--color-sky-600)",
+          "sky-800": "var(--color-sky-800)",
           ai: "var(--color-ai-indigo)",
           "ai-light": "var(--color-ai-indigo-light)",
+          "indigo-100": "var(--color-indigo-100)",
+          "indigo-200": "var(--color-indigo-200)",
           warning: "var(--color-warning)",
           critical: "var(--color-critical)",
           neutral: "var(--color-neutral-bg)",
@@ -47,8 +53,11 @@ export default {
         surface: {
           bg: "var(--color-surface-bg)",
           card: "var(--color-surface-card)",
+          subdued: "var(--color-surface-card-subdued)",
           border: "var(--color-surface-border)",
+          "border-strong": "var(--color-surface-border-strong)",
           muted: "var(--color-surface-muted)",
+          overlay: "var(--color-surface-overlay)",
         },
         text: {
           primary: "var(--text-primary)",
@@ -59,6 +68,108 @@ export default {
           disabled: "var(--text-disabled)",
           inverse: "var(--text-on-light)",
         },
+        /* Mode-aware semantic colors — prefer these over raw palette steps. */
+        action: {
+          DEFAULT: "var(--color-action)",
+          hover: "var(--color-action-hover)",
+          active: "var(--color-action-active)",
+        },
+        link: "var(--color-link)",
+        accent: "var(--color-accent)",
+        /* Legacy default-palette aliases — re-pointed to tokens so every
+         * pre-existing class (green-700, amber-50, red-100…) is dark-aware. */
+        green: {
+          50: "var(--color-brand-50)",
+          100: "var(--color-brand-100)",
+          200: "var(--color-brand-200)",
+          300: "var(--color-brand-300)",
+          400: "var(--color-brand-400)",
+          500: "var(--color-brand-500)",
+          600: "var(--color-brand-600)",
+          700: "var(--color-brand-700)",
+          800: "var(--color-brand-800)",
+          900: "var(--color-brand-900)",
+          950: "var(--color-brand-950)",
+        },
+        emerald: {
+          50: "var(--color-brand-50)",
+          100: "var(--color-brand-100)",
+          200: "var(--color-brand-200)",
+          700: "var(--color-brand-700)",
+          800: "var(--color-brand-800)",
+        },
+        amber: {
+          50: "var(--color-warning-bg)",
+          100: "var(--color-warning-bg)",
+          200: "var(--color-warning-border)",
+          300: "var(--color-warning-border)",
+          400: "var(--color-warning)",
+          500: "var(--color-warning)",
+          600: "var(--color-warning)",
+          700: "var(--color-warning-text)",
+          800: "var(--color-warning-text)",
+        },
+        red: {
+          50: "var(--color-danger-bg)",
+          100: "var(--color-danger-bg)",
+          200: "var(--color-danger-border)",
+          300: "var(--color-danger-border)",
+          400: "var(--color-critical)",
+          500: "var(--color-critical)",
+          600: "var(--color-critical)",
+          700: "var(--color-critical)",
+        },
+        blue: {
+          50: "var(--color-sky-50)",
+          100: "var(--color-sky-100)",
+          200: "var(--color-sky-200)",
+          600: "var(--color-sky-600)",
+          700: "var(--color-sky-600)",
+          800: "var(--color-sky-800)",
+        },
+        /* `sky-*` utilities resolve to the same sky tokens as `blue-*` so every
+         * pre-existing sky class is dark-aware (Tailwind default sky is not). */
+        sky: {
+          50: "var(--color-sky-50)",
+          100: "var(--color-sky-100)",
+          200: "var(--color-sky-200)",
+          600: "var(--color-sky-600)",
+          800: "var(--color-sky-800)",
+        },
+        /* `indigo-*` tint utilities resolve to the AI-indigo tokens. */
+        indigo: {
+          100: "var(--color-indigo-100)",
+          200: "var(--color-indigo-200)",
+        },
+        purple: {
+          50: "var(--color-ai-indigo-light)",
+          100: "var(--color-indigo-100)",
+          200: "var(--color-indigo-200)",
+          600: "var(--color-ai-indigo)",
+          700: "var(--color-ai-indigo)",
+          800: "var(--color-ai-indigo)",
+        },
+        danger: {
+          bg: "var(--color-danger-bg)",
+          border: "var(--color-danger-border)",
+          text: "var(--color-danger-text)",
+        },
+        success: {
+          bg: "var(--color-success-bg)",
+          border: "var(--color-success-border)",
+          text: "var(--color-success-text)",
+        },
+        info: {
+          bg: "var(--color-info-bg)",
+          border: "var(--color-info-border)",
+          text: "var(--color-info-text)",
+        },
+        warning: {
+          bg: "var(--color-warning-bg)",
+          border: "var(--color-warning-border)",
+          text: "var(--color-warning-text)",
+        },
+        glass: "var(--glass-card)",
         orange: {
           50: "var(--color-orange-50)",
           600: "var(--color-orange-600)",
@@ -70,6 +181,7 @@ export default {
         "2xl": "var(--radius-2xl)",
         card: "var(--radius-card)",
         button: "var(--radius-button)",
+        input: "var(--radius-input)",
         chip: "var(--radius-chip)",
         iconBox: "var(--radius-iconBox)",
       },
@@ -80,6 +192,14 @@ export default {
         card: "var(--shadow-card)",
         cardHover: "var(--shadow-cardHover)",
         button: "var(--shadow-button)",
+        float: "var(--shadow-float)",
+      },
+      backgroundImage: {
+        hero: "var(--gradient-hero)",
+        cta: "var(--gradient-cta)",
+        ai: "var(--gradient-ai)",
+        sky: "var(--gradient-sky)",
+        warm: "var(--gradient-warm)",
       },
       fontSize: {
         xs: ["11px", { lineHeight: "16px", letterSpacing: "0.01em" }],
@@ -88,6 +208,7 @@ export default {
         lg: ["18px", { lineHeight: "28px" }],
         xl: ["20px", { lineHeight: "28px" }],
         "2xl": ["28px", { lineHeight: "36px" }],
+        display: ["34px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
       },
     },
   },

@@ -7,14 +7,14 @@ import type { ReactNode } from "react";
 type Category = "AGRONOMIST"|"COMBINE_HARVESTER"|"DRONE"|"LAND_LEVELLER"|"POWER_TILLER"|"SOIL_TESTING"|"THRESHER"|"TRACTOR";
 
 const CATEGORY_STYLE: Record<Category, { bg: string; border: string; icon: string }> = {
-  AGRONOMIST:       { bg: "bg-[#F0F9FF]", border: "border-[#BAE6FD]", icon: "text-[#0284C7]" },
-  DRONE:            { bg: "bg-[#F0F9FF]", border: "border-[#BAE6FD]", icon: "text-[#0284C7]" },
-  TRACTOR:          { bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]", icon: "text-[#EA580C]" },
-  COMBINE_HARVESTER:{ bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]", icon: "text-[#EA580C]" },
-  POWER_TILLER:     { bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]", icon: "text-[#EA580C]" },
-  THRESHER:         { bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]", icon: "text-[#EA580C]" },
-  LAND_LEVELLER:    { bg: "bg-[#FEFCE8]", border: "border-[#FDE68A]", icon: "text-[#CA8A04]" },
-  SOIL_TESTING:     { bg: "bg-[#FDF6EE]", border: "border-[#FDE68A]", icon: "text-[#92400E]" },
+  AGRONOMIST:       { bg: "bg-sky-50", border: "border-sky-200", icon: "text-sky-600" },
+  DRONE:            { bg: "bg-sky-50", border: "border-sky-200", icon: "text-sky-600" },
+  TRACTOR:          { bg: "bg-orange-50", border: "border-warning-border", icon: "text-orange-600" },
+  COMBINE_HARVESTER:{ bg: "bg-orange-50", border: "border-warning-border", icon: "text-orange-600" },
+  POWER_TILLER:     { bg: "bg-orange-50", border: "border-warning-border", icon: "text-orange-600" },
+  THRESHER:         { bg: "bg-orange-50", border: "border-warning-border", icon: "text-orange-600" },
+  LAND_LEVELLER:    { bg: "bg-enterprise-earth-50", border: "border-warning-border", icon: "text-warning-text" },
+  SOIL_TESTING:     { bg: "bg-enterprise-soil-50", border: "border-warning-border", icon: "text-enterprise-earth" },
 };
 
 function IconForCategory({ category, size=22 }: { category: string; size?: number }) {
@@ -38,7 +38,7 @@ export function AgriIconBox({ category, size=48, withMotion=true }: { category: 
   const style = CATEGORY_STYLE[cat] ?? CATEGORY_STYLE.TRACTOR;
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-[14px] border ${style.bg} ${style.border} ${withMotion ? "transition group-hover:scale-[1.05]" : ""}`}
+      className={`flex shrink-0 items-center justify-center rounded-iconBox border ${style.bg} ${style.border} ${withMotion ? "transition group-hover:scale-[1.05]" : ""}`}
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -51,7 +51,7 @@ export function AgriIconBox({ category, size=48, withMotion=true }: { category: 
 
 export function MetaIcon({ icon, className="" }: { icon: "star"|"clock"|"shield"|"calendar"|"phone"|"eye"|"arrow"; className?: string }) {
   const map: Record<string, ReactNode> = {
-    star: <Star className={`h-3 w-3 fill-amber-400 text-amber-400 ${className}`} />,
+    star: <Star className={`h-3 w-3 fill-enterprise-warning text-enterprise-warning ${className}`} />,
     clock: <Clock className={`h-3 w-3 ${className}`} />,
     shield: <ShieldCheck className={`h-3 w-3 ${className}`} />,
     calendar: <Calendar className={`h-3 w-3 ${className}`} />,

@@ -3,16 +3,82 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Self-hosted Inter (Latin) + Noto Sans Bengali ── */
+/* ── Self-hosted Hind Siliguri (primary UI face: Bengali + Latin) ──
+ * Downloaded from Google Fonts (v14) and served locally so the APK/offline
+ * renders identically — the previous stack depended on the Google CSS link. */
 @font-face {
-  font-family: "Inter";
+  font-family: "Hind Siliguri";
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 400;
   font-display: swap;
-  src: url("/fonts/inter-400.woff2") format("woff2");
+  src: url("/fonts/hind-siliguri-bengali-400.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
+    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-latin-400.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-bengali-500.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
+    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-bengali-600.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
+    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-bengali-700.woff2") format("woff2");
+  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
+    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+}
+@font-face {
+  font-family: "Hind Siliguri";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/hind-siliguri-latin-700.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ── Self-hosted Noto Sans Bengali (variable woff2 subsets, downloaded from fonts.gstatic.com) ── */
 /* unicode-range values preserved exactly as served by Google Fonts css2. */
 
@@ -63,15 +129,56 @@
 }
 
 :root {
-  font-family: "Hind Siliguri", "Noto Sans Bengali", "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 
-/* Gap Analysis §4.8 — dot pattern for premium surface */
+html,
+body,
+#root {
+  min-height: 100%;
+  background-color: var(--color-surface-bg);
+}
+
+/* Theme switch: cross-fade the big surfaces instead of a hard snap.
+   Applied only while toggling (class added by JS) to keep initial paint cheap. */
+html.theme-transition,
+html.theme-transition body,
+html.theme-transition .agro-shell,
+html.theme-transition .agro-header {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--color-brand-100);
+  color: var(--color-brand-900);
+}
+
+/* Gap Analysis §4.8 — soft agricultural mesh, not a loud grid */
 .bg-dot-pattern {
-  background-color: #f8faf5;
-  background-image: radial-gradient(#e7e5e4 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-color: var(--color-surface-bg);
+  background-image:
+    radial-gradient(rgba(21, 128, 61, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, #f7faf6 0%, #f4f7f2 48%, #eef5ee 100%);
+  background-size: 22px 22px, 100% 100%;
+}
+
+.agro-shell {
+  background:
+    radial-gradient(1200px 420px at 12% -10%, rgba(34, 197, 94, 0.08), transparent 55%),
+    radial-gradient(900px 360px at 100% 0%, rgba(14, 165, 233, 0.06), transparent 50%),
+    var(--color-surface-bg);
+}
+
+.agro-header {
+  background: linear-gradient(105deg, var(--color-header) 0%, var(--color-header-end) 58%, #166534 100%);
+  box-shadow: 0 8px 24px rgba(15, 61, 36, 0.18);
 }
 
 /* Shimmer skeleton — Gap Analysis motion */

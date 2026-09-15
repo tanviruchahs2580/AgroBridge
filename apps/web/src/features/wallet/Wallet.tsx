@@ -201,7 +201,7 @@ export default function WalletPage() {
 
       {/* Summary cards row */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
-        <Card className="min-w-0 overflow-hidden bg-gradient-to-r from-green-700 to-green-800 text-white">
+        <Card className="min-w-0 overflow-hidden bg-hero text-white">
           <p className="text-xs opacity-80">{t("balance", lang)}</p>
           <div aria-live="polite" aria-atomic="true">
             {wallet ? (
@@ -233,7 +233,7 @@ export default function WalletPage() {
         <Card className="min-w-0 overflow-hidden">
           <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("monthOut", lang)}</p>
           {summary ? (
-            <p className="mt-0.5 text-lg font-bold text-red-600">{formatBDT(summary.monthDebitsPaisa, lang)}</p>
+            <p className="mt-0.5 text-lg font-bold text-danger-text">{formatBDT(summary.monthDebitsPaisa, lang)}</p>
           ) : (
             <Skeleton className="mt-1 h-6 w-20" />
           )}
@@ -331,9 +331,9 @@ export default function WalletPage() {
                   <div className="min-w-0">
                     <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{row.label}</p>
                     <p className="break-words text-[11px] text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(row.createdAt, lang)}</p>
-                    <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{row.ref}</p>
+                    <p className="break-all text-[10px] font-mono text-stone-500 [overflow-wrap:anywhere]">{row.ref}</p>
                   </div>
-                  <span className={`font-bold ${row.credit ? "text-green-700" : "text-red-600"}`}>
+                  <span className={`font-bold ${row.credit ? "text-green-700" : "text-danger-text"}`}>
                     {row.credit ? "+" : "−"}{formatBDT(row.amountPaisa, lang)}
                   </span>
                 </div>
@@ -361,7 +361,7 @@ export default function WalletPage() {
                   <p className="break-all text-[11px] text-stone-500 [overflow-wrap:anywhere]">
                     {wd.refNo}{wd.destination ? ` · ${t("destinationLabel", lang)}: ${wd.destination}` : ""} · {formatDateTime(wd.createdAt, lang)}
                   </p>
-                  <p className="break-all text-[10px] font-mono text-stone-400 [overflow-wrap:anywhere]">{wd.id}</p>
+                  <p className="break-all text-[10px] font-mono text-stone-500 [overflow-wrap:anywhere]">{wd.id}</p>
                 </div>
                 <Badge
                   className={

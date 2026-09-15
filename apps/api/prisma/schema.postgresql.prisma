@@ -373,6 +373,12 @@ model Wallet {
   id           String @id @default(cuid())
   userId       String @unique
   balancePaisa Int    @default(0)
+  // Sum of PENDING withdrawal amounts currently held against this wallet
+  // (available = balancePaisa - heldPaisa). A hold is reserved at request time
+  // and released by admin APPROVE (which simultaneously debits balancePaisa)
+  // or REJECT. Maintenance is serialized under the wallet row's write lock
+  // (see the withdraw/decision transactions).
+  heldPaisa    Int    @default(0)
   user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

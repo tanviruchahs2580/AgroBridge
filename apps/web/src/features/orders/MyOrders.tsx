@@ -47,37 +47,39 @@ export default function MyOrders() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setLoadError(false);
-      try {
-        const data = await api<{ items: Order[] }>("GET", "/orders?pageSize=50");
-        setOrders(data.items);
-      } catch {
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = orders.filter((o) => {
-    if (tab === "active") {
-      const s = STATUS_MAP[o.status] || STATUS_MAP[o.status];
-      return o.status !== "DELIVERED" && o.status !== "CANCELLED";
+  async function load() {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      // GET /orders returns a plain array (contract asserted in
+      // apps/api/tests/journey-marketplace.test.ts) — not an { items } envelope.
+      const data = await api<Order[] | { items?: Order[] }>("GET", "/orders");
+      setOrders(Array.isArray(data) ? data : (data?.items ?? []));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  const filtered = (orders || []).filter((o) => {
+    if (tab === "active") return o.status !== "DELIVERED" && o.status !== "CANCELLED";
     if (tab === "delivered") return o.status === "DELIVERED";
     return true;
   });
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "all", label: t("tabAll", lang) },
-    { key: "active", label: lang === "bn" ? "সক্রিয়" : "Active" },
-    { key: "delivered", label: lang === "bn" ? "ডেলিভার্ড" : "Delivered" },
+    { key: "active", label: t("ordTabActive", lang) },
+    { key: "delivered", label: t("ordTabDelivered", lang) },
   ];
 
   return (
-    <div className="min-w-0 space-y-5 overflow-hidden px-2 sm:px-0">
+    <div className="min-w-0 space-y-5 overflow-hidden">
       <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800">
         <Package className="h-6 w-6 text-green-700" aria-hidden />
         {t("myOrders", lang)}
@@ -104,7 +106,7 @@ export default function MyOrders() {
       {loadError && (
         <div className="space-y-2">
           <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button variant="outline" onClick={() => window.location.reload()}>
+          <Button variant="outline" onClick={() => void load()}>
             {t("retry", lang)}
           </Button>
         </div>
@@ -125,15 +127,9 @@ export default function MyOrders() {
       {!loading && filtered.length === 0 && (
         <EmptyState
           icon={<Package className="h-10 w-10 text-stone-300" aria-hidden />}
-          title={lang === "bn" ? "কোনো অর্ডার নাই" : "No orders yet"}
+          title={t("ordEmptyTitle", lang)}
           description={
-            tab === "all"
-              ? lang === "bn"
-                ? "আপনোর এখনো কোনো অর্ডার নাই। বাজার থেকে পণ্য কিনে শুরু করুন।"
-                : "You don't have any orders yet. Start shopping from the market."
-              : lang === "bn"
-                ? "এই ক্যাটাগরিতে কোনো অর্ডার নাই।"
-                : "No orders in this category yet."
+            tab === "all" ? t("ordEmptyAllHint", lang) : t("ordEmptyFilteredHint", lang)
           }
         />
       )}
@@ -166,8 +162,9 @@ export default function MyOrders() {
               <button
                 type="button"
                 onClick={() => setExpandedId(isExpanded ? null : order.id)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-400 hover:bg-stone-100"
-                aria-label={isExpanded ? "Collapse" : "Expand"}
+                aria-expanded={isExpanded}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                aria-label={isExpanded ? t("collapseDetails", lang) : t("expandDetails", lang)}
               >
                 {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
@@ -178,7 +175,7 @@ export default function MyOrders() {
               <div className="border-t border-stone-100 bg-stone-50 px-4 py-3 text-sm">
                 {/* Items */}
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                  {lang === "bn" ? "পণ্যসমূহ" : "Items"}
+                  {t("ordItemsTitle", lang)}
                 </h3>
                 <ul className="divide-y divide-stone-200">
                   {order.items.map((item) => (
@@ -206,16 +203,16 @@ export default function MyOrders() {
                 {/* Delivery address */}
                 <div className="mt-3 rounded-lg bg-white p-2.5 text-xs">
                   <p className="flex items-center gap-1.5 font-semibold text-stone-700">
-                    <MapPin className="h-3.5 w-3.5 text-stone-400" aria-hidden />
-                    {lang === "bn" ? "ডেলিভারি ঠিকানা" : "Delivery address"}
+                    <MapPin className="h-3.5 w-3.5 text-stone-500" aria-hidden />
+                    {t("deliveryAddressLabel", lang)}
                   </p>
                   <p className="mt-0.5 text-stone-600 break-all">{order.addressLine}</p>
                   {order.phone && <p className="mt-0.5 text-stone-600">{order.phone}</p>}
                 </div>
 
                 {/* Last updated */}
-                <p className="mt-2 text-[10px] text-stone-400">
-                  {lang === "bn" ? "সর্বশেষ হালনাগাদ" : "Last updated"}: {formatDateTime(order.updatedAt, lang)}
+                <p className="mt-2 text-[10px] text-stone-500">
+                  {t("ordLastUpdated", lang)}: {formatDateTime(order.updatedAt, lang)}
                 </p>
               </div>
             )}

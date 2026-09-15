@@ -84,7 +84,7 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
   it("dedupe via clientUuid — second enqueue with same clientUuid is no-op", () => {
     const uuid = "11111111-1111-4111-8111-111111111111";
     const first = enqueue({ url: "/farms/1/events", method: "POST", body: { a: 1 }, clientUuid: uuid });
-    const second = enqueue({ url: "/farms/1/events", method: "POST", body: { a: 2 }, clientUuid: uuid });
+    const _second = enqueue({ url: "/farms/1/events", method: "POST", body: { a: 2 }, clientUuid: uuid });
     expect(first).toBe(uuid);
     // Same explicit clientUuid => deduped (no second entry added)
     expect(size()).toBe(1);

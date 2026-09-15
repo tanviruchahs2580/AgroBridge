@@ -137,7 +137,7 @@ export default function SellCrop() {
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </Select>
-            {formErrs.farm && <p id="of-farm-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.farm}</p>}
+            {formErrs.farm && <p id="of-farm-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.farm}</p>}
           </div>
           <div>
             <Label htmlFor="of-crop">{t("cropName", lang)}</Label>
@@ -147,18 +147,18 @@ export default function SellCrop() {
                 <option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>
               ))}
             </Select>
-            {formErrs.crop && <p id="of-crop-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.crop}</p>}
+            {formErrs.crop && <p id="of-crop-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.crop}</p>}
           </div>
           <div>
             <Label htmlFor="of-qty">{t("quantityKg", lang)}</Label>
             <Input id="of-qty" name="qty" type="number" min="1" step="1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.qty; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v < 1) setFormErrs((prev) => ({ ...prev, qty: t("errAmountInvalid", lang) })); }} aria-invalid={Boolean(formErrs.qty)} aria-describedby={formErrs.qty ? "of-qty-err" : undefined} />
-            {formErrs.qty && <p id="of-qty-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.qty}</p>}
+            {formErrs.qty && <p id="of-qty-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.qty}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="of-moisture">{t("moisturePct", lang)}</Label>
               <Input id="of-moisture" name="moisture" type="number" min="0" max="60" step="0.5" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.moisture; return n; })} aria-invalid={Boolean(formErrs.moisture)} aria-describedby={formErrs.moisture ? "of-moisture-err" : undefined} />
-              {formErrs.moisture && <p id="of-moisture-err" role="alert" className="mt-1 text-xs text-red-600">{formErrs.moisture}</p>}
+              {formErrs.moisture && <p id="of-moisture-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.moisture}</p>}
             </div>
             <div>
               <Label htmlFor="of-grade">{t("qualityGrade", lang)}</Label>

@@ -305,8 +305,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: npm audit (high+ reported)
-        run: npm audit --audit-level=high || echo "::warning::npm audit found issues — review required"
+      - name: npm audit — production deps must be clean (fail on moderate+)
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: npm audit — full tree (dev deps reported, non-blocking)
+        run: npm audit --audit-level=high || echo "::warning::dev-only audit findings — review required"
 
       - name: Secret scan (tracked files must not contain real credentials)
         shell: bash

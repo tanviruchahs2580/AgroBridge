@@ -12,10 +12,10 @@ import { t } from "./lib/i18n";
 import "./index.css";
 import "./dark.css"; // designed dark token layer — after index.css so it cascades last
 
-// PWA service worker registration: use a manual approach that does not
-// depend on vite-plugin-pwa's virtual module (which is unavailable in
-// production builds).  The generated service-worker.js is served at build.
-//
+// PWA service worker registration: manual approach (no vite-plugin-pwa virtual
+// module). There is intentionally no service-worker.js in public/ yet —
+// registration is therefore PROD-only and pre-checked, so dev never 404-spams
+// and production silently no-ops until a real SW ships (see final report §PWA).
 // This is a best-effort registration; it works whether or not a SW file
 // exists (it silently no-ops when the file is absent).
 declare global {
@@ -26,9 +26,12 @@ declare global {
 let swUpdateReady = false;
 let applySwUpdate = () => void 0;
 
-if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+if (typeof window !== "undefined" && "serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", async () => {
     try {
+      // Pre-check: register only when the file actually ships (avoids 404 noise).
+      const probe = await fetch("/service-worker.js", { method: "HEAD" });
+      if (!probe.ok) return;
       const reg = await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
       if (reg.installing) {
         swUpdateReady = true;

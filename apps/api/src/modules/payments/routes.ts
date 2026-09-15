@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
@@ -13,12 +14,27 @@ import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { env, isProd } from "../../config/env.js";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
 
 export const paymentsRouter = Router();
 export const walletRouter = Router();
 export const membershipRouter = Router();
 
 paymentsRouter.use(requireAuth);
+
+// Financial hot paths get stricter limits than the global one (Section 33).
+// Keyed by authenticated user so one busy user cannot exhaust another's quota.
+// (Defined at module top: used by both paymentsRouter and walletRouter.)
+const financialStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+const financialLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  store: financialStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many financial operations. Please slow down." } },
+});
 
 /** Mask a payout destination for storage/display (never store full account). */
 function maskDestination(phone: string): string {
@@ -67,6 +83,7 @@ export async function applyPaymentSideEffects(tx: {
  */
 paymentsRouter.post(
   "/intent",
+  financialLimiter,
   validate({
     body: z.object({
       purposeType: z.enum(["ORDER", "BOOKING", "PROCUREMENT", "MEMBERSHIP"]),
@@ -366,7 +383,7 @@ walletRouter.get("/summary", async (req, res, next) => {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const [credits, debits, pendingWithdrawals, membership] = await Promise.all([
+    const [credits, debits, held, membership] = await Promise.all([
       prisma.walletTransaction.aggregate({
         where: { userId: req.auth!.userId, direction: "CREDIT", createdAt: { gte: startOfMonth } },
         _sum: { amountPaisa: true },
@@ -375,17 +392,18 @@ walletRouter.get("/summary", async (req, res, next) => {
         where: { userId: req.auth!.userId, direction: "DEBIT", createdAt: { gte: startOfMonth } },
         _sum: { amountPaisa: true },
       }),
-      prisma.withdrawal.aggregate({
-        where: { userId: req.auth!.userId, status: { in: ["PENDING", "APPROVED"] } },
-        _sum: { amountPaisa: true },
-      }),
+      // heldPaisa is maintained transactionally under the wallet row lock at
+      // request/approve/reject time; it is the source of truth for in-flight
+      // withdrawal holds (a cross-check against the Withdrawal table lives in
+      // scripts/reconcile-wallet.mjs).
+      prisma.wallet.findUnique({ where: { userId: req.auth!.userId }, select: { heldPaisa: true } }),
       getActiveMembership(req.auth!.userId),
     ]);
 
     ok(res, {
       monthCreditsPaisa: credits._sum.amountPaisa ?? 0,
       monthDebitsPaisa: debits._sum.amountPaisa ?? 0,
-      pendingWithdrawalsPaisa: pendingWithdrawals._sum.amountPaisa ?? 0,
+      pendingWithdrawalsPaisa: held?.heldPaisa ?? 0,
       membership,
     });
   } catch (e) {
@@ -402,7 +420,7 @@ const withdrawalSchema = z.object({
   channel: z.enum(["BKASH", "NAGAD", "BANK"]).default("BKASH"),
 });
 
-walletRouter.post("/withdrawals", validate({ body: withdrawalSchema }), async (req, res, next) => {
+walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalSchema }), async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
     if (!user) throw notFound("User");
@@ -411,19 +429,25 @@ walletRouter.post("/withdrawals", validate({ body: withdrawalSchema }), async (r
     const { amountPaisa, channel } = req.body as { amountPaisa: number; channel: string };
 
     const withdrawal = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
-      const wallet = await tx.wallet.upsert({
+      // Serialize all hold maintenance behind the wallet row's write lock:
+      // the no-op increment UPDATE locks the row (PG) / defers the next writer
+      // (SQLite) until this transaction commits. Re-reading AFTER the lock is
+      // what closes the previous race where two parallel requests both passed
+      // the aggregate availability check with the same pre-lock snapshot.
+      await tx.wallet.upsert({
         where: { userId: req.auth!.userId },
-        update: {},
+        update: { heldPaisa: { increment: 0 } },
         create: { userId: req.auth!.userId },
       });
-      const pending = await tx.withdrawal.aggregate({
-        where: { userId: req.auth!.userId, status: { in: ["PENDING", "APPROVED"] } },
-        _sum: { amountPaisa: true },
-      });
-      const available = wallet.balancePaisa - (pending._sum.amountPaisa ?? 0);
+      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: req.auth!.userId } });
+      const available = wallet.balancePaisa - wallet.heldPaisa;
       if (amountPaisa > available) {
         throw unprocessable("Insufficient available balance (pending withdrawals are held)");
       }
+      await tx.wallet.update({
+        where: { userId: req.auth!.userId },
+        data: { heldPaisa: { increment: amountPaisa } },
+      });
       return tx.withdrawal.create({
         data: {
           refNo: refNo("WDL"),

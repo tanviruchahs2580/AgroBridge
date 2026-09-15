@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
@@ -10,10 +11,28 @@ import { getActiveMembership } from "../../lib/membership.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { refNo } from "../../lib/money.js";
+import { env } from "../../config/env.js";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
 export const ordersRouter = Router();
+
+// Financial hot paths get stricter limits than the global one (Section 33).
+// Keyed by authenticated user (falls back to IP pre-auth) so one busy user
+// cannot exhaust another's quota behind a shared NAT/127.0.0.1.
+const byUserOrIp = (req: { auth?: { userId?: string }; ip?: string }) =>
+  req.auth?.userId ?? req.ip ?? "unknown";
+const checkoutStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
+const checkoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: byUserOrIp,
+  store: checkoutStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many checkout attempts. Please slow down." } },
+});
 
 // ---------------- Products (marketplace catalog) ----------------
 productsRouter.use(requireAuth);
@@ -174,7 +193,7 @@ ordersRouter.get("/:id", async (req, res, next) => {
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
  */
-ordersRouter.post("/checkout", async (req, res, next) => {
+ordersRouter.post("/checkout", checkoutLimiter, async (req, res, next) => {
   try {
     // Optional delivery details captured by the checkout wizard; validated
     // loosely and stored verbatim on the order for fulfilment.
