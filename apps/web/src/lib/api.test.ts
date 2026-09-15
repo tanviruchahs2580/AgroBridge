@@ -4,7 +4,7 @@
  * Mock fetch globally; no UI tested.
  * Vitest + jsdom assumed (localStorage, window, navigator).
  */
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Helpers to build fetch responses
 function okData(data: unknown, status = 200) {
@@ -272,7 +272,7 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
 
   it("401 triggers single-flight refresh and retries once on success", async () => {
     mod.setTokens("expired-at", "valid-rt");
-    const fetchMock = vi.fn(async (url: string, opts: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string, _opts: RequestInit) => {
       if (String(url).includes("/auth/refresh")) {
         return new Response(JSON.stringify({ data: { accessToken: "new-at", refreshToken: "new-rt" } }), { status: 200 });
       }

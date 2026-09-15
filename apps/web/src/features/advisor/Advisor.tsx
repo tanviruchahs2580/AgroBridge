@@ -141,7 +141,7 @@ export default function Advisor() {
       <p className="text-xs text-stone-600">{t("advisoryDisclaimer", lang)}</p>
 
       <Card className="space-y-2">
-        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-lg border border-green-700 px-4 py-2 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
           <Camera className="mr-2 inline h-5 w-5" aria-hidden /> {t("uploadPhoto", lang)} · {t("diseaseCheck", lang)}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={uploadImage} disabled={uploading} />
         </label>

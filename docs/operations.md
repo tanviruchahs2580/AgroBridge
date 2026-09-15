@@ -79,7 +79,7 @@ Runbook: triage → mitigate (rollback `git checkout <prev-tag> && docker compos
 | Task | Frequency | How |
 |---|---|---|
 | DB backup verification | weekly | restore latest snapshot into scratch instance |
-| Dependency audit | on CI + monthly manual review | `npm audit --audit-level=high` |
+| Dependency audit | on CI (production deps fail on moderate+, full tree reports warnings) + monthly manual review | `npm audit --omit=dev --audit-level=moderate` |
 | Migration review | before each release | `prisma migrate diff` reviewed in PR |
 | Log/PII spot check | quarterly | confirm redaction still effective |
 

@@ -177,13 +177,19 @@ adminRouter.post(
       const { action, note } = req.body as { action: string; note?: string };
       const w = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         if (action === "APPROVE") {
-          // APPROVE debits the wallet now and holds the amount for transfer.
+          // APPROVE debits the wallet now and releases the request-time hold.
+          // The claim update locks the Withdrawal row; the wallet writes below
+          // serialize hold maintenance with concurrent withdrawal requests.
           const claimed = await tx.withdrawal.updateMany({
             where: { id: req.params.id!, status: "PENDING" },
             data: { status: "APPROVED", decidedBy: req.auth!.userId, decidedAt: new Date(), note },
           });
           if (claimed.count !== 1) throw badRequest("Withdrawal not in PENDING state");
           const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+          await tx.wallet.updateMany({
+            where: { userId: wd.userId },
+            data: { heldPaisa: { decrement: wd.amountPaisa } },
+          });
           const wallet = await tx.wallet.upsert({
             where: { userId: wd.userId },
             update: { balancePaisa: { decrement: wd.amountPaisa } },
@@ -208,7 +214,13 @@ adminRouter.post(
             data: { status: "REJECTED", decidedBy: req.auth!.userId, decidedAt: new Date(), note },
           });
           if (claimed.count !== 1) throw badRequest("Withdrawal not in PENDING state");
-          return tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+          const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+          // Release the request-time hold so the funds become withdrawable again.
+          await tx.wallet.updateMany({
+            where: { userId: wd.userId },
+            data: { heldPaisa: { decrement: wd.amountPaisa } },
+          });
+          return wd;
         }
         // MARK_PAID: after the manual bKash/Nagad/bank transfer completes.
         const claimed = await tx.withdrawal.updateMany({

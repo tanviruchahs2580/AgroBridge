@@ -1,6 +1,9 @@
-/* ── AgroBridge Design Tokens — single source of truth (Step 1) ──
- * All hex values live ONLY here. Components reference var(--token).
- * See docs/design-tokens.md for usage.
+/* ── AgroBridge Design Tokens v2 — single source of truth ──
+ * All hex values live ONLY here (light set) and dark.css (dark overrides).
+ * Components reference tokens via Tailwind utilities mapped in tailwind.config.js.
+ * v2 (2026-09-14 renovation): adds action/link accent tokens, surface system
+ * completion, gradient + glass tokens, display type step. v1 names are kept.
+ * See docs/design-tokens.md and docs/UI_UX_CONTRACT.md (v2).
  */
 :root {
   /* Brand — 11 shades (50–950), green soil. 700 is primary. All ≥4.5:1 on white except 50/100 (decoration). */
@@ -28,26 +31,53 @@
   --color-stone-800: #292524;
   --color-stone-900: #1c1917;
 
-  /* Enterprise Supporting Colors — Master Prompt §4 + Gap Analysis §4.1 */
+  /* Enterprise Supporting Colors */
   --color-earth: #78350f;
   --color-earth-50: #fefce8;
   --color-soil-beige: #f5f1e8;
   --color-soil-50: #fdf6ee;
   --color-sky: #0ea5e9;
   --color-sky-50: #f0f9ff;
+  --color-sky-100: #e0f2fe;
+  --color-sky-200: #bae6fd;
+  --color-sky-600: #0284c7;
+  --color-sky-800: #075985;
   --color-ai-indigo: #4f46e5;
   --color-ai-indigo-light: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-200: #c7d2fe;
   --color-warning: #f59e0b;
   --color-critical: #ef4444;
   --color-neutral-bg: #f8fafc;
   --color-dark-enterprise: #0f172a;
-  /* International surface system — Gap Analysis §4.1 */
-  --color-surface-bg: #f8faf5;
+  /* International surface system */
+  --color-surface-bg: #f4f7f2;
   --color-surface-card: #ffffff;
-  --color-surface-border: #e7e5e4;
+  --color-surface-card-subdued: #eef3ec;
+  --color-surface-border: #e4ebe3;
+  --color-surface-border-strong: #cfdccb;
   --color-surface-muted: #78716c;
+  --color-surface-overlay: rgba(15, 23, 42, 0.45);
+  --color-header: #0f3d24;
+  --color-header-end: #14532d;
+  /* Splash brand gradient — must match native Android splash (colors.xml #0A2F1F) */
+  --color-splash-from: #0a2f1f;
+  --color-splash-via: #1a4a32;
+  --color-splash-to: #2e7d4f;
+  --glass-nav: rgba(255, 255, 255, 0.88);
+  --glass-card: rgba(255, 255, 255, 0.82);
   --color-orange-50: #fff7ed;
   --color-orange-600: #ea580c;
+
+  /* Action & accent — mode-independent semantics.
+   * `action` = filled button backgrounds (stays deep green in dark).
+   * `link`  = standalone links/inline accents (brightens in dark).
+   * `accent`= headings/emphasis on brand-tinted surfaces (brightens in dark). */
+  --color-action: #15803d;
+  --color-action-hover: #166534;
+  --color-action-active: #14532d;
+  --color-link: #15803d;
+  --color-accent: #166534;
 
   /* Semantic text — hierarchy for Bangla + English */
   --text-primary: #1A1F1C;
@@ -59,7 +89,7 @@
   --text-on-light: #FFFFFF;
   --text-inverse: #FFFFFF;
 
-  /* Semantic */
+  /* Semantic status triplets (bg / border / text) */
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
   --color-danger-text: #991b1b;
@@ -67,9 +97,18 @@
   --color-success-border: #bbf7d0;
   --color-success-text: #166534;
   --color-info-bg: #f5f5f4;
+  --color-info-border: #e7e5e4;
+  --color-info-text: #44403c;
   --color-warning-bg: #fffbeb;
   --color-warning-border: #fde68a;
   --color-warning-text: #92400e;
+
+  /* Gradients — hero surfaces, CTAs, AI + info moments */
+  --gradient-hero: linear-gradient(135deg, #0f3d24 0%, #14532d 52%, #166534 100%);
+  --gradient-cta: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  --gradient-ai: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%);
+  --gradient-sky: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 
   /* Spacing — 4/8pt grid */
   --space-1: 0.25rem;
@@ -79,40 +118,44 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  /* Radius — Gap Analysis §4.1 */
+  /* Radius */
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --radius-card: 20px;
   --radius-button: 12px;
+  --radius-input: 14px;
   --radius-chip: 999px;
   --radius-iconBox: 14px;
 
-  /* Elevation — Gap Analysis §4.1 */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-card: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
-  --shadow-cardHover: 0 8px 32px rgba(21,128,61,.12), 0 2px 8px rgba(0,0,0,.06);
-  --shadow-button: 0 4px 14px rgba(21,128,61,.25);
+  /* Elevation */
+  --shadow-sm: 0 1px 2px 0 rgb(15 61 36 / 0.06);
+  --shadow-md: 0 4px 10px -2px rgb(15 61 36 / 0.10), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 12px 28px -8px rgb(15 61 36 / 0.16), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+  --shadow-card: 0 1px 2px rgba(15, 61, 36, 0.05), 0 10px 28px rgba(15, 23, 42, 0.05);
+  --shadow-cardHover: 0 10px 36px rgba(21, 128, 61, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-button: 0 6px 18px rgba(21, 128, 61, 0.28);
+  --shadow-float: 0 12px 32px -8px rgba(15, 61, 36, 0.28), 0 4px 12px rgba(15, 23, 42, 0.12);
 
   /* Focus */
   --ring-color: #16a34a;
   --ring-offset: 2px;
 
-  /* Type scale (Step 7) — 6 sizes */
-  --text-xs: 11px; /* line-height 16px, letter-spacing 0.01em */
-  --text-sm: 13px; /* line-height 18px */
+  /* Type scale — 7 sizes */
+  --text-xs: 11px;   /* line-height 16px, letter-spacing 0.01em */
+  --text-sm: 13px;   /* line-height 18px */
   --text-base: 16px; /* line-height 24px */
-  --text-lg: 18px; /* line-height 28px */
-  --text-xl: 20px; /* line-height 28px */
-  --text-2xl: 28px; /* line-height 36px */
+  --text-lg: 18px;   /* line-height 28px */
+  --text-xl: 20px;   /* line-height 28px */
+  --text-2xl: 28px;  /* line-height 36px */
+  --text-display: 34px; /* line-height 44px, tracking -0.02em — hero numerals */
   --leading-xs: 16px;
   --leading-sm: 18px;
   --leading-base: 24px;
   --leading-lg: 28px;
   --leading-xl: 28px;
   --leading-2xl: 36px;
+  --leading-display: 44px;
   --tracking-xs: 0.01em;
 }
 
@@ -143,7 +186,6 @@
 @keyframes agro-pulse { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.35); } 100% { box-shadow: 0 0 0 8px rgba(22,163,74,0); } }
 .animate-success-pulse { animation: agro-pulse 0.5s ease-out; }
 
-/* Light-only by contract (docs/UI_UX_CONTRACT.md): the shipped design has no
-   dark variant. The previous `prefers-color-scheme: dark` stone-50/100 swaps
-   produced a half-dark hybrid (black page behind white cards) for users with
-   OS dark mode. Reintroduce only together with a designed dark token set. */
+/* Dark mode: the designed dark token set lives in dark.css (imported after
+   index.css in main.tsx). It re-points every semantic token above — see the
+   v2 contract in docs/UI_UX_CONTRACT.md. */

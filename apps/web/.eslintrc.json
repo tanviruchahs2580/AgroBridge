@@ -4,14 +4,20 @@
   "parserOptions": {
     "ecmaVersion": 2022,
     "sourceType": "module",
-    "ecmaFeatures": { "jsx": true }
+    "ecmaFeatures": {
+      "jsx": true
+    }
   },
   "env": {
     "browser": true,
     "es2022": true,
     "node": true
   },
-  "plugins": ["jsx-a11y", "react-hooks"],
+  "plugins": [
+    "jsx-a11y",
+    "react-hooks",
+    "@typescript-eslint"
+  ],
   "extends": [
     "eslint:recommended",
     "plugin:jsx-a11y/recommended",
@@ -19,11 +25,19 @@
     "plugin:react-hooks/recommended"
   ],
   "settings": {
-    "react": { "version": "detect" }
+    "react": {
+      "version": "detect"
+    }
   },
   "rules": {
     "no-undef": "off",
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
     "jsx-a11y/aria-props": "error",
     "jsx-a11y/aria-proptypes": "error",
     "jsx-a11y/aria-unsupported-elements": "error",
@@ -38,11 +52,26 @@
   },
   "overrides": [
     {
-      "files": ["*.ts", "*.tsx"],
+      "files": [
+        "*.ts",
+        "*.tsx"
+      ],
       "rules": {
-        "jsx-a11y/no-autofocus": "off"
+        "jsx-a11y/no-autofocus": "off",
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": [
+          "warn",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_"
+          }
+        ]
       }
     }
   ],
-  "ignorePatterns": ["dist", "node_modules", "android"]
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    "android"
+  ]
 }

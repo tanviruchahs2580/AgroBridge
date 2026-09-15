@@ -1,62 +1,158 @@
-/* ── AgroBridge Dark Theme — designed token set (v1) ──
- * Additive layer: renders ONLY under OS dark scheme. The locked light design
- * is untouched (all rules live inside the media query). Components pick colors
- * up automatically because every utility maps to tokens.css variables; the
- * few literal utilities (`bg-white`, dot pattern, shimmer) are remapped here.
- * Warm dark greens keep the brand; the green-700 primary and white-on-green
- * text carry over unchanged for contrast.
- * Imported in main.tsx AFTER index.css so these cascade wins apply. */
+/* ── AgroBridge Dark Theme — designed token set (v3, user-controlled) ──
+ * Additive layer: renders under html[data-theme="dark"], which the app sets
+ * from the user's persisted preference (falling back to the OS
+ * prefers-color-scheme at boot — see the boot script in index.html +
+ * lib/session.tsx). Every semantic token in tokens.css is re-pointed here, so
+ * any component that styles itself with token utilities picks the dark skin up
+ * automatically. Warm dark greens keep the brand; filled actions stay deep
+ * green with white text for contrast, while tint ramps and accent text
+ * brighten. Imported in main.tsx AFTER index.css so these cascade wins apply.
+ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+html[data-theme="dark"] {
+  color-scheme: dark;
 
-    /* Stone ramp — inverted, warm-dark so text hierarchy survives */
-    --color-stone-50: #171917;
-    --color-stone-100: #20241f;
-    --color-stone-200: #2c312b;
-    --color-stone-300: #3b413a;
-    --color-stone-400: #857f78;
-    --color-stone-500: #a29c95;
-    --color-stone-600: #bfb9b2;
-    --color-stone-700: #d5d1cb;
-    --color-stone-800: #e8e5e1;
-    --color-stone-900: #f4f2ef;
+  /* Stone ramp — inverted, warm-dark so text hierarchy survives */
+  --color-stone-50: #171917;
+  --color-stone-100: #20241f;
+  --color-stone-200: #2c312b;
+  --color-stone-300: #3b413a;
+  --color-stone-400: #857f78;
+  --color-stone-500: #a29c95;
+  --color-stone-600: #bfb9b2;
+  --color-stone-700: #d5d1cb;
+  --color-stone-800: #e8e5e1;
+  --color-stone-900: #f4f2ef;
 
-    /* Surfaces follow the ramp */
-    --color-surface-bg: #171917;
-    --color-surface-card: #20241f;
-    --color-surface-border: #2c312b;
-    --color-surface-muted: #a29c95;
+  /* Brand ramp: tints go deep, mid shades stay (buttons keep white text),
+   * 800–950 brighten (they are emphasis text on brand tints). */
+  --color-brand-50: #16241d;
+  --color-brand-100: #1b2c22;
+  --color-brand-200: #24382b;
+  --color-brand-800: #86efac;
+  --color-brand-900: #bbf7d0;
+  --color-brand-950: #dcfce7;
 
-    /* Semantic text on dark surfaces */
-    --text-primary: #f0ede9;
-    --text-strong: #f4f2ef;
-    --text-secondary: #bfb9b2;
-    --text-tertiary: #a29c95;
+  /* Surfaces */
+  --color-surface-bg: #171917;
+  --color-surface-card: #20241f;
+  --color-surface-card-subdued: #262b25;
+  --color-surface-border: #2c312b;
+  --color-surface-border-strong: #3b413a;
+  --color-surface-muted: #a29c95;
+  --color-surface-overlay: rgba(0, 0, 0, 0.6);
 
-    --color-info-bg: #20241f;
-  }
+  /* Supporting tints → dark equivalents */
+  --color-earth-50: #2a2118;
+  --color-soil-beige: #26221c;
+  --color-soil-50: #26221c;
+  --color-sky: #38bdf8;
+  --color-sky-50: #122530;
+  --color-sky-100: #143041;
+  --color-sky-200: #1d3d52;
+  --color-sky-600: #38bdf8;
+  --color-sky-800: #7dd3fc;
+  --color-ai-indigo: #818cf8;
+  --color-ai-indigo-light: #232347;
+  --color-indigo-100: #2a2a55;
+  --color-indigo-200: #3a3a6e;
+  --color-warning: #fbbf24;
+  --color-critical: #f87171;
+  --color-neutral-bg: #20241f;
+  --color-dark-enterprise: #0b1120;
+  --color-orange-50: #2b2118;
+  --color-orange-600: #fb923c;
 
-  /* Card sheets: Tailwind's literal white utility drives every card. */
-  .bg-white {
-    background-color: var(--color-surface-card);
-  }
+  /* Header + glass */
+  --color-header: #0b2b1a;
+  --color-header-end: #123a24;
+  --glass-nav: rgba(23, 25, 23, 0.86);
+  --glass-card: rgba(32, 36, 31, 0.84);
 
-  /* BottomNav / list-item hover on the dark surface */
-  .hover\:bg-stone-50:hover {
-    background-color: var(--color-stone-100);
-  }
+  /* Action semantics — filled buttons stay deep green with white text;
+   * standalone links / emphasis text brighten. */
+  --color-action: #15803d;
+  --color-action-hover: #166534;
+  --color-action-active: #14532d;
+  --color-link: #4ade80;
+  --color-accent: #86efac;
 
-  /* Premium dotted surface (index.css) — dark variant */
-  .bg-dot-pattern {
-    background-color: var(--color-surface-bg);
-    background-image: radial-gradient(#2c312b 1px, transparent 1px);
-  }
+  /* Semantic text on dark surfaces */
+  --text-primary: #f0ede9;
+  --text-strong: #f4f2ef;
+  --text-secondary: #bfb9b2;
+  --text-tertiary: #a29c95;
+  --text-muted: #857f78;
+  --text-disabled: #57534e;
 
-  /* Shimmer skeleton — dark-safe highlight sweep */
-  .skeleton-shimmer {
-    background: linear-gradient(90deg, #232722 25%, #2d322c 50%, #232722 75%);
-    background-size: 400% 100%;
-  }
+  /* Status triplets */
+  --color-danger-bg: #2c1a1a;
+  --color-danger-border: #572626;
+  --color-danger-text: #fca5a5;
+  --color-success-bg: #16241d;
+  --color-success-border: #24462f;
+  --color-success-text: #86efac;
+  --color-info-bg: #20241f;
+  --color-info-border: #3b413a;
+  --color-info-text: #d5d1cb;
+  --color-warning-bg: #292115;
+  --color-warning-border: #4a3a1a;
+  --color-warning-text: #fbbf24;
+
+  /* Gradients — deepen so white-on-gradient text keeps its contrast */
+  --gradient-hero: linear-gradient(135deg, #0b2b1a 0%, #0f3d24 52%, #14532d 100%);
+  --gradient-cta: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+  --gradient-ai: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+  --gradient-sky: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+  --gradient-warm: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+
+  /* Elevation — stronger, neutral-black casts read correctly on dark */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 28px -8px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.3);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.3);
+  --shadow-cardHover: 0 10px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-button: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 12px 32px -8px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  --ring-color: #4ade80;
+}
+
+/* Literal white utility drives many cards — re-point to the dark card. */
+html[data-theme="dark"] .bg-white {
+  background-color: var(--color-surface-card);
+}
+
+/* Card-like subdued panels built from stone tints are already var-driven. */
+html[data-theme="dark"] .hover\:bg-stone-50:hover {
+  background-color: var(--color-stone-100);
+}
+
+/* Premium dotted surface (index.css) — dark variant */
+html[data-theme="dark"] .bg-dot-pattern {
+  background-color: var(--color-surface-bg);
+  background-image:
+    radial-gradient(rgba(134, 239, 172, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, #171917 0%, #1a1d1a 48%, #1e221e 100%);
+  background-size: 22px 22px, 100% 100%;
+}
+
+/* Page shell glow — quieter on dark */
+html[data-theme="dark"] .agro-shell {
+  background:
+    radial-gradient(1200px 420px at 12% -10%, rgba(34, 197, 94, 0.05), transparent 55%),
+    radial-gradient(900px 360px at 100% 0%, rgba(14, 165, 233, 0.04), transparent 50%),
+    var(--color-surface-bg);
+}
+
+/* Shimmer skeleton — dark-safe highlight sweep */
+html[data-theme="dark"] .skeleton-shimmer {
+  background: linear-gradient(90deg, #232722 25%, #2d322c 50%, #232722 75%);
+  background-size: 400% 100%;
+}
+
+/* Splash + auth hero keep their deep-green identity in dark mode. */
+html[data-theme="dark"] ::selection {
+  background-color: #24462f;
+  color: #dcfce7;
 }

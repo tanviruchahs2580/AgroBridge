@@ -31,6 +31,10 @@ COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app/apps/api
+# Run as the unprivileged `node` user shipped with the base image (Phase 13:
+# no root containers). uploads/ is pre-created writable for local-storage mode.
+RUN mkdir -p /app/apps/api/uploads/disease && chown -R node:node /app
 ENV NODE_ENV=production
+USER node
 EXPOSE 4000
 CMD ["node", "dist/server.js"]

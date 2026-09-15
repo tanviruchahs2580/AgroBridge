@@ -1,17 +1,17 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes, TouchEvent } from "react";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Inbox, Info, TriangleAlert } from "lucide-react";
+import { Check, Inbox, Info, TriangleAlert, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { motionTokens } from "../lib/motion";
 
-// ── Design System — Enterprise Tokens (single source of truth) ──
-// Colors: brand-50..950, stone-50..900, text-primary/strong/secondary/tertiary/muted, surface, semantic (success/warning/danger/info)
-// Spacing: 4/8/12/16/24/32/48/64, Radius: lg/xl/2xl/card/button/chip/iconBox, Elevation: sm/md/lg/card/cardHover/button
-// Motion: fast 0.15 normal 0.25 slow 0.4, spring snappy/gentle, press 0.98 — see src/lib/tokens.ts + src/lib/motion.ts
+// ── Design System v2 — Enterprise Tokens (single source of truth: tokens.css) ──
+// Colors: brand/stone ramps + surface system + action/link/accent semantics + status triplets.
+// Spacing: 4/8pt grid · Radius: lg/xl/2xl/card/button/input/chip/iconBox · Elevation: sm→float.
+// Motion: fast 0.15 normal 0.25 slow 0.4, press 0.98 — see src/lib/tokens.ts + src/lib/motion.ts.
 
-type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
+type ButtonVariant = "primary" | "cta" | "soft" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 /** Accessible spinner used for loading states (replaces bare "…" text). */
@@ -51,7 +51,7 @@ function useDialogA11y(open: boolean, onClose?: () => void) {
     const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
     if (scrollbarW > 0) document.body.style.paddingRight = `${scrollbarW}px`;
-    // STEP 35: make background inert while dialog is open (a11y + scroll already locked)
+    // Make background inert while dialog is open (a11y + scroll already locked)
     const mainEl = document.getElementById("main");
     const hadInert = mainEl?.hasAttribute("inert");
     if (mainEl && !hadInert) mainEl.setAttribute("inert", "");
@@ -106,17 +106,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
   },
   ref
 ) {
-  const base = "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-[transform,background-color,box-shadow] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100";
+  const base = "inline-flex items-center justify-center gap-2 rounded-button font-semibold transition-[transform,background-color,box-shadow,filter] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100";
   const sizes: Record<ButtonSize, string> = {
     sm: "min-h-[36px] px-3 py-1.5 text-xs",
     md: "min-h-[44px] px-4 py-2.5 text-sm",
     lg: "min-h-[48px] px-6 py-3 text-base",
   };
   const variants: Record<ButtonVariant, string> = {
-    primary: "bg-green-700 text-white hover:bg-green-800 active:bg-green-900",
-    outline: "border border-green-700 text-green-800 hover:bg-green-50",
+    primary: "bg-action text-white shadow-button hover:bg-action-hover active:bg-action-active",
+    cta: "bg-cta text-white shadow-button hover:brightness-[1.04] active:brightness-95 motion-reduce:hover:brightness-100",
+    soft: "bg-brand-50 text-accent hover:bg-brand-100 ring-1 ring-inset ring-brand-100",
+    outline: "border border-brand-300 text-link hover:bg-brand-50 hover:border-brand-400",
     ghost: "text-stone-600 hover:bg-stone-100",
-    danger: "bg-red-600 text-white hover:bg-red-700",
+    danger: "bg-enterprise-critical text-white shadow-button hover:brightness-110 active:brightness-95 motion-reduce:hover:brightness-100",
   };
   return (
     <button ref={ref} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
@@ -125,8 +127,48 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
   );
 });
 
-export function Card({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={`rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${className}`} {...props} />;
+/** Square icon-only button with a guaranteed 44px touch target. */
+export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "ghost" | "outline" | "soft"; label: string }>(function IconButton(
+  { variant = "ghost", label, className = "", children, ...props },
+  ref
+) {
+  const variants = {
+    ghost: "text-stone-600 hover:bg-stone-100",
+    outline: "border border-surface-border-strong text-stone-700 hover:bg-stone-100 bg-surface-card",
+    soft: "bg-brand-50 text-link hover:bg-brand-100",
+  } as const;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={label}
+      title={label}
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] motion-reduce:transition-none ${variants[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+});
+
+/**
+ * Surface card. Variants:
+ *  - default: elevated + hover lift (tap/clickable surfaces)
+ *  - static:  no hover motion (dense lists, read-only panels)
+ *  - subdued: quiet secondary panel inside a card/page
+ */
+export function Card({
+  className = "",
+  variant = "default",
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { variant?: "default" | "static" | "subdued" }) {
+  const variants = {
+    default:
+      "rounded-card border border-surface-border bg-surface-card p-4 shadow-card transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-cardHover motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+    static: "rounded-card border border-surface-border bg-surface-card p-4 shadow-card",
+    subdued: "rounded-card border border-surface-border bg-surface-subdued p-4",
+  } as const;
+  return <div className={`${variants[variant]} ${className}`} {...props} />;
 }
 
 export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
@@ -137,7 +179,7 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
   const isInvalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
   return (
     <input
-      className={`w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base text-stone-800 transition-[border-color,box-shadow,transform] focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-stone-50 motion-reduce:transition-none ${isInvalid ? "animate-shake border-red-300" : ""} ${className}`}
+      className={`w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm transition-[border-color,box-shadow,transform] placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:bg-stone-100 motion-reduce:transition-none ${isInvalid ? "animate-shake border-danger-border" : ""} ${className}`}
       {...props}
     />
   );
@@ -147,7 +189,7 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
   const isInvalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
   return (
     <select
-      className={`w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-800 transition-[border-color,box-shadow,transform] focus:border-green-600 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 motion-reduce:transition-none ${isInvalid ? "animate-shake border-red-300" : ""} ${className}`}
+      className={`w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm transition-[border-color,box-shadow] focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] motion-reduce:transition-none ${isInvalid ? "animate-shake border-danger-border" : ""} ${className}`}
       {...props}
     >
       {children}
@@ -155,16 +197,63 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
   );
 }
 
-export function Badge({ className = "", ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={`inline-block rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 ${className}`} {...props} />;
+/** Label + control + hint/error composite — the house form pattern. */
+export function Field({
+  label,
+  htmlFor,
+  error,
+  hint,
+  required,
+  children,
+  className = "",
+}: {
+  label: string;
+  htmlFor?: string;
+  error?: string;
+  hint?: string;
+  required?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <Label htmlFor={htmlFor}>
+        {label}
+        {required && <span className="text-enterprise-critical" aria-hidden> *</span>}
+      </Label>
+      {children}
+      {hint && !error && <p className="mt-1 text-xs text-stone-500">{hint}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-xs font-medium text-danger-text">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type BadgeTone = "default" | "brand" | "success" | "warning" | "danger" | "info" | "ai" | "outline";
+
+export function Badge({ className = "", tone = "default", ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
+  const tones: Record<BadgeTone, string> = {
+    default: "bg-stone-100 text-stone-700",
+    brand: "bg-brand-50 text-accent ring-1 ring-inset ring-brand-100",
+    success: "bg-success-bg text-success-text ring-1 ring-inset ring-success-border",
+    warning: "bg-warning-bg text-warning-text ring-1 ring-inset ring-warning-border",
+    danger: "bg-danger-bg text-danger-text ring-1 ring-inset ring-danger-border",
+    info: "bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-200",
+    ai: "bg-enterprise-ai-light text-enterprise-ai ring-1 ring-inset ring-indigo-200",
+    outline: "border border-surface-border-strong text-stone-600",
+  };
+  return <span className={`inline-flex items-center gap-1 rounded-chip px-2.5 py-0.5 text-xs font-semibold ${tones[tone]} ${className}`} {...props} />;
 }
 
 export function Skeleton({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-lg bg-stone-200 ${className}`} {...props} />;
+  return <div aria-hidden="true" className={`skeleton-shimmer rounded-xl ${className}`} {...props} />;
 }
 
 export function EmptyState({
-  icon = <Inbox className="h-10 w-10 text-stone-300" aria-hidden />,
+  icon = <Inbox className="h-7 w-7 text-brand-600" aria-hidden />,
   title,
   description,
   action,
@@ -175,16 +264,28 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 py-8 text-center shadow-sm">
-      <div aria-hidden>{icon}</div>
-      <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
-      {description && <p className="max-w-sm text-sm text-stone-600">{description}</p>}
-      {action}
+    <div className="flex flex-col items-center gap-3 rounded-card border border-surface-border bg-surface-card p-4 py-10 text-center shadow-card">
+      <span aria-hidden className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 ring-1 ring-inset ring-brand-100">
+        {icon}
+      </span>
+      <h3 className="text-base font-bold text-stone-800">{title}</h3>
+      {description && <p className="max-w-sm text-sm leading-relaxed text-stone-600">{description}</p>}
+      {action && <div className="mt-1">{action}</div>}
     </div>
   );
 }
 
-export function ErrorBanner({ code, message }: { code?: string; message: string }) {
+export function ErrorBanner({
+  code,
+  message,
+  copyLabel = "Copy",
+  copiedLabel = "Copied!",
+}: {
+  code?: string;
+  message: string;
+  copyLabel?: string;
+  copiedLabel?: string;
+}) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -196,14 +297,20 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
     }
   }
   return (
-    <div role="alert" className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-      <span>{message}{code && <span className="ml-2 font-mono text-xs text-red-600">[{code}]</span>}</span>
+    <div role="alert" className="flex items-center justify-between gap-2 rounded-input border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger-text">
+      <span className="flex min-w-0 items-start gap-2">
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span className="min-w-0">
+          {message}
+          {code && <span className="ml-2 font-mono text-xs opacity-80">[{code}]</span>}
+        </span>
+      </span>
       <button
         type="button"
         onClick={() => void copy()}
-        className="shrink-0 min-h-[44px] rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+        className="shrink-0 min-h-[44px] rounded-lg border border-danger-border bg-surface-card px-2.5 py-2 text-xs font-semibold text-danger-text hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
       >
-        {copied ? "Copied!" : "Copy"}
+        {copied ? copiedLabel : copyLabel}
       </button>
     </div>
   );
@@ -213,22 +320,29 @@ export function ErrorBanner({ code, message }: { code?: string; message: string 
 export function BottomNav({ items }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
-    <nav aria-label="Primary navigation" className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-stone-200 bg-white/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/90 md:hidden" style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}>
+    <nav
+      aria-label="Primary navigation"
+      className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-surface-border bg-[var(--glass-nav)] p-1 shadow-float backdrop-blur-md md:hidden"
+      style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}
+    >
       {items.map((it) => (
         <NavLink
           key={it.to}
           to={it.to}
-          aria-current={undefined}
           className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-              isActive ? "bg-green-50 text-[#14532d] shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-green-700"
+            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+              isActive ? "bg-brand-50 text-accent shadow-sm ring-1 ring-inset ring-brand-100" : "text-stone-600 hover:bg-stone-100 hover:text-link"
             }`
           }
           style={{ minHeight: 44 }}
         >
           <span aria-hidden className="relative text-[18px]">
             {it.icon}
-            {it.badge && <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"><span className="sr-only"> new notifications</span></span>}
+            {it.badge && (
+              <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-enterprise-critical ring-2 ring-[var(--color-surface-card)]">
+                <span className="sr-only"> new notifications</span>
+              </span>
+            )}
           </span>
           <span className="leading-none tracking-[-0.01em]">{it.label}</span>
         </NavLink>
@@ -240,15 +354,15 @@ export function BottomNav({ items }: { items: { to: string; label: string; icon:
 export function Sidebar({ items }: { items: { to: string; label: string; icon: ReactNode }[] }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-stone-200 bg-white md:block">
+    <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-[var(--glass-nav)] backdrop-blur-sm md:block">
       <nav className="sticky top-[57px] space-y-1 p-3">
         {items.map((it) => (
           <NavLink
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-                isActive ? "bg-green-700 text-white shadow-sm" : "text-stone-700 hover:bg-green-50 hover:text-green-800"
+              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+                isActive ? "bg-action text-white shadow-button" : "text-stone-700 hover:bg-brand-50 hover:text-accent"
               }`
             }
           >
@@ -258,6 +372,83 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: R
         ))}
       </nav>
     </aside>
+  );
+}
+
+// ── Page furniture ──
+/** Consistent page header: title + optional subtitle + trailing action slot. */
+export function PageHeader({
+  title,
+  subtitle,
+  icon,
+  action,
+  className = "",
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mb-4 flex items-start justify-between gap-3 ${className}`}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        {icon && (
+          <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100">
+            {icon}
+          </span>
+        )}
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-extrabold tracking-[-0.01em] text-stone-800">{title}</h1>
+          {subtitle && <p className="mt-0.5 truncate text-xs text-stone-500">{subtitle}</p>}
+        </div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
+/** Small section heading with optional trailing action (e.g. "See all ›"). */
+export function SectionHeader({ title, action, className = "" }: { title: string; action?: ReactNode; className?: string }) {
+  return (
+    <div className={`mb-2.5 flex items-center justify-between gap-2 ${className}`}>
+      <h2 className="text-sm font-bold uppercase tracking-[0.04em] text-stone-500">{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+/** Compact metric tile: icon + value + label, tinted by tone. */
+export function StatTile({
+  icon,
+  value,
+  label,
+  tone = "brand",
+  className = "",
+}: {
+  icon: ReactNode;
+  value: string;
+  label: string;
+  tone?: "brand" | "sky" | "ai" | "warning" | "success";
+  className?: string;
+}) {
+  const tones = {
+    brand: "bg-brand-50 text-brand-700 ring-brand-100",
+    sky: "bg-sky-50 text-sky-600 ring-sky-100",
+    ai: "bg-enterprise-ai-light text-enterprise-ai ring-indigo-100",
+    warning: "bg-warning-bg text-warning-text ring-warning-border",
+    success: "bg-success-bg text-success-text ring-success-border",
+  } as const;
+  return (
+    <div className={`flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3.5 shadow-card ${className}`}>
+      <span aria-hidden className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-iconBox ring-1 ring-inset ${tones[tone]}`}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="truncate text-lg font-extrabold leading-6 tracking-[-0.01em] text-stone-800">{value}</div>
+        <div className="truncate text-xs text-stone-500">{label}</div>
+      </div>
+    </div>
   );
 }
 
@@ -277,9 +468,9 @@ interface ToastItem {
 }
 
 const TOAST_KIND_CLASS: Record<ToastItem["kind"], string> = {
-  success: "border border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
-  error: "border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] text-[var(--color-danger-text)]",
-  info: "border border-stone-200 bg-[var(--color-info-bg)] text-stone-700",
+  success: "border border-success-border bg-success-bg text-success-text",
+  error: "border border-danger-border bg-danger-bg text-danger-text",
+  info: "border border-info-border bg-info-bg text-info-text",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -344,7 +535,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 }
                 swipeStart.current = null;
               }}
-              className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ${TOAST_KIND_CLASS[tst.kind]} motion-reduce:transition-none`}
+              className={`pointer-events-auto flex min-h-[44px] w-full max-w-sm items-center gap-2.5 rounded-input px-4 py-3 text-sm font-medium shadow-float focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] backdrop-blur-sm ${TOAST_KIND_CLASS[tst.kind]} motion-reduce:transition-none`}
             >
               <span aria-hidden>{tst.kind === "success" ? <Check className="h-5 w-5" aria-hidden /> : tst.kind === "error" ? <TriangleAlert className="h-5 w-5" aria-hidden /> : <Info className="h-5 w-5" aria-hidden />}</span>
               <span className="flex-1">{tst.msg}</span>
@@ -369,11 +560,13 @@ export function useToast(): ToastApi {
 export function Modal({
   title,
   onClose,
+  closeLabel = "Close",
   children,
   footer,
 }: {
   title: string;
   onClose?: () => void;
+  closeLabel?: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
@@ -384,7 +577,7 @@ export function Modal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: motionTokens.duration.fast, ease: motionTokens.ease.enter }}
-      className="fixed inset-0 z-[65] flex items-end justify-center bg-black/40 p-4 sm:items-center motion-reduce:transition-none"
+      className="fixed inset-0 z-[65] flex items-end justify-center bg-surface-overlay p-4 backdrop-blur-[2px] sm:items-center motion-reduce:transition-none"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
@@ -399,18 +592,18 @@ export function Modal({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 16, opacity: 0 }}
         transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
-        className="flex max-h-[95vh] w-full max-w-md flex-col rounded-t-xl bg-white shadow-xl sm:rounded-xl motion-reduce:transform-none motion-reduce:transition-none"
+        className="flex max-h-[95vh] w-full max-w-md flex-col rounded-t-card bg-surface-card shadow-float sm:rounded-card motion-reduce:transform-none motion-reduce:transition-none"
       >
-        <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-surface-border px-4 py-3">
           <h2 className="text-base font-bold text-stone-800">{title}</h2>
           {onClose && (
-            <button type="button" aria-label="Close" onClick={onClose} className="touch-target -mr-2 text-lg text-stone-600 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
-              ✕
-            </button>
+            <IconButton label={closeLabel} onClick={onClose} className="-mr-2" variant="ghost">
+              <X className="h-5 w-5" aria-hidden />
+            </IconButton>
           )}
         </div>
         <div className="overflow-y-auto p-4">{children}</div>
-        {footer && <div className="border-t border-stone-200 px-4 py-3">{footer}</div>}
+        {footer && <div className="border-t border-surface-border px-4 py-3">{footer}</div>}
       </motion.div>
     </motion.div>,
     document.body
@@ -464,7 +657,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: motionTokens.duration.fast, ease: motionTokens.ease.enter }}
-          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 sm:items-center motion-reduce:transition-none"
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-surface-overlay p-4 backdrop-blur-[2px] sm:items-center motion-reduce:transition-none"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) settle(false);
           }}
@@ -478,9 +671,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 16, opacity: 0 }}
             transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
-            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl motion-reduce:transform-none motion-reduce:transition-none"
+            className="w-full max-w-md rounded-card bg-surface-card p-5 shadow-float motion-reduce:transform-none motion-reduce:transition-none"
           >
-            <h2 className={`text-base font-bold ${pending.opts.danger ? "text-red-700" : "text-stone-800"}`}>{pending.opts.title}</h2>
+            {pending.opts.danger && (
+              <span aria-hidden className="mb-3 flex h-11 w-11 items-center justify-center rounded-iconBox bg-danger-bg text-danger-text ring-1 ring-inset ring-danger-border">
+                <TriangleAlert className="h-5 w-5" />
+              </span>
+            )}
+            <h2 className={`text-base font-bold ${pending.opts.danger ? "text-danger-text" : "text-stone-800"}`}>{pending.opts.title}</h2>
             {pending.opts.body && <p className="mt-2 text-sm leading-relaxed text-stone-600">{pending.opts.body}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => settle(false)}>
@@ -508,25 +706,25 @@ export interface StepItem {
   state: "done" | "current" | "todo";
 }
 
-/** Horizontal stepper; wraps on mobile. done=check green, current=ringed, todo=muted. */
+/** Horizontal stepper; wraps on mobile. done=check filled, current=ringed, todo=muted. */
 export function Stepper({ steps }: { steps: StepItem[] }) {
   return (
     <ol className="flex flex-wrap items-start gap-x-1 gap-y-3">
       {steps.map((step, i) => (
-        <li key={`${step.label}-${i}`} className="flex min-w-[76px] flex-1 flex-col items-center gap-1" aria-current={step.state === "current" ? "step" : undefined}>
+        <li key={`${step.label}-${i}`} className="flex min-w-[76px] flex-1 flex-col items-center gap-1.5" aria-current={step.state === "current" ? "step" : undefined}>
           <span
             aria-hidden
-            className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold ${
+            className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
               step.state === "done"
-                ? "border-green-700 bg-green-700 text-white"
+                ? "border-action bg-action text-white"
                 : step.state === "current"
-                  ? "border-green-600 bg-white text-green-800 ring-2 ring-green-600"
-                  : "border-stone-300 bg-white text-stone-500"
+                  ? "border-brand-500 bg-surface-card text-accent ring-[3px] ring-brand-100"
+                  : "border-surface-border-strong bg-surface-card text-stone-400"
             }`}
           >
             {step.state === "done" ? <Check className="h-4 w-4" aria-hidden /> : i + 1}
           </span>
-          <span className={`text-center text-[11px] font-medium leading-tight ${step.state === "todo" ? "text-stone-500" : step.state === "done" ? "text-green-800" : "text-stone-700"}`}>
+          <span className={`text-center text-[11px] font-medium leading-tight ${step.state === "todo" ? "text-stone-400" : step.state === "done" ? "text-success-text" : "text-stone-700"}`}>
             {step.label}
           </span>
         </li>

@@ -7,7 +7,10 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
+    // 127.0.0.1, not localhost: on Windows `localhost` resolves to IPv6 ::1
+    // first, so an unrelated IPv6 dev server could shadow ours (seen in QA
+    // 2026-09-15 when e2e silently tested a different app on ::1:5173).
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173",
     trace: "on-first-retry",
   },
   projects: [

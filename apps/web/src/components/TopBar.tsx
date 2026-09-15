@@ -22,7 +22,7 @@ export function TopBar() {
             animate={{ scaleX: 1, opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: motionTokens.duration.slow, ease: motionTokens.ease.enter }}
-            className="h-full w-full origin-left bg-[#15803D] motion-reduce:transition-none"
+            className="h-full w-full origin-left bg-action motion-reduce:transition-none"
             style={{ transformOrigin: "left" }}
           />
         )}

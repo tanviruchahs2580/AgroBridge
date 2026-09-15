@@ -157,8 +157,10 @@ export default function Notifications() {
         </div>
       </div>
 
-      {/* Category tabs with counts from response meta */}
-      <div role="tablist" aria-label={t("notifications", lang)} className="flex flex-wrap gap-2">
+      {/* Category filter chips with counts from response meta.
+          Buttons + aria-pressed (not role=tab): these filter one list, there is
+          no tabpanel association — the tabs pattern would mislead AT. */}
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t("notifications", lang)}>
         {TABS.map((tb) => {
           const active = tab === tb.id;
           const count =
@@ -167,11 +169,10 @@ export default function Notifications() {
             <button
               key={tb.id}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               onClick={() => setTab(tb.id)}
-              className={`min-h-[44px] rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-                active ? "bg-green-700 text-white" : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-green-50"
+              className={`min-h-[44px] rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+                active ? "bg-action text-white shadow-sm" : "bg-surface-card text-stone-600 ring-1 ring-inset ring-surface-border-strong hover:bg-brand-50"
               }`}
             >
               {t(tb.key, lang)}
@@ -207,8 +208,8 @@ export default function Notifications() {
                     aria-checked={prefs[key]}
                     aria-label={t(labelKey, lang)}
                     onClick={() => void togglePref(key)}
-                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-                      prefs[key] ? "bg-green-700" : "bg-stone-300"
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+                      prefs[key] ? "bg-action" : "bg-stone-300"
                     }`}
                   >
                     <span
@@ -244,7 +245,7 @@ export default function Notifications() {
       ) : (
         <div className="space-y-2">
           {items.map((n) => (
-            <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-green-200 bg-green-50/50" : ""}`}>
+            <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-green-200 bg-green-50" : ""}`}>
               <span className="flex items-center text-stone-500" aria-hidden>{TYPE_ICONS[n.type] ?? <Megaphone className="h-5 w-5" aria-hidden />}</span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-stone-800">

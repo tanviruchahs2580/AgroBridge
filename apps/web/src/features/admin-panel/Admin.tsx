@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Banknote, BarChart3, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -190,7 +191,7 @@ export default function AdminPanel() {
   if (denied) {
     return (
       <div className="mx-auto mt-10 max-w-md">
-        <EmptyState icon="🛡️" title={t("adminOnly", lang)} />
+        <EmptyState icon={<ShieldCheck className="h-7 w-7 text-brand-600" />} title={t("adminOnly", lang)} />
       </div>
     );
   }
@@ -213,10 +214,10 @@ export default function AdminPanel() {
     <div className="space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm text-stone-600">
         <ol className="flex items-center gap-1">
-          <li><a href="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600">Home</a> / Admin</li>
+          <li><a href="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">Home</a> / Admin</li>
         </ol>
       </nav>
-      <h1 className="text-xl font-bold text-stone-800"><span aria-hidden>🛡️</span> {t("adminControlTower", lang)}</h1>
+      <h1 className="text-xl font-bold text-stone-800"><ShieldCheck className="h-6 w-6 text-brand-700" aria-hidden /> {t("adminControlTower", lang)}</h1>
 
       {loadError && (
         <div className="space-y-2">
@@ -245,11 +246,11 @@ export default function AdminPanel() {
       {/* Users */}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-stone-700"><span aria-hidden>👥</span> {t("users", lang)}</h2>
+          <h2 className="font-semibold text-stone-700"><Users className="h-5 w-5 text-brand-700" aria-hidden /> {t("users", lang)}</h2>
           <Input
             type="search"
             aria-label={t("searchUsersAria", lang)}
-            placeholder={`🔍 ${t("searchPh", lang)}`}
+            placeholder={t("searchPh", lang)}
             className="!w-52 !py-1.5 !text-xs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -325,7 +326,7 @@ export default function AdminPanel() {
 
       {/* Withdrawal approval queue */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700"><span aria-hidden>🏧</span> {t("withdrawalsQueue", lang)}</h2>
+        <h2 className="mb-3 font-semibold text-stone-700"><Banknote className="h-5 w-5 text-brand-700" aria-hidden /> {t("withdrawalsQueue", lang)}</h2>
         {withdrawals.length === 0 ? (
           <p className="text-sm text-stone-500">{t("noWithdrawals", lang)}</p>
         ) : (
@@ -358,7 +359,7 @@ export default function AdminPanel() {
       {/* Analytics events summary */}
       <Card>
         <h2 className="mb-3 font-semibold text-stone-700">
-          <span aria-hidden>📊</span> {analytics ? t("analyticsSummary", lang, { days: analytics.windowDays }) : ""}
+          <BarChart3 className="h-5 w-5 text-brand-700" aria-hidden /> {analytics ? t("analyticsSummary", lang, { days: analytics.windowDays }) : ""}
         </h2>
         {analyticsFailed ? (
           <div className="space-y-2">
@@ -395,7 +396,7 @@ export default function AdminPanel() {
 
       {/* Audit log */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700"><span aria-hidden>📜</span> {t("auditLogs", lang)}</h2>
+        <h2 className="mb-3 font-semibold text-stone-700"><ScrollText className="h-5 w-5 text-brand-700" aria-hidden /> {t("auditLogs", lang)}</h2>
         <div className="max-h-80 space-y-1.5 overflow-y-auto text-xs">
           {audit.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-2 rounded-md bg-stone-50 px-3 py-1.5">

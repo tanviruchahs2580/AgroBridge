@@ -21,16 +21,26 @@ and any real provider credentials (`OPENWEATHER_API_KEY`, `AI_PROVIDER=openai-co
 `OPENAI_API_KEY`). Without them the system runs on clearly-labelled mock/sandbox providers.
 
 ## 3. Database switch to PostgreSQL
-1. Edit `apps/api/prisma/schema.prisma`: `provider = "postgresql"`.
-2. `npx prisma generate && npx prisma migrate deploy` (migrations are portable — no SQLite-specific DDL).
-3. Seed reference data only: membership plans/services/products via `npm run db:seed` **after removing**
-   demo users if desired, or manage plans via admin flows.
+The PG runtime schema is `apps/api/prisma/schema.postgresql.prisma` (kept in sync with the
+SQLite schema by `tests/schema-parity.test.ts`), and its migration chain lives in
+`apps/api/prisma/postgres/migrations/`. **Do not** point the default
+`npx prisma migrate deploy` at PostgreSQL — `prisma/migrations/` is SQLite-only (provider
+mismatch validation error, P1 fixed 2026-09-15).
+
+1. Apply PG migrations from `apps/api`: `npm run db:migrate:pg`
+   (i.e. `prisma migrate deploy --schema prisma/postgres/schema.prisma`) with `DATABASE_URL`
+   pointing at PostgreSQL.
+2. Client for runtime builds: `npx prisma generate --schema prisma/schema.postgresql.prisma`
+   (the api Dockerfile already does this via its provider-sed step; Render's buildCommand does).
+3. Seed reference data: `npm run db:seed` — in production the seed **skips** unless
+   `ALLOW_DEMO_SEED=1` is explicitly set (demo SUPER_ADMIN/ADMIN accounts must never be
+   created in production; enforced 2026-09-15).
 
 ## 4. Build & run (bare metal / VM)
 ```bash
 npm ci --include-workspace-root
 npm run build                      # api → apps/api/dist, web → apps/web/dist
-npx prisma migrate deploy          # from apps/api
+npm run db:migrate:pg -w apps/api  # PostgreSQL: prisma/postgres migrations
 NODE_ENV=production node apps/api/dist/server.js
 # serve apps/web/dist with nginx/caddy; proxy /api → API service (see docker/web.nginx.conf)
 ```
@@ -40,7 +50,8 @@ NODE_ENV=production node apps/api/dist/server.js
 export POSTGRES_PASSWORD=... API_DATABASE_URL="postgresql://..." \
        JWT_ACCESS_SECRET=... JWT_REFRESH_SECRET=...
 docker compose -f docker-compose.yml up --build -d
-docker compose exec api npx prisma migrate deploy
+docker compose -f docker-compose.yml up --build -d
+docker compose exec api npx prisma migrate deploy --schema prisma/postgres/schema.prisma
 curl -f http://localhost:4000/health && curl -f http://localhost:8080/
 ```
 

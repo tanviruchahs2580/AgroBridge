@@ -7,7 +7,7 @@ import { formatBDT } from "../../lib/format";
 import { categoryLabel } from "../../lib/labels";
 import { mapError, BD_PHONE_RE } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Check, Inbox, MapPin, Package, Phone, ShoppingBasket, ShoppingCart, Trash2 } from "lucide-react";
+import { Check, Inbox, MapPin, Package, Phone, ShieldCheck, ShoppingBasket, ShoppingCart, FlaskConical, Leaf, Sprout, Trash2, Wrench } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Skeleton, Stepper, useToast,
 } from "../../components/ui";
@@ -51,6 +51,15 @@ const DELIVERY_STEP = 1;
 const REVIEW_STEP = 2;
 const PAY_STEP = 3;
 const SUCCESS_STEP = 4;
+
+/** Category → tinted icon tile (same visual grammar as ServiceCard's AgriIconBox). */
+const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
+  SEED: { icon: Sprout, box: "bg-brand-50 text-brand-700 ring-brand-100" },
+  FERTILIZER: { icon: FlaskConical, box: "bg-orange-50 text-orange-600 ring-warning-border" },
+  BIO_INPUT: { icon: Leaf, box: "bg-success-bg text-success-text ring-success-border" },
+  CROP_PROTECTION: { icon: ShieldCheck, box: "bg-sky-50 text-sky-600 ring-sky-200" },
+  EQUIPMENT: { icon: Wrench, box: "bg-warning-bg text-warning-text ring-warning-border" },
+};
 
 export default function Market() {
   const { session } = useSession();
@@ -321,25 +330,32 @@ export default function Market() {
         <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noProducts", lang)} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ contentVisibility: "auto", containIntrinsicSize: "0 500px" }}>
-          {products.map((p, i) => (
-            <Card key={p.id} className="animate-enterprise flex min-w-0 flex-col justify-between overflow-hidden" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}>
-              <div>
-                <div className="mb-1 flex items-start justify-between gap-2">
+          {products.map((p, i) => {
+            const cat = CATEGORY_ICON[p.category] ?? CATEGORY_ICON.SEED;
+            const Icon = cat.icon;
+            return (
+              <Card key={p.id} className="animate-enterprise flex min-w-0 flex-col justify-between overflow-hidden" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}>
+                <div>
+                  <div className="mb-2.5 flex items-start justify-between gap-2">
+                    <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox ring-1 ring-inset ${cat.box}`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <Badge className="shrink-0 bg-stone-100 text-stone-500">{categoryLabel(p.category, lang)}</Badge>
+                  </div>
                   <h3 className="break-words text-sm font-bold leading-snug text-stone-800 [overflow-wrap:anywhere]">{p.name}</h3>
-                  <Badge className="shrink-0 bg-stone-100 text-stone-500">{categoryLabel(p.category, lang)}</Badge>
+                  <p className="mt-1.5 text-lg font-bold tabular-nums text-green-800">
+                    {formatBDT(p.pricePaisa, lang)} <span className="text-xs font-normal text-stone-500">/ {p.unit}</span>
+                  </p>
+                  <p className={`mt-0.5 text-[11px] ${p.stockQty > 0 ? "text-stone-500" : "font-semibold text-danger-text"}`}>
+                    {p.stockQty > 0 ? t("stockLeft", lang, { n: p.stockQty }) : t("outOfStock", lang)}
+                  </p>
                 </div>
-                <p className="text-lg font-bold text-green-800">
-                  {formatBDT(p.pricePaisa, lang)} <span className="text-xs font-normal text-stone-500">/ {p.unit}</span>
-                </p>
-                <p className={`mt-0.5 text-[11px] ${p.stockQty > 0 ? "text-stone-500" : "font-semibold text-red-600"}`}>
-                  {p.stockQty > 0 ? t("stockLeft", lang, { n: p.stockQty }) : t("outOfStock", lang)}
-                </p>
-              </div>
-              <Button className="mt-3 w-full" disabled={p.stockQty === 0} loading={cartBusyIds.has(p.id)} onClick={() => void addToCart(p)}>
-                {justAddedId === p.id ? <>✓ {t("addedToCart", lang)}</> : <>+ {t("addToCart", lang)}</>}
-              </Button>
-            </Card>
-          ))}
+                <Button variant={justAddedId === p.id ? "soft" : "primary"} className="mt-3 w-full" disabled={p.stockQty === 0} loading={cartBusyIds.has(p.id)} onClick={() => void addToCart(p)}>
+                  {justAddedId === p.id ? <><Check className="h-4 w-4" aria-hidden /> {t("addedToCart", lang)}</> : <>+ {t("addToCart", lang)}</>}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -452,7 +468,7 @@ export default function Market() {
                   aria-invalid={Boolean(deliveryErrs.address)}
                   aria-describedby={deliveryErrs.address ? "co-address-err" : undefined}
                 />
-                {deliveryErrs.address && <p id="co-address-err" role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.address}</p>}
+                {deliveryErrs.address && <p id="co-address-err" role="alert" className="mt-1 text-xs text-danger-text">{deliveryErrs.address}</p>}
               </div>
               <div>
                 <Label htmlFor="co-phone">{t("phone", lang)}</Label>
@@ -467,7 +483,7 @@ export default function Market() {
                   aria-invalid={Boolean(deliveryErrs.phone)}
                   aria-describedby={deliveryErrs.phone ? "co-phone-err" : undefined}
                 />
-                {deliveryErrs.phone && <p id="co-phone-err" role="alert" className="mt-1 text-xs text-red-600">{deliveryErrs.phone}</p>}
+                {deliveryErrs.phone && <p id="co-phone-err" role="alert" className="mt-1 text-xs text-danger-text">{deliveryErrs.phone}</p>}
               </div>
               <div className="flex gap-2 pt-1">
                 <Button type="button" variant="ghost" className="flex-1" onClick={() => setStep(0)}>← {t("back", lang)}</Button>

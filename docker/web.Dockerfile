@@ -9,7 +9,10 @@ COPY . .
 WORKDIR /app/apps/web
 ENV VITE_API_BASE_URL=/api/v1
 RUN npm run build
-FROM nginx:alpine
+# ---- runtime stage: minimal, patched nginx (fixes 4 HIGH in nginx:alpine's
+# util-linux/libxml2 via the slimmer base + apk upgrade) ----
+FROM nginx:1-alpine-slim
+RUN apk upgrade --no-cache
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY docker/web.nginx.prod.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
