@@ -33,6 +33,11 @@ coverage/
 .vitest-cache/
 apps/api/pg-init.sql
 
+# DR rehearsal outputs — contain full table dumps (PII + credential hashes);
+# must never be tracked (QA 2026-09-15 P0: three pre-existing files were
+# committed before this rule existed; see ENTERPRISE_CERTIFICATION_STATUS.md).
+apps/api/backup-*.json
+
 # Uploads (runtime user content)
 uploads/
 
@@ -54,3 +59,19 @@ apps/web/playwright-report/
 .env*
 !.env.example
 !.env.production
+
+# Local debug/validation artifacts (never commit)
+*.apk
+/New folder/
+qa-screenshots/
+docs/ux-renovation-2026-09-14/
+server-out*.log
+server-err*.log
+tmp_*.mjs
+apps/api/debug-status.ts
+apps/api/final-api-validation.ts
+apps/api/live-e2e-test.ts
+apps/api/src-integration-test.ts
+api-full-validation.sh
+apps/web/src/api/
+*.bak
