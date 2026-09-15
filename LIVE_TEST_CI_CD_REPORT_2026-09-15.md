@@ -79,3 +79,17 @@ Full-tree `npm audit` high-severity (dev-only) findings remain warning-only per 
 ## 6. Verdict
 
 **GO.** Live app matches the final working tree; every user-facing feature and parameter tested functionally passed; the entire CI pipeline (lint → typecheck → 263 automated tests across SQLite & PostgreSQL → E2E 20/20 → builds → security scans → container scan) is green after one real defect (qs lockfile drift) was found and fixed. Outstanding pre-release items are housekeeping only: commit the working tree (incl. updated lockfile), and address the backup-file history risk.
+
+---
+
+## 7. Post-report addendum (session close-out, 2026-09-15 evening)
+
+Work landed after §6 in three verified commits; working tree is now clean at HEAD `5cd1714`:
+
+| Commit | Scope | Verification |
+|---|---|---|
+| `7a073e4` | Home status-cards enterprise redesign + tagline "AI কৃষকের হাতে" (i18n bn+en, title/meta, manifest) | typecheck/lint/i18n/unit 107/build green; Playwright E2E 20/20; API 131 pass; light/dark screenshots |
+| `24fcb2d` | Legacy `/sw.js` kill-switch to evict stale workbox service worker (Vercel stale-SW pinning) | shipped statically from `public/`; confirmed present in the built image |
+| `5cd1714` | Fixes the final open item: `web.Dockerfile` `npm ci --workspace apps/web` failed because the root `postinstall` (`prisma generate`) needs root devDeps → added `--include-workspace-root` | `docker build` green; trivy HIGH/CRITICAL **0** on `agrobridge-web:ci-final`; re-ran web lint ✅ / i18n 0 missing ✅ / vitest 107/107 ✅; heuristic secret scan on post-report diff clean |
+
+**Final state: GO — all CI/CD SOP stages green at `5cd1714`, nothing pending.** Android build remains CI-only (no local JDK21, documented §3); deploy to Render/prod intentionally not performed (commit-only per SOP).
