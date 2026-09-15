@@ -78,14 +78,14 @@ jobs:
         run: chmod +x gradlew && ./gradlew bundleRelease assembleRelease --no-daemon
 
       - name: Upload AAB artifact (Play Store)
-        uses: actions/upload-artifact@v4 # pin v4 -> commit SHA
+        uses: actions/upload-artifact@v7 # pin v4 -> commit SHA
         with:
           name: agrobridge-release-aab
           path: apps/web/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
       - name: Upload APK artifact (direct install)
-        uses: actions/upload-artifact@v4 # pin v4 -> commit SHA
+        uses: actions/upload-artifact@v7 # pin v4 -> commit SHA
         with:
           name: agrobridge-release-apk
           path: apps/web/android/app/build/outputs/apk/release/app-release.apk
