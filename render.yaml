@@ -15,7 +15,12 @@ services:
     branch: main
     buildCommand: npm install --include=dev && npx prisma generate --schema=apps/api/prisma/schema.postgresql.prisma && npm run build --workspace apps/api
     startCommand: node apps/api/dist/server.js
-    preDeployCommand: cd apps/api && npx prisma migrate deploy && npx prisma db seed
+    # deploy-migrations.mjs is dialect-aware and baseline-safe: the live PG DB
+    # predates the migration chain (created via db push), so the script marks
+    # already-present schema as applied before deploying new migrations.
+    # Seed is guarded in seed.ts: in production it only creates demo accounts
+    # when ALLOW_DEMO_SEED=1 is explicitly set.
+    preDeployCommand: cd apps/api && node scripts/deploy-migrations.mjs && npx prisma db seed
     envVars:
       - key: NODE_ENV
         value: production
@@ -41,7 +46,7 @@ services:
       # WARNING: this service was originally created via dashboard, so keep
       # this value in sync with the dashboard's WEB_ORIGIN setting.
       - key: WEB_ORIGIN
-        value: https://agrobridge-web.vercel.app,https://agrobridge-vfbz.onrender.com,https://localhost,capacitor://localhost,http://localhost,http://10.23.41.26:8080
+        value: https://agrobridge-web.vercel.app,https://agrobridge-vfbz.onrender.com,https://localhost,capacitor://localhost,http://localhost
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

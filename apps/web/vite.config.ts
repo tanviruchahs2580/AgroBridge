@@ -34,7 +34,11 @@ export default defineConfig(async () => {
     port: 5173,
     strictPort: true,
     cors: true,
-    hmr: { host: process.env.AGRO_HMR_HOST ?? "10.23.41.26", clientPort: 5173 },
+    // No hard-coded LAN IP: set AGRO_HMR_HOST to the machine's LAN address
+    // (and optionally AGRO_HMR_PORT) when testing from physical devices.
+    hmr: process.env.AGRO_HMR_HOST
+      ? { host: process.env.AGRO_HMR_HOST, clientPort: Number(process.env.AGRO_HMR_PORT ?? 5173) }
+      : undefined,
     proxy: {
       "/api": { target: process.env.VITE_API_PROXY ?? "http://localhost:4000", changeOrigin: true },
     },
