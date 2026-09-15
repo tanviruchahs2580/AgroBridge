@@ -11,6 +11,7 @@ import type { DictKey } from "../../lib/i18n";
 import { formatBDT } from "../../lib/format";
 import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
+import { RiceEarMedallion } from "../../components/icons/AgriIcons";
 
 interface FarmShape {
   id: string;
@@ -137,7 +138,7 @@ export default function Home() {
       )}
 
       {/* AI Farm Status — brand-gradient hero (offline-safe, no remote imagery) */}
-      <section className="animate-enterprise relative overflow-hidden rounded-card bg-hero shadow-card" style={{ animationDelay: "80ms" } as React.CSSProperties}>
+      <section className="animate-enterprise relative overflow-hidden rounded-card bg-hero shadow-float" style={{ animationDelay: "80ms" } as React.CSSProperties}>
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.08]"
@@ -147,6 +148,7 @@ export default function Home() {
           }}
         />
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-400)", opacity: 0.2 }} />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-300)", opacity: 0.12 }} />
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
@@ -172,19 +174,24 @@ export default function Home() {
       {/* 4-card status grid */}
       <section className="animate-enterprise grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: "140ms" } as React.CSSProperties}>
         {/* আজকের কাজ */}
-        <div className="flex flex-col rounded-card border border-surface-border bg-surface-card p-3 shadow-card">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-action text-white shadow-sm" aria-hidden>
-              <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.5} />
+        <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
+          <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-action text-white shadow-sm" aria-hidden>
+                <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </span>
+              <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
+            </div>
+            <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
+              {Object.values(tasks).filter(Boolean).length}/{TASK_KEYS.length}
             </span>
-            <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
           </div>
-          <div className="flex-1 rounded-xl border border-surface-border bg-surface-subdued p-3">
+          <div className="flex-1 p-2">
             <ul className="divide-y divide-surface-border">
               {TASK_KEYS.map((task) => {
                 const checked = tasks[task.id] ?? false;
                 return (
-                  <li key={task.id} className="flex items-center gap-3 py-2.5 first:pt-1 last:pb-1">
+                  <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
                     <button type="button" role="checkbox" aria-checked={checked} aria-label={t(task.key, lang)} onClick={() => setTasks((p) => ({ ...p, [task.id]: !p[task.id] }))} className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${checked ? "border-action bg-action text-white" : "border-surface-border-strong bg-surface-card"}`}>
                       {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>}
                     </button>
@@ -194,65 +201,89 @@ export default function Home() {
               })}
             </ul>
           </div>
-          <Link to="/farm" className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-[13px] font-semibold text-link hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
+          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
             {t("viewAllTasks", lang)} <span aria-hidden>→</span>
           </Link>
         </div>
 
         {/* আবহাওয়া */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
-          <div className="flex-1 p-4">
-            <div className="flex items-start justify-between gap-2">
+          <div className="relative flex-1 p-4">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-[0.07]" aria-hidden style={{ background: "var(--gradient-sky)" }} />
+            <div className="relative flex items-start justify-between gap-2">
               <h2 className="text-[15px] font-bold text-stone-800">{t("weather", lang)}</h2>
-              <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100"><CloudSun style={{ width: 18, height: 18 }} /></span>
+              <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100 shadow-sm"><CloudSun style={{ width: 20, height: 20 }} /></span>
             </div>
             {!loaded && !weather ? (
-              <div className="mt-3 space-y-2"><Skeleton className="h-10 w-28" /><Skeleton className="h-4 w-32" /></div>
+              <div className="relative mt-3 space-y-2"><Skeleton className="h-10 w-28" /><Skeleton className="h-4 w-32" /></div>
             ) : weather ? (
               <>
-                <div className="mt-1 flex items-baseline gap-1"><span className="text-[42px] font-extrabold leading-none tracking-tight text-stone-800">{weather.current.tempC}°</span></div>
-                <p className="text-[13px] text-stone-600">{weatherConditionLabel(weather.current.condition, lang)}</p>
-                <div className="mt-4 flex items-center gap-6 text-xs">
-                  <span className="flex items-center gap-1.5">
-                    <Droplets aria-hidden className="h-4 w-4 text-sky-600" />
-                    <span className="flex flex-col leading-none"><span className="text-[11px] font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-[13px] font-semibold text-stone-700">{weather.current.humidityPct}%</span></span>
+                <div className="relative mt-2 flex items-end justify-between gap-2">
+                  <div>
+                    <div className="flex items-baseline gap-0.5"><span className="text-display font-extrabold leading-none tracking-tight text-stone-800 tabular-nums">{weather.current.tempC}°</span></div>
+                    <p className="mt-1 text-[13px] text-stone-600">{weatherConditionLabel(weather.current.condition, lang)}</p>
+                  </div>
+                </div>
+                <div className="relative mt-4 grid grid-cols-2 gap-2">
+                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
+                    <Droplets aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
+                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-[11px] font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-[13px] font-bold tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <Wind aria-hidden className="h-4 w-4 text-sky-600" />
-                    <span className="flex flex-col leading-none"><span className="text-[11px] font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-[13px] font-semibold text-stone-700">{weather.current.windKmh} km/h</span></span>
+                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
+                    <Wind aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
+                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-[11px] font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-[13px] font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
                 </div>
               </>
-            ) : <p className="mt-3 text-sm text-stone-500">—</p>}
+            ) : <p className="relative mt-3 text-sm text-stone-500">—</p>}
           </div>
-          <div className={`flex items-start gap-2 px-3 py-2.5 ${hasRisk ? "bg-warning-bg" : "bg-success-bg"}`}>
+          <div className={`flex items-start gap-2 px-4 py-3 ${hasRisk ? "bg-warning-bg" : "bg-success-bg"}`}>
             <Leaf aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${hasRisk ? "text-warning-text" : "text-success-text"}`} />
             <div className="min-w-0">
-              <p className={`text-xs font-semibold leading-tight ${hasRisk ? "text-warning-text" : "text-success-text"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)} <span aria-hidden>→</span></p>
+              <p className={`text-xs font-bold leading-tight ${hasRisk ? "text-warning-text" : "text-success-text"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)} <span aria-hidden>→</span></p>
               <p className="text-[11px] leading-tight text-stone-600">{weather && hasRisk ? (weatherRiskActionLabel(weather.risks[0].type, lang) ?? t("regularFarmVisit", lang)) : t("regularFarmVisit", lang)}</p>
             </div>
           </div>
         </div>
 
         {/* চলমান ফসল */}
-        <div className="flex flex-col rounded-card border border-surface-border bg-surface-card p-4 text-center shadow-card">
-          <h2 className="flex items-center justify-center gap-1.5 text-[15px] font-bold text-stone-800"><Leaf aria-hidden className="h-4 w-4 text-brand-600" /> {t("activeCropsTitle", lang)}</h2>
-          <div className="mx-auto mt-4 flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 border-brand-200 bg-brand-50 shadow-sm">
-            <Sprout aria-hidden className="h-10 w-10 text-brand-600" strokeWidth={1.6} />
+        <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
+          <div className="flex items-center gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
+            <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-3.5 w-3.5" /></span>
+            <h2 className="text-[15px] font-bold text-stone-800">{t("activeCropsTitle", lang)}</h2>
           </div>
-          <p className="mt-3 text-base font-bold text-accent">{primaryCrop ? primaryCrop.cropName : lang === "bn" ? "ধান" : "Rice"}</p>
-          <span className="mt-2 inline-flex items-center self-center rounded-chip bg-brand-50 px-3 py-1 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">{primaryCrop ? stageLabel(primaryCrop.stage, lang) : t("growthStage", lang)}</span>
-          <Link to="/farm" className="mt-auto flex w-full items-center justify-center gap-1 pt-4 text-[13px] font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+            <div className="flex items-center gap-3">
+              <RiceEarMedallion size={72} />
+              <div className="min-w-0 text-left">
+                <p className="text-base font-extrabold leading-tight text-accent">{primaryCrop ? primaryCrop.cropName : lang === "bn" ? "ধান" : "Rice"}</p>
+                <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
+                  <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
+                  {primaryCrop ? stageLabel(primaryCrop.stage, lang) : t("growthStage", lang)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
         </div>
 
         {/* ওয়ালেট */}
-        <div className="flex flex-col rounded-card border border-surface-border bg-surface-card p-4 text-center shadow-card">
-          <h2 className="flex items-center justify-center gap-1.5 text-[15px] font-bold text-stone-800"><Wallet aria-hidden className="h-4 w-4 text-brand-600" /> {t("wallet", lang)}</h2>
-          <div className="mt-6">
-            {walletBal !== null ? <p className="text-[28px] font-extrabold tracking-tight text-accent">{formatBDT(walletBal, lang)}</p> : loaded ? <p className="text-[28px] font-extrabold text-stone-500">—</p> : <Skeleton className="mx-auto h-8 w-28" />}
+        <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
+          <div className="flex items-center gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
+            <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Wallet className="h-3.5 w-3.5" /></span>
+            <h2 className="text-[15px] font-bold text-stone-800">{t("wallet", lang)}</h2>
+          </div>
+          <div className="flex flex-1 flex-col items-center justify-center p-4">
+            {walletBal !== null ? (
+              <p className="text-display font-extrabold tracking-tight text-stone-800 tabular-nums">{formatBDT(walletBal, lang)}</p>
+            ) : loaded ? (
+              <p className="text-display font-extrabold text-stone-500">—</p>
+            ) : (
+              <Skeleton className="h-9 w-32" />
+            )}
             <p className="mt-1 text-xs text-stone-600">{t("availableBalance", lang)}</p>
           </div>
-          <Link to="/wallet" className="mt-auto flex w-full items-center justify-center gap-1 pt-8 text-[13px] font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewTransactions", lang)} <span aria-hidden>→</span></Link>
+          <Link to="/wallet" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewTransactions", lang)} <span aria-hidden>→</span></Link>
         </div>
       </section>
 

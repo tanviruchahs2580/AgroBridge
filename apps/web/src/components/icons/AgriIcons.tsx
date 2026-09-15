@@ -61,3 +61,52 @@ export function MetaIcon({ icon, className="" }: { icon: "star"|"clock"|"shield"
   };
   return <>{map[icon]}</>;
 }
+
+/**
+ * Rice-ear medallion (চলমান ফসল card) — hand-drawn duotone panicle:
+ * curved stalk + drooping grain branches, brand-token colors only so it
+ * adapts to light/dark themes. Decorative (aria-hidden); the crop name is
+ * rendered as real text next to it.
+ */
+export function RiceEarMedallion({ size = 92 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden
+      className="relative inline-flex shrink-0 items-center justify-center rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: "radial-gradient(circle at 32% 28%, var(--color-brand-100) 0%, var(--color-brand-50) 62%, var(--color-surface-card) 100%)",
+        boxShadow: "inset 0 0 0 1.5px var(--color-brand-200), 0 8px 22px -8px rgba(21,128,61,0.35)",
+      }}
+    >
+      <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 48 48" fill="none" style={{ display: "block" }}>
+        {/* stalk */}
+        <path d="M24 45c0-9 1-17 4-24" stroke="var(--color-brand-700)" strokeWidth="2.4" strokeLinecap="round" />
+        {/* leaf */}
+        <path d="M25.5 33c-5.5-1.5-9-5-10-9.5 5 .5 8.8 3.6 10 9.5Z" fill="var(--color-brand-500)" opacity="0.55" />
+        {/* panicle branches */}
+        <path d="M28 21c-2-3.5-6-5.5-10.5-5.5" stroke="var(--color-brand-600)" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M28.6 17.5c-.8-3.6-3.6-6.4-7.4-7.6" stroke="var(--color-brand-600)" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M29 14c.6-3.6 3-6.6 6.4-8.2" stroke="var(--color-brand-600)" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M28.4 24.5c1.8-3 5-4.8 8.6-5" stroke="var(--color-brand-600)" strokeWidth="1.6" strokeLinecap="round" />
+        {/* grains (paddy) */}
+        <g fill="var(--color-brand-600)">
+          <ellipse cx="16.5" cy="15" rx="2.6" ry="1.7" transform="rotate(-24 16.5 15)" />
+          <ellipse cx="20.4" cy="9.4" rx="2.6" ry="1.7" transform="rotate(-38 20.4 9.4)" />
+          <ellipse cx="26.9" cy="5" rx="2.6" ry="1.7" transform="rotate(28 26.9 5)" />
+          <ellipse cx="37.5" cy="19" rx="2.6" ry="1.7" transform="rotate(12 37.5 19)" />
+        </g>
+        <g fill="var(--color-brand-400)">
+          <ellipse cx="13.6" cy="16.6" rx="2.4" ry="1.6" transform="rotate(-24 13.6 16.6)" />
+          <ellipse cx="17.6" cy="11.4" rx="2.4" ry="1.6" transform="rotate(-38 17.6 11.4)" />
+          <ellipse cx="24.6" cy="6.6" rx="2.4" ry="1.6" transform="rotate(14 24.6 6.6)" />
+          <ellipse cx="30.4" cy="4.4" rx="2.4" ry="1.6" transform="rotate(40 30.4 4.4)" />
+          <ellipse cx="34.4" cy="10" rx="2.4" ry="1.6" transform="rotate(56 34.4 10)" />
+          <ellipse cx="35.4" cy="15.4" rx="2.4" ry="1.6" transform="rotate(8 35.4 15.4)" />
+          <ellipse cx="39.4" cy="22.4" rx="2.4" ry="1.6" transform="rotate(20 39.4 22.4)" />
+        </g>
+      </svg>
+    </span>
+  );
+}

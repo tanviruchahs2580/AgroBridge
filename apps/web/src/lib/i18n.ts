@@ -4,7 +4,7 @@ export type Lang = "bn" | "en";
 export const dict = {
   // ── Brand / shell ──
   appName: { bn: "এগ্রোব্রিজ", en: "AgroBridge" },
-  tagline: { bn: "সবুজ মাটি। স্মার্ট ফার্ম। নিরাপদ ভবিষ্যৎ।", en: "Green Soil. Smart Farm. Secure Future." },
+  tagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
   login: { bn: "লগইন", en: "Login" },
   register: { bn: "রেজিস্ট্রেশন", en: "Register" },
   logout: { bn: "লগআউট", en: "Logout" },
