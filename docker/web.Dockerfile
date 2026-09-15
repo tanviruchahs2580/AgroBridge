@@ -4,7 +4,9 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/prisma ./apps/api/prisma
-RUN npm ci --workspace apps/web
+# --include-workspace-root: root devDeps (prisma) must be present for the root
+# postinstall hook (prisma generate) — CI api-quality uses the same pattern.
+RUN npm ci --workspace apps/web --include-workspace-root
 COPY . .
 WORKDIR /app/apps/web
 ENV VITE_API_BASE_URL=/api/v1
