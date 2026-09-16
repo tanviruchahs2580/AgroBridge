@@ -131,3 +131,65 @@ unit uplift. Each is measurable with the commands in this file.
 
 2026-09-15, against working tree over `524c3a1`. **Next review:** at the first post-deploy CI
 run + staging smoke, then quarterly with `docs/operations.md`.
+
+---
+
+## 8. Post-deploy addendum — 2026-09-16 (push + live re-verification)
+
+Work landed and verified this session; supersedes the "not deployed" caveats in §1–§2 where
+noted.
+
+**Repo / CI**
+- Pushed `24fcb2d..4adbc4f` to `origin/main`. CI run
+  [#35064526113](https://github.com/tanviruchahs2580/AgroBridge/actions/runs/35064526113)
+  completed **success** — all 9 jobs green (API SQLite, API PostgreSQL, Web typecheck/build,
+  Web E2E, Android APK, dependency audit, gitleaks, Docker build, Trivy). CodeQL also success.
+  This is the first fully green CI on `main`: the three prior failures were all the Docker
+  "Build Web image" step, fixed by `5cd1714` (`npm ci --workspace apps/web
+  --include-workspace-root`).
+- Local gates re-run on `4adbc4f`: typecheck + lint clean (api/web); API 131 pass / 1 skip
+  with coverage **85.21 % stmts / 67.33 % branch / 89.53 % func** (gates 75/63/73); web 107
+  pass; i18n 0 missing; vite build OK; Playwright E2E **20/20**; prod `npm audit` 0 vulns.
+- QA harness `api-full-validation.sh` (gitignored, local-only) was repaired this session: it
+  generated 10-digit phones (API requires 11), aborted on the first non-2xx because of
+  `set -e`, treated ADR-0001 auth-gated routes as public, and parsed `plotId` from the wrong
+  response. Final matrix: **43/43 (100 %)**. Evidence: `qa-evidence/I2-param-matrix-2026-09-16.log`,
+  `qa-evidence/I3-api-coverage-2026-09-16.log`.
+
+**Live version sync**
+- Web (Vercel): bundle `index-c0QkYbd7.js` and title `AgroBridge — AI কৃষকের হাতে` match the
+  local build exactly; `/sw.js` kill-switch served (200, 1443 B). Live == HEAD for the web.
+- API (Render `agrobridge-vfbz.onrender.com`): `/health` + `/ready` green; login works; 7 of 8
+  probed authenticated endpoints return 200; RBAC negative checks correct (farmer → `/admin/*`
+  = 403, no token = 401).
+
+**NEW OPEN ITEM — CERT-06 (P0 live)**
+
+| ID | Severity | Item | Required action |
+|---|---|---|---|
+| CERT-06 | **P0 (live)** | `GET /api/v1/wallet/` and `GET /api/v1/wallet/summary` return **500 INTERNAL_ERROR** on the live API. All other probed endpoints return 200. | Apply the `heldPaisa` migration to the live PostgreSQL DB. See root cause below. |
+
+Root cause (evidence-based, not hypothesis): the deployed API code references the `Wallet.heldPaisa`
+column (introduced in `fb3fda5`, v1.3.9 — confirmed with `git log -S heldPaisa`), but the live
+database does not have that column. Both failing endpoints touch the `Wallet` row
+(`/wallet/` via `upsert`, `/summary` via `findUnique` selecting `heldPaisa`); every probed
+route that does **not** read `Wallet` returns 200. Why the migration never ran: this Render
+service was created through the dashboard (see the standing WARNING in `render.yaml`), so the
+`preDeployCommand` declared in `render.yaml` — which runs `scripts/deploy-migrations.mjs`,
+the baseline-aware dialect-aware deploy that applies the `heldPaisa` ALTER — is not applied to
+the live service. `render.yaml` is therefore not authoritative for it.
+
+Fix (requires Render account access, not available from this workstation — no `render` CLI,
+no `RENDER_*` credentials, and the live `DATABASE_URL` is a Render-injected secret):
+1. In the Render dashboard, set the service's **Pre-Deploy Command** to
+   `cd apps/api && node scripts/deploy-migrations.mjs && npx prisma db seed`, then trigger a
+   deploy; or re-create the service from `render.yaml` (Blueprint) so the declared command
+   takes effect. The script is idempotent and baselines the dashboard-created DB correctly.
+2. Verify: `GET /api/v1/wallet/summary` with a farmer token returns 200 with
+   `monthCreditsPaisa / monthDebitsPaisa / pendingWithdrawalsPaisa / membership`.
+3. Re-run §4 gates; the two live P0s in §2 (CERT-01 demo creds, CERT-02 history) still stand.
+
+**Also observed (housekeeping, non-blocking):** GitHub Actions annotations warn that
+`actions/checkout` and `actions/setup-node` pins target Node 20, which is being force-run on
+Node 24 and is removed from runners on 2026-09-23. Bump those action pins before that date.
+The Dependabot branches for these bumps already exist in the repo.
