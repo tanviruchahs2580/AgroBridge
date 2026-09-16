@@ -21,16 +21,16 @@ jobs:
         uses: actions/checkout@v4 # pin v4 -> replace tag with full commit SHA before production
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3 # pin v3 -> commit SHA
+        uses: github/codeql-action/init@v4 # pin v3 -> commit SHA
         with:
           languages: javascript-typescript
           queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3 # pin v3 -> commit SHA
+        uses: github/codeql-action/autobuild@v4 # pin v3 -> commit SHA
 
       - name: Perform CodeQL Analysis (uploads SARIF to code scanning)
-        uses: github/codeql-action/analyze@v3 # pin v3 -> commit SHA
+        uses: github/codeql-action/analyze@v4 # pin v3 -> commit SHA
         with:
           category: "/language:javascript-typescript"
           output: "${{ runner.temp }}/codeql-results"
