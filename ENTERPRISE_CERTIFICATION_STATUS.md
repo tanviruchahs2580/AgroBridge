@@ -193,3 +193,75 @@ no `RENDER_*` credentials, and the live `DATABASE_URL` is a Render-injected secr
 `actions/checkout` and `actions/setup-node` pins target Node 20, which is being force-run on
 Node 24 and is removed from runners on 2026-09-23. Bump those action pins before that date.
 The Dependabot branches for these bumps already exist in the repo.
+
+---
+
+## 9. Incident + remediation addendum — 2026-10-15 (login outage → re-platform to Vercel + Neon)
+
+### Incident INC-2026-10-15 (P0, live)
+
+**Symptom:** login (and every DB-backed endpoint) returned `500 INTERNAL_ERROR` from
+`https://agrobridge-vfbz.onrender.com`; `/ready` reported `{"db":false}`. Users could not
+log in from the web app or the APK.
+
+**Root cause (verified):** the API process on Render was healthy (`/health` 200) but its
+PostgreSQL instance was unreachable. The service ran on a **Render free-tier PostgreSQL
+instance created on 2026-08-2x**, which expires ~30 days after creation. The window matched
+exactly: login was verified working on 2026-09-16 (§8), `db:false` first observed
+2026-10-15. This supersedes CERT-06's "heldPaisa migration missing" framing — the entire
+database instance was gone, so no migration could have fixed it. Recovering it required
+Render dashboard access, which the workstation does not have (no `render` CLI, no
+`RENDER_API_KEY` — unchanged since the §8 note).
+
+**Remediation (completed same session):** re-platformed the live API+DB onto the
+credentials already in hand (GitHub + Vercel):
+
+1. **Database:** Neon PostgreSQL provisioned through the Vercel Marketplace
+   (`neon-cyclamen-coin`), linked to the `agro-bridge-api` project (pooled + direct URLs
+   injected as env vars by the integration).
+2. **Schema + data:** full PG migration chain applied via the idempotent
+   `scripts/deploy-migrations.mjs`; demo dataset seeded with `ALLOW_DEMO_SEED=1`; the 5
+   demo passwords rotated off the public `Demo@1234` per CERT-01 (affects this
+   implementation; the **old Render DB rabbits remain out of reach and CERT-01/CERT-02
+   remain open for that system**).
+3. **API:** deployed as a Vercel serverless function via `apps/api/api/index.js`
+   (entry) + `apps/api/vercel.json` (`framework: null`) +
+   `apps/api/scripts/patch-vercel-output.mjs` (Build Output API post-process: PG client +
+   `rhel-openssl-3.0.x` engine into the traced bundle; `binaryTargets` added to
+   `prisma/postgres/schema.prisma`). Full pipeline documented in
+   `docs/runbooks/live-deployment.md`.
+4. **Web:** `VITE_API_BASE_URL` repointed to
+   `https://agro-bridge-api-vantiq-systems.vercel.app/api/v1` (project env + committed
+   `apps/web/.env.production`) and redeployed; the production alias serves the new
+   bundle.
+5. **APK:** CI (`android-debug-apk.yml`) builds from the committed `.env.production`, so
+   future APKs bake the live API URL automatically.
+
+**Post-remediation verification (live, 2026-10-15):**
+
+- `/health` 200 `ok:true`; `/ready` 200 `{ready:true, db:true}` (DB connected).
+- `POST /api/v1/auth/login` with the rotated demo farmer → 200 `{accessToken, refreshToken, user}`.
+- `GET /api/v1/wallet/summary` with the token → 200 with `monthCreditsPaisa / monthDebitsPaisa /
+  pendingWithdrawalsPaisa / membership.tier=SILVER` — **CERT-06 regression probe green**.
+- CORS: preflight 204 from `https://agrobridge-web.vercel.app`; `Access-Control-Allow-Origin`
+  present for the Capacitor origin `https://localhost`.
+- **Browser E2E (real UI):** fresh tab → `https://agrobridge-web.vercel.app` → login form →
+  farmer credentials → Home. Dashboard rendered with live DB data (farm health 94 %, wallet
+  ৳2,500, weather 29.5 °C) — screenshot evidence retained in session artifacts.
+
+**Quality gates re-run on the changed tree:** API typecheck ✅, `npx eslint src tests` ✅
+(0 problems), API suite **131 passed / 1 skipped** (PG-gated by design — matches §4
+baseline).
+
+### Standing items (unchanged)
+
+- CERT-01/CERT-02 (old Render/Render-DB artifacts, git-history purge): **still open** —
+  they concern the retired Render environment and the public repo history; handle at the
+  next console session with dashboard access.
+- Decommission: pause/delete the Render services (`agrobridge-vfbz`,
+  `agrobridge-db`) from the dashboard once no traffic is expected — the free web service
+  keeps cold-starting otherwise.
+- The `agrobridge-web` / `agro-bridge-api` Vercel projects previously carried
+  `Root Directory` settings that double-join when deploying via CLI from the subfolder;
+  `agro-bridge-api`'s was cleared via API (2026-10-15). Deploy the API from the repo root
+  per the runbook.

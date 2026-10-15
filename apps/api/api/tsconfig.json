@@ -1,0 +1,15 @@
+{
+  // Scope for the Vercel serverless adapter (api/index.js) only — @vercel/node
+  // typechecks the nearest tsconfig program; keep it to this harmless JS file.
+  // The app's own gates compile via the parent tsconfig.build.json.
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": []
+  },
+  "include": ["*.js"]
+}

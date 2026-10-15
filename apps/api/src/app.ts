@@ -1,7 +1,11 @@
 import express from "express";
-import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+// These packages ship ES default exports; some serverless builders recompile
+// the program without esModuleInterop, so bind through the namespace default.
+import * as helmetModule from "helmet";
+import * as rateLimitModule from "express-rate-limit";
+const helmet = helmetModule.default;
+const rateLimit = rateLimitModule.default;
 import { env, isProd } from "./config/env.js";
 import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
