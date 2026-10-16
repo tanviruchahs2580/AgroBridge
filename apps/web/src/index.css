@@ -131,6 +131,16 @@
 :root {
   font-family: "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
+
+  /* Brand gradients — light defaults. dark.css deepens them under
+     html[data-theme="dark"]; without these the light theme had no
+     --gradient-* values and every bg-cta/bg-hero surface rendered
+     transparent (login CTA invisible in light mode). */
+  --gradient-hero: linear-gradient(135deg, #0b2b1a 0%, #0f3d24 52%, #14532d 100%);
+  --gradient-cta: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+  --gradient-ai: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+  --gradient-sky: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+  --gradient-warm: linear-gradient(135deg, #d97706 0%, #b45309 100%);
 }
 
 html,

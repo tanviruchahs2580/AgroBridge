@@ -95,7 +95,7 @@ export function AuthShell({
           sizes="(min-width: 768px) 50vw, 100vw"
           alt=""
           aria-hidden
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover object-[center_64%]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#012823]/95 via-[#012823]/70 to-[#012823]/35" />
 
