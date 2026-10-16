@@ -198,3 +198,22 @@ qa-screenshots/. E2E 20/20.
 FINDING (pre-existing, in the restored condition): MyFarm shows "সক্রিয় ফসল 0"
 despite an active crop — /farms cropCycles select omits `status`, page filters
 on it (Home counts fine; E2E never asserted). Fix on request.
+
+## 2026-10-16 — Mobile login framing per owner reference (round 5)
+
+Owner SS comparison: farmer/drone covered, logo too low, demo-account section
+unwanted. Fixed:
+- Recomposed login-bg-mobile-full.webp (1078×2360): drone anchored top-right
+  (55-95%), farmer at left edge hat+tablet readable (22-48%), photo continuous
+  behind the credential card; logo lockup top-anchored (latin AgroBridge) so
+  the farmer/drone zone stays clear; card begins mid-screen.
+- Requested copy block (headline + 3 value lines) below the card; demo-account
+  section removed from Login.
+- E2E root-cause found during verification: checkout helper clicked a DISABLED
+  add-to-cart button after repeated suite runs exhausted dev-DB stock →
+  T6/T7/T8 timeouts. Spec now selects the first enabled button (+toBeEnabled
+  assertion); local dev DB restocked. Suite: 20/20.
+- Verified: tsc/lint/unit 108/build; screenshots final-android-dark (412×915),
+  android-360-dark, android-light, desktop-light in apps/qa-screenshots/.
+- Pushed c2a8c95; CI 38910884124 success; CodeQL success; APK run 38910885760
+  success with in-artifact verification of the new background + emblem.
