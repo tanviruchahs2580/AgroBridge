@@ -183,3 +183,18 @@ APK run 38887499443 success with in-artifact verification
 (login-bg-*-full.webp, logo-emblem.png, splash_emblem.png).
 NOTE: pw-run.json was accidentally committed in 8dd0bbe and removed in the
 next commit (78b4ced).
+
+## 2026-10-16 — Full-photo login REVERTED to previous condition (round 4, user decision)
+
+User reviewed full-page photo login and asked to revert the whole round.
+`git revert 585cbb9 8dd0bbe` → commits `055d9df`, `887f3c3` (both pushed).
+Kept: brand assets + header logo, মধ্যস্বত্বভোগী wording, light-theme gradient
+fix, launcher icons. Restored: split login surface (desktop brand-panel photo,
+mobile top band), no remember-me checkbox, dist favicon link.
+Browwer user-test after revert: login (demo farmer) → Home real data →
+light/dark toggle → farm → market + add-to-cart → wallet (real ledger) →
+orders (real PAID list) → logout all verified functional; screenshot set in
+qa-screenshots/. E2E 20/20.
+FINDING (pre-existing, in the restored condition): MyFarm shows "সক্রিয় ফসল 0"
+despite an active crop — /farms cropCycles select omits `status`, page filters
+on it (Home counts fine; E2E never asserted). Fix on request.
