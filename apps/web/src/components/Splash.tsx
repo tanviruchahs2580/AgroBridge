@@ -96,8 +96,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           <img src="/brand/logo-mark.png" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
         </div>
         <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
-        <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
-        <p className="mt-6 text-[13px] font-medium text-white/80">{statusFor(100, lang)}</p>
+        <p className="mt-1 text-xs font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
+        <p className="mt-6 text-sm font-medium text-white/80">{statusFor(100, lang)}</p>
       </div>
     );
   }
@@ -218,7 +218,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             <h1 className="text-[26px] font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
               {t("appName", lang)}
             </h1>
-            <p className="mt-1 text-[11px] font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
+            <p className="mt-1 text-xs font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
           </motion.div>
 
           {/* Status text */}
@@ -230,7 +230,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="text-center text-[13px] font-medium tracking-[0.01em] text-white/85"
+                className="text-center text-sm font-medium tracking-[0.01em] text-white/85"
               >
                 {status}
               </motion.p>

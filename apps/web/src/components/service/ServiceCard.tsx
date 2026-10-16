@@ -103,7 +103,7 @@ export function ServiceCard({
         {/* Category — distinct from title (fixes A3) */}
         <div className="flex items-center gap-2">
           <AgriIconBox category={category} size={32} withMotion={false} />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-link">{catLabel}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.06em] text-link">{catLabel}</p>
         </div>
 
         <h3 className="mt-1.5 line-clamp-1 text-balance text-base font-bold leading-6 text-stone-800">{title}</h3>
@@ -122,18 +122,18 @@ export function ServiceCard({
             {/* Honest meta — rating from real aggregation or explicit fallback, provider count (fixes A1, A4) */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {avg !== null ? (
-                <span className="inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
+                <span className="inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-inset ring-brand-100">
                   <Star className="h-3 w-3 fill-enterprise-warning text-enterprise-warning" aria-hidden />
                   {avg.toFixed(1)}
                   <span className="font-normal text-stone-600">({totals.count})</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-chip bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-600">
+                <span className="inline-flex items-center rounded-chip bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
                   {lang === "bn" ? "নতুন — এখনো রেটিং নেই" : "New — no ratings yet"}
                 </span>
               )}
               {providerCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-chip bg-stone-100 px-2.5 py-1 text-[11px] font-medium text-stone-600">
+                <span className="inline-flex items-center gap-1 rounded-chip bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
                   <Users className="h-3 w-3" aria-hidden />
                   {providerCount} {lang === "bn" ? "প্রদানকারী" : providerCount === 1 ? "provider" : "providers"}
                 </span>
@@ -147,7 +147,7 @@ export function ServiceCard({
           <button
             type="button"
             onClick={onDetails}
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-button border border-surface-border-strong bg-surface-card px-3 py-2.5 text-[13px] font-semibold text-stone-800 transition hover:border-stone-300 hover:bg-stone-100 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-button border border-surface-border-strong bg-surface-card px-3 py-2.5 text-sm font-semibold text-stone-800 transition hover:border-stone-300 hover:bg-stone-100 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
           >
             {t("viewDetails", lang)}
           </button>

@@ -4,12 +4,12 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
 import { formatBDT } from "../../lib/format";
-import { cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../../lib/labels";
+import { CROP_KEYS, cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Coins, Sprout } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, Stepper, useConfirm, useToast,
+  Badge, Button, Card, EmptyState, ErrorBanner, Field, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Stepper, useConfirm, useToast,
 } from "../../components/ui";
 
 interface ProcurementOrder {
@@ -23,10 +23,6 @@ interface ProcurementOrder {
 }
 
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
-const CROP_KEYS: Record<string, DictKey> = {
-  RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE",
-  MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
-};
 const PIPE_KEYS: Record<string, DictKey> = {
   SUBMITTED: "pipeSUBMITTED", QC: "pipeQC", PURCHASE_ORDER: "pipePO",
   COLLECTED: "pipeCOLLECTED", PAID: "pipePAID",
@@ -118,8 +114,8 @@ export default function SellCrop() {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Coins className="h-6 w-6 text-green-700" aria-hidden /> {t("sellCrop", lang)}</h1>
+    <div className="min-w-0 space-y-5">
+      <PageHeader icon={<Coins className="h-5 w-5" aria-hidden />} title={t("sellCrop", lang)} />
       {loadError && (
         <div className="space-y-2">
           <ErrorBanner message={loadError} />
@@ -129,37 +125,29 @@ export default function SellCrop() {
 
       <Card>
         <form onSubmit={submit} noValidate className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="of-farm">{t("farmLabel", lang)}</Label>
+          <Field label={t("farmLabel", lang)} htmlFor="of-farm" error={formErrs.farm} required>
             <Select id="of-farm" name="farm" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.farm; return n; })} aria-invalid={Boolean(formErrs.farm)} aria-describedby={formErrs.farm ? "of-farm-err" : undefined}>
               <option value="" disabled>{t("farmLabel", lang)}</option>
               {farms.map((f) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </Select>
-            {formErrs.farm && <p id="of-farm-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.farm}</p>}
-          </div>
-          <div>
-            <Label htmlFor="of-crop">{t("cropName", lang)}</Label>
+          </Field>
+          <Field label={t("cropName", lang)} htmlFor="of-crop" error={formErrs.crop} required>
             <Select id="of-crop" name="crop" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.crop; return n; })} aria-invalid={Boolean(formErrs.crop)} aria-describedby={formErrs.crop ? "of-crop-err" : undefined}>
               <option value="" disabled>{t("cropName", lang)}</option>
               {CROPS.map((c) => (
                 <option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>
               ))}
             </Select>
-            {formErrs.crop && <p id="of-crop-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.crop}</p>}
-          </div>
-          <div>
-            <Label htmlFor="of-qty">{t("quantityKg", lang)}</Label>
+          </Field>
+          <Field label={t("quantityKg", lang)} htmlFor="of-qty" error={formErrs.qty} required>
             <Input id="of-qty" name="qty" type="number" min="1" step="1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.qty; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v < 1) setFormErrs((prev) => ({ ...prev, qty: t("errAmountInvalid", lang) })); }} aria-invalid={Boolean(formErrs.qty)} aria-describedby={formErrs.qty ? "of-qty-err" : undefined} />
-            {formErrs.qty && <p id="of-qty-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.qty}</p>}
-          </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="of-moisture">{t("moisturePct", lang)}</Label>
+            <Field label={t("moisturePct", lang)} htmlFor="of-moisture" error={formErrs.moisture}>
               <Input id="of-moisture" name="moisture" type="number" min="0" max="60" step="0.5" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.moisture; return n; })} aria-invalid={Boolean(formErrs.moisture)} aria-describedby={formErrs.moisture ? "of-moisture-err" : undefined} />
-              {formErrs.moisture && <p id="of-moisture-err" role="alert" className="mt-1 text-xs text-danger-text">{formErrs.moisture}</p>}
-            </div>
+            </Field>
             <div>
               <Label htmlFor="of-grade">{t("qualityGrade", lang)}</Label>
               <Select id="of-grade" name="grade" defaultValue="A">
@@ -178,7 +166,7 @@ export default function SellCrop() {
         </form>
       </Card>
 
-      <h2 className="pt-2 font-semibold text-stone-700">{t("myOffers", lang)}</h2>
+      <SectionHeader title={t("myOffers", lang)} className="pt-2" />
       {loading ? (
         <Card><Skeleton className="h-16 w-full" /></Card>
       ) : orders.length === 0 ? (
@@ -196,8 +184,8 @@ export default function SellCrop() {
                       <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                     </div>
                     <div className="flex items-center gap-2 text-right">
-                      <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
-                      <Badge className="bg-red-100 text-red-700">{procurementStatusLabel(o.status, lang)}</Badge>
+                      <p className="font-bold text-stone-500">{formatBDT(o.netPayablePaisa, lang)}</p>
+                      <Badge tone="danger">{procurementStatusLabel(o.status, lang)}</Badge>
                     </div>
                   </div>
                 </Card>
@@ -212,7 +200,7 @@ export default function SellCrop() {
                     {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
                     <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                   </div>
-                  <p className="font-bold text-green-800">{formatBDT(o.netPayablePaisa, lang)}</p>
+                  <p className="font-bold text-accent">{formatBDT(o.netPayablePaisa, lang)}</p>
                 </div>
                 <Stepper
                   steps={PROC_PIPELINE.map((stage, i) => ({

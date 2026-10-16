@@ -116,7 +116,7 @@ export function AuthShell({
           <BrandMark />
           <div>
             <div className="text-base font-bold leading-none">{t("appName", lang)}</div>
-            <div className="mt-1 text-[11px] font-medium tracking-wide text-white/70">{t("authTagline", lang)}</div>
+            <div className="mt-1 text-xs font-medium tracking-wide text-white/70">{t("authTagline", lang)}</div>
           </div>
         </div>
 
@@ -155,7 +155,7 @@ export function AuthShell({
           <div className="mt-2.5 text-[22px] font-extrabold leading-none tracking-[-0.01em] drop-shadow-sm">
             {"AgroBridge"}
           </div>
-          <div className="mt-1.5 text-[11px] font-medium tracking-wide text-white/75">
+          <div className="mt-1.5 text-xs font-medium tracking-wide text-white/75">
             {t("authTagline", lang)}
           </div>
         </div>
@@ -178,7 +178,7 @@ export function AuthShell({
               </span>
               <div className="min-w-0">
                 <h1 className="text-xl font-extrabold tracking-[-0.01em] text-white md:text-stone-800">{title}</h1>
-                <p className="mt-0.5 text-[13px] text-white/75 md:text-stone-500">{subtitle}</p>
+                <p className="mt-0.5 text-sm text-white/75 md:text-stone-500">{subtitle}</p>
               </div>
             </header>
             {children}

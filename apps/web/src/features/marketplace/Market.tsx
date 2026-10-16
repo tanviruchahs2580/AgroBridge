@@ -9,7 +9,7 @@ import { mapError, BD_PHONE_RE } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Check, Inbox, MapPin, Package, Phone, ShieldCheck, ShoppingBasket, ShoppingCart, FlaskConical, Leaf, Sprout, Trash2, Wrench } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Skeleton, Stepper, useToast,
+  Badge, Button, Card, EmptyState, ErrorBanner, IconButton, Input, Label, Modal, PageHeader, Skeleton, Stepper, useToast,
 } from "../../components/ui";
 
 interface Product {
@@ -54,9 +54,9 @@ const SUCCESS_STEP = 4;
 /** Category → tinted icon tile (same visual grammar as ServiceCard's AgriIconBox). */
 const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
   SEED: { icon: Sprout, box: "bg-brand-50 text-brand-700 ring-brand-100" },
-  FERTILIZER: { icon: FlaskConical, box: "bg-orange-50 text-orange-600 ring-warning-border" },
+  FERTILIZER: { icon: FlaskConical, box: "bg-warning-bg text-warning-text ring-warning-border" },
   BIO_INPUT: { icon: Leaf, box: "bg-success-bg text-success-text ring-success-border" },
-  CROP_PROTECTION: { icon: ShieldCheck, box: "bg-sky-50 text-sky-600 ring-sky-200" },
+  CROP_PROTECTION: { icon: ShieldCheck, box: "bg-info-bg text-info-text ring-info-border" },
   EQUIPMENT: { icon: Wrench, box: "bg-warning-bg text-warning-text ring-warning-border" },
 };
 
@@ -273,18 +273,20 @@ export default function Market() {
   const subtotalPaisa = cart.reduce((s, i) => s + i.product.pricePaisa * i.qty, 0);
 
   return (
-    <div className="min-w-0 space-y-6 overflow-hidden px-2 sm:px-0">
-      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><ShoppingCart className="h-6 w-6 text-green-700" aria-hidden /> {t("market", lang)}</h1>
+    <div className="min-w-0 space-y-5">
+      <PageHeader icon={<ShoppingCart className="h-5 w-5" aria-hidden />} title={t("market", lang)} />
 
-      <div className="-mx-2 flex gap-2 overflow-x-auto whitespace-nowrap px-2 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:whitespace-normal sm:px-0">
+      <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 sm:flex-wrap sm:overflow-visible sm:whitespace-normal">
         {CATEGORY_FILTERS.map((c) => (
           <button
             key={c.value || "all"}
             type="button"
             onClick={() => setCategory(c.value)}
             aria-pressed={category === c.value}
-            className={`min-h-[44px] shrink-0 rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
-              category === c.value ? "bg-green-700 text-white" : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-green-50"
+            className={`min-h-[44px] shrink-0 rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${
+              category === c.value
+                ? "bg-action text-white shadow-sm"
+                : "bg-surface-card text-stone-600 ring-1 ring-surface-border-strong hover:bg-brand-50 hover:text-accent"
             }`}
           >
             {t(c.key, lang)}
@@ -326,7 +328,12 @@ export default function Market() {
           ))}
         </div>
       ) : products.length === 0 && !loadError ? (
-        <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noProducts", lang)} />
+        <EmptyState
+          icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />}
+          title={t("noProducts", lang)}
+          description={category ? t("marketNoProductsDesc", lang) : undefined}
+          action={category ? <Button variant="outline" onClick={() => setCategory("")}>{t("catAll", lang)}</Button> : undefined}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ contentVisibility: "auto", containIntrinsicSize: "0 500px" }}>
           {products.map((p, i) => {
@@ -339,13 +346,13 @@ export default function Market() {
                     <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox ring-1 ring-inset ${cat.box}`}>
                       <Icon className="h-5 w-5" />
                     </span>
-                    <Badge className="shrink-0 bg-stone-100 text-stone-500">{categoryLabel(p.category, lang)}</Badge>
+                    <Badge tone="outline" className="shrink-0">{categoryLabel(p.category, lang)}</Badge>
                   </div>
                   <h3 className="break-words text-sm font-bold leading-snug text-stone-800 [overflow-wrap:anywhere]">{p.name}</h3>
-                  <p className="mt-1.5 text-lg font-bold tabular-nums text-green-800">
+                  <p className="mt-1.5 text-lg font-bold tabular-nums text-accent">
                     {formatBDT(p.pricePaisa, lang)} <span className="text-xs font-normal text-stone-500">/ {p.unit}</span>
                   </p>
-                  <p className={`mt-0.5 text-[11px] ${p.stockQty > 0 ? "text-stone-500" : "font-semibold text-danger-text"}`}>
+                  <p className={`mt-0.5 text-xs ${p.stockQty > 0 ? "text-stone-500" : "font-semibold text-danger-text"}`}>
                     {p.stockQty > 0 ? t("stockLeft", lang, { n: p.stockQty }) : t("outOfStock", lang)}
                   </p>
                 </div>
@@ -361,7 +368,7 @@ export default function Market() {
       {/* Sticky cart bar: safe-area aware, clears the mobile BottomNav */}
       {cart.length > 0 && !wizardOpen && (
         <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 md:bottom-[calc(1rem+env(safe-area-inset-bottom))]">
-          <Card className="flex items-center justify-between gap-3 border-green-200 ring-1 ring-green-100">
+          <Card className="flex items-center justify-between gap-3 border-brand-200 ring-1 ring-brand-100">
             <p aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-stone-700">
               <ShoppingBasket className="mr-1 inline h-5 w-5" aria-hidden /> {t("cartItemsCount", lang, { n: cart.length })} · {formatBDT(subtotalPaisa, lang)}
             </p>
@@ -399,35 +406,23 @@ export default function Market() {
                           <p className="text-xs text-stone-500">{formatBDT(item.product.pricePaisa, lang)}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={t("decrQty", lang)}
-                            disabled={cartBusyIds.has(item.id)}
-                            onClick={() => void changeQty(item, -1)}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-stone-300 text-base font-bold text-stone-600 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-40"
-                          >
+                          <IconButton variant="outline" label={t("decrQty", lang)} disabled={cartBusyIds.has(item.id)} onClick={() => void changeQty(item, -1)}>
                             −
-                          </button>
+                          </IconButton>
                           <span className="w-8 text-center text-sm font-bold">{item.qty}</span>
-                          <button
-                            type="button"
-                            aria-label={t("incrQty", lang)}
-                            disabled={cartBusyIds.has(item.id)}
-                            onClick={() => void changeQty(item, 1)}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-stone-300 text-base font-bold text-stone-600 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-40"
-                          >
+                          <IconButton variant="outline" label={t("incrQty", lang)} disabled={cartBusyIds.has(item.id)} onClick={() => void changeQty(item, 1)}>
                             +
-                          </button>
+                          </IconButton>
                         </div>
-                        <button
-                          type="button"
-                          aria-label={`${t("removeItem", lang)} — ${item.product.name}`}
+                        <IconButton
+                          variant="ghost"
+                          label={`${t("removeItem", lang)} — ${item.product.name}`}
                           disabled={cartBusyIds.has(item.id)}
                           onClick={() => void removeLine(item)}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-40"
+                          className="text-danger-text hover:bg-danger-bg"
                         >
                           <Trash2 className="h-5 w-5" aria-hidden />
-                        </button>
+                        </IconButton>
                       </li>
                     ))}
                   </ul>
@@ -526,7 +521,7 @@ export default function Market() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-stone-600">{t("orderDiscount", lang)}</dt>
-                  <dd className="font-medium text-green-700">−{formatBDT(order.discountPaisa, lang)}</dd>
+                  <dd className="font-medium text-success-text">−{formatBDT(order.discountPaisa, lang)}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-stone-600">{t("orderDeliveryFee", lang)}</dt>
@@ -534,7 +529,7 @@ export default function Market() {
                 </div>
                 <div className="flex justify-between border-t border-stone-200 pt-1.5 text-base">
                   <dt className="font-bold">{t("netPayable", lang)}</dt>
-                  <dd className="font-bold text-green-800">{formatBDT(order.totalPaisa, lang)}</dd>
+                  <dd className="font-bold text-stone-800">{formatBDT(order.totalPaisa, lang)}</dd>
                 </div>
               </dl>
               {!paid && (
@@ -542,7 +537,7 @@ export default function Market() {
                   {t("payNow", lang)}
                 </Button>
               )}
-              <p className="text-[11px] leading-relaxed text-stone-500">{t("sandboxPaymentNote", lang)}</p>
+              <p className="text-xs leading-relaxed text-stone-500">{t("sandboxPaymentNote", lang)}</p>
               <Button variant="ghost" className="w-full" onClick={closeWizard}>{t("close", lang)}</Button>
             </div>
           )}
@@ -550,18 +545,14 @@ export default function Market() {
           {/* Step 4: success */}
           {step === SUCCESS_STEP && order && (
             <div className="space-y-3 py-2 text-center">
-              {paid ? <Check className="mx-auto h-10 w-10 text-green-600" aria-hidden /> : <Package className="mx-auto h-10 w-10 text-stone-400" aria-hidden />}
-              <h3 className="text-base font-bold text-green-800">
+              {paid ? <Check className="mx-auto h-10 w-10 text-success-text" aria-hidden /> : <Package className="mx-auto h-10 w-10 text-stone-400" aria-hidden />}
+              <h3 className="text-base font-bold text-success-text">
                 {paid ? t("paymentSuccessTitle", lang) : t("checkoutOrderPlaced", lang)}
               </h3>
               <p className="break-all text-sm text-stone-600 [overflow-wrap:anywhere]">{t("checkoutOrderNo", lang, { no: order.orderNo })}</p>
               {!paid && <p className="text-xs text-stone-500">{t("paymentPendingNote", lang)}</p>}
               <p className="text-sm font-bold text-stone-700">{t("netPayable", lang)}: {formatBDT(order.totalPaisa, lang)}</p>
               <Button className="w-full" onClick={closeWizard}>{t("done", lang)}</Button>
-              {/* Accessibility fallback: close on Escape is handled by Modal; this redundant button ensures clickability even if z-index overlay occurs */}
-              <button type="button" className="mt-1 inline-flex w-full items-center justify-center rounded-lg border border-green-700 px-4 py-2.5 text-sm font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600" onClick={closeWizard}>
-                {t("checkoutStepSuccess", lang)}
-              </button>
             </div>
           )}
         </Modal>

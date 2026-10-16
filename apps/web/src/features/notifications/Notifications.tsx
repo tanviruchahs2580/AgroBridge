@@ -9,7 +9,7 @@ import { mapError } from "../../lib/errors-ui";
 import { notifCategoryLabel } from "../../lib/labels";
 import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Package, Settings, Sprout, Tractor } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Label, Skeleton, useToast,
+  Badge, Button, Card, EmptyState, ErrorBanner, Label, PageHeader, Skeleton, useToast,
 } from "../../components/ui";
 
 interface Notification {
@@ -40,6 +40,28 @@ const TYPE_ICONS: Record<string, ReactNode> = {
 };
 
 type TabKey = "ALL" | "CRITICAL" | "ACTION" | "INFO";
+
+/** Toggle switch (3 prefs share one pattern); keeps the native role=switch semantics. */
+function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onToggle}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${
+        checked ? "bg-action" : "bg-stone-300"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${checked ? "left-[22px]" : "left-0.5"}`}
+      />
+    </button>
+  );
+}
 
 const TABS: { id: TabKey; key: DictKey }[] = [
   { id: "ALL", key: "tabAll" },
@@ -139,22 +161,27 @@ export default function Notifications() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800">
-          <Bell className="h-6 w-6 text-green-700" aria-hidden /> {t("notifications", lang)}{" "}
-          {unread > 0 && <Badge aria-live="polite" aria-atomic="true" aria-label={`${unread} ${lang === "bn" ? "টি অপঠিত নোটিফিকেশন" : "unread notifications"}`} className="bg-red-100 text-red-700">{unread}<span className="sr-only"> {lang === "bn" ? "টি অপঠিত নোটিফিকেশন" : "unread notifications"}</span></Badge>}
-        </h1>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" aria-expanded={prefsOpen} onClick={() => setPrefsOpen((v) => !v)}>
-            <Settings className="mr-1 inline h-4 w-4" aria-hidden /> {t("prefsTitle", lang)}
-          </Button>
-          {unread > 0 && (
-            <Button variant="outline" size="sm" loading={markingAll} onClick={() => void markAll()}>
-              <Check className="mr-1 inline h-4 w-4" aria-hidden /> {t("markAllRead", lang)}
+      <PageHeader
+        icon={<Bell className="h-5 w-5" aria-hidden />}
+        title={t("notifications", lang)}
+        action={
+          <div className="flex items-center gap-2">
+            {unread > 0 && (
+              <Badge tone="danger" aria-live="polite" aria-atomic="true" aria-label={`${unread} ${t("notifUnreadSr", lang)}`}>
+                {unread}<span className="sr-only"> {t("notifUnreadSr", lang)}</span>
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" aria-expanded={prefsOpen} onClick={() => setPrefsOpen((v) => !v)}>
+              <Settings className="mr-1 inline h-4 w-4" aria-hidden /> {t("prefsTitle", lang)}
             </Button>
-          )}
-        </div>
-      </div>
+            {unread > 0 && (
+              <Button variant="outline" size="sm" loading={markingAll} onClick={() => void markAll()}>
+                <Check className="mr-1 inline h-4 w-4" aria-hidden /> {t("markAllRead", lang)}
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {/* Category filter chips with counts from response meta.
           Buttons + aria-pressed (not role=tab): these filter one list, there is
@@ -176,8 +203,8 @@ export default function Notifications() {
             >
               {t(tb.key, lang)}
               {count !== null && count > 0 && (
-                <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/20" : "bg-red-100 text-red-700"}`}>
-                  {count}<span className="sr-only"> {lang === "bn" ? "টি নোটিফিকেশন" : "notifications"}</span>
+                <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-bold ${active ? "bg-white/20" : "bg-danger-bg text-danger-text"}`}>
+                  {count}<span className="sr-only"> {t("notifCountSr", lang)}</span>
                 </span>
               )}
             </button>
@@ -200,22 +227,7 @@ export default function Notifications() {
                   <Label className="!mb-0 flex-1 cursor-pointer text-sm" htmlFor={`pref-${key}`}>
                     {t(labelKey, lang)}
                   </Label>
-                  <button
-                    type="button"
-                    id={`pref-${key}`}
-                    role="switch"
-                    aria-checked={prefs[key]}
-                    aria-label={t(labelKey, lang)}
-                    onClick={() => void togglePref(key)}
-                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
-                      prefs[key] ? "bg-action" : "bg-stone-300"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${prefs[key] ? "left-[22px]" : "left-0.5"}`}
-                    />
-                  </button>
+                  <ToggleSwitch id={`pref-${key}`} label={t(labelKey, lang)} checked={prefs[key]} onToggle={() => void togglePref(key)} />
                 </div>
               ))}
             </div>
@@ -244,19 +256,19 @@ export default function Notifications() {
       ) : (
         <div className="space-y-2">
           {items.map((n) => (
-            <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-green-200 bg-green-50" : ""}`}>
+            <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-brand-200 bg-brand-50" : ""}`}>
               <span className="flex items-center text-stone-500" aria-hidden>{TYPE_ICONS[n.type] ?? <Megaphone className="h-5 w-5" aria-hidden />}</span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-stone-800">
                   {n.title}
                   {n.category && n.category !== "INFO" && (
-                    <Badge className={`ml-2 align-middle ${n.category === "CRITICAL" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-900"}`}>
+                    <Badge tone={n.category === "CRITICAL" ? "danger" : "warning"} className="ml-2 align-middle">
                       {notifCategoryLabel(n.category, lang)}
                     </Badge>
                   )}
                 </p>
                 <p className="text-xs text-stone-600">{n.body}</p>
-                <p className="mt-1 text-[10px] text-stone-500">{formatDateTime(n.createdAt, lang)}</p>
+                <p className="mt-1 text-xs text-stone-500">{formatDateTime(n.createdAt, lang)}</p>
               </div>
             </Card>
           ))}

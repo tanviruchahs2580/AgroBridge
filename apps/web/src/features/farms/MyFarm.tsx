@@ -136,8 +136,8 @@ export default function MyFarm() {
                   return (
                     <div key={c.id} className="mt-3 flex items-center gap-2 rounded-xl bg-surface-card px-3 py-2 shadow-sm">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-4 w-4" /></span>
-                      <div className="min-w-0"><p className="text-[13px] font-semibold text-stone-800">{cropLabel(c.cropName, lang)} • {stageLabel(c.stage, lang)}</p><p className="text-[11px] text-stone-600">{new Date(c.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")} • {care.task}</p></div>
-                      <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-[11px] font-semibold ${careColor(care.tone)}`}>{care.label}</span>
+                      <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{cropLabel(c.cropName, lang)} • {stageLabel(c.stage, lang)}</p><p className="text-xs text-stone-600">{new Date(c.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")} • {care.task}</p></div>
+                      <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-xs font-semibold ${careColor(care.tone)}`}>{care.label}</span>
                     </div>
                   );
                 }) : <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>}
@@ -147,8 +147,8 @@ export default function MyFarm() {
             ))}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/services" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-button border border-brand-200 bg-brand-50 px-4 py-2 text-[13px] font-semibold text-accent hover:bg-brand-100"><Wrench className="h-4 w-4" /> {lang==="bn"?"হারভেস্টার দেখুন":"View harvester"}</Link>
-            <Link to="/market" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-button border border-surface-border-strong bg-surface-card px-4 py-2 text-[13px] font-semibold text-stone-800 hover:bg-stone-100"><ShoppingBag className="h-4 w-4" /> {lang==="bn"?"ইনপুট দেখুন":"View inputs"}</Link>
+            <Link to="/services" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-button border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-accent hover:bg-brand-100"><Wrench className="h-4 w-4" /> {lang==="bn"?"হারভেস্টার দেখুন":"View harvester"}</Link>
+            <Link to="/market" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-button border border-surface-border-strong bg-surface-card px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100"><ShoppingBag className="h-4 w-4" /> {lang==="bn"?"ইনপুট দেখুন":"View inputs"}</Link>
           </div>
         </div>
       </div>
@@ -196,7 +196,7 @@ export default function MyFarm() {
                   <p className="mt-0.5 text-sm font-semibold text-stone-800">{task.care.task}</p>
                   <p className="text-xs text-stone-600">{task.care.label} • {stageLabel(task.stage, lang)} • {new Date(task.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")}</p>
                 </div>
-                <span className={`shrink-0 rounded-chip border px-2 py-1 text-[11px] font-bold ${careColor(task.care.tone)}`}>{task.care.label}</span>
+                <span className={`shrink-0 rounded-chip border px-2 py-1 text-xs font-bold ${careColor(task.care.tone)}`}>{task.care.label}</span>
               </Card>
             ))}
           </div>
@@ -207,11 +207,11 @@ export default function MyFarm() {
       {!loading && farms.length > 0 && (
         <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
           <h2 className="text-base font-bold text-stone-800">{lang==="bn"?"আগামীকাল ও আসন্ন":"Tomorrow & upcoming"}</h2>
-          <p className="mt-1 text-[13px] text-stone-600">{lang==="bn"?"আগামীকালের কাজ ও পরবর্তী মাইলস্টোন দেখুন।":"See tomorrow's work and next milestones."}</p>
+          <p className="mt-1 text-sm text-stone-600">{lang==="bn"?"আগামীকালের কাজ ও পরবর্তী মাইলস্টোন দেখুন।":"See tomorrow's work and next milestones."}</p>
           <div className="mt-3 space-y-2">
             {farms.flatMap((f)=>f.plots.flatMap((p)=>p.cropCycles)).slice(0,2).map((c)=> (
               <div key={c.id} className="flex items-center justify-between rounded-xl bg-surface-subdued px-3 py-2">
-                <span className="text-[13px] font-medium text-stone-800">{cropLabel(c.cropName, lang)} — {stageLabel(c.stage, lang)}</span>
+                <span className="text-sm font-medium text-stone-800">{cropLabel(c.cropName, lang)} — {stageLabel(c.stage, lang)}</span>
                 <span className="text-xs text-stone-600">{new Date(c.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")}</span>
               </div>
             ))}
@@ -224,8 +224,8 @@ export default function MyFarm() {
       {!loading && farms.length > 0 && (
         <section className="rounded-card border border-indigo-100 bg-enterprise-ai-light p-5 shadow-card">
           <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><Bot className="h-5 w-5 text-enterprise-ai" /> {lang==="bn"?"আমার ফার্ম AI":"My Farm AI"}</h2>
-          <p className="mt-2 text-[13px] leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
-          <p className="mt-2 text-[11px] text-stone-500">{lang==="bn"?"পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।":"Stage-based suggestion — guidance, not an expert diagnosis."}</p>
+          <p className="mt-2 text-sm leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
+          <p className="mt-2 text-xs text-stone-500">{lang==="bn"?"পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।":"Stage-based suggestion — guidance, not an expert diagnosis."}</p>
           {weather?.risks?.[0] && <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {lang==="bn"?weather.risks[0].titleBn:weather.risks[0].titleEn}</p>}
         </section>
       )}
@@ -254,7 +254,7 @@ export default function MyFarm() {
                       <h3 className="text-base font-bold text-stone-800">{farm.name}</h3>
                       <p className="text-xs text-stone-600">{[farm.district, farm.totalAreaBigha ? `${farm.totalAreaBigha} ${t("bighaShort", lang)}` : null].filter(Boolean).join(" · ")}</p>
                     </div>
-                    <span className={`shrink-0 rounded-chip border px-2.5 py-1 text-[11px] font-bold ${activeCrops>0?"bg-success-bg text-success-text border-success-border":"bg-warning-bg text-warning-text border-warning-border"}`}>{activeCrops>0? (lang==="bn"?"সচল":"Active") : (lang==="bn"?"নজর দিন":"Needs attention")}</span>
+                    <span className={`shrink-0 rounded-chip border px-2.5 py-1 text-xs font-bold ${activeCrops>0?"bg-success-bg text-success-text border-success-border":"bg-warning-bg text-warning-text border-warning-border"}`}>{activeCrops>0? (lang==="bn"?"সচল":"Active") : (lang==="bn"?"নজর দিন":"Needs attention")}</span>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><MapPin className="h-3 w-3" /> {farm.plots.length} {lang==="bn"?"প্লট":"plots"}</span>

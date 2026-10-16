@@ -257,3 +257,48 @@ unwanted. Fixed:
   identified via /health + port and terminated. Misclick on an npx wrapper of
   an UNRELATED project's `next start :3117` killed only its wrapper — that
   server itself kept running (verified still LISTENING on 3117).
+
+## 2026-10-16 — UI Excellence round 8 (design-system consolidation, features locked)
+
+Owner ask: প্রম্পটের UI enhancement এখনো দেখা যায়নি — rounds 4–7 ছিল targeted fix; এই
+রাউন্ডে master prompt-এর actual visual modernization কার্যকর হলো (plan approved).
+
+**Phase A (shared)**: type-scale spelling — text-[13px]/[11px] → text-sm/text-xs (≈81
+occurrences, identical px mapped in tailwind.config, দৃশ্যত zero change); duplicated
+--gradient-* single-sourced (index.css-এর light defaults → tokens.css; dark.css untouched,
+দুই থিমেই live values হুবহু); Card-এ typed `padded={false}` prop (`!p-0` hack replace);
+StatTile-এ danger tone.
+
+**Phase B (7 routes)** — PageHeader/SectionHeader/StatTile/Badge-tone/IconButton/c统一 chip
+pattern adoption; raw bg-green-100/red-100/amber-100 combos → semantic tone API:
+- Market: qty steppers/delete → IconButton (44px, token focus ring); price/discount/total →
+  accent/success/stone; double "Done" CTA বাদ (duplicated z-index workaround — E2E T6/T7 প্রমাণ);
+  dark-mode চিপ বাগ ফিক্স (bg-white → bg-surface-card); no-products EmptyState-এ desc+clear-action.
+- Wallet: balance hero card রেখে ৩টা summary tile → StatTile (success/danger/warning tones);
+  ledger/withdrawal badges → tones; text-[10px] mono IDs → text-xs; Card padded={false}.
+- Advisor: upload label → Button-outline token classes; bubbles brand-700/surface-subdued;
+  busy-তে Spinner; খালি চ্যাটে compact empty block; fixed h-[280px] box বাদ (layout jump ঠেকাতে)।
+- Notifications: count/category badges → tones; unread tint tokenized; ৩টা switch এক
+  ToggleSwitch প্যাটার্নে; aria sr- strings dictionary-তে (notifUnreadSr/notifCountSr)।
+- Services: hero bg-white → surface-card + raw orange/sky → warning/info tokens; ৩৯টা
+  arbitrary ফন্ট → scale; booking custom sheet → shared Modal (focus-trap + scroll-lock +
+  inert — আগে দুটোই নেই ছিল, a11y দুর্বলতা); <a href="/farm"> → SPA Link; "My bookings"-এ hero
+  jump-link (DOM order unchanged — নামাইনি); dialog-এ price+label line (raw enum নয়)।
+- SellCrop: headers; local CROP_KEYS বাদ — labels.ts-এর এক-সোর্স export; ৪টা repeated error<p>
+  → Field; REJECTED card-এর সবুজ bold দাম muted; active price → accent।
+- Admin: ৯ metric card → StatTile (tone variety); role/status badges → tones; !text-xs inputs
+  → !text-sm (বাংলা legibility); ৪টা bare "—" empty → "কোনো এন্ট্রি নেই।"; breadcrumb Home/Admin
+  → t() (Link SPA); audit/analytics লম্বা নামের রো min-w-0 + break-words।
+
+**Feature lock**: কোনো API/flow/permission/copy বদল নেই; dict-এ শুধু additive keys
+(marketNoProductsDesc, notifUnreadSr/notifCountSr, adminNoEntries — admin key আগেই ছিল)।
+রাউন্ডে পাওয়া যোগসূত্র: Market/Wallet-এর px-2 wrapper, Services hero bg-white, Market chips
+bg-white — প্রতিটাই dark-mode-এ ভাঙা contrast ছিল, এবার ঠিক।
+
+**Gates**: web vitest 108/108 PASS; tsc+eslint clean; **Playwright E2E 20/20 --workers=1**
+(T6 checkout+single Done, axe a11y zero critical/serious, offline, splash, admin-guard);
+web build PASS (Services chunk 32→30.3 kB, index 439.7→442.1 kB gzip 140.3→140.8 kB);
+manual: Services booking journey (modal→POST→BOOKING notification→list row) এবং Market/
+Services উভয় থিমে ভিজ্যুয়াল পাস। Evidence: docs/ux-renovation-2026-09-14/ before(wip-*)/
+after sets + apps/qa-screenshots। a11y.spec.ts-এর দুই class-exclusion অপরিবর্তিত (contrast
+fix ছাড়া বাদ দেওয়া যায়নি — জানানো হলো)।

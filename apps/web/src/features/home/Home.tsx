@@ -120,7 +120,7 @@ export default function Home() {
         <h1 className="text-[17px] font-bold leading-tight tracking-tight text-stone-800 sm:text-xl">
           {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
-        <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-stone-600">
+        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-stone-600">
           <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-surface-border bg-surface-card">
             <Calendar className="h-3 w-3 text-stone-500" />
           </span>
@@ -149,22 +149,22 @@ export default function Home() {
         <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-300)", opacity: 0.12 }} />
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
+            <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
               <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> {t("healthScore", lang)}
             </p>
             <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
               {hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
             </h2>
-            <p className="mt-1 max-w-[36ch] text-[13px] leading-relaxed text-white/85">
+            <p className="mt-1 max-w-[36ch] text-sm leading-relaxed text-white/85">
               {hasRisk ? t("aiFarmAttentionSub", lang) : t("aiFarmHealthySub", lang)}
             </p>
-            <Link to="/farm" className="mt-3 inline-flex min-h-[36px] items-center rounded-button bg-white px-3.5 py-1.5 text-[13px] font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <Link to="/farm" className="mt-3 inline-flex min-h-[36px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
             </Link>
           </div>
           <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
             <HealthRing score={healthScore} />
-            <span className="text-[11px] font-medium tracking-wide text-white/85">{healthScore}% • {t("activeLabel", lang)}</span>
+            <span className="text-xs font-medium tracking-wide text-white/85">{healthScore}% • {t("activeLabel", lang)}</span>
           </div>
         </div>
       </section>
@@ -180,7 +180,7 @@ export default function Home() {
               </span>
               <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
             </div>
-            <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
+            <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-xs font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
               {Object.values(tasks).filter(Boolean).length}/{TASK_KEYS.length}
             </span>
           </div>
@@ -193,13 +193,13 @@ export default function Home() {
                     <button type="button" role="checkbox" aria-checked={checked} aria-label={t(task.key, lang)} onClick={() => setTasks((p) => ({ ...p, [task.id]: !p[task.id] }))} className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${checked ? "border-action bg-action text-white" : "border-surface-border-strong bg-surface-card"}`}>
                       {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>}
                     </button>
-                    <span className={`min-w-0 flex-1 text-[13px] leading-tight ${checked ? "font-medium text-success-text line-through decoration-success-border" : "text-stone-700"}`}>{t(task.key, lang)}</span>
+                    <span className={`min-w-0 flex-1 text-sm leading-tight ${checked ? "font-medium text-success-text line-through decoration-success-border" : "text-stone-700"}`}>{t(task.key, lang)}</span>
                   </li>
                 );
               })}
             </ul>
           </div>
-          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
+          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-sm font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
             {t("viewAllTasks", lang)} <span aria-hidden>→</span>
           </Link>
         </div>
@@ -219,17 +219,17 @@ export default function Home() {
                 <div className="relative mt-2 flex items-end justify-between gap-2">
                   <div>
                     <div className="flex items-baseline gap-0.5"><span className="text-display font-extrabold leading-none tracking-tight text-stone-800 tabular-nums">{weather.current.tempC}°</span></div>
-                    <p className="mt-1 text-[13px] text-stone-600">{weatherConditionLabel(weather.current.condition, lang)}</p>
+                    <p className="mt-1 text-sm text-stone-600">{weatherConditionLabel(weather.current.condition, lang)}</p>
                   </div>
                 </div>
                 <div className="relative mt-4 grid grid-cols-2 gap-2">
                   <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
                     <Droplets aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
-                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-[11px] font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-[13px] font-bold tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
+                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
                   </span>
                   <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
                     <Wind aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
-                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-[11px] font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-[13px] font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
+                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
                 </div>
               </>
@@ -239,7 +239,7 @@ export default function Home() {
             <Leaf aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${hasRisk ? "text-warning-text" : "text-stone-500"}`} />
             <div className="min-w-0">
               <p className={`text-xs font-bold leading-tight ${hasRisk ? "text-warning-text" : "text-stone-700"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)}</p>
-              <p className="text-[11px] leading-tight text-stone-600">{weather && hasRisk ? (weatherRiskActionLabel(weather.risks[0].type, lang) ?? t("regularFarmVisit", lang)) : t("regularFarmVisit", lang)}</p>
+              <p className="text-xs leading-tight text-stone-600">{weather && hasRisk ? (weatherRiskActionLabel(weather.risks[0].type, lang) ?? t("regularFarmVisit", lang)) : t("regularFarmVisit", lang)}</p>
             </div>
           </div>
         </div>
@@ -256,7 +256,7 @@ export default function Home() {
                 <RiceEarMedallion size={72} />
                 <div className="min-w-0 text-left">
                   <p className="text-base font-extrabold leading-tight text-accent">{primaryCrop.cropName}</p>
-                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
+                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-accent ring-1 ring-inset ring-brand-100">
                     <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
                     {stageLabel(primaryCrop.stage, lang)}
                   </span>
@@ -265,12 +265,12 @@ export default function Home() {
             ) : (
               <div className="flex flex-col items-center gap-2 text-center">
                 <RiceEarMedallion size={56} />
-                <p className="text-[13px] font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
-                <p className="text-[11px] leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
+                <p className="text-sm font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
+                <p className="text-xs leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
               </div>
             )}
           </div>
-          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
+          <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-sm font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
         </div>
 
       </section>
@@ -279,11 +279,11 @@ export default function Home() {
       <section className="animate-enterprise rounded-card border border-indigo-100 bg-enterprise-ai-light p-4 shadow-card" style={{ animationDelay: "180ms" } as React.CSSProperties}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-chip bg-enterprise-ai px-2.5 py-1 text-[11px] font-bold tracking-wide text-white">
+            <p className="inline-flex items-center gap-1.5 rounded-chip bg-enterprise-ai px-2.5 py-1 text-xs font-bold tracking-wide text-white">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden /> AI • AgroBridge
             </p>
             <h2 className="mt-2 text-base font-extrabold text-stone-800">{t("aiAskTitle", lang)}</h2>
-            <p className="text-[13px] text-stone-600">{t("aiAskSubtitle", lang)}</p>
+            <p className="text-sm text-stone-600">{t("aiAskSubtitle", lang)}</p>
           </div>
           <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
             {t("askNow", lang)} <span aria-hidden className="ml-1">→</span>
@@ -304,20 +304,20 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Link to="/advisor" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100" aria-hidden><Bot className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-[13px] font-bold leading-tight text-stone-800">{t("aiAgent", lang)}</span><span className="block text-[11px] leading-tight text-stone-600">{t("quickAiSub", lang)}</span></span>
+            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("aiAgent", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickAiSub", lang)}</span></span>
           </Link>
           <Link to="/services" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100" aria-hidden><Tractor className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-[13px] font-bold leading-tight text-stone-800">{t("services", lang)}</span><span className="block text-[11px] leading-tight text-stone-600">{t("quickServiceSub", lang)}</span></span>
+            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("services", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickServiceSub", lang)}</span></span>
           </Link>
           <Link to="/sell" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-enterprise-ai-light text-enterprise-ai ring-1 ring-inset ring-indigo-100" aria-hidden><Coins className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-[13px] font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span><span className="block text-[11px] leading-tight text-stone-600">{t("quickSellSub", lang)}</span></span>
+            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickSellSub", lang)}</span></span>
           </Link>
           <Link to="/notifications" className="relative flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-danger-bg text-danger-text ring-1 ring-inset ring-danger-border" aria-hidden><Bell className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-[13px] font-bold leading-tight text-stone-800">{t("notifications", lang)}</span><span className="block text-[11px] leading-tight text-stone-600">{t("quickNotifSub", lang)}</span></span>
-            {unread > 0 && <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-danger-text text-[11px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("notifications", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickNotifSub", lang)}</span></span>
+            {unread > 0 && <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-danger-text text-xs font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
           </Link>
         </div>
       </section>

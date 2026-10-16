@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Banknote, BarChart3, ScrollText, ShieldCheck, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Banknote, Bot, ClipboardList, Clock3, Home as HomeIcon, Package, ShieldCheck, Sprout, UserCheck, Users } from "lucide-react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -8,7 +9,7 @@ import { formatBDT, formatDateTime } from "../../lib/format";
 import { channelLabel, roleLabel, userStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, Skeleton, useConfirm, useToast,
+  Badge, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, SectionHeader, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
 
 interface Metrics {
@@ -196,28 +197,28 @@ export default function AdminPanel() {
     );
   }
 
-  const cards: { labelKey: DictKey; value: string }[] = metrics
+  const cards: { labelKey: DictKey; value: string; icon: React.ReactNode; tone: "brand" | "sky" | "ai" | "warning" | "success" }[] = metrics
     ? [
-        { labelKey: "farmers", value: String(metrics.farmers) },
-        { labelKey: "metricActiveFarmers", value: String(metrics.activeFarmers) },
-        { labelKey: "farms", value: String(metrics.farms) },
-        { labelKey: "metricActiveCrops", value: String(metrics.activeCrops) },
-        { labelKey: "orders", value: String(metrics.orders) },
-        { labelKey: "bookings", value: String(metrics.bookings) },
-        { labelKey: "metricPendingProcurement", value: String(metrics.pendingProcurement) },
-        { labelKey: "revenue", value: formatBDT(metrics.revenuePaisa, lang) },
-        { labelKey: "metricAiQueries", value: String(metrics.aiAdvisoryQueries) },
+        { labelKey: "farmers", value: String(metrics.farmers), icon: <Users className="h-5 w-5" aria-hidden />, tone: "brand" },
+        { labelKey: "metricActiveFarmers", value: String(metrics.activeFarmers), icon: <UserCheck className="h-5 w-5" aria-hidden />, tone: "success" },
+        { labelKey: "farms", value: String(metrics.farms), icon: <HomeIcon className="h-5 w-5" aria-hidden />, tone: "brand" },
+        { labelKey: "metricActiveCrops", value: String(metrics.activeCrops), icon: <Sprout className="h-5 w-5" aria-hidden />, tone: "success" },
+        { labelKey: "orders", value: String(metrics.orders), icon: <Package className="h-5 w-5" aria-hidden />, tone: "sky" },
+        { labelKey: "bookings", value: String(metrics.bookings), icon: <ClipboardList className="h-5 w-5" aria-hidden />, tone: "sky" },
+        { labelKey: "metricPendingProcurement", value: String(metrics.pendingProcurement), icon: <Clock3 className="h-5 w-5" aria-hidden />, tone: "warning" },
+        { labelKey: "revenue", value: formatBDT(metrics.revenuePaisa, lang), icon: <Banknote className="h-5 w-5" aria-hidden />, tone: "success" },
+        { labelKey: "metricAiQueries", value: String(metrics.aiAdvisoryQueries), icon: <Bot className="h-5 w-5" aria-hidden />, tone: "ai" },
       ]
     : [];
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <nav aria-label="Breadcrumb" className="text-sm text-stone-600">
         <ol className="flex items-center gap-1">
-          <li><a href="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">Home</a> / Admin</li>
+          <li><Link to="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("home", lang)}</Link> / {t("admin", lang)}</li>
         </ol>
       </nav>
-      <h1 className="text-xl font-bold text-stone-800"><ShieldCheck className="h-6 w-6 text-brand-700" aria-hidden /> {t("adminControlTower", lang)}</h1>
+      <PageHeader icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title={t("adminControlTower", lang)} />
 
       {loadError && (
         <div className="space-y-2">
@@ -235,10 +236,7 @@ export default function AdminPanel() {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {cards.map((c) => (
-            <Card key={c.labelKey} className="!p-3">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t(c.labelKey, lang)}</p>
-              <p className="mt-0.5 truncate text-lg font-bold text-green-800">{c.value}</p>
-            </Card>
+            <StatTile key={c.labelKey} icon={c.icon} tone={c.tone} value={c.value} label={t(c.labelKey, lang)} />
           ))}
         </div>
       )}
@@ -246,12 +244,12 @@ export default function AdminPanel() {
       {/* Users */}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-stone-700"><Users className="h-5 w-5 text-brand-700" aria-hidden /> {t("users", lang)}</h2>
+          <SectionHeader title={t("users", lang)} className="mb-0" />
           <Input
             type="search"
             aria-label={t("searchUsersAria", lang)}
             placeholder={t("searchPh", lang)}
-            className="!w-52 !py-1.5 !text-xs"
+            className="!w-52 !py-1.5 !text-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -260,7 +258,7 @@ export default function AdminPanel() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-stone-200 text-[11px] uppercase text-stone-500">
+              <tr className="border-b border-stone-200 text-xs uppercase text-stone-500">
                 <th className="px-2 py-2">{t("thName", lang)}</th>
                 <th className="px-2 py-2">{t("thPhone", lang)}</th>
                 <th className="px-2 py-2">{t("thRole", lang)}</th>
@@ -282,10 +280,10 @@ export default function AdminPanel() {
                 <tr key={u.id} className="border-b border-stone-100 hover:bg-stone-50">
                   <td className="px-2 py-2 font-medium">{u.fullName}</td>
                   <td className="px-2 py-2">{u.phone}</td>
-                  <td className="px-2 py-2"><Badge className="bg-stone-100 text-stone-600">{roleLabel(u.role, lang)}</Badge></td>
+                  <td className="px-2 py-2"><Badge tone="default">{roleLabel(u.role, lang)}</Badge></td>
                   <td className="px-2 py-2">{u.farmerProfile?.membershipTier ?? "—"}</td>
                   <td className="px-2 py-2">
-                    <Badge className={u.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"}>
+                    <Badge tone={u.status === "ACTIVE" ? "success" : "danger"}>
                       {userStatusLabel(u.status, lang)}
                     </Badge>
                   </td>
@@ -295,7 +293,7 @@ export default function AdminPanel() {
                         aria-label={`${t("thRegion", lang)} — ${u.fullName}`}
                         defaultValue={u.region ?? ""}
                         onChange={(e) => setRegionDrafts((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                        className="!w-28 !py-1.5 !text-xs"
+                        className="!w-28 !py-1.5 !text-sm"
                         placeholder={t("regionPlaceholder", lang)}
                         disabled={rowBusy === u.id}
                       />
@@ -317,7 +315,7 @@ export default function AdminPanel() {
                 </tr>
               ))}
               {!loading && users.length === 0 && (
-                <tr><td colSpan={7} className="py-4 text-center text-stone-500">—</td></tr>
+                <tr><td colSpan={7} className="py-4 text-center text-sm text-stone-500">{t("adminNoEntries", lang)}</td></tr>
               )}
             </tbody>
           </table>
@@ -326,7 +324,7 @@ export default function AdminPanel() {
 
       {/* Withdrawal approval queue */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700"><Banknote className="h-5 w-5 text-brand-700" aria-hidden /> {t("withdrawalsQueue", lang)}</h2>
+        <SectionHeader title={t("withdrawalsQueue", lang)} className="mb-2" />
         {withdrawals.length === 0 ? (
           <p className="text-sm text-stone-500">{t("noWithdrawals", lang)}</p>
         ) : (
@@ -358,9 +356,7 @@ export default function AdminPanel() {
 
       {/* Analytics events summary */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700">
-          <BarChart3 className="h-5 w-5 text-brand-700" aria-hidden /> {analytics ? t("analyticsSummary", lang, { days: analytics.windowDays }) : ""}
-        </h2>
+        <SectionHeader title={analytics ? t("analyticsSummary", lang, { days: analytics.windowDays }) : ""} className="mb-2" />
         {analyticsFailed ? (
           <div className="space-y-2">
             <ErrorBanner message={t("errorGeneric", lang)} />
@@ -378,13 +374,13 @@ export default function AdminPanel() {
           </div>
         ) : analytics ? (
           analytics.events.length === 0 ? (
-            <p className="text-sm text-stone-500">—</p>
+            <p className="text-sm text-stone-500">{t("adminNoEntries", lang)}</p>
           ) : (
             <ul className="max-h-60 space-y-1 overflow-y-auto text-sm">
               {analytics.events.map((ev) => (
                 <li key={ev.name} className="flex items-center justify-between rounded-md bg-stone-50 px-3 py-1.5">
-                  <span className="font-mono text-xs text-stone-600">{ev.name}</span>
-                  <span className="font-bold text-green-800">{ev.count}</span>
+                  <span className="min-w-0 break-words font-mono text-xs text-stone-600">{ev.name}</span>
+                  <span className="shrink-0 font-bold text-accent">{ev.count}</span>
                 </li>
               ))}
             </ul>
@@ -396,18 +392,18 @@ export default function AdminPanel() {
 
       {/* Audit log */}
       <Card>
-        <h2 className="mb-3 font-semibold text-stone-700"><ScrollText className="h-5 w-5 text-brand-700" aria-hidden /> {t("auditLogs", lang)}</h2>
+        <SectionHeader title={t("auditLogs", lang)} className="mb-2" />
         <div className="max-h-80 space-y-1.5 overflow-y-auto text-xs">
           {audit.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-2 rounded-md bg-stone-50 px-3 py-1.5">
-              <span>
+              <span className="min-w-0 break-words">
                 <b className="text-stone-700">{a.action}</b> · {a.entityType ?? ""}{" "}
                 {a.actor?.fullName ? `· ${a.actor.fullName} (${roleLabel(a.actor.role ?? "", lang)})` : ""}
               </span>
               <span className="shrink-0 text-stone-500">{formatDateTime(a.createdAt, lang)}</span>
             </div>
           ))}
-          {audit.length === 0 && <p className="p-2 text-center text-stone-500">—</p>}
+          {audit.length === 0 && <p className="p-2 text-center text-stone-500">{t("adminNoEntries", lang)}</p>}
         </div>
       </Card>
     </div>

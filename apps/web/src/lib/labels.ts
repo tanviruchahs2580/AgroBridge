@@ -12,6 +12,7 @@ const CROP_KEYS: Record<string, DictKey> = {
   RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE",
   MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
 };
+export { CROP_KEYS };
 export const cropLabel = (raw: string, lang: Lang): string => fromMap(CROP_KEYS, raw, lang);
 
 // ── Crop cycle stages ──

@@ -6,9 +6,9 @@ import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
 import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Award, Check, Landmark, Receipt, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Wallet } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Select, Skeleton, useConfirm, useToast,
+  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
 
 interface Tx {
@@ -189,8 +189,8 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="min-w-0 space-y-6 overflow-hidden px-2 sm:px-0">
-      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800"><Wallet className="h-6 w-6 text-green-700" aria-hidden /> {t("wallet", lang)}</h1>
+    <div className="min-w-0 space-y-5">
+      <PageHeader icon={<Wallet className="h-5 w-5" aria-hidden />} title={t("wallet", lang)} />
 
       {loadError && (
         <div className="space-y-2">
@@ -199,7 +199,7 @@ export default function WalletPage() {
         </div>
       )}
 
-      {/* Summary cards row */}
+      {/* Summary cards row — balance hero card + StatTile metrics */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <Card className="min-w-0 overflow-hidden bg-hero text-white">
           <p className="text-xs opacity-80">{t("balance", lang)}</p>
@@ -222,51 +222,40 @@ export default function WalletPage() {
             {t("withdrawTitle", lang)}
           </Button>
         </Card>
-        <Card className="min-w-0 overflow-hidden">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("monthIn", lang)}</p>
-          {summary ? (
-            <p className="mt-0.5 text-lg font-bold text-green-800">{formatBDT(summary.monthCreditsPaisa, lang)}</p>
-          ) : (
-            <Skeleton className="mt-1 h-6 w-20" />
-          )}
-        </Card>
-        <Card className="min-w-0 overflow-hidden">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("monthOut", lang)}</p>
-          {summary ? (
-            <p className="mt-0.5 text-lg font-bold text-danger-text">{formatBDT(summary.monthDebitsPaisa, lang)}</p>
-          ) : (
-            <Skeleton className="mt-1 h-6 w-20" />
-          )}
-        </Card>
-        <Card className="min-w-0 overflow-hidden">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{t("pendingWithdrawals", lang)}</p>
-          {summary ? (
-            <p className="mt-0.5 text-lg font-bold text-stone-700">{formatBDT(summary.pendingWithdrawalsPaisa, lang)}<span className="sr-only"> pending withdrawals</span></p>
-          ) : (
-            <Skeleton className="mt-1 h-6 w-20" />
-          )}
-        </Card>
+        {summary ? (
+          <>
+            <StatTile tone="success" icon={<ArrowUpCircle className="h-5 w-5" aria-hidden />} value={formatBDT(summary.monthCreditsPaisa, lang)} label={t("monthIn", lang)} />
+            <StatTile tone="danger" icon={<ArrowDownCircle className="h-5 w-5" aria-hidden />} value={formatBDT(summary.monthDebitsPaisa, lang)} label={t("monthOut", lang)} />
+            <StatTile tone="warning" icon={<Clock3 className="h-5 w-5" aria-hidden />} value={formatBDT(summary.pendingWithdrawalsPaisa, lang)} label={t("pendingWithdrawals", lang)} />
+          </>
+        ) : (
+          [0, 1, 2].map((i) => (
+            <Card key={i} variant="static" className="min-w-0 overflow-hidden">
+              <Skeleton className="mt-1 h-10 w-full" />
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Membership */}
       <section>
-        <h2 className="mb-2 flex items-center gap-2 font-semibold text-stone-700"><Award className="h-5 w-5 text-amber-600" aria-hidden /> {t("membership", lang)}</h2>
+        <SectionHeader title={t("membership", lang)} />
         <div className="grid gap-2 sm:gap-4 sm:grid-cols-3">
           {plans.map((p) => (
             <Card key={p.tier} className={`min-w-0 overflow-hidden ${p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}`}>
               <h3 className="font-bold text-stone-800">{p.tier}</h3>
-              <p className="my-1 text-xl font-bold text-green-800">
+              <p className="my-1 text-xl font-bold text-accent">
                 {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
               </p>
               <ul className="mb-3 space-y-1 text-xs text-stone-600">
                 {p.benefits.map((b, i) => (
-                  <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-green-600" aria-hidden /> {membershipBenefitLabel(b, lang)}</li>
+                  <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-success-text" aria-hidden /> {membershipBenefitLabel(b, lang)}</li>
                 ))}
               </ul>
               {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
                 const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);
-                if (daysLeft <= 7 && daysLeft >= 0) return <Badge className="mb-2 bg-amber-100 text-amber-800">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
-                if (daysLeft < 0) return <Badge className="mb-2 bg-red-100 text-red-700">{t("membershipExpired", lang)}</Badge>;
+                if (daysLeft <= 7 && daysLeft >= 0) return <Badge tone="warning" className="mb-2">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
+                if (daysLeft < 0) return <Badge tone="danger" className="mb-2">{t("membershipExpired", lang)}</Badge>;
                 return null;
               })()}
               {p.pricePaisa > 0 && (
@@ -282,7 +271,7 @@ export default function WalletPage() {
       {/* Transactions — wallet ledger merged with payment records (orders/bookings
           paid outside the wallet balance; WALLET_CREDIT skipped to avoid double rows) */}
       <section>
-        <h2 className="mb-2 font-semibold text-stone-700">{t("transactionsTitle", lang)}</h2>
+        <SectionHeader title={t("transactionsTitle", lang)} />
         {!wallet && loading ? (
           <Card className="space-y-2">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -314,15 +303,15 @@ export default function WalletPage() {
           return rows.length === 0 ? (
             <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
           ) : (
-            <Card className="divide-y divide-stone-100 !p-0">
+            <Card variant="static" padded={false} className="divide-y divide-stone-100">
               {rows.map((row) => (
                 <div key={row.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
                   <div className="min-w-0">
                     <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{row.label}</p>
-                    <p className="break-words text-[11px] text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(row.createdAt, lang)}</p>
-                    <p className="break-all text-[10px] font-mono text-stone-500 [overflow-wrap:anywhere]">{row.ref}</p>
+                    <p className="break-words text-xs text-stone-500 [overflow-wrap:anywhere]">{formatDateTime(row.createdAt, lang)}</p>
+                    <p className="break-all text-xs font-mono text-stone-500 [overflow-wrap:anywhere]">{row.ref}</p>
                   </div>
-                  <span className={`font-bold ${row.credit ? "text-green-700" : "text-danger-text"}`}>
+                  <span className={`font-bold ${row.credit ? "text-success-text" : "text-danger-text"}`}>
                     {row.credit ? "+" : "−"}{formatBDT(row.amountPaisa, lang)}
                   </span>
                 </div>
@@ -334,7 +323,7 @@ export default function WalletPage() {
 
       {/* Withdrawal history */}
       <section>
-        <h2 className="mb-2 font-semibold text-stone-700">{t("withdrawHistory", lang)}</h2>
+        <SectionHeader title={t("withdrawHistory", lang)} />
         {!wallet && loading ? (
           <Card className="space-y-2">
             {[0, 1].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -342,25 +331,17 @@ export default function WalletPage() {
         ) : withdrawals.length === 0 ? (
           <EmptyState icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
         ) : (
-          <Card className="divide-y divide-stone-100 !p-0">
+          <Card variant="static" padded={false} className="divide-y divide-stone-100">
             {withdrawals.map((wd) => (
               <div key={wd.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="break-words font-bold text-stone-700 [overflow-wrap:anywhere]">{formatBDT(wd.amountPaisa, lang)} · {channelLabel(wd.channel, lang)}</p>
-                  <p className="break-all text-[11px] text-stone-500 [overflow-wrap:anywhere]">
+                  <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">
                     {wd.refNo}{wd.destination ? ` · ${t("destinationLabel", lang)}: ${wd.destination}` : ""} · {formatDateTime(wd.createdAt, lang)}
                   </p>
-                  <p className="break-all text-[10px] font-mono text-stone-500 [overflow-wrap:anywhere]">{wd.id}</p>
+                  <p className="break-all text-xs font-mono text-stone-500 [overflow-wrap:anywhere]">{wd.id}</p>
                 </div>
-                <Badge
-                  className={
-                    wd.status === "PAID"
-                      ? "bg-green-100 text-green-900"
-                      : wd.status === "REJECTED"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-amber-100 text-amber-900"
-                  }
-                >
+                <Badge tone={wd.status === "PAID" ? "success" : wd.status === "REJECTED" ? "danger" : "warning"}>
                   {withdrawalStatusLabel(wd.status, lang)}
                 </Badge>
               </div>
@@ -387,7 +368,7 @@ export default function WalletPage() {
                 aria-invalid={Boolean(wdErr)}
                 aria-describedby={wdErr ? "wd-amount-err" : undefined}
               />
-              <p className="mt-1 text-[11px] text-stone-500">
+              <p className="mt-1 text-xs text-stone-500">
                 {t("withdrawMinNote", lang)}
                 {availablePaisa !== null && ` · ${t("withdrawAvailable", lang)}: ${formatBDT(availablePaisa, lang)}`}
               </p>

@@ -156,19 +156,22 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
  *  - default: elevated + hover lift (tap/clickable surfaces)
  *  - static:  no hover motion (dense lists, read-only panels)
  *  - subdued: quiet secondary panel inside a card/page
+ * padded={false} removes the panel padding for edge-to-edge list rows
+ * (the rows then supply their own spacing) instead of `!p-0` overrides.
  */
 export function Card({
   className = "",
   variant = "default",
+  padded = true,
   ...props
-}: HTMLAttributes<HTMLDivElement> & { variant?: "default" | "static" | "subdued" }) {
+}: HTMLAttributes<HTMLDivElement> & { variant?: "default" | "static" | "subdued"; padded?: boolean }) {
   const variants = {
     default:
-      "rounded-card border border-surface-border bg-surface-card p-4 shadow-card transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-cardHover motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-    static: "rounded-card border border-surface-border bg-surface-card p-4 shadow-card",
-    subdued: "rounded-card border border-surface-border bg-surface-subdued p-4",
+      "rounded-card border border-surface-border bg-surface-card shadow-card transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-cardHover motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+    static: "rounded-card border border-surface-border bg-surface-card shadow-card",
+    subdued: "rounded-card border border-surface-border bg-surface-subdued",
   } as const;
-  return <div className={`${variants[variant]} ${className}`} {...props} />;
+  return <div className={`${variants[variant]} ${padded ? "p-4" : ""} ${className}`} {...props} />;
 }
 
 export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
@@ -330,7 +333,7 @@ export function BottomNav({ items }: { items: { to: string; label: string; icon:
           key={it.to}
           to={it.to}
           className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
               isActive ? "bg-brand-50 text-accent shadow-sm ring-1 ring-inset ring-brand-100" : "text-stone-600 hover:bg-stone-100 hover:text-link"
             }`
           }
@@ -361,7 +364,7 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: R
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
                 isActive ? "bg-action text-white shadow-button" : "text-stone-700 hover:bg-brand-50 hover:text-accent"
               }`
             }
@@ -429,7 +432,7 @@ export function StatTile({
   icon: ReactNode;
   value: string;
   label: string;
-  tone?: "brand" | "sky" | "ai" | "warning" | "success";
+  tone?: "brand" | "sky" | "ai" | "warning" | "success" | "danger";
   className?: string;
 }) {
   const tones = {
@@ -438,6 +441,7 @@ export function StatTile({
     ai: "bg-enterprise-ai-light text-enterprise-ai ring-indigo-100",
     warning: "bg-warning-bg text-warning-text ring-warning-border",
     success: "bg-success-bg text-success-text ring-success-border",
+    danger: "bg-danger-bg text-danger-text ring-danger-border",
   } as const;
   return (
     <div className={`flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3.5 shadow-card ${className}`}>
@@ -724,7 +728,7 @@ export function Stepper({ steps }: { steps: StepItem[] }) {
           >
             {step.state === "done" ? <Check className="h-4 w-4" aria-hidden /> : i + 1}
           </span>
-          <span className={`text-center text-[11px] font-medium leading-tight ${step.state === "todo" ? "text-stone-400" : step.state === "done" ? "text-success-text" : "text-stone-700"}`}>
+          <span className={`text-center text-xs font-medium leading-tight ${step.state === "todo" ? "text-stone-400" : step.state === "done" ? "text-success-text" : "text-stone-700"}`}>
             {step.label}
           </span>
         </li>

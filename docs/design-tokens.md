@@ -43,7 +43,7 @@ Tailwind: `bg-brand-700`, `text-stone-600`, etc. map to `var(--color-*)`.
 
 ## Typography
 
-Stack: `"Inter", "Noto Sans Bengali", system-ui`. Inter 400/500/600/700 latin-only (`unicode-range U+0000-00FF`), Noto only `U+0980-09FF` + required marks. See `src/index.css`.
+Stack: `"Hind Siliguri", "Noto Sans Bengali", system-ui` (self-hosted woff2 in `public/fonts/`, served offline — APK-safe). Hind Siliguri 400/500/600/700 covers Bengali + Latin; Noto Sans Bengali is the fallback (`U+0980-09FF` + required marks, latin + latin-ext subsets). See `src/index.css`.
 
 Type scale (Step 7): `text-xs` 11px/16px, `sm` 13px/18px, `base` 16px/24px, `lg` 18px/28px, `xl` 20px/28px, `2xl` 28px/36px.
 

@@ -103,12 +103,15 @@
   --color-warning-border: #fde68a;
   --color-warning-text: #92400e;
 
-  /* Gradients — hero surfaces, CTAs, AI + info moments */
-  --gradient-hero: linear-gradient(135deg, #0f3d24 0%, #14532d 52%, #166534 100%);
-  --gradient-cta: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-  --gradient-ai: linear-gradient(135deg, #4f46e5 0%, #6d28d9 100%);
-  --gradient-sky: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-  --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  /* Gradients — hero surfaces, CTAs, AI + info moments. These are the live
+     light defaults (previously duplicated in index.css; dark.css re-points
+     them under html[data-theme="dark"]). Without them every bg-cta/bg-hero
+     surface would render transparent in light mode. */
+  --gradient-hero: linear-gradient(135deg, #0b2b1a 0%, #0f3d24 52%, #14532d 100%);
+  --gradient-cta: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+  --gradient-ai: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+  --gradient-sky: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+  --gradient-warm: linear-gradient(135deg, #d97706 0%, #b45309 100%);
 
   /* Spacing — 4/8pt grid */
   --space-1: 0.25rem;
