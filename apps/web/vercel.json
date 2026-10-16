@@ -1,7 +1,1 @@
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "framework": "vite",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
+{"buildCommand":"node scripts/vercel-build-web.mjs","outputDirectory":"dist","installCommand":"npm install","installEnv":{"NPM_CONFIG_PRODUCTION":"false"},"buildEnv":{"NPM_CONFIG_PRODUCTION":"false"},"framework":"vite","rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
