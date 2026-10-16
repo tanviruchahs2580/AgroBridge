@@ -115,9 +115,12 @@ paymentsRouter.post(
 
       // Cancel any stale PENDING intents for the same purpose so exactly one
       // live intent exists at a time (prevents double-confirm double-spend).
+      // Scoped to THIS user: purposeId is a shared business key (e.g. the
+      // membership tier), so an unscoped supersede would cancel other users'
+      // in-flight checkouts.
       const payment = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         await tx.payment.updateMany({
-          where: { purposeType, purposeId, status: "PENDING" },
+          where: { purposeType, purposeId, userId, status: "PENDING" },
           data: { status: "FAILED", metaStr: JSON.stringify({ cancelledReason: "superseded_by_new_intent" }) },
         });
         return tx.payment.create({
@@ -127,7 +130,7 @@ paymentsRouter.post(
             purposeType,
             purposeId,
             amountPaisa,
-            method: env.PAYMENT_PROVIDER === "sslcommerz" ? "MOBILE_WALLET" : "MOBILE_WALLET",
+            method: "MOBILE_WALLET",
             providerRef: `SBX-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
             metaStr: JSON.stringify({ mode: env.PAYMENT_PROVIDER }),
           },
@@ -157,7 +160,7 @@ paymentsRouter.post(
  */
 paymentsRouter.post("/:id/confirm", async (req, res, next) => {
   try {
-    if (isProd && env.PAYMENT_PROVIDER !== "sandbox") {
+    if (env.PAYMENT_PROVIDER !== "sandbox") {
       throw forbidden("Direct confirmation is disabled; complete payment through the gateway");
     }
     const payment = await prisma.payment.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
@@ -226,7 +229,7 @@ paymentsRouter.post(
         throw unprocessable(`Refunds for ${payment.purposeType} are not supported yet`);
       }
 
-      const result = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         // Atomic claim: only one refund can transition SUCCEEDED -> REFUNDED.
         const claimed = await tx.payment.updateMany({
           where: { id: payment.id, status: "SUCCEEDED" },
@@ -257,7 +260,6 @@ paymentsRouter.post(
             refId: payment.id,
           },
         });
-        return { refundRef: `RFND-${payment.id}` };
       }, { timeout: 15000, maxWait: 8000 });
 
       const updated = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
@@ -273,7 +275,7 @@ paymentsRouter.post(
         type: "PAYMENT",
         category: "CRITICAL",
         titleBn: `টাকা ফেরত (${updated.refundRef})`,
-        titleEn: `Refund processed (${result.refundRef})`,
+        titleEn: `Refund processed (${updated.refundRef})`,
         bodyBn: "আপনার পেমেন্ট ফেরত দেওয়া হয়েছে।",
         bodyEn: "Your payment has been refunded.",
         refType: "PAYMENT",

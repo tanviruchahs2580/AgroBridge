@@ -65,6 +65,58 @@ describe("Payments integrity — intent lifecycle", () => {
     expect(zombieConfirm.status).toBe(409);
   });
 
+  it("a pending intent from ANOTHER user is never superseded — purposeId may be a shared key (membership tier)", async () => {
+    const a = await registerFarmer();
+    const b = await registerFarmer();
+
+    const ia = await request(app)
+      .post("/api/v1/payments/intent")
+      .set("Authorization", `Bearer ${a.accessToken}`)
+      .send({ purposeType: "MEMBERSHIP", purposeId: "SILVER" });
+    expect(ia.status).toBe(201);
+
+    const ib = await request(app)
+      .post("/api/v1/payments/intent")
+      .set("Authorization", `Bearer ${b.accessToken}`)
+      .send({ purposeType: "MEMBERSHIP", purposeId: "SILVER" });
+    expect(ib.status).toBe(201);
+
+    const stillA = await prisma.payment.findUniqueOrThrow({ where: { id: ia.body.data.paymentId } });
+    expect(stillA.status).toBe("PENDING");
+  });
+
+  it("webhook for a superseded (FAILED) intent is never applied and never notifies", async () => {
+    const f = await registerFarmer();
+    const { orderId } = await createOrder(f.accessToken);
+
+    const first = await request(app)
+      .post("/api/v1/payments/intent")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ purposeType: "ORDER", purposeId: orderId });
+    const second = await request(app)
+      .post("/api/v1/payments/intent")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ purposeType: "ORDER", purposeId: orderId });
+    expect(second.status).toBe(201);
+
+    // Gateway collects money for the OLD session after a newer intent exists.
+    const params = signedWebhookParams({
+      tran_id: first.body.data.refNo,
+      val_id: "GWV-SUPERSEDED",
+      status: "VALID",
+      amount: String(first.body.data.amountPaisa),
+    });
+    const hit = await postWebhook(params);
+    expect(hit.status).toBe(200);
+    expect(hit.body.data.processed).toBe(false);
+    expect(hit.body.data.reason).toBe("not_claimable");
+
+    const order = await orderStatus(orderId);
+    expect(order.status).not.toBe("PAID");
+    const notifs = await prisma.notification.count({ where: { type: "PAYMENT", refId: first.body.data.paymentId } });
+    expect(notifs).toBe(0);
+  });
+
   it("double confirm returns conflict and applies side effects exactly once", async () => {
     const f = await registerFarmer();
     const { orderId } = await createOrder(f.accessToken);

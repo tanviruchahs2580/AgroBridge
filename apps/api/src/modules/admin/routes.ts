@@ -32,7 +32,10 @@ adminRouter.get("/metrics", async (_req, res, next) => {
         prisma.order.count(),
         prisma.booking.count(),
         prisma.procurementOrder.count({ where: { status: { in: ["SUBMITTED", "QC"] } } }),
-        prisma.payment.aggregate({ where: { status: "SUCCEEDED" }, _sum: { amountPaisa: true } }),
+        // Revenue = money flowing IN (orders, bookings, memberships).
+        // PROCUREMENT payouts are wallet credits to farmers (outflow) stored
+        // as SUCCEEDED payments — counting them would fabricate revenue.
+        prisma.payment.aggregate({ where: { status: "SUCCEEDED", purposeType: { not: "PROCUREMENT" } }, _sum: { amountPaisa: true } }),
         prisma.advisoryQuery.count(),
       ]);
 

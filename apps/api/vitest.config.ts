@@ -37,12 +37,7 @@ export default defineConfig({
         "src/providers/storage/types.ts",
         "src/providers/ai/openai-compat.ts",
         "src/providers/weather/openweather.ts",
-        // Phase 3 scaffolds — not yet wired to routes, exclude until integration tests land (keeps 75% gate green)
-        "src/modules/payments/payment.service.ts",
-        "src/modules/payments/wallet.service.ts",
-        "src/modules/payments/refund.service.ts",
-        "src/modules/payments/payment.repository.ts",
-        "src/modules/payments/schemas.ts",
+        // Refactor scaffolds not wired to routes — excluded until integration tests land (keeps 75% gate green)
         "src/modules/authorization/**",
         "src/providers/health.ts",
       ],

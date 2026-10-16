@@ -254,7 +254,9 @@ model Order {
   items          OrderItem[]
 
   @@index([userId])
+
   @@index([status])
+  @@index([status, createdAt])
 }
 
 model OrderItem {
@@ -369,6 +371,8 @@ model Payment {
 
   @@index([userId])
   @@index([purposeType, purposeId])
+
+  @@index([status, createdAt])
 }
 
 model Wallet {
@@ -415,6 +419,8 @@ model Withdrawal {
   user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, status])
+
+  @@index([status, createdAt])
 }
 
 model OtpChallenge {

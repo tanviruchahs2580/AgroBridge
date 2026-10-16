@@ -30,9 +30,31 @@ function parseModels(src: string): Map<string, Set<string>> {
   return out;
 }
 
+/** Extract each model's declared @@index attributes (index drift has shipped
+ *  to production before — the sqlite schema carried [status, createdAt]
+ *  composites the postgres schemas lacked, so compare them explicitly). */
+function parseIndexes(src: string): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const re = /model\s+(\w+)\s*\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    const idx = new Set<string>();
+    for (const line of m[2].split("\n")) {
+      const t = line.trim();
+      if (t.startsWith("@@index(")) {
+        idx.add(t.slice("@@index(".length).replace(/\)$/, "").trim());
+      }
+    }
+    out.set(m[1]!, idx);
+  }
+  return out;
+}
+
 describe("Prisma schema parity — sqlite vs postgresql", () => {
   const a = parseModels(readFileSync(root + "prisma/schema.prisma", "utf8"));
   const b = parseModels(readFileSync(root + "prisma/schema.postgresql.prisma", "utf8"));
+  const ia = parseIndexes(readFileSync(root + "prisma/schema.prisma", "utf8"));
+  const ib = parseIndexes(readFileSync(root + "prisma/schema.postgresql.prisma", "utf8"));
 
   it("same model set", () => {
     expect([...b.keys()].sort()).toEqual([...a.keys()].sort());
@@ -45,6 +67,18 @@ describe("Prisma schema parity — sqlite vs postgresql", () => {
       if (!other) continue; // reported by the model-set test
       const onlyA = [...fields].filter((f) => !other.has(f));
       const onlyB = [...other].filter((f) => !fields.has(f));
+      if (onlyA.length || onlyB.length) diffs.push(`${model}: sqlite-only[${onlyA}] pg-only[${onlyB}]`);
+    }
+    expect(diffs).toEqual([]);
+  });
+
+  it("same declared indexes per model", () => {
+    const diffs: string[] = [];
+    for (const [model, idx] of ia) {
+      if (idx.size === 0) continue; // models without explicit indexes
+      const other = ib.get(model) ?? new Set<string>();
+      const onlyA = [...idx].filter((x) => !other.has(x));
+      const onlyB = [...other].filter((x) => !idx.has(x));
       if (onlyA.length || onlyB.length) diffs.push(`${model}: sqlite-only[${onlyA}] pg-only[${onlyB}]`);
     }
     expect(diffs).toEqual([]);

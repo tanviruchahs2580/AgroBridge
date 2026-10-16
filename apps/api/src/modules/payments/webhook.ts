@@ -47,14 +47,25 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
       return ok(res, { received: true, processed: false, reason: "already_final" });
     }
 
+    // The PENDING->SUCCEEDED claim is the idempotency gate: exactly one
+    // webhook invocation applies the side effects. A lost claim means another
+    // webhook won the race, or the intent was superseded (new intent FAILED
+    // this one) despite the gateway collecting money — that case must NOT be
+    // answered with processed:true, it is a reconciliation case.
+    let processed = false;
     await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
         data: { status: "SUCCEEDED", providerRef: valId || payment.providerRef, metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },
       });
-      if (claimed.count !== 1) return; // lost race -> already final
+      if (claimed.count !== 1) return; // lost race / superseded
+      processed = true;
       await applyPaymentSideEffects(tx as never, payment);
     }, { timeout: 15000, maxWait: 8000 });
+
+    if (!processed) {
+      return ok(res, { received: true, processed: false, reason: "not_claimable" });
+    }
 
     paymentIntentsTotal.inc({ purpose_type: payment.purposeType, status: "webhook_confirmed" });
     await audit({ action: "PAYMENT_WEBHOOK_CONFIRMED", entityType: "Payment", entityId: payment.id, meta: { tranId, valId } });
