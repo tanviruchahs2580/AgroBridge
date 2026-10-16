@@ -217,3 +217,46 @@ body {
 .touch-target {
   @apply inline-flex min-h-[44px] min-w-[44px] items-center justify-center;
 }
+
+
+/* ── Mobile auth skin: the credential panel floats on the full-page field
+   photo, so the shared form controls get a dark-glass treatment below the md
+   breakpoint. Desktop (md+) keeps the normal themed surface untouched. ── */
+@media (max-width: 767px) {
+  .auth-photo-mobile {
+    --ring-color: rgba(110, 231, 183, 0.9);
+    --color-surface-bg: #012823;
+    color: #fff;
+  }
+  .auth-photo-mobile label { color: rgba(255, 255, 255, 0.9) !important; }
+  .auth-photo-mobile input,
+  .auth-photo-mobile select {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    color: #fff !important;
+  }
+  .auth-photo-mobile input::placeholder { color: rgba(255, 255, 255, 0.5) !important; }
+  .auth-photo-mobile input:disabled {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 255, 255, 0.4) !important;
+  }
+  .auth-photo-mobile .text-stone-800,
+  .auth-photo-mobile .text-stone-700,
+  .auth-photo-mobile .text-stone-600,
+  .auth-photo-mobile .text-stone-500 { color: rgba(255, 255, 255, 0.92) !important; }
+  .auth-photo-mobile .text-stone-400 { color: rgba(255, 255, 255, 0.6) !important; }
+  .auth-photo-mobile [role="alert"],
+  .auth-photo-mobile .bg-danger-bg {
+    background-color: rgba(127, 29, 29, 0.45) !important;
+    border-color: rgba(248, 113, 113, 0.45) !important;
+  }
+  .auth-photo-mobile .text-danger-text,
+  .auth-photo-mobile .text-red-700,
+  .auth-photo-mobile .text-red-800 { color: #fecaca !important; }
+  .auth-photo-mobile a,
+  .auth-photo-mobile .text-link { color: #6ee7b7 !important; }
+  .auth-photo-mobile .bg-glass {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+  }
+}

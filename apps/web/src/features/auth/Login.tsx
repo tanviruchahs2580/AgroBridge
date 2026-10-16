@@ -67,12 +67,6 @@ export default function Login() {
             </Link>
           </p>
 
-          {import.meta.env.DEV && (
-            <div className="mt-3 rounded-input border border-surface-border bg-glass px-3 py-2 text-center text-[11px] leading-relaxed text-stone-600 backdrop-blur">
-              <p className="font-semibold uppercase tracking-wide">{t("demoCredentialsTitle", lang)}</p>
-              <p>{t("demoCredentialsBody", lang)}</p>
-            </div>
-          )}
         </>
       }
     >

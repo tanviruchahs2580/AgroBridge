@@ -55,9 +55,12 @@ async function checkoutOneItem(page: any): Promise<{ successText: string; orderN
   // Market page loaded
   await expect(page.locator("body")).toContainText(/বাজার|Market/);
 
-  // Add first available product to cart (bn label: কার্টে যোগ করুন)
-  const addToCart = page.locator("button", { hasText: /কার্টে যোগ করুন|Add to cart/i }).first();
-  await expect(addToCart, "market shows no add-to-cart button").toBeVisible({ timeout: 10_000 });
+  // Add first IN-STOCK product to cart (out-of-stock buttons render disabled;
+  // on long-lived dev DBs earlier runs exhaust stock — pick an enabled one, and
+  // fail loudly if none is purchasable).
+  const addToCart = page.locator('button:not([disabled])', { hasText: /কার্টে যোগ করুন|Add to cart/i }).first();
+  await expect(addToCart, "market shows no purchasable add-to-cart button").toBeVisible({ timeout: 10_000 });
+  await expect(addToCart).toBeEnabled();
   await addToCart.click();
   await page.waitForTimeout(1000);
 
