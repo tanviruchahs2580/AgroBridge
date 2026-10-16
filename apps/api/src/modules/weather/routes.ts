@@ -27,7 +27,8 @@ weatherRouter.get(
         risks,
       });
     } catch (e) {
-      // Provider failures degrade gracefully — never a raw 500 to farmers.
+      // Provider failures surface as their typed error (502 via the error
+      // handler) — farmers get an actionable message, never a fake forecast.
       next(e);
     }
   }

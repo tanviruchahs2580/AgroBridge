@@ -121,8 +121,13 @@ export function plotsRouter() {
     .post("/plots", validate({ body: plotBody }), async (req, res, next) => {
       try {
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
-        if ((req.body as { areaBigha: number }).areaBigha > (farm.totalAreaBigha ?? Infinity)) {
-          throw badRequest("Plot area exceeds total farm area");
+        // Plots collectively must fit inside the farm's declared total area.
+        if (farm.totalAreaBigha != null) {
+          const area = (req.body as { areaBigha: number }).areaBigha;
+          const others = await prisma.plot.aggregate({ where: { farmId: farm.id }, _sum: { areaBigha: true } });
+          if (area + (others._sum.areaBigha ?? 0) > farm.totalAreaBigha + 1e-9) {
+            throw badRequest("Plot areas would exceed the farm's total area");
+          }
         }
         const plot = await prisma.plot.create({ data: { ...(req.body as object), farmId: farm.id } as never });
         ok(res, plot, 201);
@@ -135,7 +140,7 @@ export function plotsRouter() {
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
         const plots = await prisma.plot.findMany({
           where: { farmId: farm.id },
-          include: { cropCycles: { orderBy: { plantedAt: "desc" } } },
+          include: { cropCycles: { orderBy: { plantedAt: "desc" }, take: 100 } },
           orderBy: { createdAt: "asc" },
         });
         ok(res, plots);
@@ -148,6 +153,13 @@ export function plotsRouter() {
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
         const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId!, farmId: farm.id } });
         if (!existing) throw notFound("Plot");
+        const body = req.body as { areaBigha?: number };
+        if (body.areaBigha !== undefined && farm.totalAreaBigha != null) {
+          const others = await prisma.plot.aggregate({ where: { farmId: farm.id, id: { not: existing.id } }, _sum: { areaBigha: true } });
+          if ((others._sum.areaBigha ?? 0) + body.areaBigha > farm.totalAreaBigha + 1e-9) {
+            throw badRequest("Plot areas would exceed the farm's total area");
+          }
+        }
         const plot = await prisma.plot.update({ where: { id: existing.id }, data: req.body as never });
         ok(res, plot);
       } catch (e) {
@@ -215,8 +227,10 @@ export function cropsRouter() {
     .post("/crops", validate({ body: cropBody }), async (req, res, next) => {
       try {
         const body = req.body as z.infer<typeof cropBody>;
-        const plot = await prisma.plot.findUnique({ where: { id: body.plotId }, include: { farm: true } });
-        if (!plot || plot.farm.ownerId !== req.auth!.userId) throw forbidden("Plot not found in your farms");
+        const plot = await prisma.plot.findUnique({ where: { id: body.plotId } });
+        if (!plot) throw notFound("Plot");
+        // Same access rule as plots: owner, privileged, or org member.
+        await assertFarmAccess(plot.farmId, req.auth!.userId, req.auth!.role);
 
         const active = await prisma.cropCycle.count({ where: { plotId: plot.id, status: "ACTIVE" } });
         if (active > 0) throw conflict("This plot already has an active crop cycle");
@@ -244,10 +258,17 @@ export function cropsRouter() {
     })
     .get("/crops", async (req, res, next) => {
       try {
+        const userId = req.auth!.userId;
+        const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
+        const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
+        const where = orgIds.length
+          ? { OR: [{ plot: { farm: { ownerId: userId } } }, { plot: { farm: { organizationId: { in: orgIds } } } }] }
+          : { plot: { farm: { ownerId: userId } } };
         const cycles = await prisma.cropCycle.findMany({
-          where: { plot: { farm: { ownerId: req.auth!.userId } } },
+          where,
           include: { plot: { select: { name: true, farm: { select: { name: true } } } } },
           orderBy: { plantedAt: "desc" },
+          take: 200,
         });
         ok(res, cycles.map((c: { id: string; stage: string; plantedAt: Date; plot: { name: string; farm: { name: string } } }) => ({ ...c, stageAuto: cropStageFor(c.plantedAt), calendar: cropCalendar(c.stage) })));
       } catch (e) {
@@ -268,9 +289,12 @@ export function cropsRouter() {
       async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
         try {
           const existing = await prisma.cropCycle.findFirst({
-            where: { id: req.params.cropId!, plot: { farm: { ownerId: req.auth!.userId } } },
+            where: { id: req.params.cropId! },
+            include: { plot: { select: { farmId: true } } },
           });
           if (!existing) throw notFound("Crop cycle");
+          // Same access rule as plots: owner, privileged, or org member.
+          await assertFarmAccess(existing.plot.farmId, req.auth!.userId, req.auth!.role);
           const updated = await prisma.cropCycle.update({ where: { id: existing.id }, data: req.body as never });
           ok(res, updated);
         } catch (e) {
@@ -292,17 +316,28 @@ const eventBody = z.object({
   clientUuid: z.string().uuid().optional(),
 });
 
+const eventQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
 export function eventsRouter() {
   const router = Router({ mergeParams: true });
 
   const getEventsHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
-      const limit = Math.min(Number(req.query.limit ?? 50), 200);
+      const userId = req.auth!.userId;
+      const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
+      const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
+      const where = orgIds.length
+        ? { OR: [{ farm: { ownerId: userId } }, { farm: { organizationId: { in: orgIds } } }] }
+        : { farm: { ownerId: userId } };
+      const limitQ = eventQuery.safeParse(req.query);
+      if (!limitQ.success) throw badRequest("Invalid query");
       const events = await prisma.farmEvent.findMany({
-        where: { farm: { ownerId: req.auth!.userId } },
+        where,
         include: { plot: { select: { name: true } }, cropCycle: { select: { cropName: true } } },
         orderBy: { occurredAt: "desc" },
-        take: limit,
+        take: limitQ.data.limit ?? 50,
       });
       ok(res, events);
     } catch (e) {

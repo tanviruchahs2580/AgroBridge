@@ -12,7 +12,11 @@ declare global {
 }
 
 export function requestContext(req: Request, res: Response, next: NextFunction) {
-  req.requestId = (req.headers["x-request-id"] as string) || randomUUID();
+  // Only echo caller-supplied ids that are visible-ASCII and short enough to
+  // be a safe header value / log field; anything else gets a server-generated
+  // id so a crafted header can neither throw on setHeader nor poison logs.
+  const incoming = (req.headers["x-request-id"] as string) || "";
+  req.requestId = /^[\x20-\x7e]{1,128}$/.test(incoming) ? incoming : randomUUID();
   res.setHeader("X-Request-Id", req.requestId);
   next();
 }

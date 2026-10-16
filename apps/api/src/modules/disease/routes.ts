@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
-import { badRequest, notFound, forbidden } from "../../shared/errors/index.js";
+import { badRequest, notFound, forbidden, conflict } from "../../shared/errors/index.js";
+import { requirePermission } from "../../middleware/rbac.js";
+import { audit } from "../../middleware/audit.js";
 import { ok } from "../../middleware/context.js";
 import { getStorageProvider } from "../../providers/storage/index.js";
 import { notify } from "../../providers/notification/service.js";
@@ -131,49 +133,70 @@ const reviewSchema = z.object({
   recommendation: z.string().trim().min(5).max(2000),
 });
 
-diseaseRouter.post("/cases/:id/review", validate({ body: reviewSchema }), async (req, res, next) => {
-  try {
-    if (!(req.auth!.role === "ADMIN" || req.auth!.role === "SUPER_ADMIN")) {
-      throw forbidden("Only reviewers may finalize diagnoses");
+diseaseRouter.post(
+  "/cases/:id/review",
+  requirePermission("disease:review"),
+  validate({ body: reviewSchema }),
+  async (req, res, next) => {
+    try {
+      const kase = await prisma.diseaseCase.findUnique({ where: { id: req.params.id! } });
+      if (!kase) throw notFound("Disease case");
+      // Reviewing is final: a second submission would silently overwrite the
+      // recorded agronomist diagnosis (the app's highest-stakes content).
+      if (kase.status !== "PENDING_REVIEW") throw conflict(`Case already ${kase.status}`);
+
+      const updated = await prisma.diseaseCase.update({
+        where: { id: kase.id },
+        data: { ...(req.body as object), status: "REVIEWED", reviewedBy: req.auth!.userId, reviewedAt: new Date() } as never,
+      });
+
+      // The diagnosis decision itself is the auditable event.
+      await audit({
+        actorId: req.auth!.userId,
+        action: "DISEASE_REVIEWED",
+        entityType: "DiseaseCase",
+        entityId: kase.id,
+        meta: { severity: (req.body as { severity?: string }).severity },
+      });
+
+      await notify({
+        userId: kase.userId,
+        type: "AI",
+        titleBn: "রোগ নির্ণয়ের ফলাফল এসেছে",
+        titleEn: "Disease diagnosis result ready",
+        refType: "DISEASE_CASE",
+        refId: kase.id,
+      });
+
+      ok(res, updated);
+    } catch (e) {
+      next(e);
     }
-    const kase = await prisma.diseaseCase.findUnique({ where: { id: req.params.id! } });
-    if (!kase) throw notFound("Disease case");
-
-    const updated = await prisma.diseaseCase.update({
-      where: { id: kase.id },
-      data: { ...(req.body as object), status: "REVIEWED", reviewedBy: req.auth!.userId, reviewedAt: new Date() } as never,
-    });
-
-    await notify({
-      userId: kase.userId,
-      type: "AI",
-      titleBn: "রোগ নির্ণয়ের ফলাফল এসেছে",
-      titleEn: "Disease diagnosis result ready",
-      refType: "DISEASE_CASE",
-      refId: kase.id,
-    });
-
-    ok(res, updated);
-  } catch (e) {
-    next(e);
   }
-});
+);
 
 // ---- minimal multipart helpers (avoid heavy deps) ----
 function readRawBody(req: import("express").Request): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let oversized = false;
     req.on("data", (c: Buffer) => {
       size += c.length;
-      if (size > MAX_SIZE_BYTES * 2) {
-        reject(badRequest("Payload too large"));
-        req.destroy();
+      // Raw ceiling: the 8MB image plus envelope overhead (boundary + headers).
+      if (size > MAX_SIZE_BYTES + 64 * 1024) {
+        // Stop buffering but KEEP consuming the stream so the client can read
+        // our 400 response — destroying the socket mid-body surfaces as an
+        // opaque ECONNRESET instead of an actionable error.
+        oversized = true;
         return;
       }
-      chunks.push(c);
+      if (!oversized) chunks.push(c);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("end", () => {
+      if (oversized) reject(badRequest("Payload too large"));
+      else resolve(Buffer.concat(chunks));
+    });
     req.on("error", reject);
   });
 }
@@ -206,13 +229,19 @@ function parseMultipart(body: Buffer): Part[] {
       const fileMatch = /filename="([^"]*)"/i.exec(headersRaw);
       const mimeMatch = /Content-Type:\s*([^\r\n]+)/i.exec(headersRaw);
       if (fileMatch) {
+        // Strip the trailing CRLF only when it is actually the part delimiter;
+        // never truncate real bytes off a malformed-but-parseable payload.
+        const endsCrlf =
+          data.length >= 2 && data[data.length - 2] === 13 && data[data.length - 1] === 10;
         parts.push({
           name: nameMatch?.[1] ?? "",
           mime: mimeMatch?.[1]?.trim().toLowerCase(),
-          data: data.subarray(0, data.length - 2), // strip trailing \r\n
+          data: endsCrlf ? data.subarray(0, data.length - 2) : data,
         });
       } else if (nameMatch) {
-        parts.push({ name: nameMatch[1], value: data.subarray(0, Math.max(0, data.length - 2)).toString() });
+        const endsCrlf =
+          data.length >= 2 && data[data.length - 2] === 13 && data[data.length - 1] === 10;
+        parts.push({ name: nameMatch[1], value: (endsCrlf ? data.subarray(0, data.length - 2) : data).toString() });
       }
     }
     start = next + delimiter.length;

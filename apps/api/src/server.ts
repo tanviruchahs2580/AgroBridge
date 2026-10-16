@@ -11,7 +11,11 @@ const server = app.listen(env.PORT, () => {
 
 // A crash beats a corrupted state: log loudly, drain, exit non-zero.
 process.on("unhandledRejection", (reason) => {
-  logger.error({ err: reason instanceof Error ? reason.stack : String(reason) }, "unhandled rejection");
+  // Same policy as uncaughtException below: a missed await must never leave a
+  // half-written order or mis-sized wallet balance behind. Drain and exit.
+  logger.error({ err: reason instanceof Error ? reason.stack : String(reason) }, "unhandled rejection — draining and exiting");
+  server.close(() => process.exit(1));
+  setTimeout(() => process.exit(1), 5_000).unref();
 });
 process.on("uncaughtException", (err) => {
   logger.error({ err: err.stack }, "uncaught exception — draining and exiting");

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { badRequest, unauthorized, conflict, unprocessable } from "../../shared/errors/index.js";
+import { unauthorized, conflict, unprocessable } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
@@ -139,10 +139,11 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
   }
 });
 
-authRouter.post("/refresh", async (req, res, next) => {
+// Same limiter class as login: refresh issues new credentials, so flooding it
+// must be expensive even though the token itself is high-entropy.
+authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048) }) }), async (req, res, next) => {
   try {
-    const refreshToken = (req.body?.refreshToken as string | undefined) ?? "";
-    if (!refreshToken) throw badRequest("refreshToken required");
+    const { refreshToken } = req.body as { refreshToken: string };
 
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: sha256(refreshToken) }, include: { user: true } });
     if (!stored || stored.expiresAt < new Date() || stored.user.status !== "ACTIVE") {
@@ -321,19 +322,22 @@ authRouter.post("/otp/verify", requireAuth, validate({ body: z.object({ code: z.
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
-    // Block deletion if the user has active orders (financial integrity)
-    const pendingOrder = await prisma.order.findFirst({
-      where: { userId: req.auth!.userId, status: { notIn: ["CANCELLED", "DELETED"] } },
-    });
-    if (pendingOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
-
-    const pending = await prisma.withdrawal.findFirst({
-      where: { userId: req.auth!.userId, status: { in: ["PENDING", "APPROVED"] } },
-    });
-    if (pending) throw unprocessable("Resolve pending withdrawals before deleting your account");
-
-const userId = req.auth!.userId;
+    const userId = req.auth!.userId;
+    // Checks live INSIDE the transaction with the mutation: a withdrawal
+    // requested concurrently on a second session then cannot race past the
+    // guard into an anonymized account.
     await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+      // Block deletion if the user has active orders (financial integrity)
+      const pendingOrder = await tx.order.findFirst({
+        where: { userId, status: { notIn: ["CANCELLED", "DELETED"] } },
+      });
+      if (pendingOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
+
+      const pending = await tx.withdrawal.findFirst({
+        where: { userId, status: { in: ["PENDING", "APPROVED"] } },
+      });
+      if (pending) throw unprocessable("Resolve pending withdrawals before deleting your account");
+
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.user.update({
         where: { id: userId },
@@ -346,7 +350,7 @@ const userId = req.auth!.userId;
           notificationPrefs: null,
         },
       });
-    });
+    }, { timeout: 15000, maxWait: 8000 });
     await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId });
     ok(res, { deleted: true });
   } catch (e) {

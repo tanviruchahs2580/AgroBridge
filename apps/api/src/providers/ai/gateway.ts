@@ -16,9 +16,11 @@ function resolveProvider(): AiProvider {
 }
 
 /**
- * Monthly spend guard: when accumulated estimated cost crosses the budget,
- * the expensive provider is skipped and callers fall back to the offline
- * engine (which is free). Reset happens naturally each calendar month.
+ * Monthly spend guard: when accumulated estimated cost crosses the budget the
+ * expensive provider is refused. Non-production runs fall back to the offline
+ * engine (free); production surfaces 429 AI_BUDGET_EXCEEDED so answers are
+ * never silently degraded without an explicit operator decision. The window
+ * resets naturally each calendar month.
  */
 async function monthlyBudgetExceeded(): Promise<boolean> {
   if (env.AI_COST_PER_1K_TOKENS_PAISA === 0) return false;

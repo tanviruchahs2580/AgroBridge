@@ -9,9 +9,10 @@ export class MockWeatherProvider implements WeatherProvider {
   readonly name = "mock";
 
   async getCurrent(lat: number): Promise<CurrentWeather> {
-    // Deterministic pseudo-climate: hotter toward the equator, mild noise by longitude.
+    // Deterministic pseudo-climate for dev/tests: hotter toward the equator,
+    // with a small reproducible latitudinal band so values are never constant.
     const base = 32 - Math.abs(lat) * 0.15;
-    const wobble = ((lng: number) => Math.sin(lng) * 2)(lat * 0 + Math.abs(lat)) ;
+    const wobble = Math.sin(Math.abs(lat)) * 2;
     const tempC = Number((base + wobble).toFixed(1));
     return {
       tempC,
