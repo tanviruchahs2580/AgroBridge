@@ -19,7 +19,9 @@ Evidence-first maintenance engagement at `078e688` → `865c83d`. Full addendum 
   live Vercel API (`865c83d`).
 - MAINT-03 (P3): bumped `checkout` v7.0.1 / `setup-node` v7.0.0 / `upload-artifact` v7.0.1
   / `setup-java` v6.1.0 to SHA pins across workflows (mirrors open Dependabot branches).
-- Push `078e688..865c83d`; CI 38850058180 **success, 9/9 jobs**; CodeQL success.
+- Push `078e688..865c83d`; run 38850058180 8/9 green then cancelled (superseded by the
+  follow-up push). Final run 38850443703 (`0ad525c`): **9/9 jobs success incl. Trivy**;
+  CodeQL success on both pushes.
 - Live verification (E3/E4): `/health`+`/ready(db:true)` green; CORS/negative-auth correct;
   real-browser journeys on production as demo farmer (persisted session, read-only):
   Home, Wallet (CERT-06 probe green at E4), Orders empty-state, Market at 390 px.
