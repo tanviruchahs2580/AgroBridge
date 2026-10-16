@@ -140,3 +140,27 @@ Full addendum with per-finding proofs: `ENTERPRISE_CERTIFICATION_STATUS.md` §11
   EMPTY annotation section; CodeQL 38859509557 / 38860130082 success.
 - Blocked (owner-only, runbook in cert §12): Render service/DB decommission (CERT-01);
   production deploys of all 2026-10-16 fixes.
+
+## 2026-10-16 — Brand refresh round (owner-provided logo + login background)
+
+- Assets generated from the two owner-provided images
+  (`apps/web/scripts/brand-assets-2026-10-16.py`, Lanczos + WebP q85):
+  in-app badge `/brand/logo-mark.png` (256w from the 172px source), login
+  backgrounds 1600w desktop / 1080w mobile-strip WebP, icon set
+  (64/192/512/maskable/apple-touch), Android launchers (48–192) + adaptive
+  foregrounds (108–432) + splash emblem.
+- Surfaces: auth shell desktop aside + mobile band (photo + #012823 scrim),
+  header brand, auth card header, splash static+animated marks, index.html
+  icon links, Android launcher/adaptive/splash resources + brand-green
+  colors; মধ্যখাদু → মধ্যস্বত্বভোগী (authHeroValue2).
+- Verified in real browser (local stack): login desktop light/dark + mobile
+  light/dark — found and fixed a **pre-existing light-mode token gap**
+  (`--gradient-*` only defined under data-theme=dark → every CTA button
+  transparent in light theme); desktop aside photo composition biased to the
+  farmer/field zone.
+- Android emblem bitmaps: first crop caught a wordmark sliver — found by
+  inspecting the launcher PNG inside the CI-built APK and corrected
+  (46,0,130,70).
+- Commits bbf1123, 08309e5, b96a0fd; CI 38869882187 success, CodeQL
+  38869882184 success, APK run 38869884505 success (launcher icon verified
+  inside the artifact). Production sync still pending owner deploys.
