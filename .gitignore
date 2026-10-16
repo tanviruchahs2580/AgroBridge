@@ -75,3 +75,6 @@ apps/api/src-integration-test.ts
 api-full-validation.sh
 apps/web/src/api/
 *.bak
+
+# ZCode session tooling (local plans/task artifacts)
+.zcode/
