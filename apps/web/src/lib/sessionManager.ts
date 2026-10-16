@@ -42,66 +42,25 @@ const CHANNEL_NAME = "agrobridge:session" as const;
 
 type ChannelMessage = { type: "logout" } | { type: "tokens"; tokens: Tokens } | { type: "session"; session: SessionUser | null };
 
-// ── remember-me storage resolver ──────────────────────────────────────────
-// "Remember me" (Login) controls WHERE the token pair lives between visits:
-//   remembered (default)  -> localStorage   (survives browser restarts)
-//   not remembered        -> sessionStorage (cleared when the tab closes)
-// The flag itself is a localStorage preference so it applies at login time.
-const REMEMBER_KEY = "ab_remember" as const;
-
-function isRemembered(): boolean {
-  if (!canUseStorage()) return true;
-  try {
-    return window.localStorage.getItem(REMEMBER_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
-
-/** Store the remember-me preference. Must be called BEFORE setTokens on login. */
-export function setRemember(remember: boolean): void {
-  if (!canUseStorage()) return;
-  try {
-    window.localStorage.setItem(REMEMBER_KEY, remember ? "1" : "0");
-  } catch {
-    // ignore
-  }
-}
-
-/** Token storage for the active preference (sessionStorage when "don't remember"). */
-function tokenStorage(): Storage | null {
-  if (!canUseStorage()) return null;
-  if (!isRemembered()) {
-    try {
-      if (typeof window.sessionStorage !== "undefined") return window.sessionStorage;
-    } catch {
-      // fall through to localStorage
-    }
-  }
-  return window.localStorage;
-}
-
 // ── safe localStorage helpers (SSR guard) ─────────────────────────────────
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 function readStorage(key: string): string {
-  const store = tokenStorage();
-  if (!store) return "";
+  if (!canUseStorage()) return "";
   try {
-    return store.getItem(key) ?? "";
+    return window.localStorage.getItem(key) ?? "";
   } catch {
     return "";
   }
 }
 
 function writeStorage(key: string, value: string): void {
-  const store = tokenStorage();
-  if (!store) return;
+  if (!canUseStorage()) return;
   try {
-    if (value) store.setItem(key, value);
-    else store.removeItem(key);
+    if (value) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
   } catch {
     // quota or private-mode — keep in-memory state, auth will re-establish
   }
@@ -280,14 +239,8 @@ export function setTokens(at: string, rt: string): void {
 export function clearTokens(): void {
   _at = "";
   _rt = "";
-  for (const store of [window.localStorage, window.sessionStorage]) {
-    try {
-      store.removeItem(AT_KEY);
-      store.removeItem(RT_KEY);
-    } catch {
-      // ignore
-    }
-  }
+  writeStorage(AT_KEY, "");
+  writeStorage(RT_KEY, "");
   emit();
 }
 
@@ -345,8 +298,6 @@ export function broadcastLogout(): void {
     try {
       window.localStorage.removeItem(AT_KEY);
       window.localStorage.removeItem(RT_KEY);
-      window.sessionStorage.removeItem(AT_KEY);
-      window.sessionStorage.removeItem(RT_KEY);
       window.localStorage.removeItem("ab_session");
     } catch {
       /* ignore */

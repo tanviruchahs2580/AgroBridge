@@ -79,7 +79,6 @@ export const dict = {
   authHeroValue2: { bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যস্বত্বভোগী নেই", en: "Direct marketplace — fair prices, no middlemen" },
   authHeroValue3: { bn: "যন্ত্রপাতি ও কৃষি সেবা এক অ্যাপেই", en: "Machinery and agri services in one app" },
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
-  rememberMe: { bn: "আমাকে মনে রাখুন", en: "Remember me" },
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
   // ── Home dashboard (v2) ──
