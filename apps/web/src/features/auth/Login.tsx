@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api, setTokens } from "../../lib/api";
+import { setRemember as persistRememberPreference } from "../../lib/sessionManager";
 import { track } from "../../lib/analytics";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -15,6 +16,7 @@ export default function Login() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [fieldErrs, setFieldErrs] = useState<{ phone?: string; password?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,6 +39,10 @@ export default function Login() {
     setBusy(true);
     setError("");
     try {
+      // Remember-me decides WHERE the token pair lives: localStorage (persist)
+      // vs sessionStorage (this tab only). The preference must be recorded
+      // BEFORE setTokens writes the pair.
+      persistRememberPreference(remember);
       const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/login", { phone: phone.trim(), password });
       setTokens(data.accessToken, data.refreshToken);
       track("login_success");
@@ -127,6 +133,17 @@ export default function Login() {
             copiedLabel={lang === "bn" ? "কপি হয়েছে!" : "Copied!"}
           />
         )}
+
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-sm font-medium text-white/90">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-[18px] w-[18px] appearance-none rounded-[5px] border-2 border-white/50 checked:border-transparent checked:bg-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            style={{ backgroundImage: remember ? 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 12 12%27%3E%3Cpath d=%27M2 6.5 4.5 9 10 3%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")' : undefined, backgroundRepeat: "no-repeat", backgroundPosition: "center", backgroundSize: "10px" }}
+          />
+          {t("rememberMe", lang)}
+        </label>
 
         <Button type="submit" variant="cta" size="lg" className="w-full" loading={busy} disabled={busy || inputInvalid}>
           {t("signIn", lang)} <span aria-hidden>→</span>

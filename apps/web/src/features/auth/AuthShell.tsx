@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Bot, Leaf, Store } from "lucide-react";
 import { t } from "../../lib/i18n";
 import type { Lang } from "../../lib/i18n";
 import { useSession } from "../../lib/session";
@@ -32,12 +31,6 @@ export function useAuthLang(): [Lang, (l: Lang) => void] {
   return [lang, update];
 }
 
-const HERO_VALUES = [
-  { key: "authHeroValue1" as const, Icon: Bot },
-  { key: "authHeroValue2" as const, Icon: Store },
-  { key: "authHeroValue3" as const, Icon: Leaf },
-];
-
 /** Language pill — white glass so it reads over the field photo. */
 export function AuthLangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
   return (
@@ -53,10 +46,11 @@ export function AuthLangToggle({ lang, onChange }: { lang: Lang; onChange: (l: L
 }
 
 /**
- * Unified auth surface on the owner-provided golden-hour field photo: the
- * photo IS the full-page background (full-bleed on desktop and mobile, with
- * per-platform asset variants), the brand stack sits centered above a
- * translucent deep-green card. Same design on desktop and Android.
+ * Unified auth surface: the owner-provided golden-hour field photo IS the
+ * full-page background — farmer mid-left, drone top-right, the sun behind the
+ * centered brand stack, form fields directly on the photo (no opaque card),
+ * fading into the brand green at the bottom. Same design on desktop and
+ * Android; per-platform background assets via srcSet.
  */
 export function AuthShell({
   title,
@@ -74,7 +68,7 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="agro-shell relative min-h-[100dvh] overflow-hidden">
+    <div className="agro-shell relative flex min-h-[100dvh] flex-col overflow-hidden">
       {/* Full-page field photo — per-platform assets, natural WebP q85 */}
       <img
         src="/brand/login-bg-desktop-full.webp"
@@ -84,56 +78,53 @@ export function AuthShell({
         aria-hidden
         className="absolute inset-0 h-full w-full object-cover"
       />
-      {/* Deep-green scrim: keeps photo visible on top, text AA everywhere */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#012823]/40 via-[#012823]/55 to-[#012823]/90" aria-hidden />
+      {/* Scrim: clear sky up top (drone/brand readable), left mid vignette
+          (farmer), strong brand-green fade at the bottom */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#012823]/25 via-[#012823]/35 to-[#012823]/95" aria-hidden />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#012823]/45 via-transparent to-transparent" aria-hidden />
 
       <AuthLangToggle lang={lang} onChange={onToggleLang} />
 
       <main
         id="main"
         tabIndex={-1}
-        className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-md flex-col items-center px-4 pb-10 sm:px-6 md:max-w-xl"
-        style={{ paddingTop: "max(2rem, env(safe-area-inset-top))" }}
+        className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-5 sm:px-6 md:max-w-lg"
+        style={{ paddingTop: "max(2.25rem, env(safe-area-inset-top))" }}
       >
-        {/* Brand stack — centered over the field, like the product reference */}
-        <img
-          src="/brand/logo-emblem.png"
-          alt=""
-          aria-hidden
-          className="h-16 w-16 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
-        />
-        <div className="mt-2.5 text-center">
-          <div className="text-[22px] font-extrabold leading-none tracking-[-0.01em] text-white drop-shadow-sm">
+        {/* Brand stack — centered in the sky */}
+        <div className="flex flex-col items-center text-center">
+          <img
+            src="/brand/logo-emblem.png"
+            alt=""
+            aria-hidden
+            className="h-14 w-14 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
+          />
+          <div className="mt-2 text-[22px] font-extrabold leading-none tracking-[-0.01em] text-white drop-shadow-sm">
             {t("appName", lang)}
           </div>
-          <div className="mt-1.5 text-[11px] font-medium tracking-wide text-white/75">
+          <div className="mt-1 text-[11px] font-medium tracking-wide text-white/75">
             {t("authTagline", lang)}
           </div>
         </div>
 
-        {/* Credential card — translucent deep green over the photo. The
-            .auth-photo-scope rules (index.css) restyle the shared form
-            controls for legibility on the dark glass. */}
-        <section className="auth-photo-scope mt-6 w-full rounded-2xl bg-[#012823]/80 p-5 shadow-float ring-1 ring-white/15 backdrop-blur-md sm:p-6">
-          <header className="mb-5">
-            <h1 className="text-xl font-extrabold tracking-[-0.01em] text-white">{title}</h1>
-            <p className="mt-0.5 text-[13px] text-white/70">{subtitle}</p>
+        {/* Form — directly on the photo, controls restyled by .auth-photo-scope */}
+        <section className="auth-photo-scope mt-7 w-full">
+          <header className="mb-4">
+            <h1 className="text-[22px] font-extrabold tracking-[-0.01em] text-white">{title}</h1>
+            <p className="mt-0.5 text-[13px] text-white/75">{subtitle}</p>
           </header>
           {children}
         </section>
 
-        {footer && <div className="auth-photo-scope mt-4 w-full text-center">{footer}</div>}
-
-        {/* Desktop-only value line — keeps the brand promise visible on large screens */}
-        <div className="mt-8 flex flex-col items-center gap-2 px-4 md:flex-row md:justify-center">
-          {HERO_VALUES.map(({ key, Icon }) => (
-            <span key={key} className="flex items-center gap-1.5 text-xs font-medium text-white/75">
-              <Icon className="h-3.5 w-3.5 text-brand-300" aria-hidden />
-              {t(key, lang)}
-            </span>
-          ))}
-        </div>
+        {footer && <div className="auth-photo-scope mt-5 w-full text-center">{footer}</div>}
       </main>
+
+      {/* Bottom brand band — fades the photo into AgroBridge green */}
+      <footer className="relative z-10 bg-gradient-to-t from-[#012823] via-[#012823]/85 to-transparent px-4 pb-5 pt-12 text-center">
+        <p className="text-[13px] font-semibold text-white">
+          {lang === "bn" ? "কৃষকের জন্য তৈরি 💚 — বাংলার মাটই জানে" : "Built for farmers 💚 — rooted in Bengal's soil"}
+        </p>
+      </footer>
     </div>
   );
 }
