@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Sprout } from "lucide-react";
 import { t } from "../lib/i18n";
 import type { DictKey, Lang } from "../lib/i18n";
 
@@ -93,8 +92,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   if (shouldReduce || staticOnly) {
     return (
       <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15 backdrop-blur">
-          <Sprout className="h-10 w-10 text-white" strokeWidth={2} aria-hidden />
+        <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 backdrop-blur">
+          <img src="/brand/logo-mark.png" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
         </div>
         <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
         <p className="mt-1 text-[11px] font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
@@ -184,42 +183,11 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
 
             {/* Seed → stem → leaves */}
             <div className="relative flex h-[64px] w-[64px] items-center justify-center rounded-full bg-white shadow-[0_8px_32px_rgba(0,0,0,0.18),0_1px_3px_rgba(0,0,0,0.2)] ring-1 ring-black/5">
-              {/* Stem */}
-              <motion.div
-                initial={{ scaleY: 0 }}
-                animate={{ scaleY: phase === "seed" ? 0 : 1 }}
-                transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute bottom-[18px] left-1/2 h-[28px] w-[3px] origin-bottom -translate-x-1/2 rounded-full bg-[var(--color-brand-700)]"
-                aria-hidden
-              />
-              {/* Seed base */}
-              <motion.div
-                initial={{ scale: 0.15 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 180, damping: 14 }}
-                className="absolute bottom-[14px] left-1/2 h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[var(--color-brand-900)] shadow-sm"
-                aria-hidden
-              />
-              {/* Left leaf */}
-              <motion.div
-                initial={{ scale: 0, rotate: -35, x: -6, y: 6 }}
-                animate={{ scale: phase === "seed" ? 0 : 1, rotate: phase === "seed" ? -35 : 0, x: phase === "seed" ? -6 : 0, y: phase === "seed" ? 6 : 0 }}
-                transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.55 }}
-                className="absolute bottom-[26px] right-[30px] h-[18px] w-[14px] origin-bottom-right rounded-[10px] bg-[var(--color-brand-500)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
-                style={{ borderRadius: "10px 10px 10px 2px" }}
-                aria-hidden
-              />
-              {/* Right leaf */}
-              <motion.div
-                initial={{ scale: 0, rotate: 35, x: 6, y: 6 }}
-                animate={{ scale: phase === "seed" ? 0 : 1, rotate: phase === "seed" ? 35 : 0, x: phase === "seed" ? 6 : 0, y: phase === "seed" ? 6 : 0 }}
-                transition={{ type: "spring", stiffness: 180, damping: 14, delay: 0.6 }}
-                className="absolute bottom-[26px] left-[30px] h-[18px] w-[14px] origin-bottom-left rounded-[10px] bg-[var(--color-brand-400)] shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]"
-                style={{ borderRadius: "10px 10px 2px 10px" }}
-                aria-hidden
-              />
-              {/* Fallback sprout emoji for screen-reader label, hidden visually when motion runs */}
-              <span className="sr-only">AgroBridge sprout</span>
+              <img
+              src="/brand/logo-mark.png"
+              alt=""
+              className="h-[56px] w-[56px] rounded-2xl object-cover shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+            />
             </div>
 
             {/* Particles */}

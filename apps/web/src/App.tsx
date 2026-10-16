@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, ShoppingCart, Sprout, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { t } from "./lib/i18n";
@@ -142,8 +142,8 @@ function Shell({ children }: { children: ReactNode }) {
       <header className="agro-header sticky top-0 z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-brand-300 ring-1 ring-white/20">
-              <Sprout className="h-5 w-5" strokeWidth={2.2} />
+            <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
+              <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
             </span>
             <div>
               <div className="text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>

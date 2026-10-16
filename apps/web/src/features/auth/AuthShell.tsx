@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Bot, Leaf, Sprout, Store } from "lucide-react";
+import { Bot, Leaf, Store } from "lucide-react";
 import { t } from "../../lib/i18n";
 import type { Lang } from "../../lib/i18n";
 import { useSession } from "../../lib/session";
@@ -40,13 +40,12 @@ const HERO_VALUES = [
 
 function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
   const box = size === "lg" ? "h-14 w-14 rounded-2xl" : "h-10 w-10 rounded-xl";
-  const icon = size === "lg" ? "h-7 w-7" : "h-5 w-5";
   return (
     <span
       aria-hidden
-      className={`flex ${box} items-center justify-center bg-cta shadow-button ring-1 ring-white/20`}
+      className={`flex ${box} items-center justify-center overflow-hidden shadow-button ring-1 ring-white/20`}
     >
-      <Sprout className={`${icon} text-white`} strokeWidth={2.2} />
+      <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" loading="eager" />
     </span>
   );
 }
@@ -87,21 +86,20 @@ export function AuthShell({
 }) {
   return (
     <div className="agro-shell min-h-[100dvh] md:grid md:grid-cols-[1.05fr_1fr]">
-      {/* Brand panel — desktop only */}
-      <aside className="relative hidden overflow-hidden bg-hero p-10 text-white md:flex md:flex-col md:justify-between" aria-hidden>
-        {/* Field texture */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse at 30% 20%, white 1px, transparent 1.5px), radial-gradient(ellipse at 70% 80%, white 1px, transparent 1.5px)",
-            backgroundSize: "180px 180px, 220px 220px",
-          }}
+      {/* Brand panel — desktop only. The owner-provided golden-hour field photo
+          carries the panel; a deep-green scrim keeps every text token AA. */}
+      <aside className="relative hidden overflow-hidden bg-hero text-white md:flex md:flex-col md:justify-between" aria-hidden>
+        <img
+          src="/brand/login-bg-desktop.webp"
+          srcSet="/brand/login-bg-mobile.webp 640w, /brand/login-bg-desktop.webp 1600w"
+          sizes="(min-width: 768px) 50vw, 100vw"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ backgroundColor: "var(--color-brand-400)", opacity: 0.2 }} />
-        <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full blur-3xl" style={{ backgroundColor: "var(--color-brand-500)", opacity: 0.15 }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#012823]/95 via-[#012823]/70 to-[#012823]/35" />
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex items-center gap-3 p-10 pb-0">
           <BrandMark />
           <div>
             <div className="text-base font-bold leading-none">{t("appName", lang)}</div>
@@ -109,7 +107,7 @@ export function AuthShell({
           </div>
         </div>
 
-        <div className="relative max-w-md">
+        <div className="relative max-w-md p-10 pt-0">
           <h2 className="text-2xl font-extrabold leading-snug tracking-[-0.01em]">{t("authHeroHeadline", lang)}</h2>
           <ul className="mt-6 space-y-3.5">
             {HERO_VALUES.map(({ icon: Icon, key }) => (
@@ -123,7 +121,7 @@ export function AuthShell({
           </ul>
         </div>
 
-        <p className="relative text-xs font-medium text-white/60">© {new Date().getFullYear()} {t("appName", lang)}</p>
+        <p className="relative p-10 pt-0 text-xs font-medium text-white/60">© {new Date().getFullYear()} {t("appName", lang)}</p>
       </aside>
 
       {/* Form panel */}
@@ -132,16 +130,15 @@ export function AuthShell({
         tabIndex={-1}
         className="relative flex min-h-[100dvh] flex-col px-4 pb-8 outline-none sm:px-6 md:min-h-0 md:items-center md:justify-center md:px-8"
       >
-        {/* Mobile brand band */}
-        <div className="relative -mx-4 overflow-hidden bg-hero px-4 pb-14 pt-6 text-white sm:-mx-6 md:hidden">
-          <div
+        {/* Mobile brand band — same golden-hour photo, short crop */}
+        <div className="relative -mx-4 overflow-hidden px-4 pb-14 pt-6 text-white sm:-mx-6 md:hidden">
+          <img
+            src="/brand/login-bg-mobile.webp"
+            alt=""
             aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage: "radial-gradient(ellipse at 30% 20%, white 1px, transparent 1.5px)",
-              backgroundSize: "160px 160px",
-            }}
+            className="absolute inset-0 h-full w-full object-cover"
           />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#012823]/55 via-[#012823]/40 to-[#012823]/90" />
           <div className="relative flex items-start justify-between">
             <div className="flex items-center gap-2.5">
               <BrandMark />
@@ -162,8 +159,8 @@ export function AuthShell({
 
           <section className="rounded-t-card border border-surface-border bg-surface-card p-5 shadow-card sm:p-6 md:rounded-card">
             <header className="mb-5 flex items-center gap-3">
-              <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100 md:hidden">
-                <Sprout className="h-6 w-6" strokeWidth={2.2} />
+              <span aria-hidden className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-iconBox ring-1 ring-brand-100 md:block">
+                <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
               </span>
               <div className="min-w-0">
                 <h1 className="text-xl font-extrabold tracking-[-0.01em] text-stone-800">{title}</h1>

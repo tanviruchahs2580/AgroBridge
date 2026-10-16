@@ -76,7 +76,7 @@ export const dict = {
   authRegisterSub: { bn: "মিনিটেই আপনার ফার্ম অ্যাকাউন্ট খুলুন", en: "Create your farm account in minutes" },
   authHeroHeadline: { bn: "বাংলাদেশের কৃষকের বিশ্বস্ত ডিজিটাল সঙ্গী", en: "The trusted digital companion for Bangladeshi farmers" },
   authHeroValue1: { bn: "AI দিয়ে ফসলের রোগ নির্ণয় ও পরামর্শ", en: "AI crop disease detection and advice" },
-  authHeroValue2: { bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যখাদু নেই", en: "Direct marketplace — fair prices, no middlemen" },
+  authHeroValue2: { bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যস্বত্বভোগী নেই", en: "Direct marketplace — fair prices, no middlemen" },
   authHeroValue3: { bn: "যন্ত্রপাতি ও কৃষি সেবা এক অ্যাপেই", en: "Machinery and agri services in one app" },
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
