@@ -265,3 +265,58 @@ baseline).
   `Root Directory` settings that double-join when deploying via CLI from the subfolder;
   `agro-bridge-api`'s was cleared via API (2026-10-15). Deploy the API from the repo root
   per the runbook.
+
+---
+
+## 10. Maintenance addendum — 2026-10-16 (CI restored to green on `main`)
+
+**Scope:** independent maintenance engagement at HEAD `078e688` → `865c83d`. Phases 0–1
+(capability preflight, repo identity `tanviruchahs2580/AgroBridge`, clean tree) verified;
+working tree contained no pre-existing user changes to protect.
+
+### Findings fixed (regression-tested)
+
+| ID | Sev | Finding | Fix | Proof |
+|---|---|---|---|---|
+| MAINT-01 | **P1** | CI red on `main` since `078e688` (run 38819107139): `security-scan` job failed `npm audit --omit=dev` — NEW advisory **GHSA-68fv-2mgg-jv7q** (`source-map-js` 1.0.0–1.2.1, HIGH, event-loop DoS via crafted source-map section offsets; published 2026-09-30) landed in the production tree via `@prisma/client` → `prisma` → `@prisma/config` → `c12` → `magicast`. Same advisory raised **Trivy** 1 HIGH in the API image (its `app/node_modules/source-map-js` row), failing that gate too. | Root override `source-map-js: ^1.2.2` in `268f60f` (same pattern as W-07 `qs`/`deepmerge-ts`); lockfile delta is one package version + integrity. | Local: `npm audit --omit=dev` → **0 findings**; `npm ls` resolves 1.2.2 on every chain; gates re-run green (API 131 pass/1 skip-by-design, web 107 pass, lint+typecheck+builds pass; `qa-evidence/J1-baseline-2026-10-16.log`). Remote: `security-scan` job **success in 11s** on run 38850058180. |
+| MAINT-02 | P2 | `ci.yml` web-quality + android-build still baked the **retired Render host** (`agrobridge-vfbz.onrender.com`) into CI-built bundles — contradicts `.env.production` and the 2026-10-15 re-platform. | Re-pointed both to `https://agro-bridge-api-vantiq-systems.vercel.app/api/v1` (`865c83d`). | `git grep agrobridge-vfbz -- .github` → 0 hits; YAML parse-validated. |
+| MAINT-03 | P3 | Overdue action-pin bumps flagged 2026-09-16 ("before 2026-09-23"): `actions/checkout@v4.2.2`, `setup-node@v4`, `upload-artifact@v4/4.6.2`, and (flagged during this run) `setup-java@v4.9.1` — Node-20 targets forced onto Node 24 (recurring CI annotations). | Bumped to SHA pins across the workflows — checkout `3d3c42e5…` (v7.0.1), setup-node `82076278…` (v7.0.0), upload-artifact `043fb46d…` (v7.0.1), setup-java `b843ebf9…` (v6.1.0, SHA resolved from the `actions/setup-java` tags API); SHAs mirror the repo's own open Dependabot branches where present, which these changes let close as duplicates. | Run 38850058180: checkout/setup-node deprecation annotations **gone**; after the follow-up `setup-java` pin the only remaining Node-20 action is `gitleaks/gitleaks-action@v2` (registered below). All 9 jobs completed success. |
+
+### Fresh verification performed 2026-10-16 (E2/E3/E4)
+
+- Local gates on the fixed tree: lint 0 problems; typecheck api+web pass; API vitest
+  **131 passed / 1 skipped** (PG-gated by design, matches §4 baseline); web unit **107/107**;
+  api+web production builds pass; web bundle 469.23 kB (148.95 kB gz). (`qa-evidence/J1-baseline-2026-10-16.log`)
+- Live API (E3): `/health` 200, `/ready` `{ready:true,db:true}` (Neon connected), CORS
+  preflight 204 + correct ACAO/credentials for the web origin, wrong-password login → 401,
+  unauthenticated catalog → 401 envelope. (`qa-evidence/J2-live-probes-2026-10-16.log`)
+- Live web (E3/E4, real browser): bundle `index-BYiDN9NP.js` references the Vercel API only
+  (0 Render remnants); `/sw.js` kill-switch served (200, 1443 B);
+  **authenticated journeys exercised against production** via the persisted demo-farmer
+  session — Home dashboard (farm health 94%, weather 29.5°, wallet ৳2,500 render), Wallet
+  (**CERT-06 regression probe GREEN at E4**: balance/month-sums/pending rows render, sandbox
+  payment buttons explicitly labelled), Orders (live empty-state with guidance), Market at
+  **390 px** (category chips scroll, cards stack, bottom nav, no horizontal overflow).
+  Bengali numerals/timestamps correct; no fabricated values observed. Wallet balance and
+  membership data unchanged vs 2026-10-15. State-changing flows (order placement, withdrawal,
+  logout) deliberately **not** exercised to avoid mutating production data and to preserve
+  the working session.
+- Push `078e688..865c83d` verified on `origin/main`; CI run
+  [38850058180](https://github.com/tanviruchahs2580/AgroBridge/actions/runs/38850058180)
+  **success — all 9 jobs green** (first fully green run since 4adbc4f). CodeQL
+  [38850058222](https://github.com/tanviruchahs2580/AgroBridge/actions/runs/38850058222) success.
+  A follow-up commit adds the `setup-java` v6.1.0 pin plus this addendum; its CI run must
+  show the same green with the setup-java annotation cleared.
+
+### Register changes
+
+- CERT-06 (**P0 live, wallet 500**): confirmed CLOSED on the Vercel+Neon stack — wallet
+  endpoints verified 200 at API level and rendering at browser level, again, today.
+- NEW standing item (P3): `gitleaks/gitleaks-action@ff98106…` (v2.3.9) is the last Node-20
+  action; bump to its Node-24 release when filed upstream.
+- NEW standing item (P3, watch): GitHub `ubuntu-latest` migrates to Ubuntu 26 beginning
+  2026-10-19 — re-check docker/postgres jobs after the runner image rolls.
+- CERT-01/CERT-02 (retired Render DB artifacts + git-history purge) and Render
+  decommissioning: unchanged, still require owner dashboard access (out of agent scope).
+- Demo credentials on the live Neon DB remain owner-rotated; authenticated live testing in
+  this engagement used the workstation's persisted browser session (read-only journeys only).

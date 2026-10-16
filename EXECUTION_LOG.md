@@ -1,5 +1,30 @@
 # AgroBridge — Execution Log
 
+## 2026-10-16 — Maintenance session (CI restored to green; post-re-platform verification)
+
+Evidence-first maintenance engagement at `078e688` → `865c83d`. Full addendum with proofs:
+`ENTERPRISE_CERTIFICATION_STATUS.md` §10. Local gate logs: `qa-evidence/J1-baseline-2026-10-16.log`,
+`qa-evidence/J2-live-probes-2026-10-16.log`.
+
+- Phase 0/1: preflight (git 2.55/node 24/npm 11/docker 29/gh 2.98, all usable); repo identity
+  verified (`main` @ `078e688`, remote `tanviruchahs2580/AgroBridge`); working tree clean —
+  no user changes to protect.
+- Baseline reproduced: `npm ci` repaired an incomplete `node_modules` (web typecheck was
+  failing locally on missing modules); then lint/typecheck/API vitest **131+1skip**/web
+  unit **107**/api+web builds all PASS (E2).
+- MAINT-01 (P1): CI red since `078e688` — `source-map-js` (GHSA-68fv-2mgg-jv7q, HIGH,
+  2026-09-30) failed both `npm audit --omit=dev` and Trivy via prisma → magicast chain.
+  Fixed by root override `^1.2.2` (`268f60f`); prod audit 0, all chains resolve 1.2.2.
+- MAINT-02 (P2): `ci.yml` web/Android jobs baked retired Render API URL; re-pointed to the
+  live Vercel API (`865c83d`).
+- MAINT-03 (P3): bumped `checkout` v7.0.1 / `setup-node` v7.0.0 / `upload-artifact` v7.0.1
+  / `setup-java` v6.1.0 to SHA pins across workflows (mirrors open Dependabot branches).
+- Push `078e688..865c83d`; CI 38850058180 **success, 9/9 jobs**; CodeQL success.
+- Live verification (E3/E4): `/health`+`/ready(db:true)` green; CORS/negative-auth correct;
+  real-browser journeys on production as demo farmer (persisted session, read-only):
+  Home, Wallet (CERT-06 probe green at E4), Orders empty-state, Market at 390 px.
+  State-changing flows intentionally not executed against production data.
+
 ## 2026-08-25 — Takeover Session (Muse Spark)
 
 ### Phase 1 — Archaeology (no code changes)
