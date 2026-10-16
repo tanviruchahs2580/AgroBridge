@@ -318,3 +318,69 @@ working tree contained no pre-existing user changes to protect.
   decommissioning: unchanged, still require owner dashboard access (out of agent scope).
 - Demo credentials on the live Neon DB remain owner-rotated; authenticated live testing in
   this engagement used the workstation's persisted browser session (read-only journeys only).
+
+---
+
+## 11. Full parameter review addendum — 2026-10-16 (anti-slop + SWE SOP round)
+
+**Scope:** independent full-codebase review (4 read-only domain reviewers + deterministic scans,
+every candidate finding re-verified in source before any edit; unproven agent claims — e.g. the
+reported raw `<a href>` SPA-break — were rejected after inspection). Range `0a308e4..2f03d01`
+(5 commits), CI [38858105845](https://github.com/tanviruchahs2580/AgroBridge/actions/runs/38858105845)
+**success 9/9** + CodeQL success.
+
+### Money / integrity (FIXED with regression tests)
+| ID | Sev | Finding → Fix | Proof |
+|---|---|---|---|
+| R-01 | **P1** | Membership purchases were effectively one-shot per tier: partial-unique on `(purposeType,purposeId)` (SQLite chain only) blocked the second user ever to open a tier checkout; intent supersede was unscoped (one user's checkout cancelled another user's live intent). → per-user partial unique (`Payment_user_purpose_pending_key`, migrations both dialects) + user-scoped supersede. | `tests/payments-integrity.test.ts` new cases: cross-user intent survives + webhook-superseded never applies; **PG 136/136, SQLite 135/135+1skip**. |
+| R-02 | P2 | SSLCommerz webhook on claim-loss answered `processed:true` + re-notified (superseded intents could never reconcile). → `processed:false (not_claimable)`, no side effects/no duplicate notify. | payments-integrity suite. |
+| R-03 | P2 | Booking `/status` had zero transition guards (un-cancel, re-complete, history nulling). → procurement-style state machine, terminal states final, admin offline-cash ASSIGNED→COMPLETED kept (test contract). Rating re-submission inflated provider aggregates → 409. Provider assignment now enforces service compatibility. | journey-services tests extended; PG+SQLite green. |
+| R-04 | P3 | Admin "revenue" counted farmer procurement payouts (money OUT) → excluded. | admin metrics where-clause + comment. |
+
+### Honesty / anti-slop (FIXED, all verified in source before edits)
+- Home: fabricated checkbox task list (no task API exists), scripted fake weather alerts, fake
+  "ধান" crop for cropless farmers, "AI •" branding on a deterministic score → real stage-derived
+  **খেতের পরামর্শ** suggestions (labelled as suggestions), truthful empties, neutral weather
+  state, geolocation instead of hardcoded Rangpur (E4 screenshots on local stack).
+- MyFarm: `pendingTasks = crops × 2` tile and hardcoded "Next: fertilizer" removed; raw state
+  enums localized; care suggestions bilingual; wrong date-field aria-label fixed.
+- Onboarding: dead "Primary crops" step removed (unimplementable honestly: one active crop per
+  plot); render-phase navigation moved to an effect.
+- Login: dead "Remember me" checkbox and alert-only Google button removed.
+- Offline toast/sr-only counts moved through i18n; validation field errors render in the active
+  language; wallet benefits shared bilingual label table; unused ~30 kB react-query wrapper and
+  six dead lib/component files deleted (E2E 20/20 + web unit 108/108 after removal).
+
+### Hardening / hygiene (FIXED)
+Refresh validation+limiter; request-id sanitization; crop/event org-member access parity +
+cumulative plot-area checks + bounded reads; deletion guards moved inside the transaction;
+multipart ceiling ~1× documented size with drain-to-reject (ECONNRESET regression caught by the
+oversized-upload test and fixed); disease review via RBAC matrix + one-shot guard + audit row;
+`unhandledRejection` drain+exit matching policy; stale Render references in comments removed;
+`actions/*` pinned to SHAs (setup-java v6.1.0 resolved from the actions tags API) with
+least-privilege `permissions:` per workflow; `render.yaml`+`fly.toml` deleted (retired platforms;
+worktree deletions landed in `b0c3ee9` — CommitSplit note); compose uploads volume fixed to the
+API's real path; SECURITY/PRIVACY contacts point to reachable GitHub channels; README/CHANGELOG
+truth pass; `codeql.yml` + `gitleaks-action` bumps registered as standing items.
+
+### Verification matrix (2026-10-16, this round)
+Local: API lint 0 / tsc 0 / **SQLite 135 pass + 1 skip + coverage gates green**; web tsc 0 /
+**108 pass** / lint 0 / i18n 0 missing; api+web builds green (web bundle 469.2→**439.7 kB**,
+149→**140 kB** gz after dead-dep removal); **Playwright E2E 20/20** (real UI, local stack);
+**PostgreSQL 17 (docker): 136/136 no skips** including the new migrations applied via db push;
+freeze-dried `npm audit --omit=dev` = 0; secret scans clean; secret scan heuristics from ci.yml
+clean on the full diff.
+User-level (E4, local): fresh registration → auto-login → honest dashboard rendered (verified
+camp A/B above) → farm created through the real forms with success toast.
+
+### Standing items (updated)
+- **DEPLOY PENDING (owner):** all fixes are on `main` + CI-green but the production site/APK
+  still run the previous build until the owner runs the Vercel deploys and dispatches the APK
+  workflow (agent deployment is out of authorization scope). The two 2026-10-16 migrations apply
+  via `scripts/deploy-migrations.mjs` (idempotent) during the next API deploy.
+- Live DB still contains seeded demo service providers whose "ratingSum/ratingCount" aggregates
+  were fabricated in seed data visible on the marketplace (seed now zero-rates new deployments;
+  existing Neon rows need a one-time cleanup owner-side, or accept as demo data).
+- CERT-01/02/03 (retired Render DB + git history + local OIDC token) unchanged — owner actions.
+- `gitleaks-action` (last Node-20 action), `codeql.yml` checkout@v4 + codeql-action v3 (Dec 2026),
+  ubuntu-latest → 26 runner migration (2026-10-19 watch).

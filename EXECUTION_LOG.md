@@ -105,3 +105,23 @@ All outputs captured in session transcript; no faked results.
 - [ ] Run loadtest against staging URL
 - [ ] Create GitHub repo + push to trigger CI
 - [ ] Tag release
+
+## 2026-10-16 — Full parameter review round (anti-slop + SWE SOP)
+
+Evidence-first full-codebase review: 4 read-only domain reviewers + deterministic scans; every
+candidate finding re-verified in source before edits; unfounded claims rejected on inspection.
+Range `0a308e4..2f03d01` (5 commits), CI run 38858105845 **success 9/9**, CodeQL success.
+Full addendum with per-finding proofs: `ENTERPRISE_CERTIFICATION_STATUS.md` §11. Local gate logs:
+`qa-evidence/J1-baseline-2026-10-16.log` (early), final run logs in-session.
+
+- Money: per-user pending-payment invariant (both dialects) + cross-user supersede fix + webhook
+  claim honesty + booking state machine + rating idempotency + provider-compat assign + revenue
+  metric fix; dead payment service layer deleted. PG 136/136 (docker PG17), SQLite 135+1skip.
+- Anti-slop: Home/MyFarm fabricated data replaced with real, labelled, stage-derived suggestions;
+  dead onboarding step / remember-me / Google-alert button removed; i18n holes closed; ~30 kB
+  dead dep + 6 dead files removed.
+- Hardening: refresh validate+limiter, request-id sanitize, multipart caps, disease review
+  RBAC+audit, deletion TOCTOU, action pins + permissions, compose uploads path, docs truth pass.
+- User-level (E4): fresh registration → auto-login → honest dashboard → farm creation verified
+  in a real browser on the local stack; E2E suite 20/20; live production verification is
+  read-only (fixes await owner deploys).
