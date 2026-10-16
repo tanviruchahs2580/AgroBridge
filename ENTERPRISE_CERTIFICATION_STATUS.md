@@ -308,7 +308,10 @@ working tree contained no pre-existing user changes to protect.
 - CERT-06 (**P0 live, wallet 500**): confirmed CLOSED on the Vercel+Neon stack — wallet
   endpoints verified 200 at API level and rendering at browser level, again, today.
 - NEW standing item (P3): `gitleaks/gitleaks-action@ff98106…` (v2.3.9) is the last Node-20
-  action; bump to its Node-24 release when filed upstream.
+  action; bump to its Node-24 release when filed upstream. Found during this run:
+  `codeql.yml` still uses `actions/checkout@v4` + `github/codeql-action@v3` — the CodeQL
+  v3 action is announced deprecated for December 2026; bump to checkout v7 + codeql-action
+  v4 before then (annotations on run 38850931946).
 - NEW standing item (P3, watch): GitHub `ubuntu-latest` migrates to Ubuntu 26 beginning
   2026-10-19 — re-check docker/postgres jobs after the runner image rolls.
 - CERT-01/CERT-02 (retired Render DB artifacts + git-history purge) and Render
