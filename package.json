@@ -24,7 +24,8 @@
   },
   "overrides": {
     "qs": "^6.16.0",
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "^8.0.0",
+    "source-map-js": "^1.2.2"
   },
   "devDependencies": {
     "prisma": "^6.5.0"
