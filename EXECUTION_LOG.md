@@ -302,3 +302,54 @@ manual: Services booking journey (modal→POST→BOOKING notification→list row
 Services উভয় থিমে ভিজ্যুয়াল পাস। Evidence: docs/ux-renovation-2026-09-14/ before(wip-*)/
 after sets + apps/qa-screenshots। a11y.spec.ts-এর দুই class-exclusion অপরিবর্তিত (contrast
 fix ছাড়া বাদ দেওয়া যায়নি — জানানো হলো)।
+
+## 2026-10-17 — Production deployment + live verification (round 9)
+
+Owner ask: current HEAD live করা (Vercel deploy সহ), full CI/CD strict SOP, live version এ
+final sync+user test, তারপর final report। HEAD `c044d12`.
+
+**Preflight**: vercel CLI authenticated (owner `tanviruchahs2580`); projects `agrobridge-web`
++ `agro-bridge-api` (GitHub integration auto-deploy সেটআপ আছে কিন্তু **আজকের সব integration
+deploy Error state** — build পথেই ভাঙছিল, নিচে root cause)। Live bundle-এ round-8 marker 0 হিট
+→ production STALE প্রমাণিত ছিল।
+
+**Deploy-এর আগে পূর্ণ local gates** (evidence: `qa-evidence/R9-predeploy-2026-10-17.log`):
+API typecheck/eslint/build + suite **137+1skip**; web typecheck/eslint/unit **108**/build;
+E2E **20/20 --workers=1**; `git diff --check` OK। মাঝপথে `vercel build`-এর npm ci root
+node_modules-এ devDeps মুছে ফেলেছিল → `npm ci` দিয়ে ফেরানো হয়েছে।
+
+**Deploy ১ম চেষ্টা → P0 ধরা পড়ে**: CLI prebuilt deploy-তে API সব DB route 500 — bundled
+Prisma client **sqlite schema থেকে হয়ে গিয়েছিল** (root postinstall sqlite generate করত,
+vercel build-এর internal `npm ci` সেটাই প্যাকেজ করত; GitHub-integration builds একই কারণে
+Error ছিল)। **Fix**: root postinstall → `scripts/generate-prisma.mjs` (VERCEL env-এ
+`prisma/postgres/schema.prisma` + rhel engine, নইলে sqlite)। vercel.json-এর buildCommand-ও
+PG generate করে; উভয়ে একযোগে। আরম্ভে ভুল deploy থেকে production-এ login 500 কয়েক মিনিট
+চলেছিল — তৎক্ষণাৎ fix+redeploy দিয়ে সরানো হয়েছে।
+
+**Deployed + verified live (canonical https://agrobridge-web.vercel.app)**:
+- API: /health ok, **/ready → db:true**; register→login roundtrip 200; login 401 সঠিক
+  negative-auth. (প্রথম register→login-এ 401 দেখা গিয়েছিল — পরে সেই account 200; সম্ভবত
+  প্রথম read এ replica lag — নোট করা হলো, ব্লকার নয়।)
+- Web: live asset `index-Dbznn19N.js` = HEAD লোকাল build-এর হুবহু hash; round-8 markers
+  (কোনো এন্ট্রি নেই / marketNoProductsDesc) live bundle-এ।
+- **Production user-journeys (read-only, QA account 01700000043/44 by UI+API)**: Playwright
+  script `prod-smoke.mjs` — login page, **UI login→dashboard**, /farm /market /wallet
+  /orders /services /advisor /notifications সব লোড + real data (Home-এ আজকের কাজ 1/4,
+  weather 29.5°/78%, honest ফসল-empty), **round-8 markers live**, language toggle bn↔en,
+  /admin farmer-এ "এই পাতায় প্রবেশের অনুমতি নেই" গেট। 11/14 PASS; বাকি ২টা
+  assertion-marker ভুল ছিল (Home = timing, admin = marker তালিকায় নেই) — পরে screenshot+
+  live probe দিয়ে উভয়ই সঠিক প্রমাণিত; কোনো app defect নয়। State-changing flow production-
+  এ ইচ্ছাকৃতভাবে চালানো হয়নি। Screenshots: docs/ux-renovation-2026-09-14/prod-*.png।
+
+**Tooling note**: IAB playwright force-click ছাড়া CTA-stall করে (login/nav) — automation
+quirk; API-path + repo-Playwright দিয়ে সব যাচাই হয়েছে।
+
+**পরিবেশ-নোট (owner-decision, বদলানো হয়নি)**: dashboard WEB_ORIGIN শুধু canonical
+`https://agrobridge-web.vercel.app` allow করে — `-vantiq-systems.vercel.app` alias দিয়ে
+খুললে ব্রাউজার fetch CORS ব্লক করে। Canonical URL-ই ব্যবহারযোগ্য; alias-ও চাইলে
+WEB_ORIGIN-এ comma-list যোগ করতে হবে।
+
+**CI/CD**: HEAD push-এ CI **9/9 success** (run 38945491979) + CodeQL; Android APK
+workflow_dispatch (run 38956506053) চালানো/যাচাই। Production postgres path-এ এখন নতুন
+integration builds-ও সম্ভব (postinstall fix commit-এর পরে integration বিল্ড আবার চেষ্টা
+হবে push-trigger-এ)।

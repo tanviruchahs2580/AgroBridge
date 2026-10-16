@@ -11,7 +11,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "postinstall": "prisma generate --schema=apps/api/prisma/schema.prisma",
+    "postinstall": "node scripts/generate-prisma.mjs",
     "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
     "test": "npm run test --workspace apps/api",
