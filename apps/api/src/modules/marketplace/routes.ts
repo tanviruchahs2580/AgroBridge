@@ -190,6 +190,40 @@ ordersRouter.get("/:id", async (req, res, next) => {
 });
 
 /**
+ * Delete one of my own finished orders (removes the order + its line items
+ * from history). Orders still being fulfilled (PENDING/CONFIRMED/SHIPPED)
+ * must be cancelled first. Payment and wallet-ledger rows are financial
+ * records and are intentionally kept untouched.
+ */
+ordersRouter.delete("/:id", async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
+    if (!order) throw notFound("Order");
+    if (["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status)) {
+      throw unprocessable("This order is still in progress — cancel it before deleting");
+    }
+    await prisma.$transaction(async (tx) => {
+      // Sandbox payment rows are simulated (no real money) — they go with the
+      // order so the wallet's merged view stays clean. Real-gateway payments
+      // (SSLCommerz refs) are financial records and are kept for audit even
+      // when the order is removed.
+      await tx.payment.deleteMany({
+        where: {
+          purposeType: "ORDER",
+          purposeId: order.id,
+          OR: [{ providerRef: { startsWith: "SBX-" } }, { metaStr: { contains: '"mode":"sandbox"' } }],
+        },
+      });
+      await tx.order.delete({ where: { id: order.id } });
+    });
+    await audit({ actorId: req.auth!.userId, action: "ORDER_DELETED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, status: order.status } });
+    ok(res, { deleted: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
  */

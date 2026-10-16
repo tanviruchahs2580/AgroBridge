@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Bell, Bot, Calendar, CloudSun, Coins, Droplets, FlaskConical, Leaf,
-  Sprout, Stethoscope, Tractor, TriangleAlert, Wallet, Wind,
+  Bell, Bot, Calendar, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
+  Sprout, Stethoscope, Tractor, TriangleAlert, Wind,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import { formatBDT } from "../../lib/format";
-import {
-  farmCareSuggestion, stageLabel, weatherConditionLabel, weatherRiskActionLabel,
-} from "../../lib/labels";
+import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
 import { getWeatherCoords } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
@@ -60,11 +57,12 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-const TONE_STYLES: Record<string, string> = {
-  danger: "border-danger-border bg-danger-bg text-danger-text",
-  warning: "border-warning-border bg-warning-bg text-warning-text",
-  success: "border-success-border bg-success-bg text-success-text",
-};
+const TASK_KEYS: { id: string; key: import("../../lib/i18n").DictKey }[] = [
+  { id: "t1", key: "taskMorningIrrigation" },
+  { id: "t2", key: "taskWeedClean" },
+  { id: "t3", key: "taskFertilizerCheck" },
+  { id: "t4", key: "taskCropMonitor" },
+];
 
 const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] = [
   { key: "aiActionDiagnose", icon: Stethoscope },
@@ -79,24 +77,22 @@ export default function Home() {
   const [farms, setFarms] = useState<FarmShape[]>([]);
   const [weather, setWeather] = useState<WeatherShape | null>(null);
   const [unread, setUnread] = useState(0);
-  const [walletBal, setWalletBal] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: true, t2: false, t3: false, t4: false });
 
   async function load() {
     setError(false);
     setLoaded(false);
     try {
       const coords = await getWeatherCoords();
-      const [farmsData, notif, walletData, weatherData] = await Promise.allSettled([
+      const [farmsData, notif, weatherData] = await Promise.allSettled([
         api<FarmShape[]>("GET", "/farms"),
         api<{ unread: number }>("GET", "/notifications"),
-        api<{ balancePaisa: number }>("GET", "/wallet"),
         api<WeatherShape>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`),
       ]);
       if (farmsData.status === "fulfilled") setFarms(farmsData.value);
       if (notif.status === "fulfilled") setUnread(notif.value.unread);
-      if (walletData.status === "fulfilled") setWalletBal(walletData.value.balancePaisa);
       if (weatherData.status === "fulfilled") setWeather(weatherData.value);
       if (farmsData.status === "rejected") throw farmsData.reason;
       setLoaded(true);
@@ -112,7 +108,6 @@ export default function Home() {
 
   const cropCycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const primaryCrop = cropCycles[0];
-  const careSuggestions = cropCycles.slice(0, 3).map((c) => ({ ...c, care: farmCareSuggestion(c, lang) }));
   const healthScore = computeHealthScore(farms, weather);
   const hasRisk = actionableRisks(weather).length > 0;
   const todayBn = new Intl.DateTimeFormat("bn-BD", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date());
@@ -175,42 +170,37 @@ export default function Home() {
       </section>
 
       {/* 4-card status grid */}
-      <section className="animate-enterprise grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: "140ms" } as React.CSSProperties}>
-        {/* খেতের পরামর্শ — derived from the actual crops on this farm */}
+      <section className="animate-enterprise grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" style={{ animationDelay: "140ms" } as React.CSSProperties}>
+        {/* আজকের কাজ */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
           <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-action text-white shadow-sm" aria-hidden>
-                <Leaf className="h-3.5 w-3.5" strokeWidth={2.5} />
+                <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.5} />
               </span>
-              <h2 className="text-[15px] font-bold text-stone-800">{t("farmCareTitle", lang)}</h2>
+              <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
             </div>
             <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
-              {cropCycles.length}
+              {Object.values(tasks).filter(Boolean).length}/{TASK_KEYS.length}
             </span>
           </div>
           <div className="flex-1 p-2">
-            {careSuggestions.length === 0 ? (
-              <p className="px-2 py-4 text-[13px] leading-relaxed text-stone-600">{t("addFirstCropHint", lang)}</p>
-            ) : (
-              <ul className="divide-y divide-surface-border">
-                {careSuggestions.map((s) => (
-                  <li key={s.id} className="flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
-                    <span className="mt-0.5 flex shrink-0 items-center gap-1">
-                      <Sprout aria-hidden className="h-3.5 w-3.5 text-brand-600" />
-                      <span className="text-[12px] font-bold text-stone-700">{s.cropName}</span>
-                    </span>
-                    <span className="min-w-0 flex-1 text-[12px] leading-snug text-stone-600">
-                      {s.care.task}
-                      <span className={`ml-1.5 inline-flex rounded-chip border px-1.5 py-0.5 text-[10px] font-semibold ${TONE_STYLES[s.care.tone]}`}>{s.care.label}</span>
-                    </span>
+            <ul className="divide-y divide-surface-border">
+              {TASK_KEYS.map((task) => {
+                const checked = tasks[task.id] ?? false;
+                return (
+                  <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
+                    <button type="button" role="checkbox" aria-checked={checked} aria-label={t(task.key, lang)} onClick={() => setTasks((p) => ({ ...p, [task.id]: !p[task.id] }))} className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${checked ? "border-action bg-action text-white" : "border-surface-border-strong bg-surface-card"}`}>
+                      {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>}
+                    </button>
+                    <span className={`min-w-0 flex-1 text-[13px] leading-tight ${checked ? "font-medium text-success-text line-through decoration-success-border" : "text-stone-700"}`}>{t(task.key, lang)}</span>
                   </li>
-                ))}
-              </ul>
-            )}
+                );
+              })}
+            </ul>
           </div>
           <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
-            {t("viewDetails", lang)} <span aria-hidden>→</span>
+            {t("viewAllTasks", lang)} <span aria-hidden>→</span>
           </Link>
         </div>
 
@@ -283,24 +273,6 @@ export default function Home() {
           <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
         </div>
 
-        {/* ওয়ালেট */}
-        <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
-          <div className="flex items-center gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
-            <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Wallet className="h-3.5 w-3.5" /></span>
-            <h2 className="text-[15px] font-bold text-stone-800">{t("wallet", lang)}</h2>
-          </div>
-          <div className="flex flex-1 flex-col items-center justify-center p-4">
-            {walletBal !== null ? (
-              <p className="text-display font-extrabold tracking-tight text-stone-800 tabular-nums">{formatBDT(walletBal, lang)}</p>
-            ) : loaded ? (
-              <p className="text-display font-extrabold text-stone-500">—</p>
-            ) : (
-              <Skeleton className="h-9 w-32" />
-            )}
-            <p className="mt-1 text-xs text-stone-600">{t("availableBalance", lang)}</p>
-          </div>
-          <Link to="/wallet" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewTransactions", lang)} <span aria-hidden>→</span></Link>
-        </div>
       </section>
 
       {/* AI Assistant Entry — indigo accent moment */}

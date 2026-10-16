@@ -3,8 +3,9 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
-import { Package, MapPin, Calendar, ChevronDown, ChevronUp } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorBanner, Skeleton } from "../../components/ui";
+import { Package, MapPin, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Badge, Button, Card, EmptyState, ErrorBanner, Skeleton, useConfirm, useToast } from "../../components/ui";
+import { mapError } from "../../lib/errors-ui";
 
 interface OrderItem {
   id: string;
@@ -45,6 +46,8 @@ export default function MyOrders() {
   const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const toast = useToast();
 
   useEffect(() => {
     void load();
@@ -63,6 +66,28 @@ export default function MyOrders() {
       setLoadError(true);
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Finished orders can be removed; in-flight ones must be cancelled first. */
+  function deletable(order: Order): boolean {
+    return !["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status);
+  }
+
+  async function removeOrder(order: Order) {
+    const okToDelete = await confirm({
+      title: t("confirmTitle", lang),
+      body: `${t("deleteOrderConfirm", lang)} ${order.orderNo}`,
+      confirmLabel: t("deleteOrder", lang),
+      danger: true,
+    });
+    if (!okToDelete) return;
+    try {
+      await api("DELETE", `/orders/${order.id}`);
+      toast.success(t("orderDeletedToast", lang));
+      await load();
+    } catch (err) {
+      toast.error(mapError(err, lang));
     }
   }
 
@@ -159,15 +184,27 @@ export default function MyOrders() {
                   <span className="font-bold text-green-800">{formatBDT(order.totalPaisa, lang)}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setExpandedId(isExpanded ? null : order.id)}
-                aria-expanded={isExpanded}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-                aria-label={isExpanded ? t("collapseDetails", lang) : t("expandDetails", lang)}
-              >
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
+              <div className="flex shrink-0 items-center">
+                {deletable(order) && (
+                  <button
+                    type="button"
+                    onClick={() => void removeOrder(order)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    aria-label={`${t("deleteOrder", lang)} ${order.orderNo}`}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                  aria-expanded={isExpanded}
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                  aria-label={isExpanded ? t("collapseDetails", lang) : t("expandDetails", lang)}
+                >
+                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             {/* Expanded details */}
