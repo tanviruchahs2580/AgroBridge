@@ -164,3 +164,22 @@ Full addendum with per-finding proofs: `ENTERPRISE_CERTIFICATION_STATUS.md` §11
 - Commits bbf1123, 08309e5, b96a0fd; CI 38869882187 success, CodeQL
   38869882184 success, APK run 38869884505 success (launcher icon verified
   inside the artifact). Production sync still pending owner deploys.
+
+## 2026-10-16 — Login background framing correction (round 3)
+
+User feedback with target mock: photo must be the FULL login background with
+farmer + drone visible (previous wording round covered them behind an opaque
+card + band). Implemented AuthShell v4 (fields directly on the photo, no
+opaque card; .auth-photo-scope dark-glass controls; compact centered brand
+stack w/ emblem-only badge; bottom band "কৃষকের জন্য তৈরি 💚 — বাংলার মাটই
+জানে"; real remember-me: sessionManager storage resolver +
+sessionStorage/localStorage split, checkbox wired in Login).
+Verified: tsc/lint/unit; **Playwright 20/20 --workers=1** on final code
+(multi-worker local runs flaked from workstation contention — solo + 3-way
+parallel probes + CI all pass; flake investigation documented: cred correct,
+POST 200 in probes); desktop/mobile × light/dark screenshots in
+apps/qa-screenshots/login-*.png; CI 38887488762 success 9/9, CodeQL success,
+APK run 38887499443 success with in-artifact verification
+(login-bg-*-full.webp, logo-emblem.png, splash_emblem.png).
+NOTE: pw-run.json was accidentally committed in 8dd0bbe and removed in the
+next commit (78b4ced).
