@@ -13,7 +13,7 @@ machinery services, procurement, payments and market access.
 |---|---|---|
 | API server | Node 22+, Express 4, TypeScript (strict), Prisma | `apps/api` |
 | Web app (farmer + admin) | React 18, Vite, Tailwind CSS, Bengali/English UI | `apps/web` |
-| Database | SQLite (dev/test, zero-setup) → PostgreSQL-ready for production | `apps/api/prisma` |
+| Database | SQLite (dev/test, zero-setup) · PostgreSQL in production (Neon via Vercel Marketplace) | `apps/api/prisma` |
 | CI | GitHub Actions: lint → typecheck → tests → docker build → audit | `.github/workflows/ci.yml` |
 | Containers | Multi-stage Dockerfiles + compose stack | `docker/`, `docker-compose.yml` |
 
@@ -65,7 +65,8 @@ npm run dev --workspace apps/web          # Web on :5173 (proxies /api to :4000)
 ## Tests
 
 ```bash
-npx vitest run        # inside apps/api — 64 tests covering unit logic + all critical journeys
+npx vitest run        # inside apps/api — 131 tests (SQLite profile, 1 PG-gated skip by design);
+                      # 132/132 with npm run test:pg provisioned (docker postgres)
 ```
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
@@ -76,11 +77,13 @@ metrics/RBAC/suspension, notifications, offline-sync idempotency and security ba
 
 ## Production notes
 
-- Switch Prisma datasource to PostgreSQL and set `DATABASE_URL` (see `docs/deployment.md`).
+- **Production hardening already runs PostgreSQL** (Neon DB behind the Vercel function; see
+  `docs/runbooks/live-deployment.md` — the PG migration chain lives in `apps/api/prisma/postgres/migrations`).
 - Configure real providers via env (`WEATHER_PROVIDER=openweather`, `AI_PROVIDER=openai-compatible`,
-  payment gateway integration point documented in `docs/architecture.md`).
+  payment gateway integration point documented in `docs/architecture.md`). Placeholder providers
+  require an explicit `ALLOW_PLACEHOLDER_PROVIDERS=1` (the API refuses to boot on them in production otherwise).
 - Generate strong JWT secrets. The API refuses to boot in production with default secrets.
-- Docker: `docker compose up --build` after configuring required env vars.
+- Docker: `docker compose up --build` after configuring required env vars (dev composition).
 
 ## Documentation index
 

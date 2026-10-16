@@ -5,6 +5,10 @@
 name: lighthouse
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   lighthouse:
     runs-on: ubuntu-latest

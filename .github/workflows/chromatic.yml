@@ -5,6 +5,10 @@
 name: chromatic
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   chromatic:
     runs-on: ubuntu-latest
@@ -15,7 +19,7 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
         working-directory: apps/web
-      - uses: chromaui/action@v11 # latest-cadence action; pin to a release SHA when the project token is configured
+      - uses: chromaui/action@1cfa065cbdab28f6ca3afaeb3d761383076a35aa # pin v11
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           workingDir: apps/web

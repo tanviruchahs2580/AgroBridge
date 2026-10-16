@@ -76,7 +76,7 @@ AgroBridge শুধু **১৮ বছর বা তার বেশি বয�
 
 ### ৯. যোগাযোগ
 
-[Company] · [ঠিকানা] · ইমেইল: [privacy@company.example] · ফোন: [+880-XXXXXXXXXX]
+AgroBridge (maintainer: github.com/tanviruchahs2580) · গোপনীয়তা ও ডেটা অনুরোধ: GitHub ইস্যু বা নিরাপত্তা-রিপোর্ট চ্যানেল https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new · (বাণিজ্যিক যোগাযোগ ঠিকানা প্রকাশের আগে আইনি পরামর্শ নেওয়া হবে)
 
 ---
 
@@ -152,4 +152,4 @@ AgroBridge is only for people **18 or older**. Accounts found to belong to minor
 
 ### 9. Contact
 
-[Company] · [Address] · Email: [privacy@company.example] · Phone: [+880-XXXXXXXXXX]
+AgroBridge (maintainer: github.com/tanviruchahs2580) · Privacy & data requests: via GitHub issues or https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new · (an operational commercial contact address will be published after legal review)

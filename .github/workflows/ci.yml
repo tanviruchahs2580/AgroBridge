@@ -11,6 +11,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (CodeQL manages its own via codeql.yml).
+permissions:
+  contents: read
+
 jobs:
   api-quality:
     name: API — Lint · TypeCheck · Tests (SQLite)
@@ -223,8 +227,10 @@ jobs:
           if-no-files-found: error
 
   gitleaks:
-    name: Security — Gitleaks secret scan secret scan
+    name: Security — Gitleaks secret scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
@@ -283,7 +289,7 @@ jobs:
       # Fail the build on HIGH/CRITICAL findings; accepted risks live in
       # /.trivyignore and must cross-reference SECURITY_WAIVERS.md.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # pin v0.36.0
         with:
           image-ref: agrobridge-api:scan
           format: table

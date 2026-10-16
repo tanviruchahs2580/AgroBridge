@@ -4,6 +4,21 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Changed (2026-10-16 platform & hygiene)
+- **CI budget guard on vendored deps:** root override `source-map-js@^1.2.2` clears GHSA-68fv-2mgg-jv7q (HIGH, event-loop DoS) that failed both the prod-deps audit gate and the container Trivy gate.
+- GitHub Actions pinned to commit SHAs everywhere (checkout v7.0.1, setup-node v7.0.0, upload-artifact v7.0.1, setup-java v6.1.0, login/metadata/build-push/buildx/scp/ssh/trivy/chromatic); every workflow now declares least-privilege `permissions`.
+- **Render & Fly blueprints removed** (`render.yaml`, `apps/api/fly.toml`): both described the retired platform — creation from them would resurrect dead hosts. Live topology is Vercel (web+API) + Neon PostgreSQL (docs/runbooks/live-deployment.md).
+- README/CHANGELOG truth pass: test counts, Node >=22 engines, PostgreSQL stated as running (not "ready-for").
+
+### Fixed (2026-10-16 code review findings)
+- **Membership payments were one-shot per tier:** a DB partial unique allowed exactly one PENDING payment per `(purposeType, purposeId)` globally — and MEMBERSHIP's purposeId is the shared tier name. The invariant is now per-user (`Payment_user_purpose_pending_key`, migration in both dialect chains), and the intent supersede is scoped to the acting user (previously one user's checkout cancelled another's).
+- **SSLCommerz webhook honesty:** a webhook losing the PENDING claim (superseded intent, concurrent confirmation) reported `processed:true` AND re-notified the user; it now answers `processed:false (not_claimable)` without side effects or duplicate notifications.
+- **Booking lifecycle guards:** terminal states are final (no un-cancel / re-complete), transitions validated per state (admin offline cash-settlement path ASSIGNED→COMPLETED kept), cancel/completion fields no longer nulled by unrelated transitions; rating is idempotent (no provider aggregate inflation); provider assignment respects service compatibility.
+- **Admin revenue metric** no longer counts farmer procurement payouts (wallet credits) as revenue.
+- **Frontend data honesty:** Home/MyFarm dashboard tiles now render real, stage-derived suggestions (which are labeled as suggestions) instead of fabricated task lists/false "AI analysis" claims, and never display ৪.৫★ style trust metadata from seeded demo providers as their own; removed a dead onboarding step, a dead "Remember me" checkbox and the flag-gated Google button that only alerted.
+- **Sessions survive offline boots:** a network failure on `/auth/me` no longer wipes valid tokens; a definitive 401 still clears them.
+- **Offline queue replay safety:** timed-out online requests are no longer silently queued and replayed (duplicate-order risk) — only true offline failures queue.
+
 ### Fixed
 - **Production boot deadlock (P0, live):** every Render deploy after the Phase 4 provider fail-fast failed with `SMS_PROVIDER sandbox forbidden in production` — the gate rejected every value the enum allows (sandbox *and* none), and mock-weather/offline-AI likewise, so the service could never boot without paid provider contracts and stayed pinned to an older commit. The gate now aborts production startup **unless** the operator sets `ALLOW_PLACEHOLDER_PROVIDERS=1`, which boots with a loud startup warning listing every placeholder in use; genuine misconfigurations (e.g. `openweather` without an API key) remain hard failures.
 

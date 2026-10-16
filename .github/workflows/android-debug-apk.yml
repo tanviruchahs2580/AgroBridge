@@ -6,6 +6,10 @@ name: Android Debug APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+
 jobs:
   debug-apk:
     name: Build debug APK (Capacitor)

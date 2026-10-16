@@ -31,6 +31,8 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-offline}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-sandbox}
       SMS_PROVIDER: ${SMS_PROVIDER:-sandbox}
+      # DEV-ONLY bypass of the production placeholder guard (env.ts fail-fast).
+      # Never set this on a real deployment; prod compose must not include it.
       ALLOW_PLACEHOLDER_PROVIDERS: "1"
     ports:
       - "4000:4000"

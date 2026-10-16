@@ -8,7 +8,11 @@
 ## Reporting a vulnerability
 **Do not open public issues for security problems.**
 
-Contact: **security@agrobridge.example** (replace with your operational mailbox before launch) with:
+Preferred channel: **GitHub private vulnerability reporting** —
+<https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new>
+(reaches the maintainer directly; no exposure in the public tracker).
+
+Include:
 - description and impact
 - reproduction steps or PoC
 - affected endpoints/commits

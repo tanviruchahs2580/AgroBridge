@@ -24,7 +24,7 @@
 - **Provider:** `sqlite` (`prisma/schema.prisma:6`) / `postgresql` variant (`schema.postgresql.prisma:6`), 519 lines identical
 - **Migrations:** 5 — `20260824182238_init`, `20260825170000_add_organization`, `20260826092539_hardening_features` (contains SQLite `PRAGMA` — not portable), `20260826120628_order_shipping_fields`, `20260826140000_partial_payment_pending`
 - **Lock:** `migration_lock.toml:3` = `sqlite`
-- **Deploy path (current):** `render.yaml:16` `sed s/sqlite/postgresql/` + `prisma generate`, `preDeployCommand: prisma db push && prisma db seed` (drift risk — see Phase 10)
+- **Deploy path (superseded 2026-10-15):** Render retired; live deploy is Vercel (web + API function) + Neon PostgreSQL via `docs/runbooks/live-deployment.md`. (Historic: `render.yaml` sed + preDeployCommand, removed from the repo 2026-10-16 after INC-2026-10-15.)
 
 ## Deployment IDs (observed, not deployed by this baseline)
 - **Vercel web:** `https://agrobridge-web.vercel.app` live `index-Cm_o7Gsv.js` 441,281 B — **STALE vs HEAD** `JIQPEt9P` (live ≠ `849366f` build). Headers: HSTS only (Vercel default), CSP/XFO/Referrer/XCTO empty (contrast `docker/web.nginx.prod.conf:7`). `Cache-Control: public, max-age=0, must-revalidate`. PWA manifest `theme #166534 / bg #fafaf9` (`vite.config.ts:35-36`).

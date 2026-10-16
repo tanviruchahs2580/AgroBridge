@@ -5,6 +5,10 @@
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+
 jobs:
   signed-release:
     name: Signed AAB + release APK

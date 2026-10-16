@@ -38,7 +38,9 @@ services:
       # Production uses the PostgreSQL schema variant (baked into the image; see docker/api.Dockerfile)
       DATABASE_URL: ${API_DATABASE_URL:?set API_DATABASE_URL}
     volumes:
-      - uploads:/app/uploads # STORAGE_PROVIDER=local disease-photo uploads
+      # STORAGE_PROVIDER=local disease-photo uploads. Must match the API's
+      # resolved base (cwd /app/apps/api + "uploads") so files survive recreation.
+      - uploads:/app/apps/api/uploads
     networks:
       - internal
     depends_on:
