@@ -1,0 +1,1083 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\DST\\projects\\Agro bridge app\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--reporter=json"
+    ],
+    "configFile": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\playwright.config.ts",
+    "rootDir": "C:/Users/DST/projects/Agro bridge app/apps/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/DST/projects/Agro bridge app/apps/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/DST/projects/Agro bridge app/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 4,
+    "webServer": {
+      "command": "npm run dev -- --port 5173 --strictPort",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "a11y.spec.ts",
+      "file": "a11y.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Accessibility scans",
+          "file": "a11y.spec.ts",
+          "line": 46,
+          "column": 6,
+          "specs": [
+            {
+              "title": "/login has zero critical/serious violations",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 20263,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:07.272Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aa3ad05f8c0e05077efb-f01c823540ba8a91de8b",
+              "file": "a11y.spec.ts",
+              "line": 47,
+              "column": 3
+            },
+            {
+              "title": "authenticated shell: /, /market, /wallet have zero critical/serious violations",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30528,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\a11y.spec.ts",
+                            "column": 43,
+                            "line": 63
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#main')\nExpected: visible\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" locator('#main') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#main')\u001b[22m\n\u001b[2m  - Test timeout of 30000ms exceeded.\u001b[22m\n\n\n  61 |     for (const route of [\"/\", \"/market\", \"/wallet\"]) {\n  62 |       await page.goto(route);\n> 63 |       await expect(page.locator(\"#main\")).toBeVisible();\n     |                                           ^\n  64 |       // Ensure dynamic data (weather, farms) has loaded before axe — avoids skeleton false positives\n  65 |       await page.waitForTimeout(800);\n  66 |       await page.waitForLoadState(\"networkidle\").catch(() => {});\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\a11y.spec.ts:63:43"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:30.508Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\a11y-Accessibility-scans-a-35669-critical-serious-violations-chromium\\error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "aa3ad05f8c0e05077efb-245275e1780073095342",
+              "file": "a11y.spec.ts",
+              "line": 53,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "admin-guard.spec.ts",
+      "file": "admin-guard.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Admin route guard",
+          "file": "admin-guard.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "farmer visiting /admin sees no admin metrics content",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 20507,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\admin-guard.spec.ts:15:16",
+                        "location": {
+                          "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\admin-guard.spec.ts",
+                          "column": 16,
+                          "line": 15
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 13 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m\"#password\"\u001b[39m\u001b[33m,\u001b[39m \u001b[32m\"Demo@1234\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 14 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 15 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForURL(\u001b[35m/.*\\/$/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m10\u001b[39m_000 })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 16 |\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[90m// Farmer shell has no admin entry point.\u001b[39m\n \u001b[90m 18 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'header a[href=\"/admin\"]'\u001b[39m))\u001b[33m.\u001b[39mtoHaveCount(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\admin-guard.spec.ts",
+                            "column": 16,
+                            "line": 15
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n\n  13 |     await page.fill(\"#password\", \"Demo@1234\");\n  14 |     await page.click('button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")');\n> 15 |     await page.waitForURL(/.*\\/$/, { timeout: 10_000 });\n     |                ^\n  16 |\n  17 |     // Farmer shell has no admin entry point.\n  18 |     await expect(page.locator('header a[href=\"/admin\"]')).toHaveCount(0);\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\admin-guard.spec.ts:15:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:04.790Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\admin-guard-Admin-route-gu-e352d-es-no-admin-metrics-content-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\admin-guard.spec.ts",
+                        "column": 16,
+                        "line": 15
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "9e9ebb2e2e86ae26e53b-ebb4dce8114dd4e88b4f",
+              "file": "admin-guard.spec.ts",
+              "line": 9,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "english-mode.spec.ts",
+      "file": "english-mode.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "English mode toggle",
+          "file": "english-mode.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "EN toggle renders nav labels in English",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 20368,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\english-mode.spec.ts:19:16",
+                        "location": {
+                          "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\english-mode.spec.ts",
+                          "column": 16,
+                          "line": 19
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 17 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m\"#password\"\u001b[39m\u001b[33m,\u001b[39m \u001b[32m\"Demo@1234\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 19 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForURL(\u001b[35m/.*\\/$/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m10\u001b[39m_000 })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 20 |\u001b[39m\n \u001b[90m 21 |\u001b[39m     \u001b[90m// Normalize: wait for the shell toggle, then ensure we start from Bengali\u001b[39m\n \u001b[90m 22 |\u001b[39m     \u001b[90m// (toggle offers \"বাং\" when the UI is currently English).\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\english-mode.spec.ts",
+                            "column": 16,
+                            "line": 19
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n\n  17 |     await page.fill(\"#password\", \"Demo@1234\");\n  18 |     await page.click('button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")');\n> 19 |     await page.waitForURL(/.*\\/$/, { timeout: 10_000 });\n     |                ^\n  20 |\n  21 |     // Normalize: wait for the shell toggle, then ensure we start from Bengali\n  22 |     // (toggle offers \"বাং\" when the UI is currently English).\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\english-mode.spec.ts:19:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:05.451Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\english-mode-English-mode--50e0f-nders-nav-labels-in-English-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\english-mode.spec.ts",
+                        "column": 16,
+                        "line": 19
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "9a01dfc534b816fbf19f-56002f4507ba092e8f94",
+              "file": "english-mode.spec.ts",
+              "line": 13,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "farmer-journey.spec.ts",
+      "file": "farmer-journey.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Farmer journey",
+          "file": "farmer-journey.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "login → farm → AI → market → cart",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "failed",
+                      "duration": 19949,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\farmer-journey.spec.ts:18:16",
+                        "location": {
+                          "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\farmer-journey.spec.ts",
+                          "column": 16,
+                          "line": 18
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 16 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[90m// After login, should land on home\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 18 |\u001b[39m     \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForURL(\u001b[35m/.*\\/$/\u001b[39m\u001b[33m,\u001b[39m { timeout\u001b[33m:\u001b[39m \u001b[35m10\u001b[39m_000 })\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 19 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m\"text=AgroBridge\"\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m5\u001b[39m_000 })\u001b[33m.\u001b[39m\u001b[36mcatch\u001b[39m(() \u001b[33m=>\u001b[39m {})\u001b[33m;\u001b[39m\n \u001b[90m 20 |\u001b[39m     \u001b[90m// Bilingual toggle\u001b[39m\n \u001b[90m 21 |\u001b[39m     \u001b[36mconst\u001b[39m toggle \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"EN\"), button:has-text(\"বাং\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\farmer-journey.spec.ts",
+                            "column": 16,
+                            "line": 18
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 10000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================\n\n  16 |     await page.click('button:has-text(\"Sign in\"), button:has-text(\"প্রবেশ করুন\")');\n  17 |     // After login, should land on home\n> 18 |     await page.waitForURL(/.*\\/$/, { timeout: 10_000 });\n     |                ^\n  19 |     await expect(page.locator(\"text=AgroBridge\")).toBeVisible({ timeout: 5_000 }).catch(() => {});\n  20 |     // Bilingual toggle\n  21 |     const toggle = page.locator('button:has-text(\"EN\"), button:has-text(\"বাং\")').first();\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\farmer-journey.spec.ts:18:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:05.052Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\farmer-journey-Farmer-jour-c9cdb-→-farm-→-AI-→-market-→-cart-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\farmer-journey.spec.ts",
+                        "column": 16,
+                        "line": 18
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "b703e4035a4fd9d23f57-3ff5e5a73072e20741db",
+              "file": "farmer-journey.spec.ts",
+              "line": 9,
+              "column": 3
+            },
+            {
+              "title": "responsive 390px",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 9733,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:42.350Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b703e4035a4fd9d23f57-d45595836c849df124ea",
+              "file": "farmer-journey.spec.ts",
+              "line": 37,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "gui-e2e-test.spec.ts",
+      "file": "gui-e2e-test.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "T1: Login page renders correctly",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 12789,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "✅ T1 PASS: Login page renders correctly, no double emoji\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:49:34.388Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-494526971ce5c6fd7e8b",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 118,
+          "column": 1
+        },
+        {
+          "title": "T2: Farmer login succeeds",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 2,
+                  "status": "failed",
+                  "duration": 14817,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: not \u001b[32m\"/login\"\u001b[39m\nReceived string:        \u001b[31m\"http://127.0.0.1:5173\u001b[7m/login\u001b[27m\"\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: not \u001b[32m\"/login\"\u001b[39m\nReceived string:        \u001b[31m\"http://127.0.0.1:5173\u001b[7m/login\u001b[27m\"\u001b[39m\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts:142:19",
+                    "location": {
+                      "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                      "column": 19,
+                      "line": 142
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 140 |\u001b[39m   \u001b[90m// Should be on home/dashboard after login\u001b[39m\n \u001b[90m 141 |\u001b[39m   \u001b[36mconst\u001b[39m url \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39murl()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 142 |\u001b[39m   expect(url)\u001b[33m.\u001b[39mnot\u001b[33m.\u001b[39mtoContain(\u001b[32m\"/login\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                   \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 143 |\u001b[39m\n \u001b[90m 144 |\u001b[39m   \u001b[90m// Check we're authenticated (see dashboard content)\u001b[39m\n \u001b[90m 145 |\u001b[39m   \u001b[36mconst\u001b[39m bodyText \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mtextContent(\u001b[32m\"body\"\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                        "column": 19,
+                        "line": 142
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: not \u001b[32m\"/login\"\u001b[39m\nReceived string:        \u001b[31m\"http://127.0.0.1:5173\u001b[7m/login\u001b[27m\"\u001b[39m\n\n  140 |   // Should be on home/dashboard after login\n  141 |   const url = page.url();\n> 142 |   expect(url).not.toContain(\"/login\");\n      |                   ^\n  143 |\n  144 |   // Check we're authenticated (see dashboard content)\n  145 |   const bodyText = await page.textContent(\"body\");\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts:142:19"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:49:52.987Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\gui-e2e-test-T2-Farmer-login-succeeds-chromium\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                    "column": 19,
+                    "line": 142
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-77eb6775c1a131f486c4",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 137,
+          "column": 1
+        },
+        {
+          "title": "T3: Dashboard greeting correct (single 👋)",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 9498,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"রহিম\"\u001b[39m\nReceived string:    \u001b[31m\"স্বাগতম\"\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"রহিম\"\u001b[39m\nReceived string:    \u001b[31m\"স্বাগতম\"\u001b[39m\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts:166:20",
+                    "location": {
+                      "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                      "column": 20,
+                      "line": 166
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 164 |\u001b[39m\n \u001b[90m 165 |\u001b[39m   \u001b[90m// Should contain the seeded demo user's display name\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 166 |\u001b[39m   expect(greeting)\u001b[33m.\u001b[39mtoContain(\u001b[32m\"রহিম\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                    \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 167 |\u001b[39m\n \u001b[90m 168 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m\"✅ T3 PASS: Greeting has single emoji, shows user name\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 169 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                        "column": 20,
+                        "line": 166
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"রহিম\"\u001b[39m\nReceived string:    \u001b[31m\"স্বাগতম\"\u001b[39m\n\n  164 |\n  165 |   // Should contain the seeded demo user's display name\n> 166 |   expect(greeting).toContain(\"রহিম\");\n      |                    ^\n  167 |\n  168 |   console.log(\"✅ T3 PASS: Greeting has single emoji, shows user name\");\n  169 | });\n    at C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts:166:20"
+                    }
+                  ],
+                  "stdout": [
+                    {
+                      "text": "   Greeting: \"স্বাগতম\"\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:50:18.107Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\test-results\\gui-e2e-test-T3-Dashboard-greeting-correct-single-👋--chromium\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\DST\\projects\\Agro bridge app\\apps\\web\\e2e\\gui-e2e-test.spec.ts",
+                    "column": 20,
+                    "line": 166
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-a92663a85278b9db77e3",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 152,
+          "column": 1
+        },
+        {
+          "title": "T4: MyFarm page works, correct error messages",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8436,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "✅ T4 PASS: MyFarm works correctly, no wrong error messages\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:51:01.412Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-66ee8b01d2e111720890",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 172,
+          "column": 1
+        },
+        {
+          "title": "T5: MyOrders page exists with order tracking",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5660,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "✅ T5 PASS: MyOrders page exists with order tracking\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:51:12.604Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-e0380eb3ea5edacf6048",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 192,
+          "column": 1
+        },
+        {
+          "title": "T6: Checkout flow — cart to success",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 14435,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "   Dialog text: \"সম্পন্ন · চেকআউটকার্টডেলিভারিপুনরায় দেখুনপেমেন্ট5সম্পন্নপেমেন্ট সম্পন্ন হয়েছে ✓অর্ডার নং: ORD-20261016-EDC1DB54নীট পরিশোধযোগ্য: ১,৮৪৪.৫০৳সম্পন্নসম্পন্ন\"\n"
+                    },
+                    {
+                      "text": "✅ T6 PASS: Checkout flow completes through sandbox payment; Done closes wizard\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:51:18.329Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-8d0f74ef2620fd1bfc83",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 215,
+          "column": 1
+        },
+        {
+          "title": "T7: Success dialog Done button is clickable",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 14050,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "✅ T7 PASS: Success dialog Done button is clickable\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:51:32.807Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-00a58fc62f829030c839",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 230,
+          "column": 1
+        },
+        {
+          "title": "T8: Order appears in MyOrders",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 15889,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "✅ T8 PASS: Order ORD-20261016-629DCE99 appears in MyOrders after checkout\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:51:46.887Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-a46d766063362abf4490",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 243,
+          "column": 1
+        },
+        {
+          "title": "T9: All navigation items present",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3336,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "   Primary nav items: 6\n"
+                    },
+                    {
+                      "text": "✅ T9 PASS: All navigation items present\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:52:02.817Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-20c7a6e9eb9d775bcede",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 264,
+          "column": 1
+        },
+        {
+          "title": "T10: Error handling for wrong credentials",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3799,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "   Error message present: true\n"
+                    },
+                    {
+                      "text": "✅ T10 PASS: Error handling for wrong credentials works\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-16T08:52:06.190Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "165b58d7bce62ca9362a-37ff6a4a4f5af896a480",
+          "file": "gui-e2e-test.spec.ts",
+          "line": 281,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "offline.spec.ts",
+      "file": "offline.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Offline banner",
+          "file": "offline.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "shows offline banner when disconnected, hides when reconnected",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 17192,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:43.281Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "586fc5283fd8ec7c7982-35179006f265b9a4e1e6",
+              "file": "offline.spec.ts",
+              "line": 9,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "splash-verify.spec.ts",
+      "file": "splash-verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Splash as user",
+          "file": "splash-verify.spec.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "shows enterprise splash then hides, 390/768/1280",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 26772,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:49:55.696Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c83e799e03aecd83c01-bf22537004a9206952b7",
+              "file": "splash-verify.spec.ts",
+              "line": 4,
+              "column": 3
+            },
+            {
+              "title": "reduced-motion shows static splash then hides",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 5805,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:50:22.502Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c83e799e03aecd83c01-1633c83daa5016eb2316",
+              "file": "splash-verify.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "webdriver skips splash (e2e deterministic)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4851,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-16T08:50:28.338Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "5c83e799e03aecd83c01-4e1899c987fc3ac06a08",
+              "file": "splash-verify.spec.ts",
+              "line": 38,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-16T08:48:58.580Z",
+    "duration": 191653.47,
+    "expected": 14,
+    "skipped": 0,
+    "unexpected": 6,
+    "flaky": 0
+  }
+}

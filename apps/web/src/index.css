@@ -217,3 +217,44 @@ body {
 .touch-target {
   @apply inline-flex min-h-[44px] min-w-[44px] items-center justify-center;
 }
+
+
+/* ── Full-photo auth shell (AuthShell): the shared form controls must stay
+   legible on the translucent deep-green card over the field photo. Scoped —
+   does not touch the app's theme system. ── */
+.auth-photo-scope {
+  color: #fff;
+  --ring-color: rgba(110, 231, 183, 0.9);
+  --color-surface-bg: #012823;
+}
+.auth-photo-scope label { color: rgba(255, 255, 255, 0.9) !important; }
+.auth-photo-scope input,
+.auth-photo-scope select {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+.auth-photo-scope input::placeholder { color: rgba(255, 255, 255, 0.5) !important; }
+.auth-photo-scope input:disabled {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+.auth-photo-scope .text-stone-800,
+.auth-photo-scope .text-stone-700,
+.auth-photo-scope .text-stone-600,
+.auth-photo-scope .text-stone-500 { color: rgba(255, 255, 255, 0.92) !important; }
+.auth-photo-scope .text-stone-400 { color: rgba(255, 255, 255, 0.6) !important; }
+.auth-photo-scope [role="alert"],
+.auth-photo-scope .bg-danger-bg {
+  background-color: rgba(127, 29, 29, 0.45) !important;
+  border-color: rgba(248, 113, 113, 0.45) !important;
+}
+.auth-photo-scope .text-danger-text,
+.auth-photo-scope .text-red-700,
+.auth-photo-scope .text-red-800 { color: #fecaca !important; }
+.auth-photo-scope a { color: #6ee7b7; }
+.auth-photo-scope .text-link { color: #6ee7b7 !important; }
+.auth-photo-scope .bg-glass {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
