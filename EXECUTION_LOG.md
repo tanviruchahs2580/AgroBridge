@@ -217,3 +217,19 @@ unwanted. Fixed:
   android-360-dark, android-light, desktop-light in apps/qa-screenshots/.
 - Pushed c2a8c95; CI 38910884124 success; CodeQL success; APK run 38910885760
   success with in-artifact verification of the new background + emblem.
+
+## 2026-10-16 — Owner-directed Home/Orders scope (round 6)
+
+- Restored আজকের কাজ card on Home (verbatim) + its 5 i18n keys; removed Home
+  ওয়ালেট card (grid tasks|weather|crop) — wallet fetch/state cleaned.
+- Added order delete: API DELETE /orders/:id (owner-only; PENDING/CONFIRMED/
+  SHIPPED blocked → cancel first; sandbox payment rows removed with the order
+  so the wallet merge stays clean; gateway payments kept for audit) + trash
+  button with accessible confirm dialog + toast in MyOrders; regression test
+  (block / foreign-404 / deletable + payment-cleanup) — marketplace 6/6,
+  API suite 137 total.
+- Local dev DB demo cleanup: 43 orders + 41 sandbox payments removed.
+- User-flow browser test (Playwright): login → Home checks → wizard order →
+  sandbox pay → delete (confirm) → gone from MyOrders AND wallet — 12/12 of
+  the final script PASS; full E2E 20/20. Pushed 31baeef; APK dispatched
+  (run 38917063670). No other surfaces touched.
