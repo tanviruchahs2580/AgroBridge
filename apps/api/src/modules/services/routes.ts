@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { notFound, forbidden, unprocessable } from "../../shared/errors/index.js";
+import { notFound, forbidden, unprocessable, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
@@ -151,8 +151,11 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
     if (!booking) throw notFound("Booking");
     if (!["REQUESTED", "ASSIGNED"].includes(booking.status)) throw unprocessable(`Cannot assign booking in status ${booking.status}`);
 
-    const provider = await prisma.serviceProvider.findFirst({ where: { id: req.body.providerId as string, isActive: true } });
-    if (!provider) throw notFound("Provider");
+    // Provider assignment must respect the same service-compatibility rule as
+    // booking creation — a provider registered for another service is not
+    // assignable here.
+    const provider = await prisma.serviceProvider.findFirst({ where: { id: req.body.providerId as string, serviceId: booking.serviceId, isActive: true } });
+    if (!provider) throw unprocessable("Selected provider does not serve this service");
 
     const updated = await prisma.booking.update({
       where: { id: booking.id },
@@ -196,13 +199,39 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
     if (!booking) throw notFound("Booking");
 
     const { status, reason } = req.body as { status: string; reason?: string };
+
+    // ---- Lifecycle guard (parity with the procurement state machine) ----
+    // Terminal states are final: no un-cancelling, no re-completing.
+    if (booking.status === "COMPLETED" || booking.status === "CANCELLED") {
+      throw conflict(`Booking already ${booking.status}`);
+    }
+    // Legal transitions. ASSIGNED -> COMPLETED stays open for admins: field
+    // services are commonly settled in cash on site (offline settlement).
+    const allowed: Record<string, string[]> = {
+      REQUESTED: ["CANCELLED"],
+      ASSIGNED: ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
+      IN_PROGRESS: ["COMPLETED", "CANCELLED"],
+    };
+    if (!allowed[booking.status]?.includes(status)) {
+      throw unprocessable(`Cannot transition booking from ${booking.status} to ${status}`);
+    }
+    if (role !== "SERVICE_PROVIDER" && !isAdmin && status !== "CANCELLED") {
+      throw forbidden("Only the assigned provider can progress a booking");
+    }
+    if (status === "CANCELLED" && booking.status === "IN_PROGRESS" && !isAdmin && role !== "SERVICE_PROVIDER") {
+      throw forbidden("Work is in progress; only the provider or an admin can cancel now");
+    }
+
+    // Write only the fields belonging to the transition — never null out
+    // history (completedAt / cancelReason) as a side effect of moving on.
     const updated = await prisma.booking.update({
       where: { id: booking.id },
-      data: {
-        status,
-        cancelReason: status === "CANCELLED" ? reason : null,
-        completedAt: status === "COMPLETED" ? new Date() : null,
-      },
+      data:
+        status === "CANCELLED"
+          ? { status, cancelReason: reason ?? null }
+          : status === "COMPLETED"
+            ? { status, completedAt: new Date() }
+            : { status },
     });
 
     await notify({
@@ -226,6 +255,7 @@ bookingsRouter.post("/:id/rating", validate({ body: ratingSchema }), async (req:
     const booking = await prisma.booking.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
     if (!booking) throw forbidden("Not your booking");
     if (booking.status !== "COMPLETED") throw unprocessable("Only completed bookings can be rated");
+    if (booking.rating != null) throw conflict("Booking already rated");
 
     const { rating } = req.body as { rating: number };
     const [updatedBooking] = await prisma.$transaction([

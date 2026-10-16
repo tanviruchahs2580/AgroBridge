@@ -87,6 +87,46 @@ describe("Journey 7 — Service booking lifecycle", () => {
       .find((s: { code: string }) => s.code === "TRACTOR_PLOUGH")
       ?.providers?.find((p: { id: string }) => p.id === tractor.providers[0].id);
     expect(updatedProvider.ratingCount).toBeGreaterThan(0);
+
+    // Rating is idempotent: a repeat never inflates provider aggregates.
+    const rerate = await request(app)
+      .post(`/api/v1/bookings/${bookingId}/rating`)
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ rating: 4 });
+    expect(rerate.status).toBe(409);
+    const afterRerate = await request(app).get("/api/v1/services").set("Authorization", `Bearer ${f.accessToken}`);
+    const providerAfterRerate = afterRerate.body.data
+      .find((s: { code: string }) => s.code === "TRACTOR_PLOUGH")
+      ?.providers?.find((p: { id: string }) => p.id === tractor.providers[0].id);
+    expect(providerAfterRerate.ratingCount).toBe(updatedProvider.ratingCount);
+
+    // COMPLETED is terminal: no illegal re-entry into the lifecycle.
+    const illegal = await request(app)
+      .post(`/api/v1/bookings/${bookingId}/status`)
+      .set("Authorization", `Bearer ${admin}`)
+      .send({ status: "IN_PROGRESS" });
+    expect(illegal.status).toBe(409);
+  });
+
+  it("provider assignment respects service compatibility (no cross-service assign)", async () => {
+    const f = await registerFarmer();
+    const admin = await getAdminToken();
+    const farm = await createFarmWithCrop(f.accessToken);
+    const services = await request(app).get("/api/v1/services").set("Authorization", `Bearer ${f.accessToken}`);
+    const drone = services.body.data.find((s: { code: string }) => s.code === "DRONE_SPRAY");
+    const tractor = services.body.data.find((s: { code: string }) => s.code === "TRACTOR_PLOUGH");
+
+    const created = await request(app)
+      .post("/api/v1/bookings")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ farmId: farm.farmId, serviceId: drone.id, scheduledFor: new Date(Date.now() + 86400000).toISOString(), areaBigha: 1 });
+    expect(created.status).toBe(201);
+
+    const badAssign = await request(app)
+      .post(`/api/v1/bookings/${created.body.data.id}/assign`)
+      .set("Authorization", `Bearer ${admin}`)
+      .send({ providerId: tractor.providers[0].id });
+    expect(badAssign.status).toBe(422);
   });
 
   it("sandbox payment marks booking paid (clearly labelled sandbox)", async () => {
