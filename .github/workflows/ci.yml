@@ -18,7 +18,7 @@ permissions:
 jobs:
   api-quality:
     name: API — Lint · TypeCheck · Tests (SQLite)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     env:
       DATABASE_URL: "file:./test.db"
@@ -64,7 +64,7 @@ jobs:
 
   api-postgres:
     name: API — Integration & Concurrency (PostgreSQL 17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 30
     services:
       postgres:
@@ -105,7 +105,7 @@ jobs:
 
   web-quality:
     name: Web — TypeCheck · Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     env:
       VITE_API_BASE_URL: https://agro-bridge-api-vantiq-systems.vercel.app/api/v1
@@ -130,7 +130,7 @@ jobs:
 
   web-e2e:
     name: Web — E2E (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 30
     env:
       DATABASE_URL: "file:./test.db"
@@ -187,7 +187,7 @@ jobs:
 
   android-build:
     name: Android — Build debug APK artifact
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     env:
       VITE_API_BASE_URL: https://agro-bridge-api-vantiq-systems.vercel.app/api/v1
@@ -228,7 +228,7 @@ jobs:
 
   gitleaks:
     name: Security — Gitleaks secret scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     permissions:
       contents: read
     timeout-minutes: 20
@@ -237,13 +237,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # pin v2.3.9
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # pin v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build:
     name: Docker — Build images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     needs: [api-quality, api-postgres]
     steps:
@@ -269,7 +269,7 @@ jobs:
 
   trivy-scan:
     name: Security — Trivy container scan (HIGH/CRITICAL)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     needs: [docker-build]
     steps:
@@ -299,7 +299,7 @@ jobs:
 
   security-scan:
     name: Security — Dependency audit & secret scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
