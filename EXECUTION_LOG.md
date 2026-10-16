@@ -233,3 +233,27 @@ unwanted. Fixed:
   sandbox pay → delete (confirm) → gone from MyOrders AND wallet — 12/12 of
   the final script PASS; full E2E 20/20. Pushed 31baeef; APK dispatched
   (run 38917063670). No other surfaces touched.
+
+## 2026-10-16 — MyFarm active-crop count fix (round 7)
+
+- Fixed the round-4 logged pre-existing finding: GET /farms selected
+  cropCycles as { id, cropName, stage, plantedAt } while MyFarm.tsx filters
+  `status === "ACTIVE"` (interface declares status) → সক্রিয় ফসল 0 stat,
+  per-farm chips always নজর দিন, আজকের কাজ-empty and AI briefing 0 even with
+  an active crop. Fix: add `status: true` to the select (1 line); server-side
+  ACTIVE pre-filter unchanged, payload now matches the declared contract.
+- Regression test added in journey-farm.test.ts (payload carries
+  status=ACTIVE on every returned cycle) — API suite 138 total (137+1skip),
+  all PASS; tsc/eslint (api+web), web unit 108, api+web builds PASS.
+- Real-browser verification (local stack, demo farmer 01700000002):
+  MyFarm now shows সক্রিয় ফসল 1 stat, সচল chip + 1 সক্রিয় ফসল on the ডেমো
+  ফার্ম card, আজকের কাজ care task (কিস্তিতে ইউরিয়া সেচ, ধান/বৃদ্ধি) and the
+  AI briefing heading "আপনার 1টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ";
+  Home verified unaffected (counting already relied on the server pre-filter).
+  Screenshot evidence: apps/qa-screenshots/myfarm-active-crop-count-fixed.png
+  (gitignored, per repo practice).
+- Note: two leftover dev processes from earlier rounds (api :4000, vite :5174)
+  held the Prisma query-engine DLL and blocked prisma generate (EPERM); both
+  identified via /health + port and terminated. Misclick on an npx wrapper of
+  an UNRELATED project's `next start :3117` killed only its wrapper — that
+  server itself kept running (verified still LISTENING on 3117).

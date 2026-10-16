@@ -27,6 +27,22 @@ describe("Journey 2 & 13 â€” Farm management + offline sync", () => {
     expect(events.body.data.some((e: { type: string }) => e.type === "PLANTING")).toBe(true);
   });
 
+  it("GET /farms payload carries cropCycle status (web filters active crops on it)", async () => {
+    const f = await registerFarmer();
+    const { cropId } = await createFarmWithCrop(f.accessToken);
+    const res = await request(app).get("/api/v1/farms").set("Authorization", `Bearer ${f.accessToken}`);
+    expect(res.status).toBe(200);
+    const cycles = res.body.data.flatMap((farm: { plots: { cropCycles: { id: string; status: string }[] }[] }) =>
+      farm.plots.flatMap((p) => p.cropCycles)
+    );
+    const planted = cycles.find((c: { id: string }) => c.id === cropId);
+    expect(planted).toBeTruthy();
+    expect(planted.status).toBe("ACTIVE");
+    // Server pre-filters to ACTIVE: the field must accompany the rows so the
+    // web client's status filter yields the real active-crop count (not 0).
+    expect(cycles.every((c: { status: string }) => c.status === "ACTIVE")).toBe(true);
+  });
+
   it("rejects second active crop on same plot", async () => {
     const f = await registerFarmer();
     const { plotId } = await createFarmWithCrop(f.accessToken);

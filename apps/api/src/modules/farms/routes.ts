@@ -54,7 +54,7 @@ farmsRouter.get("/", async (req: import("express").Request, res: import("express
       where,
       include: {
         plots: {
-          include: { cropCycles: { where: { status: "ACTIVE" }, select: { id: true, cropName: true, stage: true, plantedAt: true } } },
+          include: { cropCycles: { where: { status: "ACTIVE" }, select: { id: true, cropName: true, stage: true, plantedAt: true, status: true } } },
         },
         _count: { select: { plots: true } },
         organization: { select: { id: true, name: true, type: true } },
