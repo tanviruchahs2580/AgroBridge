@@ -6,6 +6,7 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/prisma ./apps/api/prisma
 # --include-workspace-root: root devDeps (prisma) must be present for the root
 # postinstall hook (prisma generate) — CI api-quality uses the same pattern.
+COPY scripts/generate-prisma.mjs ./scripts/generate-prisma.mjs
 RUN npm ci --workspace apps/web --include-workspace-root
 COPY . .
 WORKDIR /app/apps/web

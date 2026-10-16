@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/prisma ./apps/api/prisma
+COPY scripts/generate-prisma.mjs ./scripts/generate-prisma.mjs
 RUN npm ci --workspace apps/api
 COPY apps/api/ ./apps/api/
 WORKDIR /app/apps/api
