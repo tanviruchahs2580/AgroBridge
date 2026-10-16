@@ -1,18 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import type { DictKey } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Button, Card, ErrorBanner, Input, Label } from "../../components/ui";
-
-const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
-const CROP_KEYS: Record<string, DictKey> = {
-  RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE",
-  MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
-};
 
 export default function Onboarding() {
   const nav = useNavigate();
@@ -21,17 +14,16 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [district, setDistrict] = useState("");
   const [area, setArea] = useState("");
-  const [selectedCrops, setSelectedCrops] = useState<string[]>([]);
   const [farmName, setFarmName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (import.meta.env.VITE_FEATURE_ONBOARDING === "false") {
-    nav("/");
-    return null;
-  }
+  const disabled = import.meta.env.VITE_FEATURE_ONBOARDING === "false";
+  useEffect(() => {
+    if (disabled) nav("/");
+  }, [disabled, nav]);
 
-  const total = 5;
+  const total = 4;
   const progress = ((step + 1) / total) * 100;
 
   async function finish() {
@@ -99,29 +91,6 @@ export default function Onboarding() {
         </Card>
       )}
       {step === 3 && (
-        <Card className="space-y-3">
-          <h2 className="text-lg font-bold text-stone-800">{t("obCropsTitle", lang)}</h2>
-          <div className="flex flex-wrap gap-2">
-            {CROPS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                aria-pressed={selectedCrops.includes(c)}
-                onClick={() => setSelectedCrops((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))}
-                className={`min-h-[44px] rounded-full px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
-                  selectedCrops.includes(c) ? "bg-green-700 text-white" : "bg-white ring-1 ring-stone-200 hover:bg-green-50"
-                }`}
-              >
-                {t(CROP_KEYS[c], lang)}
-              </button>
-            ))}
-          </div>
-          {selectedCrops.length > 0 && (
-            <p className="text-xs text-stone-600">{t("selectedCropsLabel", lang)} {selectedCrops.map((c) => t(CROP_KEYS[c], lang)).join(", ")}</p>
-          )}
-        </Card>
-      )}
-      {step === 4 && (
         <Card className="space-y-3">
           <h2 className="text-lg font-bold text-stone-800">{t("obFarmTitle", lang)}</h2>
           <div>

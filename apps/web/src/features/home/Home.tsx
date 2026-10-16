@@ -1,39 +1,35 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Bell, Bot, Calendar, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
+  Bell, Bot, Calendar, CloudSun, Coins, Droplets, FlaskConical, Leaf,
   Sprout, Stethoscope, Tractor, TriangleAlert, Wallet, Wind,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import type { DictKey } from "../../lib/i18n";
 import { formatBDT } from "../../lib/format";
-import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import {
+  farmCareSuggestion, stageLabel, weatherConditionLabel, weatherRiskActionLabel,
+} from "../../lib/labels";
+import { getWeatherCoords } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
 
 interface FarmShape {
   id: string;
-  name: string;
-  plots: { id: string; cropCycles: { id: string; cropName: string; stage: string }[] }[];
+  totalAreaBigha?: number;
+  plots: { id: string; cropCycles: { id: string; cropName: string; stage: string; plantedAt: string }[] }[];
 }
 interface WeatherShape {
   current: { tempC: number; humidityPct: number; windKmh: number; condition: string };
   risks: { type: string; severity: string; titleBn: string; titleEn: string }[];
 }
 
-const TASK_KEYS: { id: string; key: DictKey }[] = [
-  { id: "t1", key: "taskMorningIrrigation" },
-  { id: "t2", key: "taskWeedClean" },
-  { id: "t3", key: "taskFertilizerCheck" },
-  { id: "t4", key: "taskCropMonitor" },
-];
-
 /**
- * Farm readiness derived from the data actually loaded on this screen
- * (farms, active crop cycles, weather risks) — replaces the v1 hardcoded 87/72.
- * Only actionable risks (non-INFO, non-LOW) count against the score.
+ * Farm health indicator derived from the data actually loaded on this screen
+ * (farms, active crop cycles, weather risks). It is a deterministic readiness
+ * meter, not an AI verdict — only actionable risks (non-INFO, non-LOW) count
+ * against the score.
  */
 function actionableRisks(weather: WeatherShape | null) {
   return weather ? weather.risks.filter((r) => r.type !== "INFO" && r.severity !== "LOW") : [];
@@ -64,7 +60,13 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-const AI_ACTIONS: { key: DictKey; icon: typeof Bot }[] = [
+const TONE_STYLES: Record<string, string> = {
+  danger: "border-danger-border bg-danger-bg text-danger-text",
+  warning: "border-warning-border bg-warning-bg text-warning-text",
+  success: "border-success-border bg-success-bg text-success-text",
+};
+
+const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] = [
   { key: "aiActionDiagnose", icon: Stethoscope },
   { key: "aiActionPlant", icon: Sprout },
   { key: "aiActionFertilizer", icon: FlaskConical },
@@ -80,17 +82,17 @@ export default function Home() {
   const [walletBal, setWalletBal] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: true, t2: false, t3: false, t4: false });
 
   async function load() {
     setError(false);
     setLoaded(false);
     try {
+      const coords = await getWeatherCoords();
       const [farmsData, notif, walletData, weatherData] = await Promise.allSettled([
         api<FarmShape[]>("GET", "/farms"),
         api<{ unread: number }>("GET", "/notifications"),
         api<{ balancePaisa: number }>("GET", "/wallet"),
-        api<WeatherShape>("GET", "/weather?lat=25.9&lng=89.1"),
+        api<WeatherShape>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`),
       ]);
       if (farmsData.status === "fulfilled") setFarms(farmsData.value);
       if (notif.status === "fulfilled") setUnread(notif.value.unread);
@@ -110,6 +112,7 @@ export default function Home() {
 
   const cropCycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const primaryCrop = cropCycles[0];
+  const careSuggestions = cropCycles.slice(0, 3).map((c) => ({ ...c, care: farmCareSuggestion(c, lang) }));
   const healthScore = computeHealthScore(farms, weather);
   const hasRisk = actionableRisks(weather).length > 0;
   const todayBn = new Intl.DateTimeFormat("bn-BD", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date());
@@ -137,7 +140,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* AI Farm Status — brand-gradient hero (offline-safe, no remote imagery) */}
+      {/* Farm readiness — brand-gradient hero (offline-safe, no remote imagery) */}
       <section className="animate-enterprise relative overflow-hidden rounded-card bg-hero shadow-float" style={{ animationDelay: "80ms" } as React.CSSProperties}>
         <div
           aria-hidden
@@ -152,7 +155,7 @@ export default function Home() {
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
-              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> AI • {t("healthScore", lang)}
+              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> {t("healthScore", lang)}
             </p>
             <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
               {hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
@@ -173,36 +176,41 @@ export default function Home() {
 
       {/* 4-card status grid */}
       <section className="animate-enterprise grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: "140ms" } as React.CSSProperties}>
-        {/* আজকের কাজ */}
+        {/* খেতের পরামর্শ — derived from the actual crops on this farm */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
           <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-action text-white shadow-sm" aria-hidden>
-                <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.5} />
+                <Leaf className="h-3.5 w-3.5" strokeWidth={2.5} />
               </span>
-              <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
+              <h2 className="text-[15px] font-bold text-stone-800">{t("farmCareTitle", lang)}</h2>
             </div>
             <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
-              {Object.values(tasks).filter(Boolean).length}/{TASK_KEYS.length}
+              {cropCycles.length}
             </span>
           </div>
           <div className="flex-1 p-2">
-            <ul className="divide-y divide-surface-border">
-              {TASK_KEYS.map((task) => {
-                const checked = tasks[task.id] ?? false;
-                return (
-                  <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
-                    <button type="button" role="checkbox" aria-checked={checked} aria-label={t(task.key, lang)} onClick={() => setTasks((p) => ({ ...p, [task.id]: !p[task.id] }))} className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${checked ? "border-action bg-action text-white" : "border-surface-border-strong bg-surface-card"}`}>
-                      {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>}
-                    </button>
-                    <span className={`min-w-0 flex-1 text-[13px] leading-tight ${checked ? "font-medium text-success-text line-through decoration-success-border" : "text-stone-700"}`}>{t(task.key, lang)}</span>
+            {careSuggestions.length === 0 ? (
+              <p className="px-2 py-4 text-[13px] leading-relaxed text-stone-600">{t("addFirstCropHint", lang)}</p>
+            ) : (
+              <ul className="divide-y divide-surface-border">
+                {careSuggestions.map((s) => (
+                  <li key={s.id} className="flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
+                    <span className="mt-0.5 flex shrink-0 items-center gap-1">
+                      <Sprout aria-hidden className="h-3.5 w-3.5 text-brand-600" />
+                      <span className="text-[12px] font-bold text-stone-700">{s.cropName}</span>
+                    </span>
+                    <span className="min-w-0 flex-1 text-[12px] leading-snug text-stone-600">
+                      {s.care.task}
+                      <span className={`ml-1.5 inline-flex rounded-chip border px-1.5 py-0.5 text-[10px] font-semibold ${TONE_STYLES[s.care.tone]}`}>{s.care.label}</span>
+                    </span>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            )}
           </div>
           <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
-            {t("viewAllTasks", lang)} <span aria-hidden>→</span>
+            {t("viewDetails", lang)} <span aria-hidden>→</span>
           </Link>
         </div>
 
@@ -237,10 +245,10 @@ export default function Home() {
               </>
             ) : <p className="relative mt-3 text-sm text-stone-500">—</p>}
           </div>
-          <div className={`flex items-start gap-2 px-4 py-3 ${hasRisk ? "bg-warning-bg" : "bg-success-bg"}`}>
-            <Leaf aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${hasRisk ? "text-warning-text" : "text-success-text"}`} />
+          <div className={`flex items-start gap-2 px-4 py-3 ${hasRisk ? "bg-warning-bg" : "bg-surface-card-subdued"}`}>
+            <Leaf aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${hasRisk ? "text-warning-text" : "text-stone-500"}`} />
             <div className="min-w-0">
-              <p className={`text-xs font-bold leading-tight ${hasRisk ? "text-warning-text" : "text-success-text"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)} <span aria-hidden>→</span></p>
+              <p className={`text-xs font-bold leading-tight ${hasRisk ? "text-warning-text" : "text-stone-700"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)}</p>
               <p className="text-[11px] leading-tight text-stone-600">{weather && hasRisk ? (weatherRiskActionLabel(weather.risks[0].type, lang) ?? t("regularFarmVisit", lang)) : t("regularFarmVisit", lang)}</p>
             </div>
           </div>
@@ -253,16 +261,24 @@ export default function Home() {
             <h2 className="text-[15px] font-bold text-stone-800">{t("activeCropsTitle", lang)}</h2>
           </div>
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
-            <div className="flex items-center gap-3">
-              <RiceEarMedallion size={72} />
-              <div className="min-w-0 text-left">
-                <p className="text-base font-extrabold leading-tight text-accent">{primaryCrop ? primaryCrop.cropName : lang === "bn" ? "ধান" : "Rice"}</p>
-                <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
-                  <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
-                  {primaryCrop ? stageLabel(primaryCrop.stage, lang) : t("growthStage", lang)}
-                </span>
+            {primaryCrop ? (
+              <div className="flex items-center gap-3">
+                <RiceEarMedallion size={72} />
+                <div className="min-w-0 text-left">
+                  <p className="text-base font-extrabold leading-tight text-accent">{primaryCrop.cropName}</p>
+                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-inset ring-brand-100">
+                    <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
+                    {stageLabel(primaryCrop.stage, lang)}
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <RiceEarMedallion size={56} />
+                <p className="text-[13px] font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
+                <p className="text-[11px] leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
+              </div>
+            )}
           </div>
           <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-[13px] font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("viewDetails", lang)} <span aria-hidden>→</span></Link>
         </div>
@@ -298,7 +314,7 @@ export default function Home() {
             <p className="text-[13px] text-stone-600">{t("aiAskSubtitle", lang)}</p>
           </div>
           <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
-            {lang === "bn" ? "প্রশ্ন করুন" : "Ask now"} <span aria-hidden className="ml-1">→</span>
+            {t("askNow", lang)} <span aria-hidden className="ml-1">→</span>
           </Link>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -334,14 +350,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Smart Alerts — enterprise ops */}
+      {/* Smart Alerts — live weather risks only; a quiet state when clear */}
       <section className="animate-enterprise rounded-card border border-surface-border bg-surface-card p-4 shadow-card" style={{ animationDelay: "260ms" } as React.CSSProperties}>
         <h2 className="flex items-center gap-2 text-sm font-bold text-stone-800">
           <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-warning-bg text-warning-text"><TriangleAlert className="h-3.5 w-3.5" /></span>
           {t("alertsTitle", lang)}
         </h2>
-        {/* Smart Alerts — driven by the live weather risks on this screen;
-            falls back to the favorable-state line when there is nothing actionable. */}
         <ul className="mt-3 space-y-2">
           {hasRisk && weather ? (
             actionableRisks(weather).slice(0, 2).map((r) => (
@@ -357,16 +371,10 @@ export default function Home() {
               </li>
             ))
           ) : (
-            <>
-              <li className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-enterprise-warning" aria-hidden />
-                <span className="text-xs leading-relaxed text-stone-700">{t("alertRain", lang)}</span>
-              </li>
-              <li className="flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-600" aria-hidden />
-                <span className="text-xs leading-relaxed text-stone-700">{t("alertPest", lang)}</span>
-              </li>
-            </>
+            <li className="flex items-start gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2.5">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-success-border" aria-hidden />
+              <span className="text-xs leading-relaxed text-stone-700">{t("weatherFavorable", lang)} — {t("regularFarmVisit", lang)}</span>
+            </li>
           )}
         </ul>
       </section>

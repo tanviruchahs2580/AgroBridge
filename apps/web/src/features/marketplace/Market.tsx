@@ -11,7 +11,6 @@ import { Check, Inbox, MapPin, Package, Phone, ShieldCheck, ShoppingBasket, Shop
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, Skeleton, Stepper, useToast,
 } from "../../components/ui";
-import { pluralCategory } from "../../lib/plural";
 
 interface Product {
   id: string;
@@ -364,13 +363,7 @@ export default function Market() {
         <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 md:bottom-[calc(1rem+env(safe-area-inset-bottom))]">
           <Card className="flex items-center justify-between gap-3 border-green-200 ring-1 ring-green-100">
             <p aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-stone-700">
-              <ShoppingBasket className="mr-1 inline h-5 w-5" aria-hidden /> {(() => {
-                // STEP 59: Bengali plural-aware cart count via Intl.PluralRules
-                const cat = pluralCategory(cart.length, lang);
-                // keep i18n key but demonstrate plural selection; future keys could be cartItemsCount_one / _other
-                const label = t("cartItemsCount", lang, { n: cart.length });
-                return cat === "one" || cat === "other" ? `${label}` : label;
-              })()} · {formatBDT(subtotalPaisa, lang)}
+              <ShoppingBasket className="mr-1 inline h-5 w-5" aria-hidden /> {t("cartItemsCount", lang, { n: cart.length })} · {formatBDT(subtotalPaisa, lang)}
             </p>
             <Button onClick={() => void openWizard()}>{t("checkout", lang)} →</Button>
           </Card>

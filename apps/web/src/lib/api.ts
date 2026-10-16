@@ -10,7 +10,7 @@ import { getTokens, setTokens as smSetTokens, clearTokens as smClearTokens } fro
 
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
-// STEP 55: lazy offlineQueue helpers to avoid circular init issues — imported dynamically inside api()
+// Lazy offlineQueue helpers (dynamic import avoids a circular init).
 let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (url: string) => boolean } | null = null;
 async function getOfflineQueue() {
   if (_offlineQueue) return _offlineQueue;
@@ -21,21 +21,15 @@ async function getOfflineQueue() {
   }
   return _offlineQueue;
 }
-function trySyncEnqueue(url: string, method: string, body?: unknown) {
-  // Synchronous try — if offlineQueue already loaded, enqueue immediately; otherwise rely on async path via api caller
-  if (_offlineQueue?.isQueueable(url)) _offlineQueue.enqueue({ url, method, body });
-}
 
 export const API_BASE = BASE;
 
 /**
- * Cold-start wake ping. The hosted API runs on a free Render tier that spins
- * down when idle; the first request after a quiet period can take 30–60s just
- * to accept the connection. Firing this fire-and-forget GET at app boot warms
- * the instance while the user is still on the splash/login screen, so the
- * login POST itself hits a warm server instead of timing out ("internet
- * issue" reports on the APK). Errors are intentionally swallowed — this is
- * strictly an optimization.
+ * Cold-start warm-up ping. Serverless/cold infra can take tens of seconds to
+ * serve the first request after an idle period; this fire-and-forget GET at
+ * app boot warms it while the user is still on the splash/login screen, so
+ * the login POST itself does not time out ("internet issue" reports on the
+ * APK). Errors are intentionally swallowed — this is strictly an optimization.
  */
 export function wakeBackend(): void {
   if (!BASE.startsWith("http")) return; // dev proxy / same-origin: already warm
@@ -140,9 +134,8 @@ export function onOnlineStatusChange(cb: OnlineCb): () => void {
 }
 
 // ── Transport ──
-// Render free-plan cold start measured at ~35s when idle; 30s still lost logins
-// (and 10s before that was the original "internet issue" in v1.3.3 APKs).
-// wakeBackend() normally pre-warms, but keep the ceiling above worst case.
+// Serverless/cold infrastructure can take tens of seconds for the first call;
+// wakeBackend() pre-warms the function, but keep the ceiling above worst case.
 const REQUEST_TIMEOUT_MS = 45_000;
 const GET_RETRY_DELAYS_MS = [300, 900];
 
@@ -232,7 +225,12 @@ async function tryRefresh(): Promise<boolean> {
       });
       if (!res.ok) return false;
       const j = await res.json();
-      setTokens(j.data.accessToken, j.data.refreshToken);
+      // Never trust a malformed refresh body: storing undefined tokens would
+      // silently de-authenticate the user on the next replay.
+      const at = j?.data?.accessToken;
+      const rt = j?.data?.refreshToken;
+      if (typeof at !== "string" || !at || typeof rt !== "string" || !rt) return false;
+      setTokens(at, rt);
       return true;
     } catch {
       return false;
@@ -254,14 +252,14 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     res = await performWithRetry(method, path, body);
   } catch (err) {
     if (err instanceof NetworkError) {
-      // STEP 55: if offline and queueable, enqueue for later replay
+      // Queue a retry ONLY when actually offline — enqueueing a write that
+      // merely timed out while online would replay it blind and duplicate
+      // orders; the caller shows an error for that case instead.
       if (!isOnline()) {
         const oq = await getOfflineQueue();
         if (oq?.isQueueable(path)) {
           oq.enqueue({ url: path, method, body });
         }
-      } else {
-        trySyncEnqueue(path, method, body);
       }
       throw networkApiError(err);
     }

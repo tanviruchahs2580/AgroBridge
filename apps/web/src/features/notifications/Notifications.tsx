@@ -8,7 +8,6 @@ import { formatDateTime } from "../../lib/format";
 import { mapError } from "../../lib/errors-ui";
 import { notifCategoryLabel } from "../../lib/labels";
 import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Package, Settings, Sprout, Tractor } from "lucide-react";
-import { pluralCategory } from "../../lib/plural";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Label, Skeleton, useToast,
 } from "../../components/ui";
@@ -143,7 +142,7 @@ export default function Notifications() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800">
           <Bell className="h-6 w-6 text-green-700" aria-hidden /> {t("notifications", lang)}{" "}
-          {unread > 0 && (() => { const cat = pluralCategory(unread, lang); return <Badge aria-live="polite" aria-atomic="true" aria-label={`${unread} ${cat === "one" ? "unread" : "unread"} notifications`} className="bg-red-100 text-red-700">{unread}<span className="sr-only"> {cat === "one" ? "unread notification" : "unread notifications"}</span></Badge>; })()}
+          {unread > 0 && <Badge aria-live="polite" aria-atomic="true" aria-label={`${unread} ${lang === "bn" ? "টি অপঠিত নোটিফিকেশন" : "unread notifications"}`} className="bg-red-100 text-red-700">{unread}<span className="sr-only"> {lang === "bn" ? "টি অপঠিত নোটিফিকেশন" : "unread notifications"}</span></Badge>}
         </h1>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" aria-expanded={prefsOpen} onClick={() => setPrefsOpen((v) => !v)}>
@@ -176,11 +175,11 @@ export default function Notifications() {
               }`}
             >
               {t(tb.key, lang)}
-              {count !== null && count > 0 && (() => { const cat = pluralCategory(count, lang); return (
+              {count !== null && count > 0 && (
                 <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/20" : "bg-red-100 text-red-700"}`}>
-                  {count}<span className="sr-only"> {cat === "one" ? "notification" : "notifications"}</span>
+                  {count}<span className="sr-only"> {lang === "bn" ? "টি নোটিফিকেশন" : "notifications"}</span>
                 </span>
-              ); })()}
+              )}
             </button>
           );
         })}

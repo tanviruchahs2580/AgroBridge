@@ -154,17 +154,17 @@ function Shell({ children }: { children: ReactNode }) {
             {/* Dark/Light Mode Toggle — driven by session context (reactive) */}
             <button
               type="button"
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={t("themeToggleAria", lang)}
               aria-pressed={dark}
               onClick={toggleDark}
               className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              title={dark ? "Light Mode" : "Dark Mode"}
+              title={t("themeToggleAria", lang)}
             >
               {dark ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
             </button>
             <button
               type="button"
-              aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"}
+              aria-label={t("langToggleAria", lang)}
               onClick={() => setLang(lang === "bn" ? "en" : "bn")}
               className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
@@ -229,15 +229,15 @@ export default function App() {
     });
   }, []);
 
-  // STEP 55: offline toast when a mutation is queued
+  // Offline toast (in the active UI language) when a mutation is queued
   const toast = useToast();
-  useEffect(() => onOfflineEnqueue(() => toast.info("অফলাইন — পরে পাঠানো হবে")), [toast]);
+  useEffect(() => onOfflineEnqueue(() => toast.info(t("offlineBanner", lang))), [toast, lang]);
   // Also handle window event for cases where onEnqueue fires before React mount
   useEffect(() => {
-    const h = () => toast.info("অফলাইন — পরে পাঠানো হবে");
+    const h = () => toast.info(t("offlineBanner", lang));
     window.addEventListener("agrobridge:offline-queued", h as EventListener);
     return () => window.removeEventListener("agrobridge:offline-queued", h as EventListener);
-  }, [toast]);
+  }, [toast, lang]);
 
   // Route-view analytics + bilingual document.title + move focus to main on navigation.
   useEffect(() => {

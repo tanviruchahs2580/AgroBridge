@@ -112,46 +112,52 @@ function _refLine(lang: Lang, err: ApiError): string {
   return err.reference ? `\n${t("referenceLabel", lang)}: ${err.reference}` : "";
 }
 
-/** Known backend field names → Bengali display labels. */
-const FIELD_LABELS: Record<string, string> = {
-  fullName: "পূর্ণ নাম",
-  phone: "মোবাইল নম্বর",
-  password: "পাসওয়ার্ড",
-  confirmPassword: "পাসওয়ার্ড নিশ্চিতকরণ",
-  email: "ইমেইল",
-  name: "নাম",
-  district: "জেলা",
-  upazila: "উপজেলা",
-  area: "জমির পরিমাণ",
-  areaBigha: "জমির পরিমাণ",
-  farm: "ফার্ম",
-  farmId: "ফার্ম",
-  service: "সেবা",
-  serviceId: "সেবা",
-  plot: "প্লট",
-  plotId: "প্লট",
-  cropName: "ফসলের নাম",
-  crop: "ফসল",
-  date: "তারিখ",
-  plantedAt: "রোপণের তারিখ",
-  scheduledFor: "সময়",
-  address: "ঠিকানা",
-  deliveryAddress: "ডেলিভারি ঠিকানা",
-  amount: "টাকার পরিমাণ",
-  qty: "পরিমাণ",
-  grade: "মানের গ্রেড",
-  qualityGrade: "মানের গ্রেড",
-  moisture: "আর্দ্রতা",
-  moisturePct: "আর্দ্রতা",
-  unit: "একক",
-  category: "বিভাগ",
-  reason: "কারণ",
-  method: "পদ্ধতি",
-  destination: "গন্তব্য",
-  withdrawalAmount: "উত্তোলনের পরিমাণ",
-  provider: "প্রদানকারী",
-  providerId: "প্রদানকারী",
+/** Known backend field names → display labels (both UI languages). */
+const FIELD_LABELS: Record<string, { bn: string; en: string }> = {
+  fullName: { bn: "পূর্ণ নাম", en: "Full name" },
+  phone: { bn: "মোবাইল নম্বর", en: "Mobile number" },
+  password: { bn: "পাসওয়ার্ড", en: "Password" },
+  confirmPassword: { bn: "নিশ্চিতকরণ", en: "Password confirmation" },
+  email: { bn: "ইমেইল", en: "Email" },
+  name: { bn: "নাম", en: "Name" },
+  district: { bn: "জেলা", en: "District" },
+  upazila: { bn: "উপজেলা", en: "Upazila" },
+  area: { bn: "জমির পরিমাণ", en: "Land area" },
+  areaBigha: { bn: "জমির পরিমাণ", en: "Land area" },
+  farm: { bn: "ফার্ম", en: "Farm" },
+  farmId: { bn: "ফার্ম", en: "Farm" },
+  service: { bn: "সেবা", en: "Service" },
+  serviceId: { bn: "সেবা", en: "Service" },
+  plot: { bn: "প্লট", en: "Plot" },
+  plotId: { bn: "প্লট", en: "Plot" },
+  cropName: { bn: "ফসলের নাম", en: "Crop name" },
+  crop: { bn: "ফসল", en: "Crop" },
+  date: { bn: "তারিখ", en: "Date" },
+  plantedAt: { bn: "রোপণের তারিখ", en: "Planting date" },
+  scheduledFor: { bn: "সময়", en: "Schedule" },
+  address: { bn: "ঠিকানা", en: "Address" },
+  deliveryAddress: { bn: "ডেলিভারি ঠিকানা", en: "Delivery address" },
+  amount: { bn: "টাকার পরিমাণ", en: "Amount" },
+  qty: { bn: "পরিমাণ", en: "Quantity" },
+  grade: { bn: "মানের গ্রেড", en: "Quality grade" },
+  qualityGrade: { bn: "মানের গ্রেড", en: "Quality grade" },
+  moisture: { bn: "আর্দ্রতা", en: "Moisture" },
+  moisturePct: { bn: "আর্দ্রতা", en: "Moisture" },
+  unit: { bn: "একক", en: "Unit" },
+  category: { bn: "বিভাগ", en: "Category" },
+  reason: { bn: "কারণ", en: "Reason" },
+  method: { bn: "পদ্ধতি", en: "Method" },
+  destination: { bn: "গন্তব্য", en: "Destination" },
+  withdrawalAmount: { bn: "উত্তোলনের পরিমাণ", en: "Withdrawal amount" },
+  provider: { bn: "প্রদানকারী", en: "Provider" },
+  providerId: { bn: "প্রদানকারী", en: "Provider" },
 };
+
+/** Display label for a backend field name in the active UI language. */
+function fieldLabel(field: string | undefined, lang: Lang): string {
+  const hit = field ? FIELD_LABELS[field] : undefined;
+  return hit ? (lang === "bn" ? hit.bn : hit.en) : field ?? "";
+}
 
 /**
  * Attempt to render per-field validation errors.
@@ -168,12 +174,10 @@ function mapValidationError(err: ApiError, lang: Lang): string | null {
     const msg = d.message;
     const hasBengali = /[০-৯\u0980-\u09FF]/.test(msg);
     if (!hasBengali) {
-      // Map English error message to Bengali
-      const mapped = mapValidationMessage(msg, d.field);
+      // Map English error message into the active UI language
+      const mapped = mapValidationMessage(msg, d.field, lang);
       if (mapped) {
-        // Use the mapped Bengali message
-        const fieldLabel = FIELD_LABELS[d.field] ?? d.field;
-        fields[fieldLabel] = mapped;
+        fields[fieldLabel(d.field, lang)] = mapped;
         continue;
       }
     }
@@ -191,17 +195,18 @@ function mapValidationError(err: ApiError, lang: Lang): string | null {
   return keys.map((k) => `${k}: ${fields[k]}`).join(" · ");
 }
 
-/** Map a common English validation message to Bengali. */
-function mapValidationMessage(msg: string, field?: string): string | null {
+/** Map a common English validation message into the active UI language. */
+function mapValidationMessage(msg: string, field: string | undefined, lang: Lang): string | null {
   const m = msg.toLowerCase();
-  if (m.includes("required") || m.includes("must be")) return `${FIELD_LABELS[field ?? ""] ?? field} প্রয়োজন`;
-  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return `${FIELD_LABELS[field ?? ""] ?? field} সঠিক নয়`;
-  if (m.includes("too short") || m.includes("less than")) return `${FIELD_LABELS[field ?? ""] ?? field} খুব ছোট`;
-  if (m.includes("too long")) return `${FIELD_LABELS[field ?? ""] ?? field} খুব বড়`;
-  if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return `${FIELD_LABELS[field ?? ""] ?? field} সংখ্যা হতে হবে`;
-  if (m.includes("must be positive") || m.includes("must be greater than 0")) return `${FIELD_LABELS[field ?? ""] ?? field} শূন্যের বেশি হতে হবে`;
-  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return `${FIELD_LABELS[field ?? ""] ?? field} বৈধ নয়`;
-  if (m.includes("duplicate") || m.includes("already")) return `${FIELD_LABELS[field ?? ""] ?? field} ইতিমধ্যে বিদ্যমান`;
-  if (m.includes("password")) return "পাসওয়ার্ড সঠিক নয়";
+  const label = fieldLabel(field, lang);
+  if (m.includes("required") || m.includes("must be")) return lang === "bn" ? `${label} প্রয়োজন` : `${label} is required`;
+  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return lang === "bn" ? `${label} সঠিক নয়` : `${label} is invalid`;
+  if (m.includes("too short") || m.includes("less than")) return lang === "bn" ? `${label} খুব ছোট` : `${label} is too short`;
+  if (m.includes("too long")) return lang === "bn" ? `${label} খুব বড়` : `${label} is too long`;
+  if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return lang === "bn" ? `${label} সংখ্যা হতে হবে` : `${label} must be a number`;
+  if (m.includes("must be positive") || m.includes("must be greater than 0")) return lang === "bn" ? `${label} শূন্যের বেশি হতে হবে` : `${label} must be greater than 0`;
+  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return lang === "bn" ? `${label} বৈধ নয়` : `${label} is not valid`;
+  if (m.includes("duplicate") || m.includes("already")) return lang === "bn" ? `${label} ইতিমধ্যে বিদ্যমান` : `${label} already exists`;
+  if (m.includes("password")) return lang === "bn" ? "পাসওয়ার্ড সঠিক নয়" : "Incorrect password";
   return null;
 }

@@ -15,7 +15,6 @@ export default function Login() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [fieldErrs, setFieldErrs] = useState<{ phone?: string; password?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -121,22 +120,6 @@ export default function Login() {
           </div>
         </Field>
 
-        {/* Remember-me — cosmetic preference kept from v1, now a real accessible checkbox */}
-        <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-stone-700">
-          <span className="relative flex h-[18px] w-[18px] items-center justify-center">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="peer absolute inset-0 h-full w-full appearance-none rounded-[6px] border-2 border-surface-border-strong bg-surface-card checked:border-action checked:bg-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
-            />
-            <svg aria-hidden viewBox="0 0 12 12" className="pointer-events-none relative h-3 w-3 text-white opacity-0 peer-checked:opacity-100">
-              <path d="M2 6.5 4.5 9 10 3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          {t("rememberMe", lang)}
-        </label>
-
         {error && (
           <ErrorBanner
             message={error}
@@ -150,28 +133,6 @@ export default function Login() {
         </Button>
 
         {inputInvalid && !busy && <p className="text-center text-xs text-stone-500">{t("fixErrorsNote", lang)}</p>}
-
-        {/* Google sign-in is not wired to a backend flow yet; the affordance
-            ships hidden until it is (set VITE_GOOGLE_SIGNIN=1 at build time). */}
-        {import.meta.env.VITE_GOOGLE_SIGNIN === "1" && (
-          <>
-            <div className="flex items-center gap-3 py-1" aria-hidden>
-              <span className="h-px flex-1 bg-surface-border" />
-              <span className="text-xs font-medium text-stone-500">{t("orDivider", lang)}</span>
-              <span className="h-px flex-1 bg-surface-border" />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              onClick={() => alert(t("googleComingSoon", lang))}
-            >
-              <span aria-hidden className="bg-gradient-to-r from-[#4285F4] via-[#34A853] to-[#EA4335] bg-clip-text text-lg font-extrabold text-transparent">G</span>
-              {t("googleContinue", lang)}
-            </Button>
-          </>
-        )}
       </form>
     </AuthShell>
   );

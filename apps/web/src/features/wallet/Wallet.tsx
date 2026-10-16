@@ -3,7 +3,7 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
-import { channelLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../../lib/labels";
+import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Award, Check, Landmark, Receipt, Wallet } from "lucide-react";
@@ -259,20 +259,9 @@ export default function WalletPage() {
                 {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
               </p>
               <ul className="mb-3 space-y-1 text-xs text-stone-600">
-                {p.benefits.map((b, i) => {
-                  const benefitMap: Record<string, { bn: string; en: string }> = {
-                    "Basic AI advisory": { bn: "বেসিক এআই পরামর্শ", en: "Basic AI advisory" },
-                    "Weekly weather digest": { bn: "সাপ্তাহিক আবহাওয়া সারাংশ", en: "Weekly weather digest" },
-                    "Unlimited AI advisory": { bn: "আনলিমিটেড এআই পরামর্শ", en: "Unlimited AI advisory" },
-                    "3% marketplace discount": { bn: "বাজারে ৩% ছাড়", en: "3% marketplace discount" },
-                    "5% marketplace discount": { bn: "বাজারে ৫% ছাড়", en: "5% marketplace discount" },
-                    "Priority soil testing": { bn: "অগ্রাধিকার মাটি পরীক্ষা", en: "Priority soil testing" },
-                    "Free drone spraying per season": { bn: "প্রতি মৌসুমে বিনামূল্যে ড্রোন স্প্রে", en: "Free drone spraying per season" },
-                    "Dedicated agronomist hotline": { bn: "নিবেদিত কৃষিবিদ হটলাইন", en: "Dedicated agronomist hotline" },
-                  };
-                  const label = benefitMap[b] ? (lang === "bn" ? benefitMap[b].bn : benefitMap[b].en) : b;
-                  return <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-green-600" aria-hidden /> {label}</li>;
-                })}
+                {p.benefits.map((b, i) => (
+                  <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-green-600" aria-hidden /> {membershipBenefitLabel(b, lang)}</li>
+                ))}
               </ul>
               {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
                 const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);

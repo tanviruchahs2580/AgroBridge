@@ -4,22 +4,12 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
-import { cropLabel, stageLabel } from "../../lib/labels";
+import { cropLabel, stageLabel, farmCareSuggestion } from "../../lib/labels";
+import { getWeatherCoords } from "../../lib/geo";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Bot, Wrench, ShoppingBag, ChevronRight, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
 import { Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast } from "../../components/ui";
-
-function cropCalendar(stage: string): { taskEn: string; taskBn: string }[] {
-  switch (stage) {
-    case "SEED": return [{ taskEn: "Ensure seedbed moisture", taskBn: "বীজতলার আর্দ্রতা নিশ্চিত করুন" }];
-    case "GERMINATION": return [{ taskEn: "Gap filling", taskBn: "গ্যাপ পূরণ" }];
-    case "VEGETATIVE": return [{ taskEn: "Urea top dressing", taskBn: "ইউরিয়া সেচ" }];
-    case "FLOWERING": return [{ taskEn: "Maintain moisture", taskBn: "আর্দ্রতা বজায় রাখুন" }];
-    case "GRAIN_FRUIT_DEVELOPMENT": return [{ taskEn: "Potash top-up", taskBn: "পটাশ দিন" }];
-    default: return [{ taskEn: "Plan harvest", taskBn: "কাটাকুটি ব্যবস্থা করুন" }];
-  }
-}
 
 interface Farm {
   id: string;
@@ -33,12 +23,11 @@ interface WeatherAdvisory { type: string; titleBn: string; titleEn: string; }
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
 const CROP_KEYS: Record<string, DictKey> = { RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE", MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO" };
 
-function priorityForCycle(c: { stage: string; plantedAt: string }): { label: string; color: string; task: string } {
-  const stage = c.stage;
-  const days = Math.floor((Date.now() - new Date(c.plantedAt).getTime()) / 86400000);
-  if (stage === "SEED" && days > 5) return { label: "জরুরি", color: "bg-danger-bg text-danger-text border-danger-border", task: "বীজতলার আর্দ্রতা পরীক্ষা করুন" };
-  if (stage === "VEGETATIVE" && days > 30) return { label: "আজ করতে হবে", color: "bg-warning-bg text-warning-text border-warning-border", task: "ইউরিয়া সেচ দিন" };
-  return { label: "রুটিন", color: "bg-success-bg text-success-text border-success-border", task: cropCalendar(stage)[0]?.taskBn ?? "পরবর্তী কাজ দেখুন" };
+/** Tailwind classes for a care-suggestion tone (single source: labels.ts tone). */
+function careColor(tone: "danger" | "warning" | "success"): string {
+  if (tone === "danger") return "bg-danger-bg text-danger-text border-danger-border";
+  if (tone === "warning") return "bg-warning-bg text-warning-text border-warning-border";
+  return "bg-success-bg text-success-text border-success-border";
 }
 
 export default function MyFarm() {
@@ -55,21 +44,6 @@ export default function MyFarm() {
   const [cropPlotId, setCropPlotId] = useState<string | null>(null);
   const [selectedFarm, setSelectedFarm] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
-
-  async function getWeatherCoords(): Promise<{ lat: number; lng: number }> {
-    // Try browser geolocation first (user's actual location), fall back to Rangpur default
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, maximumAge: 300000 })
-        );
-        return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      } catch {
-        // fall through to default
-      }
-    }
-    return { lat: 25.9, lng: 89.1 };
-  }
 
   async function load() {
     setLoading(true);
@@ -98,14 +72,15 @@ export default function MyFarm() {
   const stats = useMemo(() => {
     const plots = farms.flatMap((f) => f.plots);
     const cycles = plots.flatMap((p) => p.cropCycles.filter((c) => c.status === "ACTIVE"));
-    const pendingTasks = cycles.length * 2;
-    return { farms: farms.length, plots: plots.length, crops: cycles.length, pendingTasks };
+    const totalBigha = farms.reduce((sum, f) => sum + (f.totalAreaBigha ?? 0), 0);
+    return { farms: farms.length, plots: plots.length, crops: cycles.length, totalBigha };
   }, [farms]);
 
+  // Care suggestions derived from each crop's real stage + planting date.
   const todayTasks = useMemo(() => {
     const cycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles.filter((c) => c.status === "ACTIVE").map((c) => ({ ...c, plotName: p.name, farmName: f.name, farmId: f.id }))));
-    return cycles.slice(0, 3).map((c) => ({ ...c, ...priorityForCycle(c) }));
-  }, [farms]);
+    return cycles.slice(0, 3).map((c) => ({ ...c, care: farmCareSuggestion(c, lang) }));
+  }, [farms, lang]);
 
   const farmDetail = selectedFarm ? farms.find((f) => f.id === selectedFarm) : null;
 
@@ -156,15 +131,18 @@ export default function MyFarm() {
             {farmDetail.plots.map((plot) => (
               <div key={plot.id} className="rounded-2xl border border-surface-border bg-surface-subdued p-4">
                 <p className="flex items-center gap-1 text-sm font-semibold text-stone-800"><MapPin className="h-4 w-4 text-stone-500" /> {plot.name} ({plot.areaBigha} {t("bighaShort", lang)})</p>
-                {plot.cropCycles.length > 0 ? plot.cropCycles.map((c) => (
-                  <div key={c.id} className="mt-3 flex items-center gap-2 rounded-xl bg-surface-card px-3 py-2 shadow-sm">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-4 w-4" /></span>
-                    <div className="min-w-0"><p className="text-[13px] font-semibold text-stone-800">{cropLabel(c.cropName, lang)} • {stageLabel(c.stage, lang)}</p><p className="text-[11px] text-stone-600">{new Date(c.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")} • {priorityForCycle(c).task}</p></div>
-                    <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-[11px] font-semibold ${priorityForCycle(c).color}`}>{priorityForCycle(c).label}</span>
-                  </div>
-                )) : <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>}
+                {plot.cropCycles.length > 0 ? plot.cropCycles.map((c) => {
+                  const care = farmCareSuggestion(c, lang);
+                  return (
+                    <div key={c.id} className="mt-3 flex items-center gap-2 rounded-xl bg-surface-card px-3 py-2 shadow-sm">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-4 w-4" /></span>
+                      <div className="min-w-0"><p className="text-[13px] font-semibold text-stone-800">{cropLabel(c.cropName, lang)} • {stageLabel(c.stage, lang)}</p><p className="text-[11px] text-stone-600">{new Date(c.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")} • {care.task}</p></div>
+                      <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-[11px] font-semibold ${careColor(care.tone)}`}>{care.label}</span>
+                    </div>
+                  );
+                }) : <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>}
                 <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setCropPlotId(cropPlotId===plot.id?null:plot.id)}>+ {t("addCrop", lang)}</Button>
-                {cropPlotId===plot.id && <form onSubmit={createCrop} className="mt-2 grid gap-2 rounded-xl bg-surface-card p-3 shadow-sm"><Select name="crop" defaultValue="" required aria-label={t("cropName", lang)}><option value="" disabled>{t("cropName", lang)}</option>{CROPS.map((c)=><option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>)}</Select><Input name="date" type="date" required aria-label={t("cropName", lang)} /><Button type="submit" loading={busy}>{t("submit", lang)}</Button></form>}
+                {cropPlotId===plot.id && <form onSubmit={createCrop} className="mt-2 grid gap-2 rounded-xl bg-surface-card p-3 shadow-sm"><Select name="crop" defaultValue="" required aria-label={t("cropName", lang)}><option value="" disabled>{t("cropName", lang)}</option>{CROPS.map((c)=><option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>)}</Select><Input name="date" type="date" required aria-label={t("plantedAtLabel", lang)} /><Button type="submit" loading={busy}>{t("submit", lang)}</Button></form>}
               </div>
             ))}
           </div>
@@ -196,11 +174,11 @@ export default function MyFarm() {
       {/* Intelligent Farm Overview */}
       {!loading && farms.length > 0 && (
         <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
-          <h2 className="text-base font-bold text-stone-800">{lang==="bn"?`আজ আপনার খামারে ${todayTasks.length}টি গুরুত্বপূর্ণ কাজ আছে`:`You have ${todayTasks.length} important task${todayTasks.length===1?"":"s"} on your farm today`}</h2>
+          <h2 className="text-base font-bold text-stone-800">{lang==="bn"?`আজ আপনার খামারে ${todayTasks.length}টি ফসলের পরামর্শ আছে`:`You have ${todayTasks.length} farm care suggestion${todayTasks.length===1?"":"s"} today`}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-danger-border bg-danger-bg px-3 py-1 text-xs font-semibold text-danger-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-critical" /> {lang==="bn"?"জরুরি":"Urgent"} — {todayTasks.filter((task)=>task.label==="জরুরি").length}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-warning-border bg-warning-bg px-3 py-1 text-xs font-semibold text-warning-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-warning" /> {lang==="bn"?"আজ করতে হবে":"Due today"} — {todayTasks.filter((task)=>task.label==="আজ করতে হবে").length}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-success-border bg-success-bg px-3 py-1 text-xs font-semibold text-success-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-500" /> {lang==="bn"?"সব ঠিক":"All good"}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-chip border border-danger-border bg-danger-bg px-3 py-1 text-xs font-semibold text-danger-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-critical" /> {t("careUrgent", lang)} — {todayTasks.filter((task)=>task.care.tone==="danger").length}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-chip border border-warning-border bg-warning-bg px-3 py-1 text-xs font-semibold text-warning-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-warning" /> {t("careDueToday", lang)} — {todayTasks.filter((task)=>task.care.tone==="warning").length}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-chip border border-success-border bg-success-bg px-3 py-1 text-xs font-semibold text-success-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-500" /> {t("careRoutine", lang)}</span>
           </div>
         </section>
       )}
@@ -215,10 +193,10 @@ export default function MyFarm() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Sprout className="h-5 w-5" /></span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-link">{task.farmName} • {task.plotName} — {cropLabel(task.cropName, lang)}</p>
-                  <p className="mt-0.5 text-sm font-semibold text-stone-800">{task.task}</p>
-                  <p className="text-xs text-stone-600">{task.label} • {task.stage} • {new Date(task.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")}</p>
+                  <p className="mt-0.5 text-sm font-semibold text-stone-800">{task.care.task}</p>
+                  <p className="text-xs text-stone-600">{task.care.label} • {stageLabel(task.stage, lang)} • {new Date(task.plantedAt).toLocaleDateString(lang==="bn"?"bn-BD":"en-GB")}</p>
                 </div>
-                <span className={`shrink-0 rounded-chip border px-2 py-1 text-[11px] font-bold ${task.color}`}>{task.label}</span>
+                <span className={`shrink-0 rounded-chip border px-2 py-1 text-[11px] font-bold ${careColor(task.care.tone)}`}>{task.care.label}</span>
               </Card>
             ))}
           </div>
@@ -246,8 +224,8 @@ export default function MyFarm() {
       {!loading && farms.length > 0 && (
         <section className="rounded-card border border-indigo-100 bg-enterprise-ai-light p-5 shadow-card">
           <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><Bot className="h-5 w-5 text-enterprise-ai" /> {lang==="bn"?"আমার ফার্ম AI":"My Farm AI"}</h2>
-          <p className="mt-2 text-[13px] leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি ফসলে নজর দেওয়া প্রয়োজন। ${todayTasks[0]?.task ?? "পরবর্তী কাজগুলো schedule অনুযায়ী দেখুন।"}`:`${stats.crops} crops need attention today. ${todayTasks[0]?.task ?? "Check the schedule for next steps."}`}</p>
-          <p className="mt-2 text-[11px] text-stone-500">{lang==="bn"?"AI পরামর্শ — আবহাওয়া ও পর্যায় অনুযায়ী।":"AI advisory — based on weather and stage."}</p>
+          <p className="mt-2 text-[13px] leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
+          <p className="mt-2 text-[11px] text-stone-500">{lang==="bn"?"পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।":"Stage-based suggestion — guidance, not an expert diagnosis."}</p>
           {weather?.risks?.[0] && <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {lang==="bn"?weather.risks[0].titleBn:weather.risks[0].titleEn}</p>}
         </section>
       )}
@@ -257,7 +235,7 @@ export default function MyFarm() {
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.crops}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><Sprout className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"সক্রিয় ফসল":"Active crops"}</p></Card>
           <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.plots}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><MapPin className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"প্লট":"Plots"}</p></Card>
-          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.pendingTasks}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><ClipboardList className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"অপেক্ষমাণ কাজ":"Pending tasks"}</p></Card>
+          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{Number(stats.totalBigha.toFixed(1))}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><ClipboardList className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("totalLand", lang)}</p></Card>
           <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.farms}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><HomeIcon className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"ফার্ম":"Farms"}</p></Card>
         </section>
       )}
@@ -282,8 +260,7 @@ export default function MyFarm() {
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><MapPin className="h-3 w-3" /> {farm.plots.length} {lang==="bn"?"প্লট":"plots"}</span>
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><Leaf className="h-3 w-3" /> {activeCrops} {lang==="bn"?"সক্রিয় ফসল":"active crops"}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-stone-500">{lang==="bn"?"আগামী কাজ: সার প্রয়োগ":"Next: fertilizer"}</span>
+                  <div className="flex items-center justify-end">
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-link">{lang==="bn"?"বিস্তারিত":"Details"} <ChevronRight className="h-3 w-3" /></span>
                   </div>
                   <div className="flex gap-2 pt-2">

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api, setUnauthorizedHandler } from "./api";
+import { api, ApiError, setUnauthorizedHandler } from "./api";
 import { getTokens, clearTokens as smClearTokens } from "./sessionManager";
 import { identify, track } from "./analytics";
 import { t } from "./i18n";
@@ -73,16 +73,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    // A boot-time network failure or transient 5xx must NOT destroy valid
+    // tokens — that would log an offline user out and defeat the offline
+    // story. Only a definitive 401 (the api layer already did its refresh
+    // attempt) clears the session. The api layer retries GETs on network
+    // errors and 5xx before we ever see the throw.
     try {
       const me = await api<{ id: string; fullName: string; role: string; langPref: "bn" | "en" }>("GET", "/auth/me");
       setSession({ userId: me.id, fullName: me.fullName, role: me.role, lang: me.langPref, dark });
       identify(me.id);
-    } catch {
-      smClearTokens();
-      setSession(null);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        smClearTokens();
+      }
+      setSession(null); // tokens survive network failures; session restores next boot
     }
+    setLoading(false);
   }
 
   useEffect(() => {

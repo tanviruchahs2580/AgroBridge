@@ -174,12 +174,26 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     unmount();
   });
 
-  it("when GET /auth/me fails, clears tokens and sets session null", async () => {
+  it("when GET /auth/me 401s (definitive rejection), clears tokens and sets session null", async () => {
     localStorage.setItem("ab_at", "bad-at");
-    mockApi.mockRejectedValueOnce(new Error("401"));
+    const { ApiError } = await import("./api");
+    mockApi.mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "Token expired"));
     const { getCtx, unmount } = await renderSession("/");
     expect(mockClearTokens).toHaveBeenCalled();
     expect(getCtx().session).toBeNull();
+    expect(getCtx().loading).toBe(false);
+    unmount();
+  });
+
+  it("when GET /auth/me fails with a NETWORK error, tokens are preserved (offline user stays logged in)", async () => {
+    localStorage.setItem("ab_at", "good-at");
+    localStorage.setItem("ab_rt", "good-rt");
+    const { ApiError } = await import("./api");
+    mockApi.mockRejectedValueOnce(new ApiError(0, "NETWORK_TIMEOUT", "Request timed out"));
+    const { getCtx, unmount } = await renderSession("/");
+    expect(mockClearTokens).not.toHaveBeenCalled();
+    expect(getCtx().session).toBeNull(); // no session while /auth/me is unreachable…
+    expect(localStorage.getItem("ab_at")).toBe("good-at"); // …but tokens survive for next boot
     expect(getCtx().loading).toBe(false);
     unmount();
   });
