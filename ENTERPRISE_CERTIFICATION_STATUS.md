@@ -307,11 +307,15 @@ working tree contained no pre-existing user changes to protect.
 
 - CERT-06 (**P0 live, wallet 500**): confirmed CLOSED on the Vercel+Neon stack — wallet
   endpoints verified 200 at API level and rendering at browser level, again, today.
-- NEW standing item (P3): `gitleaks/gitleaks-action@ff98106…` (v2.3.9) is the last Node-20
-  action; bump to its Node-24 release when filed upstream. Found during this run:
-  `codeql.yml` still uses `actions/checkout@v4` + `github/codeql-action@v3` — the CodeQL
-  v3 action is announced deprecated for December 2026; bump to checkout v7 + codeql-action
-  v4 before then (annotations on run 38850931946).
+- RESOLVED (P3, commit 4ef3e04): `gitleaks/gitleaks-action` pinned v3.0.0 (e0c47f4f…),
+  `codeql.yml` checkout v7.0.1 + codeql-action v4 (6f2ac81…, bundle v2.27.2) — run
+  38859509596/38859509557 green, deprecation annotation gone; that run then exposed the
+  docker pins as the last Node-20 actions → setup-buildx v4.4.1 (f87e5991…) and
+  build-push v7.4.0 (c3c9e263…) in commit 2445d3a — run 38860130031 **green with an EMPTY
+  annotation section** (Node-20 warnings fully cleared).
+- UPDATED (P3): `runs-on` pinned to `ubuntu-24.04` in every workflow (commit 4ef3e04) so the
+  ubuntu-latest → Ubuntu 26 runner migration (starting 2026-10-19) cannot move CI images
+  under us; unpin deliberately after validating on ubuntu-26 images.
 - NEW standing item (P3, watch): GitHub `ubuntu-latest` migrates to Ubuntu 26 beginning
   2026-10-19 — re-check docker/postgres jobs after the runner image rolls.
 - CERT-01/CERT-02 (retired Render DB artifacts + git-history purge) and Render
@@ -384,3 +388,23 @@ camp A/B above) → farm created through the real forms with success toast.
 - CERT-01/02/03 (retired Render DB + git history + local OIDC token) unchanged — owner actions.
 - `gitleaks-action` (last Node-20 action), `codeql.yml` checkout@v4 + codeql-action v3 (Dec 2026),
   ubuntu-latest → 26 runner migration (2026-10-19 watch).
+
+---
+
+## 12. Standing-items remediation addendum — 2026-10-16 (round 2)
+
+**Scope:** execution of the remaining register items, prioritized by agent-addressability.
+Final heads: `4ef3e04` (pins) + `2445d3a` (docker actions) — CI/CodeQL green, zero annotations.
+
+| Item | Status | Evidence / what happened |
+|---|---|---|
+| CERT-02 (backup JSONs in public git history) | **RESOLVED — NOT REPRODUCIBLE** | Exhaustive object scan `git rev-list --all --objects \| grep -i backup` over all 23 refs finds **zero** matching objects; `git log --all --diff-filter=A -- apps/api/backup-*.json` is empty; the only JSON ever added under `apps/api/` are config files. The three `apps/api/backup-*.json` in the local worktree were always untracked+gitignored (they are the user's local DR-rehearsal snapshots — deletable at owner's discretion, contents never printed). The 2026-09-15 §2 claim is corrected accordingly; **no history purge, no force-push, no credential-rotation trigger exists in this repository.** Gitleaks full-history scans green corroborate. |
+| CERT-03 (VERCEL_OIDC_TOKEN in local env files) | **RESOLVED (local)** | Stale `VERCEL_OIDC_TOKEN=` lines removed from gitignored `.env.local` + `apps/api/.env.local` (grep 0). Vercel OIDC tokens self-expire (~hours); replacement copies are minted fresh by `vercel env pull` on next use. Verified `vercel` CLI authenticated as tanviruchahs2580. |
+| CERT-01 + Render decommissioning | **BLOCKED — owner-only** | Preflight redone this round: no `render` CLI, no `RENDER_API_KEY`/`RENDER_TOKEN` in env, no Render tooling on the workstation. Owner runbook (dashboard): open `apps/` → Services → (1) `agrobridge-db`: Settings → Suspend/Delete database; (2) `agrobridge-vfbz` → Suspend service (or Delete); (3) if old-demo-credential hygiene is wanted: the Render DB (if still reachable from a transient shell) or simply delete it — deletion satisfies both CERT-01 and decommissioning in one act. Record the act here afterwards. |
+| gitleaks-action pin | **RESOLVED** | v3.0.0 SHA pin, live-validated (see §11/§12 texts above). |
+| codeql.yml checkout + codeql-action v4 | **RESOLVED** | SHA-pinned v7.0.1 + v4; weekly Monday schedule unchanged; live-validated. |
+| ubuntu-latest → Ubuntu 26 | **MITIGATED** | All workflows pinned to ubuntu-24.04; deliberate unpin later. |
+
+**Register state after this round:** no agent-actionable items remain. Owner-only: (1) production
+deploys of the 2026-10-16 fixes (Vercel + APK), (2) Render dashboard decommission/CERT-01, (3)
+optional local deletion of gitignored DR snapshots, (4) quarterly re-run of §4 gates.

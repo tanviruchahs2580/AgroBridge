@@ -125,3 +125,18 @@ Full addendum with per-finding proofs: `ENTERPRISE_CERTIFICATION_STATUS.md` §11
 - User-level (E4): fresh registration → auto-login → honest dashboard → farm creation verified
   in a real browser on the local stack; E2E suite 20/20; live production verification is
   read-only (fixes await owner deploys).
+
+## 2026-10-16 — Standing-items remediation round (round 2)
+
+- CERT-02 corrected: exhaustive `git rev-list --all --objects` scan (23 refs) finds no
+  `backup-*.json` object ever committed — the 2026-09-15 claim is not reproducible; local
+  copies are gitignored snapshots; **no force-push/purge needed**. RESOLVED (not reproducible).
+- CERT-03 resolved locally: stale self-expiring VERCEL_OIDC_TOKEN lines stripped from both
+  gitignored env files; vercel CLI authenticated (owner).
+- gitleaks-action → v3.0.0 SHA; codeql.yml → checkout v7.0.1 + codeql-action v4 SHA; docker
+  setup-buildx → v4.4.1 + build-push → v7.4.0 (its own Node-20 annotation exposed by the
+  previous run and cleared); all `runs-on` pinned to ubuntu-24.04 pre-2026-10-19 migration.
+- Commits pushed: `4ef3e04`, `2445d3a` — CI runs 38859509596 / 38860130031 success with an
+  EMPTY annotation section; CodeQL 38859509557 / 38860130082 success.
+- Blocked (owner-only, runbook in cert §12): Render service/DB decommission (CERT-01);
+  production deploys of all 2026-10-16 fixes.
