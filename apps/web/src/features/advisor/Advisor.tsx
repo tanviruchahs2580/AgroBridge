@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
+import type { AdvisoryAnswer, DiseaseCase } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatDate } from "../../lib/format";
@@ -7,21 +8,6 @@ import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Bot, Camera, Sprout } from "lucide-react";
 import { Badge, Button, Card, ErrorBanner, Input, PageHeader, Skeleton, Spinner } from "../../components/ui";
-
-interface Answer {
-  answer: string;
-  confidence: number;
-  lowConfidenceFlag: boolean;
-  groundedRefs?: string[];
-}
-
-interface DiseaseCase {
-  id: string;
-  status: string;
-  diagnosis: string | null;
-  recommendation: string | null;
-  createdAt: string;
-}
 
 const CROP_KEYWORDS = /rice|wheat|jute|mustard|maize|potato|ধান|গম|পাট|সরিষা|ভুট্টা|আলু/i;
 
@@ -88,7 +74,7 @@ export default function Advisor() {
     setBusy(true);
     track("advisory_asked", { hasCrop: CROP_KEYWORDS.test(q) ? 1 : 0 });
     try {
-      const res = await api<Answer>("POST", "/ai/advisory", { question: q, lang });
+      const res = await api<AdvisoryAnswer>("POST", "/ai/advisory", { question: q, lang });
       // Structured/plain answers both render gracefully: plain text keeps its
       // line breaks; grounded references are listed as source rows.
       setChat((c) => [

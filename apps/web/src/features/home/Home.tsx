@@ -5,6 +5,7 @@ import {
   Sprout, Stethoscope, Tractor, TriangleAlert, Wind,
 } from "lucide-react";
 import { api } from "../../lib/api";
+import type { FarmListItem, NotificationsData, WeatherData } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
@@ -12,27 +13,17 @@ import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
 
-interface FarmShape {
-  id: string;
-  totalAreaBigha?: number;
-  plots: { id: string; cropCycles: { id: string; cropName: string; stage: string; plantedAt: string }[] }[];
-}
-interface WeatherShape {
-  current: { tempC: number; humidityPct: number; windKmh: number; condition: string };
-  risks: { type: string; severity: string; titleBn: string; titleEn: string }[];
-}
-
 /**
  * Farm health indicator derived from the data actually loaded on this screen
  * (farms, active crop cycles, weather risks). It is a deterministic readiness
  * meter, not an AI verdict — only actionable risks (non-INFO, non-LOW) count
  * against the score.
  */
-function actionableRisks(weather: WeatherShape | null) {
+function actionableRisks(weather: WeatherData | null) {
   return weather ? weather.risks.filter((r) => r.type !== "INFO" && r.severity !== "LOW") : [];
 }
 
-function computeHealthScore(farms: FarmShape[], weather: WeatherShape | null): number {
+function computeHealthScore(farms: FarmListItem[], weather: WeatherData | null): number {
   const cycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const risks = actionableRisks(weather).length;
   let score = 60;
@@ -74,8 +65,8 @@ const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] 
 export default function Home() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
-  const [farms, setFarms] = useState<FarmShape[]>([]);
-  const [weather, setWeather] = useState<WeatherShape | null>(null);
+  const [farms, setFarms] = useState<FarmListItem[]>([]);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -88,9 +79,9 @@ export default function Home() {
       // Localised from the farmer's profile district; no location permission needed.
       const coords = getWeatherCoords(session?.district);
       const [farmsData, notif, weatherData] = await Promise.allSettled([
-        api<FarmShape[]>("GET", "/farms"),
-        api<{ unread: number }>("GET", "/notifications"),
-        api<WeatherShape>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`),
+        api<FarmListItem[]>("GET", "/farms"),
+        api<NotificationsData>("GET", "/notifications"),
+        api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`),
       ]);
       if (farmsData.status === "fulfilled") setFarms(farmsData.value);
       if (notif.status === "fulfilled") setUnread(notif.value.unread);

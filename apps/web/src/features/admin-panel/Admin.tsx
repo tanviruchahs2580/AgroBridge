@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Banknote, Bot, ClipboardList, Clock3, Home as HomeIcon, Package, ShieldCheck, Sprout, UserCheck, Users } from "lucide-react";
 import { api } from "../../lib/api";
+import type { AdminAnalyticsSummary, AdminAuditLogsData, AdminMetrics, AdminUser, AdminWithdrawalItem, AuditLogEntry } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -12,42 +13,17 @@ import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, SectionHeader, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
 
-interface Metrics {
-  farmers: number; activeFarmers: number; farms: number; activeCrops: number;
-  orders: number; bookings: number; pendingProcurement: number;
-  revenuePaisa: number; aiAdvisoryQueries: number;
-}
-interface UserRow {
-  id: string; fullName: string; phone: string; role: string; status: string;
-  region?: string | null;
-  farmerProfile?: { membershipTier?: string };
-}
-interface AuditRow {
-  id: string; action: string; entityType?: string; entityId?: string; createdAt: string;
-  actor?: { fullName?: string; role?: string } | null;
-}
-interface AdminWithdrawal {
-  id: string;
-  refNo: string;
-  amountPaisa: number;
-  status: string;
-  channel: string;
-  destination?: string | null;
-  createdAt: string;
-  user?: { fullName?: string; phone?: string };
-}
-
 export default function AdminPanel() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
-  const [analytics, setAnalytics] = useState<{ windowDays: number; events: { name: string; count: number }[] } | null>(null);
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [audit, setAudit] = useState<AuditLogEntry[]>([]);
+  const [withdrawals, setWithdrawals] = useState<AdminWithdrawalItem[]>([]);
+  const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
   const [analyticsFailed, setAnalyticsFailed] = useState(false);
   const [search, setSearch] = useState("");
   const [denied, setDenied] = useState(false);
@@ -62,9 +38,9 @@ export default function AdminPanel() {
     setLoadError(null);
     try {
       const [mtrx, usr, adt] = await Promise.all([
-        api<Metrics>("GET", "/admin/metrics"),
-        api<{ items: UserRow[] }>("GET", "/admin/users?pageSize=50"),
-        api<{ items: AuditRow[] }>("GET", "/admin/audit-logs?pageSize=30"),
+        api<AdminMetrics>("GET", "/admin/metrics"),
+        api<{ items: AdminUser[] }>("GET", "/admin/users?pageSize=50"),
+        api<AdminAuditLogsData>("GET", "/admin/audit-logs?pageSize=30"),
       ]);
       setMetrics(mtrx);
       setUsers(usr.items);
@@ -79,7 +55,7 @@ export default function AdminPanel() {
 
   async function loadWithdrawals() {
     try {
-      setWithdrawals(await api<AdminWithdrawal[]>("GET", "/admin/withdrawals?status=PENDING"));
+      setWithdrawals(await api<AdminWithdrawalItem[]>("GET", "/admin/withdrawals?status=PENDING"));
     } catch {
       setWithdrawals([]); // permission-gated panel section
     }
@@ -88,7 +64,7 @@ export default function AdminPanel() {
   useEffect(() => {
     void loadAll();
     void loadWithdrawals();
-    api<{ windowDays: number; events: { name: string; count: number }[] }>("GET", "/admin/analytics/summary")
+    api<AdminAnalyticsSummary>("GET", "/admin/analytics/summary")
       .then((r) => {
         setAnalytics(r);
         setAnalyticsFailed(false);
@@ -102,7 +78,7 @@ export default function AdminPanel() {
   useEffect(() => {
     if (loading) return;
     const h = setTimeout(() => {
-      void api<{ items: UserRow[] }>("GET", `/admin/users?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ""}`)
+      void api<{ items: AdminUser[] }>("GET", `/admin/users?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ""}`)
         .then((r) => {
           setUsers(r.items);
           setSearchFailed(false);
@@ -123,7 +99,7 @@ export default function AdminPanel() {
     return false;
   }
 
-  async function toggleSuspend(u: UserRow) {
+  async function toggleSuspend(u: AdminUser) {
     const suspending = u.status !== "SUSPENDED";
     const okToAct = await confirm(
       suspending
@@ -145,7 +121,7 @@ export default function AdminPanel() {
     try {
       await api("PATCH", `/admin/users/${u.id}`, { status: suspending ? "SUSPENDED" : "ACTIVE" });
       toast.success(t("userUpdatedToast", lang));
-      setUsers((await api<{ items: UserRow[] }>("GET", `/admin/users?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ""}`)).items);
+      setUsers((await api<{ items: AdminUser[] }>("GET", `/admin/users?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ""}`)).items);
     } catch (err) {
       if (!guard403(err)) toast.error(mapError(err, lang));
     } finally {
@@ -153,7 +129,7 @@ export default function AdminPanel() {
     }
   }
 
-  async function saveRegion(u: UserRow) {
+  async function saveRegion(u: AdminUser) {
     const value = (regionDrafts[u.id] ?? u.region ?? "").trim();
     if (value === (u.region ?? "")) return;
     setRowBusy(u.id);
@@ -168,7 +144,7 @@ export default function AdminPanel() {
     }
   }
 
-  async function decide(w: AdminWithdrawal, action: "APPROVE" | "REJECT") {
+  async function decide(w: AdminWithdrawalItem, action: "APPROVE" | "REJECT") {
     const okToAct = await confirm({
       title: `${t(action === "APPROVE" ? "actionApprove" : "actionReject", lang)} · ${w.refNo}`,
       body: action === "APPROVE" ? t("wdApproveConfirmBody", lang, { amount: formatBDT(w.amountPaisa, lang) }) : t("wdRejectConfirmBody", lang),
@@ -364,7 +340,7 @@ export default function AdminPanel() {
               variant="outline"
               size="sm"
               onClick={() =>
-                void api<{ windowDays: number; events: { name: string; count: number }[] }>("GET", "/admin/analytics/summary")
+                void api<AdminAnalyticsSummary>("GET", "/admin/analytics/summary")
                   .then(setAnalytics)
                   .catch(() => setAnalyticsFailed(true))
               }

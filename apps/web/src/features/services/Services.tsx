@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import type { BookingWithRelations, FarmListItem, ServiceWithProviders } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
@@ -11,28 +12,6 @@ import { track } from "../../lib/analytics";
 import { ClipboardList, Search, SlidersHorizontal, Tractor, TriangleAlert, CheckCircle2, CalendarClock, ArrowRight, ShieldCheck, Leaf, Wrench, Phone } from "lucide-react";
 import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
 import { ServiceCard, ServiceCardSkeleton } from "../../components/service/ServiceCard";
-
-interface Service {
-  id: string;
-  code: string;
-  name: string;
-  category: string;
-  basePricePaisa: number;
-  priceUnit: string;
-  description?: string;
-  providers: { id: string; name: string; district?: string; ratingCount: number; ratingSum: number }[];
-}
-interface Booking {
-  id: string;
-  bookingNo: string;
-  status: string;
-  scheduledFor: string;
-  areaBigha: number;
-  estimatedPricePaisa: number;
-  service?: { name: string; category: string };
-  farm?: { name: string };
-  provider?: { name: string } | null;
-}
 
 type FilterKey = "ALL" | "MECH" | "ADVISORY" | "TEST";
 const FILTER_MAP: Record<FilterKey, string[]> = {
@@ -65,10 +44,10 @@ export default function Services() {
   const confirm = useConfirm();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const [services, setServices] = useState<Service[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
-  const [selected, setSelected] = useState<Service | null>(null);
+  const [services, setServices] = useState<ServiceWithProviders[]>([]);
+  const [bookings, setBookings] = useState<BookingWithRelations[]>([]);
+  const [farms, setFarms] = useState<FarmListItem[]>([]);
+  const [selected, setSelected] = useState<ServiceWithProviders | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
@@ -83,9 +62,9 @@ export default function Services() {
     setLoadError(null);
     try {
       const [svc, bkg, frm] = await Promise.all([
-        api<Service[]>("GET", "/services"),
-        api<Booking[]>("GET", "/bookings"),
-        api<{ id: string; name: string }[]>("GET", "/farms"),
+        api<ServiceWithProviders[]>("GET", "/services"),
+        api<BookingWithRelations[]>("GET", "/bookings"),
+        api<FarmListItem[]>("GET", "/farms"),
       ]);
       setServices(svc);
       setBookings(bkg);
@@ -149,7 +128,7 @@ export default function Services() {
     }
   }
 
-  async function cancelBooking(b: Booking) {
+  async function cancelBooking(b: BookingWithRelations) {
     const ok = await confirm({
       title: t("cancelBooking", lang),
       body: `${b.service?.name ?? ""} · ${formatDateTime(b.scheduledFor, lang)} — ${t("cancelBookingBody", lang)}`,

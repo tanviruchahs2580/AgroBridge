@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import type { OrderWithItems } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
@@ -14,30 +15,6 @@ import { mapError } from "../../lib/errors-ui";
  * the API never joins the live product, so a price change or a delisted
  * product cannot rewrite order history.
  */
-interface OrderItem {
-  id: string;
-  qty: number;
-  nameSnapshot: string;
-  skuSnapshot?: string;
-  unitPricePaisa: number;
-}
-
-interface Order {
-  id: string;
-  orderNo: string;
-  status: string;
-  paymentStatus: string;
-  subtotalPaisa: number;
-  discountPaisa: number;
-  deliveryFeePaisa: number;
-  totalPaisa: number;
-  items: OrderItem[];
-  shippingName: string | null;
-  shippingPhone: string | null;
-  shippingAddress: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 type TabKey = "all" | "active" | "delivered";
 
@@ -53,7 +30,7 @@ const STATUS_TONES: Record<string, BadgeTone> = {
 export default function MyOrders() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -72,7 +49,7 @@ export default function MyOrders() {
     try {
       // GET /orders returns a plain array (contract asserted in
       // apps/api/tests/journey-marketplace.test.ts) — not an { items } envelope.
-      const data = await api<Order[] | { items?: Order[] }>("GET", "/orders");
+      const data = await api<OrderWithItems[] | { items?: OrderWithItems[] }>("GET", "/orders");
       setOrders(Array.isArray(data) ? data : (data?.items ?? []));
     } catch {
       setLoadError(true);
@@ -82,11 +59,11 @@ export default function MyOrders() {
   }
 
   /** Finished orders can be removed; in-flight ones must be cancelled first. */
-  function deletable(order: Order): boolean {
+  function deletable(order: OrderWithItems): boolean {
     return !["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status);
   }
 
-  async function removeOrder(order: Order) {
+  async function removeOrder(order: OrderWithItems) {
     const okToDelete = await confirm({
       title: t("confirmTitle", lang),
       body: `${t("deleteOrderConfirm", lang)} ${order.orderNo}`,

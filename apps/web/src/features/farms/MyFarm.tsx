@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import type { FarmListItem, WeatherData } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -10,15 +11,6 @@ import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Bot, Wrench, ShoppingBag, ChevronRight, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
 import { Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast } from "../../components/ui";
-
-interface Farm {
-  id: string;
-  name: string;
-  district?: string;
-  totalAreaBigha?: number;
-  plots: { id: string; name: string; areaBigha: number; cropCycles: { id: string; cropName: string; stage: string; plantedAt: string; status: string }[] }[];
-}
-interface WeatherAdvisory { type: string; titleBn: string; titleEn: string; }
 
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
 const CROP_KEYS: Record<string, DictKey> = { RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE", MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO" };
@@ -34,8 +26,8 @@ export default function MyFarm() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
-  const [farms, setFarms] = useState<Farm[]>([]);
-  const [weather, setWeather] = useState<{ risks: WeatherAdvisory[] } | null>(null);
+  const [farms, setFarms] = useState<FarmListItem[]>([]);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,14 +41,14 @@ export default function MyFarm() {
     setLoading(true);
     setLoadError(null);
     try {
-      const farmsData = await api<Farm[]>("GET", "/farms");
+      const farmsData = await api<FarmListItem[]>("GET", "/farms");
       setFarms(farmsData);
       try {
         const coords = getWeatherCoords(session?.district);
-        const weatherData = await api<{ risks: WeatherAdvisory[] }>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
-        setWeather(weatherData as { risks: WeatherAdvisory[] });
+        const weatherData = await api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
+        setWeather(weatherData);
       } catch {
-        setWeather({ risks: [] });
+        setWeather(null);
       }
     } catch (err) {
       setLoadError(mapError(err, lang));

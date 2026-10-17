@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Star, Users } from "lucide-react";
+import type { ServiceWithProviders } from "../../lib/api-types";
 import { formatBDT } from "../../lib/format";
 import { serviceCategoryLabel, priceUnitLabel } from "../../lib/labels";
 import { t } from "../../lib/i18n";
@@ -11,8 +12,8 @@ interface Props {
   category: string;
   pricePaisa: number;
   priceUnit: string;
-  description?: string;
-  providers: { id: string; name: string; district?: string; ratingCount?: number; ratingSum?: number }[];
+  description?: ServiceWithProviders["description"];
+  providers: ServiceWithProviders["providers"];
   lang: Lang;
   onBook: () => void;
   onDetails?: () => void;

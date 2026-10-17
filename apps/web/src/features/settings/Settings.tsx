@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BadgeCheck, CircleAlert, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { api, clearTokens, ApiError } from "../../lib/api";
+import type { Me, OtpRequestResult } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
@@ -9,16 +10,6 @@ import { BUILD_INFO } from "../../lib/build-info";
 import {
   Badge, Button, Card, ErrorBanner, Input, Label, PageHeader, SectionHeader, Select, Skeleton, useConfirm, useToast,
 } from "../../components/ui";
-
-interface Me {
-  id: string;
-  fullName: string;
-  phone: string;
-  email: string | null;
-  langPref: "bn" | "en";
-  phoneVerified: boolean;
-  farmerProfile?: { district?: string | null; upazila?: string | null; address?: string | null } | null;
-}
 
 /**
  * Account & settings — the single place a user edits their profile, verifies
@@ -108,7 +99,7 @@ export default function Settings() {
     setOtpBusy(true);
     setOtpErr(null);
     try {
-      const res = await api<{ sent?: boolean; devCode?: string }>("POST", "/auth/otp/request");
+      const res = await api<OtpRequestResult>("POST", "/auth/otp/request");
       setOtpSent(true);
       setDevCode(typeof res?.devCode === "string" ? res.devCode : null);
       toast.info(t("otpSentToast", lang));
