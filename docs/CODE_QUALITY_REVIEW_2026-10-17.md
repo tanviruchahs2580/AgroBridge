@@ -571,6 +571,7 @@ The register in §8 is the original finding record. What has been executed again
 |---|---|---|
 | GOV-5, GOV-6, AI-1, CI-2, CI-3, GOV-2, GOV-7 | **DONE (Phase 0)** | Ruleset `main — protected` (11 required checks, no bypass, direct push verified rejected); CODEOWNERS paths real; visual-contract suite restored as a portable committed test; `deploy-verify` gate green on its own merge; `qa-evidence/receipts/` committed; CHANGELOG `[1.4.0]` + tag + Release; 9 Dependabot PRs triaged into `docs/DEPENDENCY_BACKLOG.md` |
 | WEB-2 | **DONE (Phase 1)** | `apps/web/src/lib/api-types.ts` is the single contract (26 inline interfaces removed, net −190 lines); `apps/api/tests/response-contract.test.ts` + `contracts/api-response-shapes.json` fail on any shape change — proven by deliberately breaking it |
+| WEB-1 | **DONE (Phase 1)** | `lib/useResource.ts` owns loading/refreshing/localized error/reload/optimistic update with a newest-request-wins guard, and `invalidate(key)` replaces manual refetching. All 14 screens migrated (27 resources, 11 files); `grep "async function load()\|await load()"` over `features/` returns nothing. Included the first component tests in the repository (11 cases, two of which are StrictMode regressions that were verified to fail against the unfixed hook) |
 | API-1 | **DONE (Phase 1)** | `strict: true` in both API configs, inherited not re-stated; verified effective with probe errors (TS2564/TS18047/TS7006) |
 | API-2 | **DONE (Phase 1)** | `as never` = **0** across `src` (was 14), including the three in payments and the two call sites that pushed a `tx` through `as never`; `applyPaymentSideEffects` now takes `Prisma.TransactionClient` |
 
@@ -581,7 +582,28 @@ compiled with zero errors. The flags were indeed off, but the code already satis
 so the cost of this item was configuration, not remediation. The severity was right (a
 compiler that cannot catch nullability is not reviewing), the implied effort was not.
 
-**Still open in Phase 1:** `WEB-1` (the shared data layer for the ~10 screens that hand-roll
-`loading`/`error`/refetch), and the `req.auth!` reduction (133 sites) — the latter is
-documented as safe-by-middleware and covered by the security-matrix tests, so it is a
-readability/type-purity improvement rather than a defect.
+**Phase 1 is complete.** What remains from the register, in the order the plan sets out:
+
+- **Phase 2** — `WEB-6`/`WEB-7` (the Modal focus trap re-running per keystroke, and `inert`
+  covering only `#main`), `WEB-11` (component tests beyond the data layer), `WEB-8` (sub-44px
+  header controls), `WEB-9` (the keyboard-invisible farm card).
+- **Phase 3** — `API-6` (single-source the Prisma schema), `API-7` (missing indexes), `API-8`
+  (the untested Redis limiter store, organizations coverage), `API-3`/`API-4` (module-tree
+  consolidation, one limiter factory, audit policy), `WEB-4`, `WEB-13` (bundle split).
+- **Phase 4** — `DOC-1`, `ADR-1`, `AI-3`, `GOV-1` and the receipt convention.
+
+The `req.auth!` reduction (133 sites) is a readability/type-purity item, not a defect: the
+assertion is guaranteed by middleware order and the security-matrix tests cover the outcome.
+It is listed last for that reason.
+
+Two things this phase taught, recorded because they shape the remaining work:
+
+1. **CI finds what local runs cannot.** The suite passed 27/27 locally on every commit of the
+   data-layer work while CI failed twice — because two specs clicked the language toggle as a
+   repaint check and left the account's persisted language in English, and the second click's
+   PATCH could be abandoned when the context closed. The first hypothesis (one spec) was
+   correct but incomplete; it took reading the run order to find the second writer. An
+   evidence-free second guess would have "fixed" the wrong file.
+2. **A gate that has never failed proves nothing.** The response-shape guard was verified by
+   deliberately breaking it, the StrictMode tests by running them against the unfixed hook, and
+   the deploy gate by watching it fail on a real deployment that was still in flight.

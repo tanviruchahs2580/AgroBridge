@@ -683,3 +683,43 @@ Live: web ও API দুটোই `73f0945`, deploy-verify success।
 **প্রসেস-ভুল (লিখে রাখা):** একটি commit branch খোলার *আগে* main-এ হয়ে গিয়েছিল, ফলে remote-এ
 squash merge হলেও local main-এ duplicate commit + merge commit জমে। Content অভিন্ন প্রমাণ করে
 local main origin-এ reset করা হয়েছে; শিক্ষা — **আগে branch, পরে commit**।
+
+## 2026-10-17 — Phase 1 সম্পূর্ণ (round 14)
+
+রিপোর্টের Phase 1-এর চারটি আইটেমই শেষ: **WEB-2, API-1, API-2, WEB-1** — মোট ৫টি PR (#19–#26)
+সবই গেটের ১১টি check সবুজ নিয়ে merge।
+
+**WEB-2 — এক typed contract + drift guard.** `apps/web/src/lib/api-types.ts` (২৬টি inline
+interface বাদ, net −১৯০ লাইন); `apps/api/tests/response-contract.test.ts` + fixtures ২৪টি
+endpoint-এর key-structure ধরে রাখে এবং বদলালেই fail করে — **ইচ্ছে করে ভেঙে প্রমাণিত**।
+মাইগ্রেশনেই দুটি আসল বাগ বেরিয়েছিল: `GET /admin/users` `region` ফেরাত না অথচ প্যানেল সেটা
+সম্পাদনা করে; আর `SellCrop` nullable `qualityGrade`-কে non-null ধরত।
+
+**API-1 — `strict: true`.** দুটো config-এ চালু (build config আর override দিয়ে বন্ধ করে না),
+probe error (TS18047/TS2564/TS7006) দিয়ে কার্যকর প্রমাণিত। **আমার নিজের রিপোর্টের সংশোধন:**
+API-1 implied বড় fallout, কিন্তু পরিমাপে শূন্য — flags বন্ধ ছিল, কোড আগেই মেনে চলত। Severity
+ঠিক ছিল, অনুমিত পরিশ্রম ভুল।
+
+**API-2 — `as never` ১৪ → ০.** `applyPaymentSideEffects` এখন `Prisma.TransactionClient` নেয়
+(আগে হাতে-লেখা type-এর argument-ই ছিল `never`, তাই দুই call site-এ `tx as never`); বাকি নয়টি
+zod body এখন schema-থেকে field-by-field typed object, admin `region`-এর `null` vs absent
+পার্থক্যসহ। কোথাও `as any`/`@ts-ignore` যোগ হয়নি।
+
+**WEB-1 — data layer, সম্পূর্ণ।** `lib/useResource.ts` (loading/refreshing/localized error/
+reload/optimistic + newest-request-wins guard) আর `invalidate(key)`; **১৪টি স্ক্রিন, ২৭টি
+resource, ১১টি ফাইল** — `features/`-এ আর কোনো `async function load()`/`await load()` নেই।
+রেপোর **প্রথম component test** এখানেই (১১টি কেস)। পথে ধরা পড়া আসল বাগ: **আমার hook-ই
+StrictMode-এ কখনো settle করত না** (dev server-এ পেজ চিরকাল skeleton দেখাত, অথচ test/production
+পাস করত) — ঠিক করার পর দুটি regression test unfixed hook-এর বিরুদ্ধে fail করে দেখে নেওয়া
+হয়েছে। আর Analytics-এর "Retry" কোনোদিন সফল হতে পারত না (failure flag সেটই থাকত)।
+
+**CI যা ধরল, লোকাল যা ধরতে পারত না।** data-layer রাউন্ডে CI দুবার fail করল অথচ লোকালে প্রতি
+commit-এ ২৭/২৭ পাস। কারণ: **দুটি spec** ভাষার টগল ক্লিক করত কেবল repaint যাচাই হিসেবে, আর
+অ্যাকাউন্টের persisted ভাষা English-এ ফেলে যেত (restore PATCH context বন্ধ হয়ে গেলে
+পরিত্যক্ত)। প্রথম hypothesis (একটি spec) ঠিক ছিল কিন্তু অসম্পূর্ণ — তাই CI আবার fail করল;
+run-order পড়ে দ্বিতীয় writer (`farmer-journey`) ধরা পড়ল। দুটোই এখন server-side যাচাই করে,
+আর T8-এর order-number regex (`ORD-[0-9A-Z-]+`, যা English UI-তে "Net" গিলে ফেলত) generator-এর
+প্রকৃত format-এ নামানো। **প্রমাণ:** API দিয়ে অ্যাকাউন্ট English করে পুরো suite চালিয়ে ২৭/২৭।
+
+**Gates:** API 151+1skip · web unit 119 · tsc/lint/i18n clean · e2e 27/27 · sweep 39/39 ·
+deploy-verify success (`96e3055`), live web ও API synced।
