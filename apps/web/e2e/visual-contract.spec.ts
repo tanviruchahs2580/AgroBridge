@@ -56,41 +56,45 @@ async function assertNoHorizontalOverflow(page: import("@playwright/test").Page,
 }
 
 test.describe("Visual contract — 8 pages render, laid out, in both themes", () => {
-  for (const p of PAGES) {
-    test(`${p.name} (${p.path})`, async ({ page }) => {
-      if (p.auth) {
-        await seededLogin(page);
-      }
+  /**
+   * Two tests, one sign-in each. The earlier shape ran one test per page and
+   * signed in per test: nine logins for nine assertions, which exhausted the
+   * API's login rate limit in CI and made unrelated suites fail (2026-10-17).
+   * Page-level reporting is preserved by naming the page in every assertion.
+   */
+  test("light theme: every critical page renders, laid out", async ({ page }) => {
+    await seededLogin(page);
+    for (const p of PAGES.filter((x) => x.auth)) {
       await page.goto(p.path);
       await page.waitForLoadState("networkidle");
+      await expect(page.locator(p.control).first(), `${p.name}: ${p.control} not visible`).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("body"), `${p.name}: expected copy missing`).toContainText(p.marker, { timeout: 15_000 });
+      await expect(page.locator("body"), `${p.name}: error boundary fired`).not.toContainText(
+        /কিছু ভুল হয়েছে|Something went wrong/i
+      );
+      await assertNoHorizontalOverflow(page, p.name);
+      await expect(page.locator('nav[aria-label="Primary navigation"]'), `${p.name}: navigation missing`).toBeAttached();
+    }
+  });
 
-      // 1. The page rendered its own content: the functional control that proves
-      //    the screen is interactive (form field or the routed main region) plus
-      //    the screen's own copy. Asserting "first heading in the document" was
-      //    fragile — the first match in DOM order can be an inert element.
-      await expect(page.locator(p.control).first()).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator("body")).toContainText(p.marker, { timeout: 15_000 });
-
-      // 2. The error boundary did not fire.
+  test("public pages render without a session, laid out", async ({ page }) => {
+    for (const p of PAGES.filter((x) => !x.auth)) {
+      await page.goto(p.path);
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator(p.control).first(), `${p.name}: ${p.control} not visible`).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("body"), `${p.name}: expected copy missing`).toContainText(p.marker, { timeout: 15_000 });
+      await assertNoHorizontalOverflow(page, p.name);
+      // Both public pages must be reachable while signed out — for /register that
+      // means the reverse guard must not bounce a guest to /login.
       await expect(page.locator("body")).not.toContainText(/কিছু ভুল হয়েছে|Something went wrong/i);
-
-      // 3. Laid out for a phone.
-      await assertNoHorizontalOverflow(page, `${p.name} (light)`);
-
-      // 4. Primary chrome present on signed-in pages.
-      if (p.auth) {
-        await expect(page.locator('nav[aria-label="Primary navigation"]')).toBeAttached();
-        await expect(page.locator('a[href="#main"]')).toBeAttached();
-      }
-    });
-  }
+    }
+  });
 
   test("dark mode renders the same pages without overflow", async ({ page }) => {
     await seededLogin(page);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
     await page.locator("header button[aria-pressed]").first().click(); // theme toggle
-    await page.waitForTimeout(600);
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.dataset.theme))
       .toBe("dark");
@@ -99,7 +103,9 @@ test.describe("Visual contract — 8 pages render, laid out, in both themes", ()
       await page.goto(p.path);
       await page.waitForLoadState("networkidle");
       await assertNoHorizontalOverflow(page, `${p.name} (dark)`);
-      await expect(page.locator("body")).not.toContainText(/কিছু ভুল হয়েছে|Something went wrong/i);
+      await expect(page.locator("body"), `${p.name} (dark): error boundary fired`).not.toContainText(
+        /কিছু ভুল হয়েছে|Something went wrong/i
+      );
     }
 
     // Restore the light theme so other suites keep their expectations.

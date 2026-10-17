@@ -17,6 +17,13 @@ const schema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().positive().default(15),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  /**
+   * Login attempts per window per IP. The default is the production policy; CI's
+   * e2e job raises it for its throwaway instance because a browser suite signs in
+   * far more often than a person, and exhausting the limit makes unrelated
+   * assertions fail (observed 2026-10-17).
+   */
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)
