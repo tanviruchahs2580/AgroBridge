@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import type { AdvisoryAnswer, DiseaseCase } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatDate } from "../../lib/format";
@@ -33,32 +34,37 @@ async function compressImage(file: File): Promise<Blob> {
   }
 }
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function Advisor() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState<{ role: "user" | "ai"; text: string; confidence?: number; low?: boolean; refs?: string[] }[]>([]);
   const [busy, setBusy] = useState(false);
-  const [cases, setCases] = useState<DiseaseCase[]>([]);
-  const [casesLoaded, setCasesLoaded] = useState(false);
   const [showAllCases, setShowAllCases] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  async function loadCases() {
-    setCasesLoaded(false);
-    try {
-      setCases(await api<DiseaseCase[]>("GET", "/disease/cases"));
-      setCasesLoaded(true);
-    } catch {
-      setCasesLoaded(true); // non-critical panel; empty state shown
-    }
-  }
-  useEffect(() => {
-    void loadCases();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // The only fetch on this screen is the user's disease-case list; the chat is
+  // component state, never refetched. Its own resource means a failed list
+  // fetch no longer has to be swallowed silently.
+  const casesRes = useResource<DiseaseCase[]>("advisor-cases", () => api<DiseaseCase[]>("GET", "/disease/cases"));
+  const cases = casesRes.data ?? [];
 
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -111,7 +117,8 @@ export default function Advisor() {
       fd.append("image", blob, "crop.jpg");
       await api("POST", "/disease/cases", fd);
       setUploadMsg(t("pendingReview", lang));
-      await loadCases();
+      // The old code awaited loadCases(): that refetched exactly this resource.
+      invalidate("advisor-cases");
     } catch (err) {
       setUploadMsg(mapError(err, lang));
     } finally {
@@ -145,7 +152,14 @@ export default function Advisor() {
             <ErrorBanner message={uploadMsg} />
           ))}
 
-        {cases.length > 0 ? (
+        {/* Cases: their own block — its skeleton while loading, and its own
+            error with retry (previously the failure was silent). The empty
+            state stays silent, as it was: the list is an optional extra. */}
+        <BlockError error={casesRes.error} retryLabel={t("retry", lang)} onRetry={() => void casesRes.reload()} />
+
+        {casesRes.loading ? (
+          <Skeleton className="h-10 w-full" />
+        ) : cases.length > 0 ? (
           <div className="pt-1">
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("myCases", lang)}</h3>
             <ul className="space-y-1.5">
@@ -166,9 +180,7 @@ export default function Advisor() {
               </Button>
             )}
           </div>
-        ) : casesLoaded ? null : (
-          <Skeleton className="h-10 w-full" />
-        )}
+        ) : null}
       </Card>
 
       <Card className="space-y-3">

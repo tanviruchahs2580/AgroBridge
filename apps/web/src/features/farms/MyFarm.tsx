@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { FarmListItem, WeatherData } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -22,48 +23,58 @@ function careColor(tone: "danger" | "warning" | "success"): string {
   return "bg-success-bg text-success-text border-success-border";
 }
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function MyFarm() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
-  const [farms, setFarms] = useState<FarmListItem[]>([]);
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // The page has two independent concerns, so it holds two resources: the farm
+  // records — plots and crop cycles come with the farm list, and every mutation
+  // below changes it — and the district's weather, which only the AI briefing
+  // reads. A failed farms read no longer takes the weather block down with it, and
+  // a failed weather read cannot hide the farm data.
+  const farmsRes = useResource<FarmListItem[]>("farms", () => api<FarmListItem[]>("GET", "/farms"));
+  // `session?.district` is a real dependency: weather is localised to it, so a
+  // profile change must refetch rather than keep showing the old area.
+  const weatherRes = useResource<WeatherData>(
+    "weather",
+    () => {
+      const coords = getWeatherCoords(session?.district);
+      return api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
+    },
+    [session?.district]
+  );
+
+  // Memoised so the fallback array keeps its identity: `stats` and `todayTasks`
+  // below depend on this value, and a fresh `[]` per render would recompute them
+  // on every render (react-hooks/exhaustive-deps).
+  const farms = useMemo(() => farmsRes.data ?? [], [farmsRes.data]);
+  // The old nested `catch` nulled the weather on failure, so a weather outage hid
+  // the risk line instead of raising an error over the farm data. Same intent, now
+  // read off the weather resource's own error: failed ⇒ no risks shown.
+  const weather = weatherRes.error ? null : weatherRes.data;
+
   const [busy, setBusy] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [showFarmForm, setShowFarmForm] = useState(false);
   const [plotFor, setPlotFor] = useState<string | null>(null);
   const [cropPlotId, setCropPlotId] = useState<string | null>(null);
   const [selectedFarm, setSelectedFarm] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
-
-  async function load() {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const farmsData = await api<FarmListItem[]>("GET", "/farms");
-      setFarms(farmsData);
-      try {
-        const coords = getWeatherCoords(session?.district);
-        const weatherData = await api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
-        setWeather(weatherData);
-      } catch {
-        setWeather(null);
-      }
-    } catch (err) {
-      setLoadError(mapError(err, lang));
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // session?.district is a real dependency: weather is localised to it, so a
-    // profile change must refetch rather than keep showing the old area.
-    // load() itself is intentionally omitted (it is recreated each render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.district]);
 
   const stats = useMemo(() => {
     const plots = farms.flatMap((f) => f.plots);
@@ -91,7 +102,11 @@ export default function MyFarm() {
     setBusy(true);
     try {
       await api("POST", "/farms", { name, district: String(fd.get("district") ?? "").trim() || undefined, totalAreaBigha: Number(fd.get("area")) || undefined });
-      track("farm_created"); toast.success(t("farmCreatedToast", lang)); setShowFarmForm(false); (e.target as HTMLFormElement).reset(); await load();
+      track("farm_created"); toast.success(t("farmCreatedToast", lang)); setShowFarmForm(false); (e.target as HTMLFormElement).reset();
+      // The old `load()` refetched the farm list and the district weather after
+      // every mutation — both families are invalidated, no more and no less.
+      invalidate("farms");
+      invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
   async function createPlot(e: React.FormEvent<HTMLFormElement>, farmId: string) {
@@ -102,7 +117,10 @@ export default function MyFarm() {
     setBusy(true);
     try {
       await api("POST", `/farms/${farmId}/plots`, { name: fd.get("name"), areaBigha: area, soilType: String(fd.get("soil") ?? "").trim() || undefined });
-      toast.success(t("plotCreatedToast", lang)); setPlotFor(null); (e.target as HTMLFormElement).reset(); await load();
+      toast.success(t("plotCreatedToast", lang)); setPlotFor(null); (e.target as HTMLFormElement).reset();
+      // Same refetch set as the old `load()`.
+      invalidate("farms");
+      invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
   async function createCrop(e: React.FormEvent<HTMLFormElement>) {
@@ -112,7 +130,10 @@ export default function MyFarm() {
     setBusy(true);
     try {
       await api("POST", "/farms/crops", { plotId: cropPlotId, cropName: fd.get("crop"), plantedAt: new Date(fd.get("date") as string).toISOString() });
-      toast.success(t("cropCreatedToast", lang)); setCropPlotId(null); (e.target as HTMLFormElement).reset(); await load();
+      toast.success(t("cropCreatedToast", lang)); setCropPlotId(null); (e.target as HTMLFormElement).reset();
+      // Same refetch set as the old `load()`.
+      invalidate("farms");
+      invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
 
@@ -159,16 +180,18 @@ export default function MyFarm() {
         <Button onClick={() => setShowFarmForm((s) => !s)} aria-expanded={showFarmForm} className="min-h-[44px]">+ {t("addFarm", lang)}</Button>
       </div>
 
-      {loadError && <div className="space-y-2"><ErrorBanner message={loadError} /><Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button></div>}
+      {/* The farm list is the page's primary read; when it fails the other blocks
+          keep whatever they have and this retry refetches that resource alone. */}
+      <BlockError error={farmsRes.error} retryLabel={t("retry", lang)} onRetry={() => void farmsRes.reload()} />
 
       {showFarmForm && <Card><form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label><Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} /><p role="alert" className="text-xs text-danger-text">{formErrs.name}</p></div><div><Label htmlFor="fm-district">{t("districtPh", lang)}</Label><Input id="fm-district" name="district" /></div><div><Label htmlFor="fm-area">{t("areaBigha", lang)}</Label><Input id="fm-area" name="area" type="number" step="0.1" min="0.1" /></div><Button type="submit" className="sm:col-span-3" loading={busy}>{t("save", lang)}</Button></form></Card>}
 
-      {loading && !loadError && <Card><Skeleton className="h-24 w-full" /></Card>}
+      {farmsRes.loading && <Card><Skeleton className="h-24 w-full" /></Card>}
 
-      {!loading && !loadError && farms.length === 0 && !showFarmForm && <EmptyState icon={<Tractor className="h-7 w-7 text-brand-600" />} title={t("noFarmsYet", lang)} description={lang==="bn"?"আপনার খামার যোগ করে ফসল ও কাজ এক জায়গায় পরিচালনা করুন।":"Add your farm to manage crops and tasks in one place."} action={<Button onClick={() => setShowFarmForm(true)}>+ {t("addFarm", lang)}</Button>} />}
+      {!farmsRes.loading && !farmsRes.error && farms.length === 0 && !showFarmForm && <EmptyState icon={<Tractor className="h-7 w-7 text-brand-600" />} title={t("noFarmsYet", lang)} description={lang==="bn"?"আপনার খামার যোগ করে ফসল ও কাজ এক জায়গায় পরিচালনা করুন।":"Add your farm to manage crops and tasks in one place."} action={<Button onClick={() => setShowFarmForm(true)}>+ {t("addFarm", lang)}</Button>} />}
 
       {/* Intelligent Farm Overview */}
-      {!loading && farms.length > 0 && (
+      {!farmsRes.loading && farms.length > 0 && (
         <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
           <h2 className="text-base font-bold text-stone-800">{lang==="bn"?`আজ আপনার খামারে ${todayTasks.length}টি ফসলের পরামর্শ আছে`:`You have ${todayTasks.length} farm care suggestion${todayTasks.length===1?"":"s"} today`}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -180,7 +203,7 @@ export default function MyFarm() {
       )}
 
       {/* Today's Tasks — most important */}
-      {!loading && todayTasks.length > 0 && (
+      {!farmsRes.loading && todayTasks.length > 0 && (
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><CalendarClock className="h-5 w-5 text-brand-700" /> {lang==="bn"?"আজকের কাজ":"Today's tasks"}</h2>
           <div className="grid gap-3">
@@ -200,7 +223,7 @@ export default function MyFarm() {
       )}
 
       {/* Tomorrow + Upcoming */}
-      {!loading && farms.length > 0 && (
+      {!farmsRes.loading && farms.length > 0 && (
         <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
           <h2 className="text-base font-bold text-stone-800">{lang==="bn"?"আগামীকাল ও আসন্ন":"Tomorrow & upcoming"}</h2>
           <p className="mt-1 text-sm text-stone-600">{lang==="bn"?"আগামীকালের কাজ ও পরবর্তী মাইলস্টোন দেখুন।":"See tomorrow's work and next milestones."}</p>
@@ -217,7 +240,7 @@ export default function MyFarm() {
       )}
 
       {/* AI Farm Briefing — grounded */}
-      {!loading && farms.length > 0 && (
+      {!farmsRes.loading && farms.length > 0 && (
         <section className="rounded-card border border-indigo-100 bg-enterprise-ai-light p-5 shadow-card">
           <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><Bot className="h-5 w-5 text-enterprise-ai" /> {lang==="bn"?"আমার ফার্ম AI":"My Farm AI"}</h2>
           <p className="mt-2 text-sm leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
@@ -227,7 +250,7 @@ export default function MyFarm() {
       )}
 
       {/* My Farm Overview Grid */}
-      {!loading && farms.length > 0 && (
+      {!farmsRes.loading && farms.length > 0 && (
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.crops}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><Sprout className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"সক্রিয় ফসল":"Active crops"}</p></Card>
           <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.plots}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><MapPin className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {lang==="bn"?"প্লট":"Plots"}</p></Card>
@@ -237,7 +260,7 @@ export default function MyFarm() {
       )}
 
       {/* Farm List */}
-      {!loading && farms.length > 0 && (
+      {!farmsRes.loading && farms.length > 0 && (
         <section className="space-y-3">
           <h2 className="px-1 text-base font-bold text-stone-800">{lang==="bn"?"আমার খামার তালিকা":"My farms"}</h2>
           <div className="grid gap-4 sm:grid-cols-2">

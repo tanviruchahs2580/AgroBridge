@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, setCriticalFlow, ApiError } from "../../lib/api";
 import type { Cart, CartLine, Me, Order, PaymentIntent, ProductList, ProductListItem } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -37,19 +38,45 @@ const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
   EQUIPMENT: { icon: Wrench, box: "bg-warning-bg text-warning-text ring-warning-border" },
 };
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function Market() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
 
-  const [products, setProducts] = useState<ProductListItem[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [category, setCategory] = useState("");
-  const [cart, setCart] = useState<CartLine[]>([]);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [cartBusyIds, setCartBusyIds] = useState<Set<string>>(new Set());
-  const [cartError, setCartError] = useState(false);
+
+  // The screen reads two independent endpoints, so it holds two independent
+  // resources: the catalogue and the cart each load, fail and recover on their
+  // own — a failed cart fetch no longer removes the product grid, and a failed
+  // catalogue no longer blanks the cart bar.
+  const productsRes = useResource<ProductList>(
+    "market-products",
+    // The catalogue request carries the active category — unchanged: the same
+    // `?pageSize=50&category=<cat>` URL, refetched when the chip changes.
+    () => api<ProductList>("GET", `/products?pageSize=50${category ? `&category=${category}` : ""}`),
+    [category]
+  );
+  const cartRes = useResource<Cart>("market-cart", () => api<Cart>("GET", "/cart"));
+
+  const products = productsRes.data?.items ?? [];
+  const cart = cartRes.data?.items ?? [];
 
   // Checkout wizard
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -63,36 +90,6 @@ export default function Market() {
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placeOrderError, setPlaceOrderError] = useState<string | null>(null);
-
-  const loadProducts = useCallback(
-    async (cat: string) => {
-      setProductsLoading(true);
-      setLoadError(false);
-      try {
-        const data = await api<ProductList>("GET", `/products?pageSize=50${cat ? `&category=${cat}` : ""}`);
-        setProducts(data.items);
-      } catch {
-        setLoadError(true);
-      } finally {
-        setProductsLoading(false);
-      }
-    },
-    []
-  );
-
-  const loadCart = useCallback(async () => {
-    const data = await api<Cart>("GET", "/cart");
-    setCart(data.items);
-  }, []);
-
-  useEffect(() => {
-    void loadProducts(category);
-  }, [category, loadProducts]);
-
-  useEffect(() => {
-    setCartError(false);
-    loadCart().catch(() => setCartError(true));
-  }, [loadCart]);
 
   useEffect(() => {
     track("market_view", { category: category || "ALL" });
@@ -113,7 +110,9 @@ export default function Market() {
     try {
       await api("POST", "/cart/items", { productId: p.id, qty: 1 });
       track("product_added_to_cart", { productId: p.id });
-      await loadCart();
+      // The line moved the cart and nothing else; the old code awaited a cart
+      // refetch, which this family invalidation triggers.
+      invalidate("market-cart");
       // Instant success acknowledgment (enterprise feedback <100ms rule);
       // transient only — button returns to its at-rest label after 1.2s.
       setJustAddedId(p.id);
@@ -137,7 +136,7 @@ export default function Market() {
       } else {
         await api("POST", "/cart/items", { productId, qty: nextQty });
       }
-      await loadCart();
+      invalidate("market-cart");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -151,7 +150,7 @@ export default function Market() {
     markBusy(item.id, true);
     try {
       await api("DELETE", `/cart/items/${productId}`);
-      await loadCart();
+      invalidate("market-cart");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -214,8 +213,9 @@ export default function Market() {
       });
       setOrder(o);
       setStep(PAY_STEP);
-      // Order already created; a failed refresh must not block payment.
-      loadCart().catch((e) => console.warn("[market] post-checkout cart refresh failed", e));
+      // Order already created; the refresh is fire-and-forget, so a failed cart
+      // reload can no longer block payment. The old code refetched the cart only.
+      invalidate("market-cart");
     } catch (err) {
       const msg = mapError(err, lang);
       // CRITICAL: show inline error in the wizard so user sees WHAT went wrong
@@ -252,18 +252,19 @@ export default function Market() {
       track("checkout_completed", { totalPaisa: order.totalPaisa });
       toast.success(t("checkoutOrderPlaced", lang));
       setStep(SUCCESS_STEP);
-      // Order + payment already succeeded; refresh failures are non-blocking.
-      await Promise.all([
-        loadCart().catch((e) => console.warn("[market] post-payment cart refresh failed", e)),
-        loadProducts(category),
-      ]);
+      // Order + payment already succeeded; the old code refetched the cart and
+      // the catalogue here (stock moved), so exactly those two families are
+      // invalidated — neither can block the success step.
+      invalidate("market-cart");
+      invalidate("market-products");
     } catch (err) {
       if (err instanceof ApiError && err.code === "PAYMENT_GATEWAY_NOT_CONFIGURED") {
         // The order exists and is genuinely unpaid — say exactly that instead
         // of reporting a payment that never happened.
         setPaid(false);
         setStep(SUCCESS_STEP);
-        await loadCart().catch(() => undefined);
+        // Same single refetch as before on this branch — the cart, not the grid.
+        invalidate("market-cart");
         return;
       }
       toast.error(mapError(err, lang));
@@ -296,30 +297,12 @@ export default function Market() {
         ))}
       </div>
 
-      {loadError && (
-        <div className="space-y-2">
-          <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button variant="outline" onClick={() => void loadProducts(category)}>{t("retry", lang)}</Button>
-        </div>
-      )}
+      {/* Catalogue failure and cart failure each get their own banner and retry,
+          so neither block can take the other down with it. */}
+      <BlockError error={productsRes.error} retryLabel={t("retry", lang)} onRetry={() => void productsRes.reload()} />
+      <BlockError error={cartRes.error} retryLabel={t("retry", lang)} onRetry={() => void cartRes.reload()} />
 
-      {cartError && (
-        <div className="space-y-2">
-          <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCartError(false);
-              loadCart().catch(() => setCartError(true));
-            }}
-          >
-            {t("retry", lang)}
-          </Button>
-        </div>
-      )}
-
-      {productsLoading ? (
+      {productsRes.loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <Card key={i} className="space-y-3">
@@ -329,7 +312,7 @@ export default function Market() {
             </Card>
           ))}
         </div>
-      ) : products.length === 0 && !loadError ? (
+      ) : products.length === 0 && !productsRes.error ? (
         <EmptyState
           icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />}
           title={t("noProducts", lang)}

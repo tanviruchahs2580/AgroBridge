@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Bell, Bot, Calendar, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import type { FarmListItem, NotificationsData, WeatherData } from "../../lib/api-types";
+import { useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
@@ -65,42 +66,30 @@ const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] 
 export default function Home() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
-  const [farms, setFarms] = useState<FarmListItem[]>([]);
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [unread, setUnread] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: true, t2: false, t3: false, t4: false });
 
-  async function load() {
-    setError(false);
-    setLoaded(false);
-    try {
-      // Localised from the farmer's profile district; no location permission needed.
+  // Three independent reads, three independent resources — the tolerance the old
+  // `Promise.allSettled` gave by hand. A failed weather read can no longer blank
+  // the farm data (and the readiness meter computed from it), and a failed farm
+  // read leaves the weather card and the unread badge on screen.
+  // `farms` is the same family MyFarm uses: both screens read the identical
+  // `GET /farms`, so adding a farm there invalidates this list too.
+  const farmsRes = useResource<FarmListItem[]>("farms", () => api<FarmListItem[]>("GET", "/farms"));
+  const notifRes = useResource<NotificationsData>("home-notifications", () => api<NotificationsData>("GET", "/notifications"));
+  // `session?.district` is a real dependency: weather is localised to it, so a
+  // profile change must refetch rather than keep showing the old area.
+  const weatherRes = useResource<WeatherData>(
+    "home-weather",
+    () => {
       const coords = getWeatherCoords(session?.district);
-      const [farmsData, notif, weatherData] = await Promise.allSettled([
-        api<FarmListItem[]>("GET", "/farms"),
-        api<NotificationsData>("GET", "/notifications"),
-        api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`),
-      ]);
-      if (farmsData.status === "fulfilled") setFarms(farmsData.value);
-      if (notif.status === "fulfilled") setUnread(notif.value.unread);
-      if (weatherData.status === "fulfilled") setWeather(weatherData.value);
-      if (farmsData.status === "rejected") throw farmsData.reason;
-      setLoaded(true);
-    } catch {
-      setError(true);
-    }
-  }
+      return api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
+    },
+    [session?.district]
+  );
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // session?.district is a real dependency: weather is localised to it, so a
-    // profile change must refetch rather than keep showing the old area.
-    // load() itself is intentionally omitted (it is recreated each render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.district]);
+  const farms = farmsRes.data ?? [];
+  const weather = weatherRes.data;
+  const unread = notifRes.data?.unread ?? 0;
+  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: true, t2: false, t3: false, t4: false });
 
   const cropCycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const primaryCrop = cropCycles[0];
@@ -124,10 +113,13 @@ export default function Home() {
         </p>
       </section>
 
-      {error && (
+      {/* The page-level error was ever only the farm read: a rejected
+          `/notifications` or `/weather` degraded silently then, and still does.
+          The banner and its retry belong to that one resource. */}
+      {farmsRes.error && (
         <div className="animate-enterprise space-y-2 px-1" style={{ animationDelay: "60ms" } as React.CSSProperties}>
           <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button>
+          <Button variant="outline" onClick={() => void farmsRes.reload()}>{t("retry", lang)}</Button>
         </div>
       )}
 
@@ -239,7 +231,10 @@ export default function Home() {
               </div>
               <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100 shadow-sm"><CloudSun style={{ width: 20, height: 20 }} /></span>
             </div>
-            {!loaded && !weather ? (
+            {/* The old `loaded` flag gated this skeleton on the *farm* read, so a
+                failed weather fetch showed a spinner forever. The weather card now
+                follows its own resource: loading ⇒ skeleton, settled ⇒ data or "—". */}
+            {weatherRes.loading ? (
               <div className="relative mt-3 space-y-2"><Skeleton className="h-10 w-28" /><Skeleton className="h-4 w-32" /></div>
             ) : weather ? (
               <>
