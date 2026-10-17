@@ -41,7 +41,17 @@ const serviceBody = z.object({
 
 servicesRouter.post("/", requirePermission("services:manage"), validate({ body: serviceBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    ok(res, await prisma.service.create({ data: req.body as never }), 201);
+    const body: z.infer<typeof serviceBody> = req.body;
+    ok(res, await prisma.service.create({
+      data: {
+        code: body.code,
+        name: body.name,
+        category: body.category,
+        basePricePaisa: body.basePricePaisa,
+        priceUnit: body.priceUnit,
+        description: body.description,
+      },
+    }), 201);
   } catch (e) {
     next(e);
   }
@@ -57,7 +67,16 @@ const providerBody = z.object({
 
 servicesRouter.post("/providers", requirePermission("providers:manage"), validate({ body: providerBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    ok(res, await prisma.serviceProvider.create({ data: req.body as never }), 201);
+    const body: z.infer<typeof providerBody> = req.body;
+    ok(res, await prisma.serviceProvider.create({
+      data: {
+        serviceId: body.serviceId,
+        userId: body.userId,
+        name: body.name,
+        phone: body.phone,
+        district: body.district,
+      },
+    }), 201);
   } catch (e) {
     next(e);
   }

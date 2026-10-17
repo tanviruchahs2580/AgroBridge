@@ -560,3 +560,28 @@ before the Play submission.
 - The review deliberately excludes re-litigating the product decisions recorded in the Play plan
   §E (localStorage tokens, R8 disabled, no FCM) — those are owner decisions with stated reasons,
   not quality defects.
+
+---
+
+## Addendum — remediation progress (updated 2026-10-17)
+
+The register in §8 is the original finding record. What has been executed against it:
+
+| ID | Status | Evidence |
+|---|---|---|
+| GOV-5, GOV-6, AI-1, CI-2, CI-3, GOV-2, GOV-7 | **DONE (Phase 0)** | Ruleset `main — protected` (11 required checks, no bypass, direct push verified rejected); CODEOWNERS paths real; visual-contract suite restored as a portable committed test; `deploy-verify` gate green on its own merge; `qa-evidence/receipts/` committed; CHANGELOG `[1.4.0]` + tag + Release; 9 Dependabot PRs triaged into `docs/DEPENDENCY_BACKLOG.md` |
+| WEB-2 | **DONE (Phase 1)** | `apps/web/src/lib/api-types.ts` is the single contract (26 inline interfaces removed, net −190 lines); `apps/api/tests/response-contract.test.ts` + `contracts/api-response-shapes.json` fail on any shape change — proven by deliberately breaking it |
+| API-1 | **DONE (Phase 1)** | `strict: true` in both API configs, inherited not re-stated; verified effective with probe errors (TS2564/TS18047/TS7006) |
+| API-2 | **DONE (Phase 1)** | `as never` = **0** across `src` (was 14), including the three in payments and the two call sites that pushed a `tx` through `as never`; `applyPaymentSideEffects` now takes `Prisma.TransactionClient` |
+
+**Correction to API-1's severity (measured, not assumed).** The finding said the flags were
+off "on financial code" and implied substantial fallout. Measured: with `strictNullChecks` and
+`noImplicitAny` enabled the API compiled with **zero errors**, and full `strict: true` also
+compiled with zero errors. The flags were indeed off, but the code already satisfied them —
+so the cost of this item was configuration, not remediation. The severity was right (a
+compiler that cannot catch nullability is not reviewing), the implied effort was not.
+
+**Still open in Phase 1:** `WEB-1` (the shared data layer for the ~10 screens that hand-roll
+`loading`/`error`/refetch), and the `req.auth!` reduction (133 sites) — the latter is
+documented as safe-by-middleware and covered by the security-matrix tests, so it is a
+readability/type-purity improvement rather than a defect.

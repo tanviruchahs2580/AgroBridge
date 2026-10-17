@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "node:crypto";
@@ -59,21 +60,20 @@ function apiPublicBaseUrl(req: import("express").Request): string {
  * payment because callers must first win the PENDING->SUCCEEDED claim.
  * Side effects themselves are conditional where possible (defense in depth).
  */
-export async function applyPaymentSideEffects(tx: {
-  order: { updateMany: (args: never) => Promise<{ count: number }> };
-  booking: { updateMany: (args: never) => Promise<{ count: number }> };
-  farmerProfile: { upsert: (args: never) => Promise<unknown> };
-}, payment: { purposeType: string; purposeId: string; userId: string }) {
+export async function applyPaymentSideEffects(
+  tx: Prisma.TransactionClient,
+  payment: { purposeType: string; purposeId: string; userId: string },
+) {
   if (payment.purposeType === "ORDER") {
     await tx.order.updateMany({
       where: { id: payment.purposeId, paymentStatus: "UNPAID" },
       data: { status: "PAID", paymentStatus: "PAID" },
-    } as never);
+    });
   } else if (payment.purposeType === "BOOKING") {
     await tx.booking.updateMany({
       where: { id: payment.purposeId, paymentStatus: "UNPAID" },
       data: { paymentStatus: "PAID" },
-    } as never);
+    });
   } else if (payment.purposeType === "MEMBERSHIP") {
     const plan = await prisma.membershipPlan.findUnique({ where: { tier: payment.purposeId } });
     const durationDays = plan?.durationDays ?? 365;
@@ -85,7 +85,7 @@ export async function applyPaymentSideEffects(tx: {
       where: { userId: payment.userId },
       update: { membershipTier: payment.purposeId, membershipExpiresAt: expiresAt },
       create: { userId: payment.userId, membershipTier: payment.purposeId, membershipExpiresAt: expiresAt },
-    } as never);
+    });
   }
 }
 
@@ -169,7 +169,7 @@ paymentsRouter.post(
       // Scoped to THIS user: purposeId is a shared business key (e.g. the
       // membership tier), so an unscoped supersede would cancel other users'
       // in-flight checkouts.
-      const payment = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+      const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.payment.updateMany({
           where: { purposeType, purposeId, userId, status: "PENDING" },
           data: { status: "FAILED", metaStr: JSON.stringify({ cancelledReason: "superseded_by_new_intent" }) },
@@ -215,14 +215,14 @@ export async function claimAndApplyPayment(
   meta: Record<string, unknown>
 ): Promise<boolean> {
   let claimed = false;
-  await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const res = await tx.payment.updateMany({
       where: { id: payment.id, status: "PENDING" },
       data: { status: "SUCCEEDED", metaStr: JSON.stringify(meta) },
     });
     if (res.count !== 1) return;
     claimed = true;
-    await applyPaymentSideEffects(tx as never, payment);
+    await applyPaymentSideEffects(tx, payment);
   }, { timeout: 15000, maxWait: 8000 });
 
   if (claimed) {
@@ -427,7 +427,7 @@ paymentsRouter.post(
       if (po.status !== "COLLECTED") throw unprocessable(`Cannot pay out PO in status ${po.status}`);
       if (po.netPayablePaisa <= 0) throw unprocessable("Nothing payable");
 
-      const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+      const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Atomic claim: only the first COLLECTED -> PAID transition wins; concurrent
         // payouts lose the race and abort (prevents double-crediting under PostgreSQL).
         const claimed = await tx.procurementOrder.updateMany({
@@ -554,7 +554,7 @@ walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalS
 
     const { amountPaisa, channel } = req.body as { amountPaisa: number; channel: string };
 
-    const withdrawal = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+    const withdrawal = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Serialize all hold maintenance behind the wallet row's write lock:
       // the no-op increment UPDATE locks the row (PG) / defers the next writer
       // (SQLite) until this transaction commits. Re-reading AFTER the lock is

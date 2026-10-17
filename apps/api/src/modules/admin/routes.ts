@@ -109,7 +109,7 @@ const userUpdate = z.object({
 
 adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ body: userUpdate }), async (req, res, next) => {
   try {
-    const body = req.body as { role?: string; status?: string; region?: string | null };
+    const body: z.infer<typeof userUpdate> = req.body;
     const target = await prisma.user.findUnique({ where: { id: req.params.id! }, select: { id: true, role: true } });
     if (!target) throw badRequest("User not found");
 
@@ -133,7 +133,14 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
 
     const user = await prisma.user.update({
       where: { id: req.params.id! },
-      data: body as never,
+      // Only the keys the schema actually received: `null` is a meaningful
+      // region value (clearing it) and must not be confused with "unchanged",
+      // so an absent key is omitted rather than sent as undefined.
+      data: {
+        ...(body.role !== undefined ? { role: body.role } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        ...(body.region !== undefined ? { region: body.region } : {}),
+      },
       select: { id: true, fullName: true, role: true, status: true },
     });
     // Revoke all sessions on role/status change
