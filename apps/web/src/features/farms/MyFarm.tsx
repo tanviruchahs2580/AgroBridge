@@ -267,7 +267,24 @@ export default function MyFarm() {
             {farms.map((farm) => {
               const activeCrops = farm.plots.flatMap((p)=>p.cropCycles).filter((c)=>c.status==="ACTIVE").length;
               return (
-                <Card key={farm.id} className="cursor-pointer space-y-3 p-5" onClick={() => setSelectedFarm(farm.id)}>
+                <Card
+                  key={farm.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={selectedFarm === farm.id}
+                  className="cursor-pointer space-y-3 p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                  onClick={() => setSelectedFarm(farm.id)}
+                  // Keyboard parity for the click-only disclosure. Keys pressed on
+                  // the nested buttons or the add-plot form bubble up here too, so
+                  // only the card itself activates — no double-trigger.
+                  onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault(); // Space would otherwise scroll the page
+                      setSelectedFarm(farm.id);
+                    }
+                  }}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="text-base font-bold text-stone-800">{farm.name}</h3>
