@@ -168,11 +168,20 @@ Create the app (`com.agrobridge.app`, name "AgroBridge"), then complete, in this
 ## 7b. Deployment is verified, not assumed
 
 Every push to `main` triggers **Deploy verification** (`.github/workflows/deploy-verify.yml`). It
-waits for the production web bundle's `version.json` to report the pushed commit, then checks the
-API's `/ready`, its reported commit on `/health` and one public route that only exists in recent
-builds. If that job is red, production is **not** running the reviewed commit — redeploy; do not
-re-run the check and move on. (Before this gate existed, "deployed" was an inference from a CLI
-output.)
+checks, per project, that the running build **includes the newest changes to that project** and
+that the commit it reports comes from `main`:
+
+- web: the commit in the bundle's `version.json` must contain every commit that touched
+  `apps/web`/`version.json`, and must be reachable from `main`;
+- API: `/ready` must confirm the database, `/health` must report a commit that contains every
+  commit touching `apps/api`/`version.json`/the API build script, and the public
+  `/payments/gateway/return/success` route must answer 303.
+
+The gate is deliberately **not** "production equals HEAD": Vercel deploys per project, so a
+web-only commit legitimately leaves the API on an earlier commit (observed with `201172e`). A red
+job means production is stale for that project, or is running something not on `main` — redeploy;
+never re-run the check and move on. (Before this gate existed, "deployed" was an inference from a
+CLI output.)
 
 ## 8. After launch
 
