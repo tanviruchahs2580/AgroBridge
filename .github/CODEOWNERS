@@ -1,3 +1,30 @@
-/apps/api/payments/ @tanviruchahs2580
-/apps/api/prisma/ @tanviruchahs2580
-/.github/workflows/ @tanviruchahs2580
+# Review owners per path.
+#
+# Every path here must exist. This file previously listed `/apps/api/payments/`,
+# which was never a real directory — so the module an agency would gate hardest
+# (payments) had no owner at all. Paths below verified with:
+#   ls apps/api/src/modules/payments apps/api/prisma .github/workflows
+#
+# The review requirement itself is enforced by branch protection on `main`
+# (see docs/generated/governance-branch-protection.md).
+
+# CI/CD: a workflow change can weaken every other gate.
+/.github/workflows/            @tanviruchahs2580
+/.github/CODEOWNERS            @tanviruchahs2580
+
+# Money paths and their schema.
+/apps/api/prisma/              @tanviruchahs2580
+/apps/api/src/modules/payments/    @tanviruchahs2580
+/apps/api/src/modules/marketplace/ @tanviruchahs2580
+/apps/api/src/modules/procurement/ @tanviruchahs2580
+
+# Identity, authorization and configuration.
+/apps/api/src/modules/auth/    @tanviruchahs2580
+/apps/api/src/middleware/      @tanviruchahs2580
+/apps/api/src/config/          @tanviruchahs2580
+
+# Release surface: the Android project, the version register, the Play package.
+/apps/web/android/             @tanviruchahs2580
+/apps/web/capacitor.config.ts  @tanviruchahs2580
+/version.json                  @tanviruchahs2580
+/docs/play/                    @tanviruchahs2580

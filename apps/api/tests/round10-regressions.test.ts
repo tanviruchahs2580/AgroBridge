@@ -221,6 +221,28 @@ describe("round 10 regressions", () => {
     expect(location).toMatch(/^https?:\/\/[^,]+\/orders\?payment=success$/);
   });
 
+  it("the startup manifest lists every simulated capability, including the payments opt-in", async () => {
+    // A money-path flag must be visible at boot, not only in the environment.
+    const { placeholderManifest } = await import("../src/config/env.js");
+    const base = {
+      SMS_PROVIDER: "sandbox",
+      WEATHER_PROVIDER: "mock",
+      AI_PROVIDER: "offline",
+      PAYMENT_PROVIDER: "sandbox",
+      STORAGE_PROVIDER: "local",
+    };
+    const quiet = placeholderManifest({ ...base, PAYMENT_PROVIDER: "sslcommerz", STORAGE_PROVIDER: "s3" });
+    expect(quiet.some((w) => w.includes("ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION"))).toBe(false);
+
+    const pilot = placeholderManifest({ ...base, ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION: "1" });
+    const payments = pilot.find((w) => w.startsWith("ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1"));
+    expect(payments, "the pilot payments opt-in must appear in the manifest").toBeTruthy();
+    expect(payments).toMatch(/before store submission/);
+
+    // Every simulated capability present is reported, none invented.
+    expect(placeholderManifest(base)).toHaveLength(5);
+  });
+
   it("logout rejects a non-string refresh token instead of throwing a 500", async () => {
     const farmer = await registerFarmer();
     const res = await request(app)

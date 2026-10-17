@@ -68,8 +68,21 @@ export function createApp() {
   app.use("/api/", globalLimiter);
 
   // ---- Observability endpoints (Section 35) ----
+  /**
+   * Liveness. Also reports the deployed commit so a deployment can be verified
+   * against a specific SHA without opening the dashboard: Vercel injects
+   * VERCEL_GIT_COMMIT_SHA for both Git-integration and CLI deployments. `null`
+   * means the runtime did not tell us — never a guess.
+   */
+  const deployedCommit = (process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT ?? "").slice(0, 7) || null;
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "agrobridge-api", time: new Date().toISOString() });
+    res.json({
+      ok: true,
+      service: "agrobridge-api",
+      time: new Date().toISOString(),
+      commit: deployedCommit,
+      env: env.NODE_ENV,
+    });
   });
 
   app.get("/ready", async (_req, res) => {

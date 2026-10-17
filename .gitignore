@@ -81,3 +81,6 @@ apps/web/src/api/
 
 # Local QA artifacts (sweep screenshots/results, test logs, ad-hoc probes)
 qa-evidence/
+# …except the committed verification receipts (see CONTRIBUTING.md)
+!qa-evidence/receipts/
+!qa-evidence/receipts/**

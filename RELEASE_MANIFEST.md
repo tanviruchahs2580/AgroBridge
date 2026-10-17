@@ -1,4 +1,18 @@
-# AgroBridge — Release Manifest
+# AgroBridge — RELEASE MANIFEST (historical)
+
+> **SUPERSEDED / HISTORICAL — do not use for release decisions.**
+> This file described release candidates that were never cut: it announced a
+> "v1.5.0 (candidate)" while `version.json` (the single source of truth) says
+> **1.4.0**, and the CHANGELOG has no such section. It also numbered "v1.1.1"
+> as a candidate over a v1.1.0 baseline.
+>
+> Current release facts live in exactly three places:
+> - `version.json` — version + versionCode (drives the web build and Android)
+> - `CHANGELOG.md` — what changed, per released version
+> - `docs/play/release-runbook.md` — how a release is produced and verified
+>
+> Kept only as a record of what was believed on 2026-08-26.
+
 
 Version: **v1.5.0** (candidate — Production Hardening & Product Transformation)
 Date: 2026-08-26

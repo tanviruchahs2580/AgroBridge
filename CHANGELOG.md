@@ -4,6 +4,10 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.4.0] - 2026-10-17
+
 ### Added (2026-10-17 Play Store launch round)
 - **Account deletion, the path Google Play requires.** New `/settings` screen: profile editing, phone verification (the gate on every withdrawal), and Account → "Delete account" with an explicit warning, wired to the existing `DELETE /auth/me`. Proven end-to-end by `apps/web/e2e/settings-account.spec.ts`, which deletes a throwaway account and then asserts the credentials no longer authenticate.
 - **Published legal pages at stable URLs.** The SPA now serves `/privacy`, `/terms` and `/account-deletion` from one typed content module (`src/features/legal/content.ts`), reachable without signing in; the deletion page explains what is erased, what is retained (financial records, 5 years) and how to request deletion without app access. `PRIVACY_POLICY.md` 1.1 is corrected to match the shipped app (login is password-based; no crash SDK; no device identifiers; no location).

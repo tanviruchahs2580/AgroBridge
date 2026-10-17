@@ -1,0 +1,109 @@
+import { test, expect } from "@playwright/test";
+
+/**
+ * Visual contract — 8 critical pages, asserted structurally.
+ *
+ * History: this suite began as pixel-snapshot comparisons
+ * (`toHaveScreenshot`, baselines captured on win32) and was disabled by renaming
+ * the file to `.spec.ts.bak` in a commit that never mentioned it — the removal
+ * was invisible because `*.bak` is gitignored. Pixel baselines were the wrong
+ * tool here in any case: the baselines were win32-only while CI runs Linux, so a
+ * restored suite would have gone red on fonts and anti-aliasing rather than on
+ * real regressions.
+ *
+ * This version keeps the *intent* — the eight pages must render, laid out, in
+ * both themes — with platform-independent assertions that a reviewer can trust:
+ *   1. the page's own heading/title renders (it is not blank or stuck loading);
+ *   2. no horizontal overflow at 390px (the phone viewport that matters);
+ *   3. the error boundary did not fire;
+ *   4. primary chrome is present (skip link, navigation for signed-in pages);
+ *   5. dark mode renders without overflow as well.
+ *
+ * Requires the running stack (see farmer-journey.spec.ts) and the seeded demo
+ * farmer. Replace with screenshot diffing only if a cross-platform baseline
+ * strategy (e.g. a fixed Linux container) is adopted on purpose.
+ */
+
+const PAGES = [
+  { name: "login", path: "/login", auth: false, marker: /স্বাগতম|Welcome|লগইন|Login/i, control: "#phone" },
+  { name: "register", path: "/register", auth: false, marker: /রেজিস্ট্রেশন|Register|অ্যাকাউন্ট|Account/i, control: "#rphone" },
+  { name: "home", path: "/", auth: true, marker: /আসসালামু|Welcome|হোম|Dashboard/i, control: "main#main" },
+  { name: "farm", path: "/farm", auth: true, marker: /আমার ফার্ম|My Farm/i, control: "main#main" },
+  { name: "market", path: "/market", auth: true, marker: /বাজার|Market/i, control: "main#main" },
+  { name: "services", path: "/services", auth: true, marker: /সেবা|Services/i, control: "main#main" },
+  { name: "notifications", path: "/notifications", auth: true, marker: /নোটিফিকেশন|Notifications/i, control: "main#main" },
+  { name: "admin", path: "/admin", auth: true, marker: /অ্যাডমিন|Admin|অনুমতি নেই|permission/i, control: "main#main" },
+] as const;
+
+async function seededLogin(page: import("@playwright/test").Page) {
+  await page.goto("/login");
+  await page.fill("#phone", "01700000002");
+  await page.fill("#password", "Demo@1234");
+  await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');
+  await page.waitForURL((u) => !/\/login/.test(u.pathname), { timeout: 15_000 });
+}
+
+/** Fails when the document scrolls sideways at phone width. */
+async function assertNoHorizontalOverflow(page: import("@playwright/test").Page, label: string) {
+  const overflow = await page.evaluate(() => {
+    const el = document.documentElement;
+    return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+  });
+  expect(
+    overflow.scrollWidth,
+    `${label}: horizontal overflow at 390px (scrollWidth ${overflow.scrollWidth} > clientWidth ${overflow.clientWidth})`
+  ).toBeLessThanOrEqual(overflow.clientWidth + 1);
+}
+
+test.describe("Visual contract — 8 pages render, laid out, in both themes", () => {
+  for (const p of PAGES) {
+    test(`${p.name} (${p.path})`, async ({ page }) => {
+      if (p.auth) {
+        await seededLogin(page);
+      }
+      await page.goto(p.path);
+      await page.waitForLoadState("networkidle");
+
+      // 1. The page rendered its own content: the functional control that proves
+      //    the screen is interactive (form field or the routed main region) plus
+      //    the screen's own copy. Asserting "first heading in the document" was
+      //    fragile — the first match in DOM order can be an inert element.
+      await expect(page.locator(p.control).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("body")).toContainText(p.marker, { timeout: 15_000 });
+
+      // 2. The error boundary did not fire.
+      await expect(page.locator("body")).not.toContainText(/কিছু ভুল হয়েছে|Something went wrong/i);
+
+      // 3. Laid out for a phone.
+      await assertNoHorizontalOverflow(page, `${p.name} (light)`);
+
+      // 4. Primary chrome present on signed-in pages.
+      if (p.auth) {
+        await expect(page.locator('nav[aria-label="Primary navigation"]')).toBeAttached();
+        await expect(page.locator('a[href="#main"]')).toBeAttached();
+      }
+    });
+  }
+
+  test("dark mode renders the same pages without overflow", async ({ page }) => {
+    await seededLogin(page);
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await page.locator("header button[aria-pressed]").first().click(); // theme toggle
+    await page.waitForTimeout(600);
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.dataset.theme))
+      .toBe("dark");
+
+    for (const p of PAGES.filter((x) => x.auth)) {
+      await page.goto(p.path);
+      await page.waitForLoadState("networkidle");
+      await assertNoHorizontalOverflow(page, `${p.name} (dark)`);
+      await expect(page.locator("body")).not.toContainText(/কিছু ভুল হয়েছে|Something went wrong/i);
+    }
+
+    // Restore the light theme so other suites keep their expectations.
+    await page.locator("header button[aria-pressed]").first().click();
+    await page.waitForTimeout(400);
+  });
+});

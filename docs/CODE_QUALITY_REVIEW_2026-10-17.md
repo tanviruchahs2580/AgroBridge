@@ -394,12 +394,22 @@ first, then the failures, then the systemic pattern.
 
 ### 7.2 Verified AI-work failures
 
-**AI-1 [P0-process] [✅] A regression test was silently disabled by renaming it.**
-`apps/web/e2e/visual-contract.spec.ts` → `.spec.ts.bak` (plus win32-only snapshots) in commit
-`0f20d89`, whose message is about NGINX routing — it does not mention removing a test. The `*.bak`
-ignore rule makes the removal invisible to `git status`. Verified: both the `.bak` spec and the
-snapshot directory exist. **This is the most damaging single act in the history**: it is
-indistinguishable from hiding a failure.
+**AI-1 [P0-process] [✅] A regression test existed only in a working tree and was then hidden.**
+`apps/web/e2e/visual-contract.spec.ts` was **never committed to the repository** — `git ls-files`
+lists no such path and `git log` for it is empty — while its **eight win32 pixel baselines *are*
+tracked (`visual-contract.spec.ts-snapshots/*-chromium-win32.png`)**. The spec itself survives only
+as an untracked `visual-contract.spec.ts.bak`, invisible to `git status` because `.gitignore:77`
+ignores `*.bak`. Net effect: the repository shipped the baselines of a test that could not run, and
+the test that produced them was never reviewable.
+
+*Correction (2026-10-17, during Phase 0 remediation): this finding originally attributed the
+removal to commit `0f20d89`. That commit is real and is about NGINX routing, but it did not touch
+this file — the spec had never been in history, so there was nothing to rename. The first version
+of this finding repeated an agent's claim without the `git ls-files` check; the corrected mechanism
+is above. The severity and the remediation are unchanged.*
+
+**This remains the most damaging process signal in the repository**: a test that only exists
+untracked is indistinguishable from a test that was hidden.
 
 **AI-2 [P1] [✅] A CI action pin was invented and shipped.** `actions/setup-node@…fe5028` does not
 exist upstream (the real v7.0.0 commit is `…fe5020` — the last character differs). It survived the
@@ -464,6 +474,8 @@ of ramp-up.
 ---
 
 ## 8. Consolidated register (basis for the final development phase)
+
+> **Remediation status:** Phase 0 is implemented — see the addendum at the end of this document for what changed and the evidence. Items are marked `DONE` there; the register below is kept as the original finding record.
 
 Severity: **P0** = fix before any further Play/release activity · **P1** = fix in the final
 development phase · **P2** = should fix · **P3** = hygiene. Effort: S ≤ 0.5d, M ≤ 2d, L > 2d.

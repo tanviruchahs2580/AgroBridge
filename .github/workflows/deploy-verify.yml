@@ -1,0 +1,81 @@
+# Production deployment verification.
+#
+# Deployment itself is performed by Vercel's Git integration on push to main
+# (plus `vercel --prod` for API changes that need a new environment variable).
+# This workflow is the GATE that proves a deployment actually happened and that
+# the artifact running in production is the commit that was reviewed — without
+# it, "deployed" was an assumption made from a CLI output.
+#
+# It needs no secrets: it reads the build stamp the web bundle publishes and the
+# commit the API reports on /health.
+#
+# If this job is red, production is NOT running the reviewed commit. That is a
+# release blocker, not a flake: re-run the deployment, do not re-run the check.
+name: Deploy verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WEB_URL: https://agrobridge-web.vercel.app
+  API_URL: https://agro-bridge-api.vercel.app
+
+jobs:
+  verify-production:
+    name: Production runs the reviewed commit
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+
+      - name: Wait for the web bundle to carry this commit
+        run: |
+          set -euo pipefail
+          EXPECTED=$(git rev-parse --short HEAD)
+          echo "expecting commit $EXPECTED on $WEB_URL"
+          for attempt in $(seq 1 40); do
+            BODY=$(curl -fsS -m 20 "$WEB_URL/version.json" || true)
+            LIVE=$(printf '%s' "$BODY" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(JSON.parse(s).commit||''))}catch{process.stdout.write('')}})")
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "web bundle version.json reports $LIVE"
+              exit 0
+            fi
+            echo "attempt $attempt/40: live=${LIVE:-<none>} expected=$EXPECTED — waiting 30s"
+            sleep 30
+          done
+          echo "::error::production web did not publish $EXPECTED within ~20 minutes — the deployment failed or did not run"
+          exit 1
+
+      - name: API readiness and surface check
+        run: |
+          set -euo pipefail
+          EXPECTED=$(git rev-parse --short HEAD)
+
+          curl -fsS -m 30 "$API_URL/ready" | tee /tmp/ready.json
+          grep -q '"db":true' /tmp/ready.json || { echo "::error::API reports the database is not ready"; exit 1; }
+
+          curl -fsS -m 30 "$API_URL/health" | tee /tmp/health.json
+          LIVE_API=$(node -e "const j=require('/tmp/health.json');process.stdout.write(String(j.commit||''))")
+          if [ -z "$LIVE_API" ]; then
+            echo "::warning::the API did not report a commit (VERCEL_GIT_COMMIT_SHA unset) — web/API sync could not be compared"
+          elif [ "$LIVE_API" != "$EXPECTED" ]; then
+            echo "::error::API is running $LIVE_API but the reviewed commit is $EXPECTED — redeploy the API"
+            exit 1
+          else
+            echo "API reports $LIVE_API"
+          fi
+
+          # A public route that only exists in recent builds: proves the deployed
+          # code is current rather than merely healthy. Expect a 303 to the web app.
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$API_URL/api/v1/payments/gateway/return/success")
+          echo "gateway return responded $CODE"
+          [ "$CODE" = "303" ] || { echo "::error::expected 303 from /payments/gateway/return/success, got $CODE"; exit 1; }

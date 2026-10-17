@@ -3,10 +3,15 @@ import request from "supertest";
 import { app } from "./helpers.js";
 
 describe("Observability & security baseline", () => {
-  it("/health responds without auth", async () => {
+  it("/health responds without auth and reports the deployed commit when known", async () => {
     const res = await request(app).get("/health");
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    // Deployment verification (ci deploy-verify job) reads these; `commit` is
+    // null when the runtime does not expose a SHA — never a fabricated value.
+    expect(res.body).toHaveProperty("commit");
+    expect(res.body.commit === null || /^[0-9a-f]{7}$/.test(res.body.commit)).toBe(true);
+    expect(res.body.env).toBeDefined();
   });
 
   it("/ready checks database connectivity", async () => {

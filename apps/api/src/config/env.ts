@@ -54,6 +54,38 @@ if (!parsed.success) {
   throw new Error(`Invalid environment configuration -> ${issues}`);
 }
 
+/**
+ * Every placeholder / opt-in that is currently accepted, in operator-facing words.
+ *
+ * Extracted from the production guard so it can be unit-tested and reused: the
+ * startup warning must list *everything* simulated on this deployment, including
+ * the explicit sandbox-payments opt-in — a money-path flag that would otherwise
+ * only be discoverable by reading the environment.
+ */
+export function placeholderManifest(cfg: {
+  SMS_PROVIDER?: string;
+  WEATHER_PROVIDER?: string;
+  AI_PROVIDER?: string;
+  PAYMENT_PROVIDER?: string;
+  STORAGE_PROVIDER?: string;
+  ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION?: string;
+}): string[] {
+  const placeholders: string[] = [];
+  if (cfg.SMS_PROVIDER === "none") placeholders.push("SMS_PROVIDER=none (OTP would be undelivered)");
+  if (cfg.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent)");
+  if (cfg.WEATHER_PROVIDER === "mock") placeholders.push("WEATHER_PROVIDER=mock (fixture weather data)");
+  if (cfg.AI_PROVIDER === "offline") placeholders.push("AI_PROVIDER=offline (KB-only answers, no LLM)");
+  if (cfg.PAYMENT_PROVIDER === "sandbox")
+    placeholders.push("PAYMENT_PROVIDER=sandbox (no real money moves; payments stay simulated)");
+  if (cfg.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION === "1")
+    placeholders.push(
+      "ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1 (buyers can COMPLETE simulated payments on this deployment — demo/pilot only, must be removed before store submission)",
+    );
+  if (cfg.STORAGE_PROVIDER === "local")
+    placeholders.push("STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy)");
+  return placeholders;
+}
+
 // Warn loudly if running with development defaults outside development.
 if (parsed.data.NODE_ENV === "production") {
   const weak =
@@ -65,15 +97,7 @@ if (parsed.data.NODE_ENV === "production") {
   // startup unless the operator explicitly acknowledges them via ALLOW_PLACEHOLDER_PROVIDERS=1.
   // No silent degradation either way: without the flag the process refuses to boot; with it,
   // every placeholder is listed as a startup warning.
-  const placeholders: string[] = [];
-  if (parsed.data.SMS_PROVIDER === "none") placeholders.push("SMS_PROVIDER=none (OTP would be undelivered)");
-  if (parsed.data.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent)");
-  if (parsed.data.WEATHER_PROVIDER === "mock") placeholders.push("WEATHER_PROVIDER=mock (fixture weather data)");
-  if (parsed.data.AI_PROVIDER === "offline") placeholders.push("AI_PROVIDER=offline (KB-only answers, no LLM)");
-  if (parsed.data.PAYMENT_PROVIDER === "sandbox")
-    placeholders.push("PAYMENT_PROVIDER=sandbox (no real money moves; payments stay simulated)");
-  if (parsed.data.STORAGE_PROVIDER === "local")
-    placeholders.push("STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy)");
+  const placeholders = placeholderManifest(parsed.data);
   if (placeholders.length) {
     if (process.env.ALLOW_PLACEHOLDER_PROVIDERS !== "1") {
       throw new Error(

@@ -79,6 +79,7 @@ Required production variables:
 | `ALLOW_PLACEHOLDER_PROVIDERS` | `1` while weather/AI/SMS are not yet contracted. Startup logs each accepted placeholder. |
 | `STORAGE_PROVIDER` | `s3` + `S3_*` once a bucket exists. Otherwise uploads live on the instance disk and are lost on redeploy (the startup warning says so). |
 | `PAYMENT_PROVIDER` | Leave unset/`sandbox` to launch without taking money. See step 4a. |
+| `ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION` | **Temporary pilot flag.** `1` lets a production deployment complete simulated payments so the checkout can be demonstrated end to end. It must be **removed before the Play submission** (see the pre-submission checklist at the end of this document). It is listed in the API's startup warning so a deployment using it says so out loud in its logs. |
 | `REDIS_URL` | Recommended: without it, rate limits are per-instance |
 | `METRICS_TOKEN` | Recommended: `/metrics` is otherwise reachable behind the proxy |
 
@@ -164,6 +165,15 @@ Create the app (`com.agrobridge.app`, name "AgroBridge"), then complete, in this
    (A brand-new personal developer account must first run a closed test with 12+ testers for
    14 days; an organisation account has no such gate.)
 
+## 7b. Deployment is verified, not assumed
+
+Every push to `main` triggers **Deploy verification** (`.github/workflows/deploy-verify.yml`). It
+waits for the production web bundle's `version.json` to report the pushed commit, then checks the
+API's `/ready`, its reported commit on `/health` and one public route that only exists in recent
+builds. If that job is red, production is **not** running the reviewed commit — redeploy; do not
+re-run the check and move on. (Before this gate existed, "deployed" was an inference from a CLI
+output.)
+
 ## 8. After launch
 
 - Watch `https://api.agrobridge.com/ready` and the API logs (`requestId` + `AB-XXXXX`
@@ -183,3 +193,20 @@ Create the app (`com.agrobridge.app`, name "AgroBridge"), then complete, in this
 | Disease upload works, then the image 404s later | `STORAGE_PROVIDER=local` on a serverless host; configure S3 (step 3) |
 | Workflow fails "artifact is debug-signed" | The four signing secrets are missing or wrong (step 5) |
 | Play rejects the upload: version code already used | Bump `versionCode` in `version.json` |
+
+---
+
+## Pre-submission checklist (run this the day you upload)
+
+- [ ] **Remove `ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION` from the production environment** and
+      redeploy the API. Production must refuse to simulate a payment at submission time; the
+      startup log no longer lists it (confirm by reading the deployment log).
+- [ ] `version.json` matches the version you intend to publish; `versionCode` is strictly larger
+      than every code previously uploaded.
+- [ ] Signed AAB produced by `android-release.yml` with the four signing secrets present, and the
+      workflow's signature verification passed (it fails otherwise).
+- [ ] `docs/play/data-safety.md` answers transcribed into the Console unchanged; the reviewer
+      account in `docs/play/reviewer-access.md` signs in successfully *on the submission build*.
+- [ ] Privacy policy and data-deletion URLs load over the production domain (not the Vercel
+      preview URL).
+- [ ] Deploy verification job green on the commit you are shipping.
