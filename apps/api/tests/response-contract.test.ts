@@ -3,6 +3,7 @@ import request from "supertest";
 import fs from "node:fs";
 import path from "node:path";
 import { app, registerFarmer, createUserWithRole, createFarmWithCrop, getAdmin } from "./helpers.js";
+import { prisma } from "../src/lib/prisma.js";
 
 /**
  * Response-shape contract guard.
@@ -104,6 +105,18 @@ describe("API response shapes consumed by the web app", () => {
       await request(app).post("/api/v1/bookings").set(auth).send({ farmId: farm.farmId, serviceId: service.body.data[0].id, scheduledFor: new Date(Date.now() + 86400000).toISOString(), areaBigha: 1 });
     }
     await request(app).post("/api/v1/ai/advisory").set(auth).send({ question: "ধানের সেচ কখন দিতে হয়?" });
+
+    // `/wallet/withdrawals` and `/admin/withdrawals` are the same rows: without one, the
+    // list is empty and the guard would be comparing nothing (a fixture generated when
+    // an earlier suite happened to leave a row behind is how this guard first went
+    // flaky). Credits are seeded directly — the payout path itself is covered by the
+    // journey and concurrency suites.
+    await prisma.wallet.upsert({
+      where: { userId: farmer.user.id },
+      update: { balancePaisa: { increment: 50_000 } },
+      create: { userId: farmer.user.id, balancePaisa: 50_000 },
+    });
+    await request(app).post("/api/v1/wallet/withdrawals").set(auth).send({ amountPaisa: 10_000, channel: "BKASH" });
 
     const probes: [string, string, Record<string, string>][] = [
       ["auth/me", "/api/v1/auth/me", auth],

@@ -107,8 +107,15 @@ For UI work also run the e2e suites against a local stack (`docs/testing.md`), i
 `apps/web/e2e/visual-contract.spec.ts` — the eight critical pages must render without horizontal
 overflow in both themes.
 
-## Stop the API before running its test suite (Windows)
+## Running the API suite while a dev server is up
 
-`npm run dev --workspace apps/api` holds the Prisma query-engine DLL, and the suite's global setup
-regenerates the client: the run fails with `EPERM: operation not permitted, rename …
-query_engine-windows.dll.node` while that process lives. Stop the dev server first.
+The suite's global setup regenerates the Prisma client **only when the schema is newer than the
+generated client** — a client that is already current means there is nothing to generate, so a
+running dev server no longer breaks the run. That was a real papercut: on Windows the dev process
+holds `query_engine-windows.dll.node`, the unconditional regenerate failed with
+`EPERM: operation not permitted, rename …`, and the suite died with an error that never mentioned
+the dev server.
+
+If you change `schema.prisma` while a dev server is running, the run will still fail (correctly —
+the client must be rebuilt) and now says so: *"prisma generate failed while the schema is newer than
+the generated client … stop `npm run dev --workspace apps/api` and run the suite again"*.
