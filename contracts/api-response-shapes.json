@@ -45,7 +45,23 @@
     "totalPages: number"
   ],
   "admin/withdrawals": [
-    "[]: array(empty)"
+    "[]: object",
+    "[].amountPaisa: number",
+    "[].channel: string",
+    "[].createdAt: string",
+    "[].decidedAt: null",
+    "[].decidedBy: null",
+    "[].destination: string",
+    "[].id: string",
+    "[].note: null",
+    "[].refNo: string",
+    "[].status: string",
+    "[].updatedAt: string",
+    "[].user: object",
+    "[].user.fullName: string",
+    "[].user.phone: string",
+    "[].user.phoneVerified: boolean",
+    "[].userId: string"
   ],
   "ai/history": [
     "[]: object",
@@ -354,7 +370,19 @@
     "pendingWithdrawalsPaisa: number"
   ],
   "wallet/withdrawals": [
-    "[]: array(empty)"
+    "[]: object",
+    "[].amountPaisa: number",
+    "[].channel: string",
+    "[].createdAt: string",
+    "[].decidedAt: null",
+    "[].decidedBy: null",
+    "[].destination: string",
+    "[].id: string",
+    "[].note: null",
+    "[].refNo: string",
+    "[].status: string",
+    "[].updatedAt: string",
+    "[].userId: string"
   ],
   "weather": [
     "current: object",
