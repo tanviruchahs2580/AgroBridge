@@ -30,6 +30,20 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (anyErr?.code === "P2025") {
     return fail(res, 404, "NOT_FOUND", "Resource not found", undefined, reference);
   }
+  // Foreign-key restriction: the row is referenced by other records that must
+  // not be cascaded (e.g. a farm with bookings or purchase orders). Without
+  // this mapping the conflict surfaced as a raw 500.
+  if (anyErr?.code === "P2003") {
+    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma P2003 foreign key restriction");
+    return fail(
+      res,
+      409,
+      "DEPENDENT_RECORDS",
+      "This record is still referenced by other data and cannot be removed yet",
+      undefined,
+      reference
+    );
+  }
 
   // JSON body parse/limit errors
   const errType = (err as { type?: string })?.type;

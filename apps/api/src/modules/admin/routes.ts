@@ -21,7 +21,10 @@ adminRouter.use((req, res, next) => {
 });
 
 // ---- Metrics: every number maps to real backend data (Rule 27/53) ----
-adminRouter.get("/metrics", async (_req, res, next) => {
+// Company-wide revenue and farmer counts are not AREA/PROCUREMENT-manager
+// concerns; the permission map grants admin:metrics to ADMIN, SUPER_ADMIN and
+// REGIONAL_MANAGER only.
+adminRouter.get("/metrics", requirePermission("admin:metrics"), async (_req, res, next) => {
   try {
     const [farmers, activeFarmers, farms, activeCrops, orders, bookings, procurementPending, paymentsSucceeded, aiQueries] =
       await Promise.all([
@@ -64,7 +67,12 @@ const userQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-adminRouter.get("/users", validate({ query: userQuery }), async (req, res, next) => {
+/**
+ * User directory. Paged PII (name, phone, email, membership tier), so it needs
+ * the users:read permission — the router-level role gate alone would have let
+ * REGIONAL_MANAGER / AREA_MANAGER / PROCUREMENT_MANAGER read every account.
+ */
+adminRouter.get("/users", requirePermission("users:read"), validate({ query: userQuery }), async (req, res, next) => {
   try {
     const q = req.query as unknown as z.infer<typeof userQuery>;
     const where = {
@@ -98,12 +106,31 @@ const userUpdate = z.object({
 
 adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ body: userUpdate }), async (req, res, next) => {
   try {
-    if (req.params.id === req.auth!.userId && (req.body as { status?: string }).status === "SUSPENDED") {
-      throw badRequest("You cannot suspend your own account");
+    const body = req.body as { role?: string; status?: string; region?: string | null };
+    const target = await prisma.user.findUnique({ where: { id: req.params.id! }, select: { id: true, role: true } });
+    if (!target) throw badRequest("User not found");
+
+    if (target.id === req.auth!.userId) {
+      if (body.status === "SUSPENDED") throw badRequest("You cannot suspend your own account");
+      if (body.role && body.role !== target.role) throw badRequest("You cannot change your own role");
     }
+    // Privilege boundaries: only a SUPER_ADMIN may grant or revoke the two
+    // admin tiers. Without this an ADMIN could mint a SUPER_ADMIN (wildcard
+    // permissions) or demote the account that governs it.
+    const ACTOR_MUST_BE_SUPER = ["ADMIN", "SUPER_ADMIN"];
+    const actorRole = req.auth!.role;
+    if (actorRole !== "SUPER_ADMIN") {
+      if (body.role && ACTOR_MUST_BE_SUPER.includes(body.role)) {
+        throw forbidden("Only a SUPER_ADMIN can grant admin roles");
+      }
+      if (ACTOR_MUST_BE_SUPER.includes(target.role)) {
+        throw forbidden("Only a SUPER_ADMIN can modify an admin account");
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id: req.params.id! },
-      data: req.body as never,
+      data: body as never,
       select: { id: true, fullName: true, role: true, status: true },
     });
     // Revoke all sessions on role/status change

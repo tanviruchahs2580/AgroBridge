@@ -224,19 +224,32 @@ ordersRouter.delete("/:id", async (req, res, next) => {
 });
 
 /**
+ * Delivery details captured by the checkout wizard. All three fields are
+ * optional together (an order can still be placed without them), but a field
+ * that IS sent must be valid — the previous safeParse().data silently dropped
+ * a malformed phone or address, so the buyer's details vanished with a 201.
+ */
+const shippingSchema = z.object({
+  shippingName: z.string().trim().min(2).max(120).optional(),
+  shippingPhone: z.string().regex(/^01[3-9]\d{8}$/).optional(),
+  shippingAddress: z.string().trim().min(5).max(400).optional(),
+});
+
+// Tolerate a completely absent body (clients released before the wizard sent
+// delivery details POST with no payload at all) while still rejecting a body
+// that is present but malformed.
+const shippingBodySchema = z.preprocess(
+  (raw) => (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
+  shippingSchema
+);
+
+/**
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
  */
-ordersRouter.post("/checkout", checkoutLimiter, async (req, res, next) => {
+ordersRouter.post("/checkout", checkoutLimiter, validate({ body: shippingBodySchema }), async (req, res, next) => {
   try {
-    // Optional delivery details captured by the checkout wizard; validated
-    // loosely and stored verbatim on the order for fulfilment.
-    const shippingSchema = z.object({
-      shippingName: z.string().trim().min(2).max(120).optional(),
-      shippingPhone: z.string().regex(/^01[3-9]\d{8}$/).optional(),
-      shippingAddress: z.string().trim().min(5).max(400).optional(),
-    });
-    const shipping = shippingSchema.safeParse(req.body ?? {}).data;
+    const shipping = req.body as z.infer<typeof shippingSchema>;
 
     const membership = await getActiveMembership(req.auth!.userId);
     const discountPct = membership.discountPct;
@@ -281,7 +294,7 @@ ordersRouter.post("/checkout", checkoutLimiter, async (req, res, next) => {
           discountPaisa,
           deliveryFeePaisa,
           totalPaisa,
-          ...(shipping ?? {}),
+          ...shipping,
           items: {
             create: cart.items.map((i: { productId: string; product: { name: string; sku: string; pricePaisa: number }; qty: number }) => ({
               productId: i.productId,

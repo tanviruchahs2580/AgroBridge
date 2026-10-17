@@ -41,6 +41,18 @@ const otpLimiter = rateLimit({
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
 });
 
+// OTP verify limiter: caps guesses per user even though each challenge already
+// allows only 5 attempts and requesting a new code invalidates the old one.
+const otpVerifyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  store: otpStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many verification attempts. Please try again later." } },
+});
+
 // Registration limiter: prevents mass account creation abuse
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -175,9 +187,9 @@ authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshTok
   }
 });
 
-authRouter.post("/logout", requireAuth, async (req, res, next) => {
+authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken: z.string().min(20).max(500).optional() }) }), async (req, res, next) => {
   try {
-    const refreshToken = req.body?.refreshToken as string | undefined;
+    const refreshToken = (req.body as { refreshToken?: string }).refreshToken;
     if (refreshToken) {
       await prisma.refreshToken.updateMany({
         where: { tokenHash: sha256(refreshToken), userId: req.auth!.userId },
@@ -288,7 +300,7 @@ authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) 
   }
 });
 
-authRouter.post("/otp/verify", requireAuth, validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }), async (req, res, next) => {
+authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }), async (req, res, next) => {
   try {
     const challenge = await prisma.otpChallenge.findFirst({
       where: { userId: req.auth!.userId, consumedAt: null, expiresAt: { gt: new Date() } },

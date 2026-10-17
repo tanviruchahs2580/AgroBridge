@@ -21,3 +21,21 @@ export const tooMany = (msg = "Too many requests, please try again later") =>
   new AppError(429, "RATE_LIMITED", msg);
 export const phoneNotVerified = () =>
   new AppError(403, "PHONE_NOT_VERIFIED", "Phone number must be verified before this action");
+export const serviceUnavailable = (msg: string, details?: unknown) =>
+  new AppError(503, "SERVICE_UNAVAILABLE", msg, details);
+
+/**
+ * No real payment gateway is configured, so money cannot move. Returned instead
+ * of simulating a successful payment: an order must never be reported as paid
+ * when nothing was collected. The client shows "order placed, payment pending".
+ */
+export const paymentGatewayUnconfigured = () =>
+  new AppError(
+    503,
+    "PAYMENT_GATEWAY_NOT_CONFIGURED",
+    "Payment gateway is not configured on this deployment; the order is saved and remains unpaid"
+  );
+
+/** The configured gateway could not be reached — retryable, nothing was charged. */
+export const paymentGatewayUnavailable = (details?: unknown) =>
+  new AppError(502, "PAYMENT_GATEWAY_UNAVAILABLE", "Payment gateway is temporarily unavailable; nothing was charged", details);

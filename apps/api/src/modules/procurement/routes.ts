@@ -8,6 +8,8 @@ import { forbidden, notFound, unprocessable } from "../../shared/errors/index.js
 import { ok } from "../../middleware/context.js";
 import { refNo, calcProcurement } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
+import { audit } from "../../middleware/audit.js";
+import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 
 export const procurementRouter = Router();
 procurementRouter.use(requireAuth);
@@ -119,6 +121,12 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
   try {
     const po = await prisma.procurementOrder.findUnique({ where: { id: req.params.id! } });
     if (!po) throw notFound("Procurement order");
+    // A territory-scoped reviewer may only act on offers from their own region.
+    await assertSubjectInRegion(
+      await actorRegionLimit(req.auth!.userId, req.auth!.role),
+      po.userId,
+      "This procurement order"
+    );
     const { action, qcNotes } = req.body as z.infer<typeof reviewSchema>;
 
     const transitions: Record<string, { from: string[]; to: string }> = {
@@ -152,6 +160,15 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
       bodyEn: `Status: ${t.to}`,
       refType: "PROCUREMENT_ORDER",
       refId: po.id,
+    });
+    // Status transitions move money downstream (QC -> PO -> COLLECT -> payout),
+    // so every step is auditable.
+    await audit({
+      actorId: req.auth!.userId,
+      action: `PROCUREMENT_${action}`,
+      entityType: "ProcurementOrder",
+      entityId: po.id,
+      meta: { from: po.status, to: t.to, qcNotes },
     });
     ok(res, updated);
   } catch (e) {

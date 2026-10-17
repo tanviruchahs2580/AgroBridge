@@ -6,7 +6,8 @@ import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { env } from "../../config/env.js";
-import { sslcommerzSignature, applyPaymentSideEffects } from "./routes.js";
+import { sslcommerzSignature, applyPaymentSideEffects, claimAndApplyPayment } from "./routes.js";
+import { getPaymentProvider } from "../../providers/payment/index.js";
 
 /**
  * SSLCommerz IPN/webhook endpoint â€” the ONLY path to success when a real
@@ -83,6 +84,47 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
 
     // SSLCommerz expects a simple acknowledgement.
     ok(res, { received: true, processed: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * Hosted-checkout return. The gateway posts the buyer's browser here after
+ * payment, so this route is deliberately unauthenticated and trusts NOTHING in
+ * the request: the outcome path segment and any posted fields only decide where
+ * the browser is sent next. Whether money actually moved is decided by asking
+ * the provider (the signed webhook remains the primary path) — this endpoint
+ * exists so a buyer is never stranded on a gateway page when an IPN is delayed.
+ */
+paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
+  try {
+    const requested = req.params.outcome ?? "fail";
+    const outcome = ["success", "fail", "cancel"].includes(requested) ? requested : "fail";
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const refFromRequest = String(body.tran_id ?? req.query.tran_id ?? req.query.ref ?? "");
+    const payment = refFromRequest ? await prisma.payment.findFirst({ where: { refNo: refFromRequest } }) : null;
+
+    if (payment && payment.status === "PENDING" && outcome === "success") {
+      const provider = getPaymentProvider();
+      if (provider.mode === "live") {
+        try {
+          const verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo);
+          if (verdict.status === "SUCCEEDED") {
+            await claimAndApplyPayment(payment, { mode: env.PAYMENT_PROVIDER, verified: true, amountPaisa: verdict.amountPaisa });
+          } else if (verdict.status === "FAILED") {
+            await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
+          }
+        } catch {
+          // Stay PENDING: the webhook or a later status poll settles it.
+        }
+      }
+    }
+
+    const target = new URL("/orders", env.WEB_ORIGIN);
+    target.searchParams.set("payment", outcome);
+    if (payment) target.searchParams.set("ref", payment.refNo);
+    res.redirect(303, target.toString());
   } catch (e) {
     next(e);
   }

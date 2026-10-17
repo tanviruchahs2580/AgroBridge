@@ -8,6 +8,7 @@ import { notFound, forbidden, unprocessable, conflict } from "../../shared/error
 import { ok } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
+import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 
 export const servicesRouter = Router();
 export const bookingsRouter = Router();
@@ -149,6 +150,12 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
   try {
     const booking = await prisma.booking.findUnique({ where: { id: req.params.id! } });
     if (!booking) throw notFound("Booking");
+    // A territory-scoped assigner may only act on bookings from their region.
+    await assertSubjectInRegion(
+      await actorRegionLimit(req.auth!.userId, req.auth!.role),
+      booking.userId,
+      "This booking"
+    );
     if (!["REQUESTED", "ASSIGNED"].includes(booking.status)) throw unprocessable(`Cannot assign booking in status ${booking.status}`);
 
     // Provider assignment must respect the same service-compatibility rule as

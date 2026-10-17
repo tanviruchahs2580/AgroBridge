@@ -2,6 +2,11 @@ export interface CreatePaymentInput {
   amountPaisa: number;
   refNo: string;
   customerPhone: string;
+  /**
+   * Absolute base URL the gateway returns the buyer to (no trailing slash);
+   * the provider appends its own success/fail/cancel paths.
+   */
+  returnBaseUrl: string;
   /** Sandbox hook: deterministic outcome for testing both paths. */
   forceFail?: boolean;
 }

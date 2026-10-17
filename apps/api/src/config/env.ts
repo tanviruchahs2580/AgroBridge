@@ -5,6 +5,11 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
+  /**
+   * Public base URL of THIS API (no trailing /api/v1). Needed so a payment
+   * gateway can post the buyer back to us; derived from the request when unset.
+   */
+  API_PUBLIC_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
@@ -27,6 +32,13 @@ const schema = z.object({
   SSLCOMMERZ_STORE_ID: z.string().optional(),
   SSLCOMMERZ_STORE_PASSWORD: z.string().optional(),
   SSLCOMMERZ_SANDBOX: z.string().optional(),
+  /**
+   * Explicit, auditable opt-in for simulated payments on a production
+   * deployment (pilots/demos only). Without it, a production deployment with
+   * the sandbox provider refuses to fabricate a successful payment — see
+   * modules/payments/routes.ts.
+   */
+  ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION: z.enum(["0", "1"]).optional(),
   SMS_PROVIDER: z.enum(["sandbox", "none"]).default("sandbox"),
   STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
   S3_BUCKET: z.string().optional(),
@@ -58,6 +70,10 @@ if (parsed.data.NODE_ENV === "production") {
   if (parsed.data.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent)");
   if (parsed.data.WEATHER_PROVIDER === "mock") placeholders.push("WEATHER_PROVIDER=mock (fixture weather data)");
   if (parsed.data.AI_PROVIDER === "offline") placeholders.push("AI_PROVIDER=offline (KB-only answers, no LLM)");
+  if (parsed.data.PAYMENT_PROVIDER === "sandbox")
+    placeholders.push("PAYMENT_PROVIDER=sandbox (no real money moves; payments stay simulated)");
+  if (parsed.data.STORAGE_PROVIDER === "local")
+    placeholders.push("STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy)");
   if (placeholders.length) {
     if (process.env.ALLOW_PLACEHOLDER_PROVIDERS !== "1") {
       throw new Error(

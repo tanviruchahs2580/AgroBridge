@@ -21,8 +21,15 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
   if (!header?.startsWith("Bearer ")) return next(unauthorized());
   let payload: AccessPayload;
   try {
-    payload = jwt.verify(header.slice(7), env.JWT_ACCESS_SECRET, { issuer: "agrobridge" }) as AccessPayload;
+    // Algorithm allowlist: without it a forged `alg` header is a needless
+    // degree of freedom (string secrets make RS256 confusion unexploitable
+    // today, but the pin removes the class of bug entirely).
+    payload = jwt.verify(header.slice(7), env.JWT_ACCESS_SECRET, { issuer: "agrobridge", algorithms: ["HS256"] }) as AccessPayload;
   } catch {
+    return next(unauthorized("Invalid or expired access token"));
+  }
+
+  if (!payload?.sub || typeof payload.sub !== "string") {
     return next(unauthorized("Invalid or expired access token"));
   }
 
