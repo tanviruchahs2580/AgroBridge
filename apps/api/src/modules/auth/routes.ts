@@ -22,7 +22,7 @@ export const authRouter = Router();
 // Brute-force protection: stricter than global limiter for auth endpoints
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: env.LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development",

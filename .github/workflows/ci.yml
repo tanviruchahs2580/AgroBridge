@@ -24,6 +24,10 @@ jobs:
       DATABASE_URL: "file:./test.db"
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+      # A browser suite signs in far more often than a person and the login limit
+      # is per IP; the default (20/15min) is the production policy and is still
+      # exercised by the API test suite. This instance is ephemeral.
+      LOGIN_RATE_LIMIT_MAX: "500"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
