@@ -607,3 +607,34 @@ Two things this phase taught, recorded because they shape the remaining work:
 2. **A gate that has never failed proves nothing.** The response-shape guard was verified by
    deliberately breaking it, the StrictMode tests by running them against the unfixed hook, and
    the deploy gate by watching it fail on a real deployment that was still in flight.
+
+
+---
+
+## Addendum 2 — Phases 2–4 executed (2026-10-18)
+
+| ID | Status | Evidence |
+|---|---|---|
+| WEB-6, WEB-7, WEB-11 | **DONE** | `useDialogA11y` now depends on `open` alone (the callback is read through a ref), so a dialog whose host re-renders per keystroke no longer resets focus onto its first element — the defect the review predicted for the withdraw and booking dialogs. `inert` covers the chrome regions (header, sidebar, bottom nav, skip link) rather than `#main` only, and deliberately does **not** blanket-inert the body: the confirm dialog renders inline, so a blanket would have inerted the dialog itself. Locked by the repository's first component tests of a UI primitive (4 cases). |
+| WEB-8, WEB-9, WEB-4 | **DONE** | Header controls and the auth-shell toggle raised to the design system's own 44px; the farm card is a real keyboard disclosure (`role="button"`, Enter/Space, `aria-expanded`, guards against the nested buttons double-triggering); `isQueueable` is method-aware, so a failed GET is no longer queued as a pending change. |
+| API-7, API-8 | **DONE** | `Product[isActive, category]`, `Order[userId, createdAt]`, `AuditLog[createdAt]` added to all three schema copies with a migration in both chains (fresh migrate + idempotence + parity test verified); the Redis limiter store went from ~4% to full branch coverage with a 6-case test of the fail-open contract. |
+| DOC-1, ADR-1, AI-3, GOV-1 | **DONE** | Five ADRs for the decisions that were only recoverable from the execution log; `docs/api.md`, `docs/database.md` and `docs/UI_UX_CONTRACT.md` corrected against the code; 17 prompt-jargon comments replaced with plain reasons; 12 superseded root reports archived under `docs/archive/2026-08-09/` with a note of what replaced each. |
+
+**Deliberately not done, with reasons** (they remain the honest remainder of the register):
+
+- **`req.auth!` (133 sites)** — guaranteed by middleware order and covered by the security-matrix
+  tests. Converting them needs an authenticated-request type threaded through 15 route modules;
+  it is readability/type-purity, not a defect, and it is the kind of change that should ride with
+  other work in the files it touches rather than be a standalone sweep.
+- **API-3 / API-4 (module-tree consolidation, one limiter factory, audit policy)** — mechanical but
+  wide (every import path in the API). The trees are confusing, not wrong: the live path is
+  consistent. Worth doing deliberately, not at the tail of a long session.
+- **WEB-13 (bundle split: lazy framer-motion, per-language dictionaries)** — a perceived-performance
+  improvement on a bundle that is already route-split, and each split risks a visual regression on
+  a screen the e2e suite does not cover in detail. Needs its own verification budget.
+- **CIAL-2.5.8 / perception items in §4.5** — the sub-44px `Button size="sm"` and one Home CTA are
+  still below the app's own 44px rule; changing a shared primitive's size affects every screen and
+  belongs with a visual review pass.
+
+Everything above is recorded because a register that quietly drops its unfinished items is how a
+codebase gets its second round of silent drift.

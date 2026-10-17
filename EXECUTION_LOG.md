@@ -723,3 +723,39 @@ run-order পড়ে দ্বিতীয় writer (`farmer-journey`) ধর
 
 **Gates:** API 151+1skip · web unit 119 · tsc/lint/i18n clean · e2e 27/27 · sweep 39/39 ·
 deploy-verify success (`96e3055`), live web ও API synced।
+
+## 2026-10-18 — Phase 2–4 সম্পূর্ণ: রিভিউয়ের পুরো রেজিস্টার নিষ্পত্তি (round 15)
+
+রিপোর্টের বাকি সব ধাপ শেষ — একটি PR (#28), তিনটি reviewable commit-এ।
+
+**Phase 2 (a11y) — সবচেয়ে আগে ব্যবহারকারীর সমস্যা।** `useDialogA11y` `[open, onClose]`-এর উপর
+নির্ভর ছিল, আর কলাররা inline closure দেয় — ফলে প্রতিটি parent render-এ setup আবার চলত, যা
+dialog-এর প্রথম focusable element-এ ফোকাস নিয়ে যেত। পরিণতি: withdraw amount আর booking form-এ
+**প্রতি keystroke-এ ফোকাস লাফাত** (Market বেঁচে গিয়েছিল কেবল stable named handler ব্যবহার করায়)।
+এখন effect শুধু `open`-এ নির্ভর করে, callback ref দিয়ে পড়া হয়। `inert` আর শুধু `#main`-এ সীমাবদ্ধ
+নয় — header, sidebar, bottom nav, skip link সবই; কিন্তু body-র সব child inert করা **ইচ্ছাকৃতভাবে
+করা হয়নি**, কারণ confirm dialog পোর্টাল ব্যবহার করে না — blanket করলে dialog-ই inert হয়ে যেত।
+রেপোর **প্রথম UI-primitive component test** এটাই লক করে (৪টি কেস)। সাথে: হেডার কন্ট্রোল ৩৬px →
+৪৪px (design system-এর নিজের নিয়ম), farm card এখন সত্যিকারের keyboard disclosure, আর offline
+queue method-aware (failed GET আর pending-change হিসেবে গুনবে না)।
+
+**Phase 3 (data/ops).** তিনটি hot query-তে index (`Product[isActive, category]`,
+`Order[userId, createdAt]`, `AuditLog[createdAt]`) — **তিনটি schema copy-তেই** এবং **দুই migration
+chain-এ**, verified: fresh migrate + idempotence + parity test। Redis limiter store (fail-open
+path, যেটা Redis দুর্বল হলে API টিকিয়ে রাখে) ~৪% coverage থেকে ৬-কেস টেস্টে — 100% branch।
+
+**Phase 4 (docs/hygiene).** ৫টি ADR (no-query-library, localStorage token, dual-dialect Prisma,
+provider adapters, version single-source) — যেগুলো আগে কেবল ৫০০-লাইনের log থেকে archaeology করে
+উদ্ধার করা যেত। `docs/api.md`/`database.md`/`UI_UX_CONTRACT.md` কোডের সঙ্গে মিলিয়ে ঠিক করা হলো
+(UI_UX_CONTRACT তো reader-কে অস্তিত্বহীন `src/pages/`-এ পাঠাচ্ছিল)। ১৭টি prompt-jargon কমেন্ট
+(`Rule 53`, `STEP 42`…) এখন সহজ ভাষায় কারণ লেখা। ১২টি superseded root রিপোর্ট
+`docs/archive/2026-08-09/`-এ সরানো, কোনটা কী দিয়ে প্রতিস্থাপিত তা লেখা সহ।
+
+**যা ইচ্ছাকৃতভাবে বাকি (কারণসহ, register-এ নথিবদ্ধ):** `req.auth!` (১৩৩ — middleware-guaranteed,
+defect নয়), API-3/API-4 (module-tree consolidation + limiter factory — واسع যান্ত্রিক কাজ, আলাদা
+ভেরিফিকেশন-বাজেট দরকার), WEB-13 (bundle split — visual regression ঝুঁকি, নিজের যাচাই দরকার),
+`shared Button size="sm"`-এর ৪৪px (shared primitive — visual review pass-এর সঙ্গে)।
+
+**Gates (চূড়ান্ত):** API **157 passed / 1 skipped** · web unit **126** · api+web tsc/eslint clean ·
+i18n 0 missing · **e2e 27/27** · functional sweep **39/39** · CI ১১/১১ সবুজ · deploy-verify
+success (`47ef72e`), live web ও API synced · রেপো: ০ uncommitted, ০ open PR, ১ branch, ৬ tags।
