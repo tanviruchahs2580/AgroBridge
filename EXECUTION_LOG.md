@@ -269,7 +269,7 @@ occurrences, identical px mapped in tailwind.config, দৃশ্যত zero cha
 দুই থিমেই live values হুবহু); Card-এ typed `padded={false}` prop (`!p-0` hack replace);
 StatTile-এ danger tone.
 
-**Phase B (7 routes)** — PageHeader/SectionHeader/StatTile/Badge-tone/IconButton/c统一 chip
+**Phase B (7 routes)** — PageHeader/SectionHeader/StatTile/Badge-tone/IconButton/shared chip
 pattern adoption; raw bg-green-100/red-100/amber-100 combos → semantic tone API:
 - Market: qty steppers/delete → IconButton (44px, token focus ring); price/discount/total →
   accent/success/stone; double "Done" CTA বাদ (duplicated z-index workaround — E2E T6/T7 প্রমাণ);
@@ -485,7 +485,7 @@ Owner ask: BanglaGPT/AgroBridge-নাম বিভ্রান্তি পর�
 
 ### নাম-বিভ্রান্তি: কোনো merge হয়নি (দুই দিক থেকে প্রমাণিত)
 
-- এই রেপোর ১৮২টি কমিট সব AgroBridge; "bangla gpt" ম্যাচ মাত্র ২টি ফাইলে, দুটোই নথি:
+- এই রেপোর সব কমিট AgroBridge (তখন HEAD-এ ১৬৯টি, all-refs ১৮৪টি — এই সংখ্যাটা প্রথমে ১৮২ লিখেছিলাম, ভুল ছিল; রিভিউয়ে ধরা পড়ে শুধরানো হলো); "bangla gpt" ম্যাচ মাত্র ২টি ফাইলে, দুটোই নথি:
   `AGROBRIDGE_ENTERPRISE_ARCHITECTURE_QA_AUDIT.md:9` (আগের রাউন্ডেই লেখা — "master-prompt
   template names a different app ('Bangla GPT'); the repository under audit is AgroBridge")
   এবং `EXECUTION_LOG`-এ আমার round-10 নোট (অন্য প্রজেক্টের :5173 server ইচ্ছাকৃতভাবে

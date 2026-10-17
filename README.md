@@ -65,7 +65,7 @@ npm run dev --workspace apps/web          # Web on :5173 (proxies /api to :4000)
 ## Tests
 
 ```bash
-npx vitest run        # inside apps/api — 148 tests (SQLite profile, 1 PG-gated skip by design);
+npx vitest run        # inside apps/api — 149 tests (SQLite profile, 1 PG-gated skip by design);
                       # 149/149 with npm run test:pg provisioned (docker postgres)
 ```
 
