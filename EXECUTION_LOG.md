@@ -540,3 +540,71 @@ banner, 404, wrong-password error।
 - `qa-evidence/` এখন gitignored (লোকাল QA artifacts: sweep screenshots/results, API টেস্ট
   logs) — আগের রাউন্ডগুলোও এই অভ্যাসেই চলত; reviewer password কোনো ফাইলে নেই (grep-verified),
   owner-কে rotate করার পরামর্শ ফাইনাল রিপোর্টে।
+
+## 2026-10-17 — Phase 0 execution: governance gate + truth pass (round 12)
+
+Owner ask: রিপোর্টের সব ইস্যু ঠিক করা শুরু করো, SWE SOP ও international best practice মেনে,
+Phase 0 থেকে। Phase 0-এর সাতটি আইটেমই সম্পন্ন; দুটি সত্যিকারের গেট এখন যন্ত্র-প্রমাণিত।
+
+**১) Branch protection — এখন ENFORCED (এবং verified).** রেপোটি user-owned, তাই লিগ্যাসি
+`PUT /branches/main/protection` কোনো পেলোডই নেয় না (`restrictions: null` → "only organization
+repositories…", key বাদ দিলে → '"restrictions" wasn't supplied')। তাই **repository ruleset**
+(`main — protected`, id 25297401) ব্যবহার করা হয়েছে — একই নিয়ন্ত্রণ, user-repo-তে সমর্থিত,
+এবং এখানে কঠোরতর: `bypass_actors: []` অর্থ owner-ও ব্যতিক্রম নয়। কার্যকর: PR বাধ্যতামূলক,
+**১১টি required check**, force-push নিষিদ্ধ, branch deletion নিষিদ্ধ, linear history, thread
+resolution। **প্রমাণ:** সরাসরি `git push origin main` করলে GitHub reject করে —
+"Changes must be made through a pull request" + "11 of 11 required status checks are expected"
+(লোকাল কমিট বাতিল করা হয়েছে)। দুটি সচেতন বিচ্যুতি নথিবদ্ধ: approvals 1→0 (নিজের PR approve
+করা GitHub-এ অসম্ভব, তাই এক-মেইনটেইনার রেপোতে 1 মানে চিরস্থায়ী deadlock — দ্বিতীয় maintainer
+এলে 1 করতে হবে), এবং strict up-to-date false (একজন contributor-এ শুধু rebase-ঝামেলা)।
+
+**২) Deploy এখন inference নয়, verification।** নতুন `deploy-verify.yml` প্রতি push-এ production
+web-এর `version.json` checkout commit-এর সাথে মिलিয়ে দেখে, তারপর API `/ready` + `/health`-এ
+রিপোর্ট করা commit + সাম্প্রতিক build-এ-only বিদ্যমান পাবলিক রুট। **প্রমাণ:** run 39016011139
+success। এর জন্য `/health`-এ commit (VERCEL_GIT_COMMIT_SHA) ও env যোগ করা হয়েছে (টেস্টসহ)।
+
+**৩) হারানো টেস্টটা সঠিকভাবে ফেরানো হলো — এবং আমার নিজের রিপোর্টের ভুল ধরা পড়ল।**
+`git ls-files` দেখাল `visual-contract.spec.ts` **কখনোই committed হয়নি** — কেবল তার ৮টি
+win32 pixel baseline tracked ছিল, আর spec-টা ছিল untracked+gitignored `.bak`। অর্থাৎ আমার
+রিপোর্টের AI-1-এ "commit 0f20d89-এ rename" লেখাটা ভুল ছিল (ওই কমিট সত্যি, কিন্তু ফাইলটা
+স্পর্শ করেনি)। রিপোর্টে সংশোধনী লেখা হয়েছে। Pixel diffing ঠিক যন্ত্রও ছিল না (baseline
+win32, CI Linux)। নতুন portable suite: ৮টি critical পেজ নিজের কনটেন্ট render করে, error
+boundary ফায়ার করে না, 390px-এ horizontal overflow করে না — light+dark উভয়ে। win32
+baseline মুছে ফেলা হয়েছে।
+
+**৪) Dependabot: ৯টি PR নয় সপ্তাহ ধরে খোলা ছিল → সব triage করা হলো, উদাহরণস্বরূপ নয়, কারণসহ।**
+৩টি "superseded" (action-গুলো SHA-pinned, tag-ref PR কোনোদিন converge করবে না), ৬টি
+**deferred** শর্ত-লিখিত — `docs/DEPENDENCY_BACKLOG.md`-এ সেই ছয়টি trigger সহ (runtime upgrade,
+React 19 migration branch, staging workflow-এর প্রথম চালানো, ইত্যাদি)। ১০টি stale branch মুছে
+ফেলা হয়েছে → রিমোটে এখন একটি branch। বিস্তারিত কারণ প্রতিটি PR-এর ক্লোজ কমেন্টে।
+
+**৫) Version truth.** CHANGELOG-এ প্রকৃত `[1.4.0]` সেকশন (Unreleased রিসেট);
+`RELEASE_MANIFEST.md` historical ঘোষিত এবং তার দুটি ভূত version নাম ধরে লেখা। Tag `v1.4.0`
+এবং **GitHub Release** তৈরি (রিলিজ-নোটে স্বচ্ছভাবে লেখা: keystore সিক্রেট যোগ হলে signed
+AAB/APK সংযুক্ত হবে)। release-verify-এর টেস্ট চালানো হয়নি — ছিল না, তাই দাবিও করা হয়নি।
+
+**৬) CONTRIBUTING.md সত্য হলো।** আগে দাবি করত main protected ও develop branch আছে — কোনোটাই
+সত্য ছিল না। এখন force-এনফোর্সড প্রক্রিয়া লেখা: PR বাধ্যতামূলক, break-glass কীভাবে, commit
+নর্ম ("no claim without a command"), evidence-receipt প্রথা, dependency policy, Windows-এ
+Prisma EPERM-এর ধাপ।
+
+**৭) Evidence এখন টিকে থাকে।** `qa-evidence/receipts/` committed (বাকি ডিরেক্টরি ignored):
+প্রথম receipt-এ round 10–11-এর লোকাল gate সংখ্যা, কমান্ড, এবং যে বিচ্যুতিগুলো জানা দরকার।
+
+**মাঝপথে ধরা পড়া ও ঠিক করা (CI-ই ধরিয়ে দিল):**
+
+- `588acb8`-এ e2e job fail (T7/T8/T9 — দেখতে অসম্পর্কিত তিনটি)। কারণ বিশ্লেষণে: **login rate
+  limiter** — e2e job-এর API `NODE_ENV=test`-এ চলে যেখানে 20/15min সীমা প্রযোজ্য, আর আমার নতুন
+  spec প্রতি পেজে login করছিল (৯টি login)। ঠিক করা: limit এখন config (`LOGIN_RATE_LIMIT_MAX`,
+  ডিফল্ট ২০ = আজকের production নীতি), CI-র ephemeral instance পায় ৫০০, spec এখন ৩ টেস্টে ২টি
+  sign-in। reviews-এ এটাই predicted ছিল (API-4।)
+- তারপরও fail → আসল কারণ **contention**: suite parallel-এ চলে অথচ backend একটি API প্রসেস +
+  একটি SQLite ফাইল; ২-vCPU runner-এ payment round-trip helper-এর fixed 3s sleep ছাড়িয়ে যায়
+  → T7 "did not reach success", তার knock-on T8/T9। ঠিক করা: `playwright.config.ts`-এ
+  `workers: 1` (রেপো নিজেই locally এটা শিখেছিল), এবং helper এখন outcome-এর জন্য poll করে
+  (25s) শুধু sleep নয়। এরপর PR #14 **১১/১১ check green → squash merge** (`201172e`)।
+- আমার dark-mode টেস্ট 30s default timeout-এ মরছিল → `test.slow()` + একটি অপ্রয়োজনীয়
+  "theme restore" ক্লিক বাদ (theme per-context localStorage-এ, cleanup লাগে না)।
+
+**নোট:** PR #14 ছিল ২৫ আগস্টের পর প্রথম PR merge — অর্থাৎ নতুন গেট কার্যকর হওয়ার আগেই
+PR-path + ১১টি check রিপোর্ট হওয়া যাচাই করা হয়েছে, তারপর ruleset চালু করা হয়েছে।

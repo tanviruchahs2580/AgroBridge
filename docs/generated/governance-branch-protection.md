@@ -1,12 +1,49 @@
 # Governance — Branch Protection (Phase 12)
 
-**Status:** DOCUMENTED ONLY — no API call executed (requires admin token)
-**Date:** 2026-09-02
-**Repo:** `tanviruchahs2580/AgroBridge`
-**Branch:** `main`
-**Sources:** `.github/workflows/ci.yml` (branches `[main,develop]`), `.github/workflows/codeql.yml` (branches `[main]`), `.github/CODEOWNERS`
+> ## STATUS: **ENFORCED** — 2026-10-17
+>
+> Applied as a **repository ruleset** (`main — protected`, id 25297401), not the legacy
+> branch-protection API. Reason: this repository is owned by a **user account**, and the legacy
+> `PUT /branches/main/protection` endpoint rejects every payload for user-owned repos — `restrictions:
+> null` is refused ("Only organization repositories can have users and team restrictions") and
+> omitting it is also refused ('"restrictions" wasn't supplied'). Rulesets are the modern mechanism,
+> are supported for user-owned repositories, and are strictly stronger here: `bypass_actors: []`
+> means **nobody bypasses, including the owner**.
+>
+> ### What is actually enforced (verified by attempting a direct push, which GitHub rejected)
+>
+> | Rule | Setting |
+> |---|---|
+> | Changes to `main` | must come through a **pull request** |
+> | Required status checks | **11** — API (SQLite), API (PostgreSQL 17), Web lint/unit/build, Web e2e, Android build, Docker build, npm audit, gitleaks, Trivy, CodeQL analyze, CodeQL |
+> | Force pushes | blocked (`non_fast_forward`) |
+> | Branch deletion | blocked (`deletion`) |
+> | Linear history | required (`required_linear_history`) |
+> | Review threads | must be resolved before merge |
+> | Stale reviews | dismissed on push |
+> | Bypass | **none** — the owner is bound by the same rules |
+>
+> ### Two deliberate deviations from the original intent in §3 below
+>
+> 1. **`required_approving_review_count: 0` instead of 1.** GitHub does not allow approving your own
+>    pull request, so a 1-approval requirement on a single-maintainer repository deadlocks every
+>    change — the intent as written could never have been turned on (which is consistent with it
+>    never having been turned on). Raise it to 1 in the same commit that adds a second maintainer.
+> 2. **`strict_required_status_checks_policy: false`** (the "branch must be up to date" setting).
+>    With one active contributor and Dependabot churn this only adds rebase round-trips. Turn it on
+>    when two or more people work on `main` concurrently.
+>
+> **Break-glass** (production incident): GitHub UI → Settings → Rules → `main — protected` →
+> *Disabled*, record the act in `EXECUTION_LOG.md`, re-enable afterwards. Documented in
+> `CONTRIBUTING.md`.
+>
+> **Verified evidence (2026-10-17):** a direct `git push origin main` was rejected with
+> "Changes must be made through a pull request" + "11 of 11 required status checks are expected";
+> PR #14 merged through the gate with all 11 checks green.
 
 ---
+
+## Historical intent (below) — kept as the record of what was planned on 2026-09-02
 
 ## 1. Intent
 
