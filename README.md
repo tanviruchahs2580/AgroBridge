@@ -65,8 +65,8 @@ npm run dev --workspace apps/web          # Web on :5173 (proxies /api to :4000)
 ## Tests
 
 ```bash
-npx vitest run        # inside apps/api — 131 tests (SQLite profile, 1 PG-gated skip by design);
-                      # 132/132 with npm run test:pg provisioned (docker postgres)
+npx vitest run        # inside apps/api — 148 tests (SQLite profile, 1 PG-gated skip by design);
+                      # 149/149 with npm run test:pg provisioned (docker postgres)
 ```
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
@@ -85,12 +85,21 @@ metrics/RBAC/suspension, notifications, offline-sync idempotency and security ba
 - Generate strong JWT secrets. The API refuses to boot in production with default secrets.
 - Docker: `docker compose up --build` after configuring required env vars (dev composition).
 
+## Shipping to Google Play
+
+The whole submission package is in the repository: `docs/play/release-runbook.md` (domain →
+AAB → Console, step by step), `docs/play/listing-copy.md` (paste-ready bn/en copy),
+`docs/play/data-safety.md` (Console answers traced to the code), `docs/play/reviewer-access.md`
+(+ `scripts/play/create-reviewer-account.mjs`), and the artwork in `play/`. The in-app account
+deletion Google Play requires lives at **Settings → Account**, and the public pages it points
+at are served by the SPA at `/privacy`, `/terms` and `/account-deletion`.
+
 ## Documentation index
 
 See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [database](docs/database.md)
 · [ai](docs/ai.md) · [security](docs/security.md) · [testing](docs/testing.md)
 · [deployment](docs/deployment.md) · [operations](docs/operations.md)
-· [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md)
+· [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md) · [Play release runbook](docs/play/release-runbook.md)
 
 ## License
 

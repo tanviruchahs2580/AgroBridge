@@ -353,3 +353,97 @@ WEB_ORIGIN-এ comma-list যোগ করতে হবে।
 workflow_dispatch (run 38956506053) চালানো/যাচাই। Production postgres path-এ এখন নতুন
 integration builds-ও সম্ভব (postinstall fix commit-এর পরে integration বিল্ড আবার চেষ্টা
 হবে push-trigger-এ)।
+
+## 2026-10-17 — Play Store launch readiness (round 10)
+
+Owner ask: পূর্ণ QA/critic রিভিউ, প্রতিটা প্যারামিটারে সমস্যা ও উন্নতির জায়গা খুঁজে ঠিক করা, এবং
+ডোমেইন/হোস্ট কানেক্ট করলেই যেন Play Store সাবমিশন-রেডি হয় — SWE SOP ও best practice
+সর্বোপরি মেনে। শুরুতে পূর্ণ প্ল্যান (`docs/PLAY_STORE_LAUNCH_PLAN.md`) — blind কাজ নয়।
+
+**পদ্ধতি:** তিনটি স্বাধীন read-only অডিট (web frontend, API/security, Android/Play release path)
+HEAD `e2fa9f1`-এ চালানো হয়; প্রতিটি ফাইন্ডিং নিজে source পড়ে যাচাই করা হয়েছে — অডিটের দাবির
+কিছু অংশ ভুল প্রমাণিতও হয়েছে (নিচে নোট)। তারপর অগ্রাধিকার অনুযায়ী ফিক্স + প্রতি দাবির জন্য
+টেস্ট/ব্রাউজার প্রমাণ।
+
+**Preserved (feature lock):** কোনো API contract/permission/copy নিচে নামানো হয়নি; সব বদল
+additive বা বাগ-ফিক্স। ডেটাবেস মাইগ্রেশন লাগেনি (কোনো schema পরিবর্তন নেই)।
+
+**ডিসকভারি-গুরুত্বপূর্ণ:** লোকাল `node_modules` অসম্পূর্ণ ছিল (lockfile `apps/web/node_modules`
+প্রত্যাশা করে, বাস্তবে ছিল না) → web typecheck/vitest/eslint লোকালি মিথ্যা-লাল ছিল। `npm ci`
+দিয়ে হুবহু locked tree ফেরানো হয়েছে; এরপর সব gate বাস্তবায়নমূলক সবুজ। **এটাই ছিল round-10-এর
+প্রথম আসল ব্লকার (টুলচেইন, কোড নয়)।**
+
+**P0 (ব্যবহারকারীর নাগালে থাকা):**
+1. **Order expand-এ ক্র্যাশ** — `MyOrders` `item.product.name`/`order.addressLine` পড়ত; API
+   snapshot (`nameSnapshot`/`unitPricePaisa`) ও `shipping*` পাঠায় → যেকোনো অর্ডার খুললেই
+   ErrorBoundary। ফিক্স + `tests/round10-regressions.test.ts`-এ payload contract।
+2. **চেকআউট ডেলিভারি ঠিকানা ফেলে দিত** — wizard address/phone যাচাই করে **body ছাড়াই** POST
+   করত, API `safeParse().data` চুপচাপ ফেলে দিত (অর্ডার ঠিকানাহীন হয়ে তৈরি, কিন্তু 201)।
+   এখন client body পাঠায় + API `validate` দিয়ে 400 দেয়; পুরোনো client-দের body-হীন রিকোয়েস্ট
+   এখনও গ্রহণযোগ্য।
+3. **Production-এ বিনামূল্যে পেমেন্ট simulate** — `PAYMENT_PROVIDER` ডিফল্ট sandbox এবং
+   `/:id/confirm` শুধু non-sandbox-এ আটকাত → লাইভ ডিপ্লয়ে অর্ডার/মেম্বারশিপ "PAID" হয়ে যেত
+   কোনো টাকা ছাড়াই। এখন production-এ sandbox confirm-এ স্পষ্ট
+   `ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1` লাগে; নাহলে `PAYMENT_GATEWAY_NOT_CONFIGURED` এবং
+   UI সৎভাবে "অর্ডার হয়েছে, পেমেন্ট বাকি" দেখায়।
+4. **Play-এর আবশ্যক account deletion ছিল না** — API এন্ডপয়েন্ট ছিল, UI-তে ঢোকার পথ নেই, অথচ
+   প্রাইভেসি পলিসি "Settings → Delete Account" দাবি করত। এখন `/settings` (প্রোফাইল, ফোন যাচাই,
+   পলিসি লিংক, danger zone) + পাবলিক `/privacy`, `/terms`, `/account-deletion`।
+   **প্রমাণ:** `e2e/settings-account.spec.ts` — throwaway অ্যাকাউন্ট UI থেকে মুছে সেশন শেষ, এরপর
+   একই credentials দিয়ে login **401** (অর্থাৎ সত্যিই মোছা হয়েছে)।
+5. **Android release AAB চুপচাপ debug-signed হতো** — Gradle `android/key.properties` পড়ত,
+   CI `android/app/key.properties` লিখত; আর fail-করার বদলে debug key-তে fallback করত। এখন
+   দুই পথই পড়ে, fallback নেই (unsigned থাকে), এবং workflow `apksigner` দিয়ে সত্যিকার হস্তাক্ষর
+   যাচাই না হলে fail করে।
+
+**P1:** territory-scope ছাড়া by-id mutation (procurement review/payout/booking assign);
+`/admin/users`-এ permission gate ছিল না (মিড-টিয়ার রোল সব PII পড়ত); ADMIN → SUPER_ADMIN
+escalation; analytics sendBeacon-এ Authorization হেডার না থাকায় প্রতি batch 401-এ হারিয়ে যেত
+(admin analytics খালি দেখাত); APK-এ `navigator.geolocation` কোনোদিন কাজ করত না → আবহাওয়া
+district-ভিত্তিক (৬৪ জেলা → ৮ বিভাগ) এবং **কোনো location permission ঘোষণা করা হয় না**;
+offline queue checkout replay (ডুপ্লিকেট অর্ডার ঝুঁকি); jwt HS256 pin, OTP verify limiter,
+logout body validation, P2003→409, audit row যোগ।
+
+**Play প্যাকেজ:** `docs/play/{release-runbook,listing-copy,data-safety,reviewer-access}.md`,
+`scripts/play/create-reviewer-account.mjs`, `scripts/play/generate-play-assets.py`,
+`scripts/play/capture-screenshots.mjs`, `play/` (512 icon, 1024×500 feature graphic, ১০টি
+1080×1920 স্ক্রিনশট **চলমান অ্যাপ থেকে** ধারণ করা — mockup নয়)। `version.json` = web bundle ও
+Android versionName/versionCode-এর একক সূত্র; বিল্ড স্ট্যাম্প হিসেবে `dist/version.json`
+(version + commit) এবং Settings-এ দৃশ্যমান।
+
+**Android পরিষ্কার:** CAMERA permission ও uses-feature বাদ (file-chooser capture-এর জন্য
+প্রয়োজন নেই; ঘোষিত-কিন্তু-অননুমোদিত CAMERA Android 11+-এ capture ভাঙতে পারে); release
+build-এ কোনো cleartext ব্যতিক্রম নেই (dev exceptions debug source set-এ); Android 15
+status-bar inset; ৩টি ঘনত্বে splash emblem (আগে শুধু xhdpi ছিল → xxhdpi/xxxhdpi-তে আপস্কেল);
+অব্যবহৃত splash drawable/template icon/template test মুছে ফেলা; inert SplashScreen plugin
+config বাদ (plugin ইনস্টলই নেই)। **WebView-wrapper ন্যূনতম-কার্যকারিতা ঝুঁকি** ও FCM push
+সুযোগ হিসেবে আলাদা নথিবদ্ধ — Firebase প্রজেক্ট owner-নির্ভর (A-6)।
+
+**সততাসম্পন্ন সংশোধন (নিজের দাবি নিজে ভেঙেছি):** Home-এর "Health score" আসলে নিজস্ব ব্যাখ্যাযোগ্য
+readiness মিটার ছিল — এখন "খামার প্রস্তুতি" + ভিত্তি লেখা, এবং খামার না থাকলে সংখ্যা দেখানো হয়
+না (আগে ৬০% floor দেখাত)। h1 হেডারে gear আইকন যোগ করে 360px-এ ট্যাগলাইন wrap করছিল → tagline
+`sm:` থেকে দেখানো, `shrink-0` action group, ডুপ্লিকেট ৯৪% লেখা বাদ। Public deletion পেজে লম্বা
+URL viewport ছাড়িয়ে যেত → এখন tappable `break-all` লিংক। e2e-তে ধরা পড়া ২টি টেস্ট-বাগ (ডাবল
+body read; ভুল submit locator) ঠিক করা হয়েছে।
+
+**অডিট-দাবি যাচাইয়ে বাতিল:** `/admin/analytics/summary`-এ `admin:metrics` আগে থেকেই ছিল;
+`login-bg-mobile-full.webp` প্রভৃতি `New folder` ফাইল untracked; VitePWA বাদ দেওয়া ইচ্ছাকৃত
+(কমেন্টে কারণ আছে)।
+
+**Gates (সবগুলো লোকালি চালানো, evidence `qa-evidence/R10-*.log`):**
+API suite **148 passed / 1 skipped** (এগারোটি নতুন রিগ্রেশন টেস্টসহ; আগে 137+1);
+web unit **108**; web eslint **0 problems**; i18n check 320 referenced / 0 missing;
+api+web typecheck পরিষ্কার; api+web build pass (`dist/version.json` = 1.4.0 + commit e2fa9f1);
+**Playwright e2e 24/24 `--workers=1`** (আগের ২০ + ৪ নতুন)। তারপর: `git diff --check`,
+স্টেজড diff রিভিউ, commit+push, remote CI ও Android release workflow dispatch।
+
+**Background-process নোট:** round-7-এর মতো আবার prisma generate EPERM (চলমান `tsx watch` API
+query-engine DLL ধরে রাখে) → API dev process (PID 22256) বন্ধ করে suite চালানো হয়েছে;
+অন্য প্রজেক্টের :5173 (BanglaGPT) ও :3117 (AI Automation Agency) সার্ভার ইচ্ছাকৃতভাবে
+অস্পর্শিত।
+
+**Deferred (কারণসহ নথিবদ্ধ, `docs/PLAY_STORE_LAUNCH_PLAN.md` §E):** live gateway credentials
+ও FCM (owner-নির্ভর); S3 object storage (bucket লাগে — নাহলে production startup-এ স্পষ্ট
+warning); localStorage→httpOnly cookie (ক্রস-কাটিং auth পরিবর্তন, pre-launch ঝুঁকি); R8
+minify (ডিভাইস ভেরিফিকেশন ছাড়া WebView bridge ভাঙার ঝুঁকি); monochrome icon layer (রেপোতে
+brand vector source নেই — হাতে আঁকা glyph দিলে দ্বিতীয় অসামঞ্জস্য mark তৈরি হতো)।

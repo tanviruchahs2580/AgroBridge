@@ -1,6 +1,13 @@
 # গোপনীয়তা নীতি / Privacy Policy
 
-**সংস্করণ / Version:** 1.0 · **সর্বশেষ হালনাগাদ / Last updated:** 2026-08-26
+**সংস্করণ / Version:** 1.1 · **সর্বশেষ হালনাগাদ / Last updated:** 2026-10-17
+
+> **Canonical, published version:** the app serves this policy at `/privacy` on the deployed
+> domain, and that page is what Google Play links to. The authoritative text lives in
+> `apps/web/src/features/legal/content.ts`; this file is kept in step with it. Corrections in
+> 1.1: login is by mobile number **and password** (a verification code is only used to verify
+> the phone number later, e.g. before a withdrawal); the app does **not** use a crash-reporting
+> SDK and does **not** read device identifiers; the app does **not** request device location.
 
 ---
 
@@ -24,13 +31,13 @@
 | খামার/জমির তথ্য | ঠিকানা, প্লটের অবস্থান (GPS) |
 | ফসলের ছবি | রোগ শনাক্তকরণের জন্য |
 | লেনদেন/ওয়ালেটের হিসাব | টাকা-পয়সা, অর্ডার, পেমেন্ট |
-| ডিভাইসের তথ্য | ফোনের মডেল, অ্যাপ ভার্সন, ক্র্যাশ রিপোর্ট |
+| অ্যাপ ব্যবহারের সাধারণ ইভেন্ট | কোন পাতা খুলেছেন (নাম-পরিচয় ছাড়া); কোনো ক্র্যাশ-রিপোর্টিং SDK বা ডিভাইস-আইডি সংগ্রহ করা হয় না |
 
 আমরা আপনার ফোনের কন্টাক্ট লিস্ট, SMS বা ছবির গ্যালারি পড়ি না (আপনি নিজে যে ছবি পাঠান সেটি ছাড়া)।
 
 ### ৩. কেন রাখি (উদ্দেশ্য)
 
-1. অ্যাকাউন্ট খোলা ও লগইন (ফোন OTP দিয়ে)।
+1. অ্যাকাউন্ট খোলা ও লগইন (মোবাইল নম্বর ও পাসওয়ার্ড)। নম্বর যাচাইয়ের কোড শুধু ফোন যাচাই করতে ব্যবহৃত হয় (যেমন টাকা তোলার আগে)।
 2. আপনার জমি ও ফসলের পরামর্শ (আবহাওয়া, AI উপদেশ, রোগ শনাক্তকরণ)।
 3. বাজার: পণ্য কেনা, ফসল বিক্রির অফার, ডিলারের সাথে যোগাযোগ।
 4. পেমেন্ট ও ওয়ালেট হিসাব রাখা।
@@ -39,7 +46,7 @@
 ### ৪. আইনি ভিত্তি
 
 - **চুক্তি:** অ্যাকাউন্ট, অর্ডার ও পেমেন্ট পরিচালনার জন্য।
-- **সম্মতি:** ক্যামেরা/অবস্থানের মতো ফোনের অনুমতি — চাইলে বন্ধ করতে পারেন।
+- **সম্মতি:** আপনি যে ছবি পাঠান এবং যে ঐচ্ছিক তথ্য দেন। অ্যাপ কোনো অবস্থান (location) অনুমতি চায় না — আবহাওয়া আপনার দেওয়া জেলা/উপজেলা অনুযায়ী দেখানো হয়।
 - **বৈধ স্বার্থ:** জালিয়াতি ঠেকানো ও পরিষেবা নিরাপদ রাখা।
 - **আইনগত বাধ্যবাধকতা:** আর্থিক হিসাব রাখা (নিচের ছক দেখুন)।
 
@@ -58,15 +65,15 @@
 | SMS প্রোভাইডার | OTP পাঠানো |
 | SSLCommerz | অনলাইন পেমেন্ট প্রক্রিয়াকরণ |
 | হোস্টিং প্রোভাইডার | সার্ভার চালানো (বাংলাদেশ/সিঙ্গাপুর অঞ্চল) |
-| ক্র্যাশ/অ্যানালিটিক্স | আমাদের নিজস্ব (self-hosted) — বিজ্ঞাপনকারীকে বিক্রি হয় না |
+| অ্যানালিটিক্স | আমাদের নিজস্ব (self-hosted) — কোনো তৃতীয় পক্ষের SDK নয়, বিজ্ঞাপনকারীকে বিক্রি হয় না |
 
 আমরা আপনার তথ্য কাউকে বিক্রি করি না।
 
 ### ৭. আপনার অধিকার
 
 - **দেখা:** আপনার তথ্যের কপি চাইতে পারেন।
-- **ঠিক করা:** ভুল তথ্য শুধাতে পারেন (অ্যাপের প্রোফাইল/সেটিংস থেকে)।
-- **মোছা:** অ্যাপের ভেতরে **Settings → Delete Account** দিলে অ্যাকাউন্ট ও ব্যক্তিগত তথ্য মুছে যাবে।
+- **ঠিক করা:** ভুল তথ্য শুধাতে পারেন (অ্যাপের সেটিংস → প্রোফাইল থেকে)।
+- **মোছা:** অ্যাপের ভেতরে **সেটিংস → অ্যাকাউন্ট → অ্যাকাউন্ট মুছে ফেলুন**, অথবা ওয়েব থেকে `/account-deletion`। নাম, ফোন, ইমেইল ও পাসওয়ার্ড সাথে সাথে মুছে যায়।
   মনে রাখবেন: আর্থিক রেকর্ড আইন অনুযায়ী ৫ বছর রাখতে হয়; ব্যাকআপ থেকে ৩০ দিনের মধ্যে মুছে যায়।
 - অভিযোগ করতে পারেন — নিচের ঠিকানায়।
 
@@ -76,7 +83,7 @@ AgroBridge শুধু **১৮ বছর বা তার বেশি বয�
 
 ### ৯. যোগাযোগ
 
-AgroBridge (maintainer: github.com/tanviruchahs2580) · গোপনীয়তা ও ডেটা অনুরোধ: GitHub ইস্যু বা নিরাপত্তা-রিপোর্ট চ্যানেল https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new · (বাণিজ্যিক যোগাযোগ ঠিকানা প্রকাশের আগে আইনি পরামর্শ নেওয়া হবে)
+AgroBridge · গোপনীয়তা ও ডেটা অনুরোধ: https://github.com/tanviruchahs2580/AgroBridge/issues/new · নিরাপত্তা রিপোর্ট: https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new
 
 ---
 
@@ -100,13 +107,13 @@ Written in plain language. If anything is unclear, call our support line.
 | Farm/location data | farm address, plot GPS location |
 | Crop photos | for disease detection |
 | Transaction/wallet records | orders, payments, wallet balance |
-| Device info | phone model, app version, crash reports |
+| Basic app-usage events | which screens were opened (no identifying data); no crash-reporting SDK and no device identifiers are collected |
 
 We do not read your contacts, SMS, or photo gallery (only photos you choose to send).
 
 ### 3. Why we use it (purposes)
 
-1. Account creation and login (phone OTP).
+1. Account creation and login (mobile number and password). A verification code is used only to verify your phone number later, for example before a withdrawal.
 2. Farm advice: weather advisories, AI advisory, crop disease detection.
 3. Marketplace: buying inputs, selling produce offers, dealer communication.
 4. Processing payments and keeping your wallet ledger.
@@ -115,7 +122,7 @@ We do not read your contacts, SMS, or photo gallery (only photos you choose to s
 ### 4. Legal bases
 
 - **Contract:** running your account, orders and payments.
-- **Consent:** phone permissions like camera/location — you can revoke them.
+- **Consent:** photos you upload and optional details you provide. The app requests no location permission — weather uses the district/upazila you entered.
 - **Legitimate interests:** fraud prevention and keeping the service safe.
 - **Legal obligation:** keeping financial records (see table below).
 
@@ -134,16 +141,17 @@ We do not read your contacts, SMS, or photo gallery (only photos you choose to s
 | SMS provider | sending OTP codes |
 | SSLCommerz | processing online payments |
 | Hosting provider | running our servers (Bangladesh/Singapore region) |
-| Crash/analytics | self-hosted by us — never sold to advertisers |
+| Analytics | self-hosted by us, no third-party SDK — never sold to advertisers |
 
 We do not sell your data.
 
 ### 7. Your rights
 
 - **Access:** ask for a copy of your data.
-- **Correction:** fix wrong data in Profile/Settings in the app.
-- **Deletion:** use **Settings → Delete Account** in the app. Note: financial records are kept
-  5 years as required by law; backup copies expire within 30 days.
+- **Correction:** fix wrong data in Settings → Profile in the app.
+- **Deletion:** use **Settings → Account → Delete account** in the app, or request it from the web
+  at `/account-deletion`. Your name, phone, email and password are erased immediately. Note:
+  financial records are kept 5 years as required by law; backup copies expire within 30 days.
 - You can complain using the contact below.
 
 ### 8. Children
@@ -152,4 +160,4 @@ AgroBridge is only for people **18 or older**. Accounts found to belong to minor
 
 ### 9. Contact
 
-AgroBridge (maintainer: github.com/tanviruchahs2580) · Privacy & data requests: via GitHub issues or https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new · (an operational commercial contact address will be published after legal review)
+AgroBridge · Privacy & data requests: https://github.com/tanviruchahs2580/AgroBridge/issues/new · Security reports: https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new
