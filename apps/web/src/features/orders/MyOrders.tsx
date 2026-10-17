@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "../../lib/api";
 import type { OrderWithItems } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
@@ -27,36 +28,39 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   CANCELLED: "danger",
 };
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function MyOrders() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
-  const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // The screen reads one endpoint, so it holds one resource: the list owns the
+  // loading, the failure and the refetch after a delete.
+  const ordersRes = useResource<OrderWithItems[]>("orders", async () => {
+    // GET /orders returns a plain array (contract asserted in
+    // apps/api/tests/journey-marketplace.test.ts) — not an { items } envelope.
+    const data = await api<OrderWithItems[] | { items?: OrderWithItems[] }>("GET", "/orders");
+    return Array.isArray(data) ? data : (data?.items ?? []);
+  });
 
-  async function load() {
-    setLoading(true);
-    setLoadError(false);
-    try {
-      // GET /orders returns a plain array (contract asserted in
-      // apps/api/tests/journey-marketplace.test.ts) — not an { items } envelope.
-      const data = await api<OrderWithItems[] | { items?: OrderWithItems[] }>("GET", "/orders");
-      setOrders(Array.isArray(data) ? data : (data?.items ?? []));
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const orders = ordersRes.data ?? [];
 
   /** Finished orders can be removed; in-flight ones must be cancelled first. */
   function deletable(order: OrderWithItems): boolean {
@@ -74,13 +78,15 @@ export default function MyOrders() {
     try {
       await api("DELETE", `/orders/${order.id}`);
       toast.success(t("orderDeletedToast", lang));
-      await load();
+      // The deleted row leaves the list: the old code awaited `load()`, which
+      // refetched exactly this one resource.
+      invalidate("orders");
     } catch (err) {
       toast.error(mapError(err, lang));
     }
   }
 
-  const filtered = (orders || []).filter((o) => {
+  const filtered = orders.filter((o) => {
     if (tab === "active") return o.status !== "DELIVERED" && o.status !== "CANCELLED";
     if (tab === "delivered") return o.status === "DELIVERED";
     return true;
@@ -118,16 +124,9 @@ export default function MyOrders() {
         ))}
       </div>
 
-      {loadError && (
-        <div className="space-y-2">
-          <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button variant="outline" onClick={() => void load()}>
-            {t("retry", lang)}
-          </Button>
-        </div>
-      )}
+      <BlockError error={ordersRes.error} retryLabel={t("retry", lang)} onRetry={() => void ordersRes.reload()} />
 
-      {loading && (
+      {ordersRes.loading && (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
             <Card key={i} className="space-y-3">
@@ -139,7 +138,7 @@ export default function MyOrders() {
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
+      {!ordersRes.loading && filtered.length === 0 && !ordersRes.error && (
         <EmptyState
           icon={<Package className="h-10 w-10 text-stone-300" aria-hidden />}
           title={t("ordEmptyTitle", lang)}
@@ -149,7 +148,7 @@ export default function MyOrders() {
         />
       )}
 
-      {!loading && filtered.map((order) => {
+      {!ordersRes.loading && filtered.map((order) => {
         const isExpanded = expandedId === order.id;
         const refunded = order.paymentStatus === "REFUNDED";
 

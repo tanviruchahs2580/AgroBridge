@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../../lib/api";
 import type { AppNotification, NotificationPreferences, NotificationsData } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -25,6 +26,17 @@ const TYPE_ICONS: Record<string, ReactNode> = {
 };
 
 type TabKey = "ALL" | "CRITICAL" | "ACTION" | "INFO";
+
+/**
+ * The list payload travels with the tab it was fetched for: only an ALL-tab
+ * response carries the *unfiltered* `unread` (a filtered response's `unread` is
+ * the count within the filtered items), so the header counts may be taken from
+ * an ALL payload and from nothing else.
+ */
+interface NotificationsFeed {
+  tab: TabKey;
+  payload: NotificationsData;
+}
 
 /** Toggle switch (3 prefs share one pattern); keeps the native role=switch semantics. */
 function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: string; checked: boolean; onToggle: () => void }) {
@@ -55,61 +67,61 @@ const TABS: { id: TabKey; key: DictKey }[] = [
   { id: "INFO", key: "notifCategoryINFO" },
 ];
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function Notifications() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
 
-  const [items, setItems] = useState<AppNotification[]>([]);
+  const [tab, setTab] = useState<TabKey>("ALL");
+  const [markingAll, setMarkingAll] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+
+  // The screen reads two independent endpoints, so it holds two independent
+  // resources: a failed preferences fetch never hides the list, and vice versa.
+  // The category is a query parameter, so it rides `deps` — switching tabs
+  // refetches this resource exactly as the old load(tab) did, and nothing else.
+  const notificationsRes = useResource<NotificationsFeed>(
+    "notifications",
+    async () => {
+      const which = tab;
+      const payload = await api<NotificationsData>("GET", `/notifications${which === "ALL" ? "" : `?category=${which}`}`);
+      return { tab: which, payload };
+    },
+    [tab]
+  );
+  const prefsRes = useResource<NotificationPreferences>("notifications-preferences", () => api<NotificationPreferences>("GET", "/notifications/preferences"));
+
+  const items: AppNotification[] = notificationsRes.data?.payload.items ?? [];
+  const prefs = prefsRes.data;
+
   const [unread, setUnread] = useState(0);
   const [metaCounts, setMetaCounts] = useState<{ critical: number; action: number }>({ critical: 0, action: 0 });
-  const [tab, setTab] = useState<TabKey>("ALL");
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [markingAll, setMarkingAll] = useState(false);
 
-  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
-  const [prefsOpen, setPrefsOpen] = useState(false);
-  const [prefsFailed, setPrefsFailed] = useState(false);
-
-  const load = useCallback(
-    async (which: TabKey) => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const q = which === "ALL" ? "" : `?category=${which}`;
-        const data = await api<NotificationsData>(
-          "GET",
-          `/notifications${q}`
-        );
-        setItems(data.items);
-        if (which === "ALL") {
-          // Meta only carries critical/action unread counts (verified against
-          // notifications routes); the INFO count is derived client-side.
-          setUnread(data.unread);
-          setMetaCounts({ critical: data.counts?.critical ?? 0, action: data.counts?.action ?? 0 });
-        }
-      } catch (err) {
-        setLoadError(mapError(err, lang));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [lang]
-  );
-
+  // Meta only carries critical/action unread counts (verified against
+  // notifications routes); the INFO count is derived client-side. This mirror
+  // keeps the old stickiness exactly: a filtered result never rewrites the
+  // header counts, and a failed load leaves the last good ones in place.
   useEffect(() => {
-    void load(tab);
-  }, [tab, load]);
-
-  useEffect(() => {
-    api<NotificationPreferences>("GET", "/notifications/preferences")
-      .then((p) => {
-        setPrefs(p);
-        setPrefsFailed(false);
-      })
-      .catch(() => setPrefsFailed(true));
-  }, []);
+    const feed = notificationsRes.data;
+    if (!feed || feed.tab !== "ALL") return;
+    setUnread(feed.payload.unread);
+    setMetaCounts({ critical: feed.payload.counts?.critical ?? 0, action: feed.payload.counts?.action ?? 0 });
+  }, [notificationsRes.data]);
 
   async function markAll() {
     setMarkingAll(true);
@@ -117,11 +129,13 @@ export default function Notifications() {
       await api("POST", "/notifications/read", { all: true });
       // {all:true} marks every notification read server-side, so the counters
       // are deterministically zero. The visible tab's list reloads below, but a
-      // filtered tab never recomputes `unread`/`metaCounts` (load() only does
-      // that on the ALL tab) — zero them here or the header badge goes stale.
+      // filtered tab never recomputes `unread`/`metaCounts` (only an ALL result
+      // does) — zero them here or the header badge goes stale.
       setUnread(0);
       setMetaCounts({ critical: 0, action: 0 });
-      await load(tab);
+      // The old code awaited load(tab), which refetched exactly this resource
+      // (the preferences are untouched by a read).
+      invalidate("notifications");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -131,13 +145,15 @@ export default function Notifications() {
 
   async function togglePref(key: keyof NotificationPreferences) {
     if (!prefs) return;
+    const previous = prefs;
     const next: NotificationPreferences = { ...prefs, [key]: !prefs[key] };
-    setPrefs(next);
+    // Optimistic write without a round trip; the PATCH does not refetch.
+    prefsRes.setData(next);
     try {
       await api("PATCH", "/notifications/preferences", next);
       toast.success(t("prefsSavedToast", lang));
     } catch (err) {
-      setPrefs(prefs); // revert on failure
+      prefsRes.setData(previous); // revert on failure
       toast.error(mapError(err, lang));
     }
   }
@@ -197,12 +213,14 @@ export default function Notifications() {
         })}
       </div>
 
-      {/* Preferences panel */}
+      {/* Preferences panel — its own resource: a failure here shows its own
+          banner with retry and never affects the list. */}
       {prefsOpen &&
         (prefs ? (
           <Card>
             <h2 className="font-semibold text-stone-700">{t("prefsTitle", lang)}</h2>
-            <p className="mb-3 mt-1 text-xs text-stone-600">{t("prefsDescription", lang)}</p>            <div className="space-y-2">
+            <p className="mb-3 mt-1 text-xs text-stone-600">{t("prefsDescription", lang)}</p>
+            <div className="space-y-2">
               {([
                 ["critical", "prefCategoryCritical"],
                 ["action", "prefCategoryAction"],
@@ -217,26 +235,28 @@ export default function Notifications() {
               ))}
             </div>
           </Card>
-        ) : prefsFailed ? (
-          <ErrorBanner message={t("errorGeneric", lang)} />
-        ) : (
+        ) : prefsRes.loading ? (
           <Card><Skeleton className="h-24 w-full" /></Card>
+        ) : (
+          // The old catch discarded the fetch error and always showed the
+          // generic copy; the copy is unchanged, the retry is the resource's.
+          <BlockError
+            error={prefsRes.error ? t("errorGeneric", lang) : null}
+            retryLabel={t("retry", lang)}
+            onRetry={() => void prefsRes.reload()}
+          />
         ))}
 
-      {loadError && (
-        <div className="space-y-2">
-          <ErrorBanner message={loadError} />
-          <Button variant="outline" onClick={() => void load(tab)}>{t("retry", lang)}</Button>
-        </div>
-      )}
+      {/* The list: its own error with retry. */}
+      <BlockError error={notificationsRes.error} retryLabel={t("retry", lang)} onRetry={() => void notificationsRes.reload()} />
 
-      {loading && !loadError ? (
+      {notificationsRes.loading ? (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
             <Card key={i} className="flex gap-3"><Skeleton className="h-full w-8" /><div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-3 w-full" /></div></Card>
           ))}
         </div>
-      ) : items.length === 0 && !loadError ? (
+      ) : items.length === 0 && !notificationsRes.error ? (
         <EmptyState icon={<BellOff className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noNotifications", lang)} />
       ) : (
         <div className="space-y-2">

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BadgeCheck, CircleAlert, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { api, clearTokens, ApiError } from "../../lib/api";
 import type { Me, OtpRequestResult } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
@@ -24,9 +25,11 @@ export default function Settings() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  // One concern — the signed-in account (GET /auth/me) — so one resource: the
+  // profile, phone-verification and footer sections all read it, exactly as the
+  // old single fetch did, and there is no second key to invent.
+  const meRes = useResource<Me>("auth-me", () => api<Me>("GET", "/auth/me"));
+  const me = meRes.data;
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,28 +48,20 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function load() {
-    setLoading(true);
-    setLoadError(false);
-    try {
-      const data = await api<Me>("GET", "/auth/me");
-      setMe(data);
-      setFullName(data.fullName);
-      setEmail(data.email ?? "");
-      setDistrict(data.farmerProfile?.district ?? "");
-      setUpazila(data.farmerProfile?.upazila ?? "");
-      setAddress(data.farmerProfile?.address ?? "");
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Prefill: every successful /auth/me result resets the form fields, so a save
+  // or a phone verification re-normalises them from the server — the old
+  // load() did this on the same trigger. A *layout* effect, not an effect: the
+  // fields must be filled in the same commit that first paints the form, the
+  // way the old load() set them before the form existed, so no frame ever shows
+  // the inputs empty.
+  useLayoutEffect(() => {
+    if (!me) return;
+    setFullName(me.fullName);
+    setEmail(me.email ?? "");
+    setDistrict(me.farmerProfile?.district ?? "");
+    setUpazila(me.farmerProfile?.upazila ?? "");
+    setAddress(me.farmerProfile?.address ?? "");
+  }, [me]);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -87,7 +82,9 @@ export default function Settings() {
         ...(address.trim() ? { address: address.trim() } : {}),
       });
       toast.success(t("profileSavedToast", lang));
-      await load();
+      // The old code awaited load(): that refetched exactly this endpoint, and
+      // the prefill effect re-syncs the fields from the fresh result.
+      invalidate("auth-me");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -124,7 +121,9 @@ export default function Settings() {
       setOtpSent(false);
       setOtpCode("");
       setDevCode(null);
-      await load();
+      // Same endpoint and same refetch set as the old `await load()`: the
+      // verified badge reads the fresh phoneVerified flag.
+      invalidate("auth-me");
     } catch (err) {
       setOtpErr(mapError(err, lang));
     } finally {
@@ -161,7 +160,7 @@ export default function Settings() {
     }
   }
 
-  if (loading) {
+  if (meRes.loading) {
     return (
       <div className="min-w-0 space-y-4">
         <Skeleton className="h-8 w-40" />
@@ -171,11 +170,13 @@ export default function Settings() {
     );
   }
 
-  if (loadError || !me) {
+  if (meRes.error || !me) {
     return (
       <div className="min-w-0 space-y-3">
+        {/* The old catch discarded the error and showed the generic copy; the
+            copy is unchanged (the retry is now the resource's reload). */}
         <ErrorBanner message={t("errorGeneric", lang)} />
-        <Button variant="outline" onClick={() => void load()}>
+        <Button variant="outline" onClick={() => void meRes.reload()}>
           {t("retry", lang)}
         </Button>
       </div>
