@@ -11,6 +11,23 @@ All notable changes to AgroBridge are documented here.
 - **Real payment-gateway path.** `/payments/intent` now invokes the configured provider (`providers/payment/index.ts`), returns the hosted-checkout URL, and the gateway returns through a public, trust-nothing callback (`/payments/gateway/return/:outcome`) that verifies with the provider before anything is marked paid. New `GET /payments/:id/status` reconciles a payment after the buyer returns.
 - **Play submission package**: `docs/play/release-runbook.md`, `listing-copy.md`, `data-safety.md`, `reviewer-access.md`, `scripts/play/create-reviewer-account.mjs`, generated artwork in `play/` (512 icon, 1024×500 feature graphic, ten 1080×1920 screenshots captured from the running app), and `version.json` as the single source of truth for the web bundle and Android `versionName`/`versionCode`.
 
+### Fixed (2026-10-17 live delivery round)
+- **The gateway-return redirect built a malformed URL in production**: `WEB_ORIGIN` is a
+  comma-separated allow-list (site origin + the Capacitor WebView origin) and the handler
+  fed the whole string to `new URL()`, so live answered 303 with
+  `https://…vercel.app,https/orders?...`. `primaryOriginOf()` picks and validates the first
+  entry, unit-tested against list/whitespace/single/empty/non-URL inputs.
+
+### Added (2026-10-17 live delivery round)
+- **scripts/qa/full-functional-sweep.mjs** — a 39-check user-level sweep of every screen and
+  action the Playwright specs do not cover (advisor, sell-crop with its confirm dialog,
+  notifications, booking, withdrawal validation, phone verification, profile round-trip,
+  language/theme persistence, admin surfaces, offline banner, 404). Runs against the local
+  stack or production (`SWEEP_MODE=live`), keeps full Playwright failure reasons so a
+  selector problem is not mistaken for an application one, and skips record-creating flows
+  on production.
+- `qa-evidence/` is now gitignored (local QA artifacts: sweep screenshots/results, test logs).
+
 ### Fixed (2026-10-17 launch round)
 - **CI pinned a setup-node SHA that does not exist** (`…fe5028`; the real v7.0.0 commit is `…fe5020`). Jobs on that pin ran only while GitHub's action-resolution cache held the entry, and died in "Set up job" as soon as a job's content changed — which is what broke the web-quality job on this push, and would have broken `android-release.yml`, the only path that produces the Play upload artifact, on its first run. Every pinned action in `.github/workflows` is now verified against its upstream repository; this was the only non-existent one.
 - **Order history crashed when expanded (P0):** `MyOrders` read `item.product.name`/`pricePaisa` and `order.addressLine`/`phone` — none of which the API sends (line items are snapshots, the order carries `shipping*`). Expanding any order threw into the error boundary. It now renders the snapshot fields it is actually given, shows the payment state, and says so plainly when an order predates the delivery form.

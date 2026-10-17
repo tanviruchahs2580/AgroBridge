@@ -477,3 +477,66 @@ lint + i18n check + unit + build চালায় (45s)। CodeQL run 39003351
 `android-release.yml` dispatch (run 39003660938): **"Set up job" ✓ ও checkout ✓ পেরিয়ে** এখন
 শুধু "Fail fast if signing secrets are absent"-এ থামে — অর্থাৎ রিলিজ পথ কার্যকর, এবং
 শুধু keystore (owner-নির্ভর) বাকি; guard-টা ঠিক কাজ করছে (ভুল-হস্তাকৃত artifact তৈরি হবে না)।
+
+## 2026-10-17 — লাইভ ডেলিভারি + ব্যবহারকারী-স্তরের যাচাই (round 11)
+
+Owner ask: BanglaGPT/AgroBridge-নাম বিভ্রান্তি পরীক্ষা, সব ফাংশন ব্যবহারকারী হয়ে টেস্ট, তারপর
+লাইভ ডেপ্লয় (Vercel), CI/CD full SOP, লাইভ সিঙ্ক ও ফাইনাল রিপোর্ট।
+
+### নাম-বিভ্রান্তি: কোনো merge হয়নি (দুই দিক থেকে প্রমাণিত)
+
+- এই রেপোর ১৮২টি কমিট সব AgroBridge; "bangla gpt" ম্যাচ মাত্র ২টি ফাইলে, দুটোই নথি:
+  `AGROBRIDGE_ENTERPRISE_ARCHITECTURE_QA_AUDIT.md:9` (আগের রাউন্ডেই লেখা — "master-prompt
+  template names a different app ('Bangla GPT'); the repository under audit is AgroBridge")
+  এবং `EXECUTION_LOG`-এ আমার round-10 নোট (অন্য প্রজেক্টের :5173 server ইচ্ছাকৃতভাবে
+  অস্পর্শিত)। Tab-এর নামটা session/prompt template থেকে আসা — রেপোর বিষয়বস্তু নয়।
+- বিপরীত দিক: `Bangla-GPT-APP` রেপোর (tanviruchahs2580/Bangla-GPT-APP) দুটি লোকাল কপিতে
+  AgroBridge-এর একটাই উল্লেখ — তাদের নিজস্ব অডিট নোটে "Port 5173 served a different project
+  ('AgroBridge') — not this repo | No action"। একটি AgroBridge কোড/কমিটও নেই।
+- Vercel-ও আলাদা প্রজেক্ট: `agrobridge-web`, `agro-bridge-api` বনাম `bangla-gpt-app`।
+
+### লাইভ-যাচাইয়ে ধরা নতুন বাগ (ঠিক করা + deployed)
+
+`/payments/gateway/return/:outcome` (আমার এই রাউন্ডে যোগ করা রুট) লাইভে ৩০৩ দিচ্ছিল
+`https://agrobridge-web.vercel.app,https/orders?...` — কারণ লাইভ `WEB_ORIGIN` কমা-লিস্ট (site +
+Capacitor origin) কিন্তু হ্যান্ডলার পুরো স্ট্রিং `new URL()`-এ দিয়েছিল। ফিক্স:
+`primaryOriginOf()` (config/env.ts) প্রথম ভ্যালিড origin নেয়; regression test (list, whitespace,
+single, empty, non-URL + Location header assert — suite 149+1skip)। Commit `1a682e6`-এ push,
+Vercel auto-deploy + CLI deploy — এখন লাইভ ৩০৩ → `https://agrobridge-web.vercel.app/orders?payment=success`।
+
+### ব্যবহারকারী-স্তরের ফাংশনাল সুইপ (নতুন টুল: `scripts/qa/full-functional-sweep.mjs`)
+
+Playwright suite (24) যেসব flow ঢাকে না, সেগুলোর জন্য ৩৯-চেক সুইপ: advisor ask, sell-crop
+offer (confirm dialog সহ), notifications, service booking modal, wallet withdrawal
+validation, membership, phone OTP request, profile save round-trip, policy pages, ভাষা
+switch (persist), থিম (persist), admin panel (admin login), farmer-denied-admin, offline
+banner, 404, wrong-password error।
+
+- **লোকাল: ৩৯/৩৯ PASS।** প্রথম দৌড়ে ৪টি FAIL ছিল — সবগুলোই আমার স্ক্রিপ্টের ভুল, অ্যাপের নয়
+  (aria-label-এর কারণে accessible name "EN" নয়; advisor input-এ type attribute নেই;
+  sell-crop-এ দুটি select-এর নাম ভুল ধরেছিলাম; confirm-dialog confirm করিনি; ভাষা check-এ
+  before ধরার আগেই ক্লিক ছিল)। প্রতিটা ধরতে probe + full Playwright call-log ডায়াগনস্টিক
+  যোগ হয়েছে। শেখা: FAIL-কে app-defect বলার আগে selector-এর কারণ নিষ্প্রমাণ করতে হয়।
+- **লাইভ: ৩৮ PASS / 0 FAIL / 2 SKIP** (`SWEEP_MODE=live`) — demo credentials লাইভে rotate করা
+  (রানবুক অনুযায়ী), তাই `scripts/play/create-reviewer-account.mjs` দিয়ে 01700000099 reviewer
+  account বানানো হয়েছে (farm+plot+crop seeded; Play App access-এর জন্যই এটা)। SKIP ২টি:
+  offer-sell (লাইভে অপসারণযোগ্য নয় এমন রেকর্ড তৈরি হবে) ও admin-panel-success (কোনো admin
+  credential নেই; farmer-কে অস্বীকৃত দিকটা যাচাই করা হয়েছে)।
+- **লাইভ buyer journey এন্ড-টু-এন্ড:** cart → checkout (del. address + ফোন) → order →
+  sandbox payment → success → অর্ডার হিস্ট্রি খুলে **ঠিকানা round-trip** যাচাই — অর্থাৎ
+  round-10-এর P0 (ঠিকানা ফেলে দেওয়া) লাইভেও ঠিক। `ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1`
+  (পাইলট ফ্ল্যাগ, runbook-এ নথিবদ্ধ) production env-এ যোগ করায় লাইভ চেকআউট সম্পন্ন হয়;
+  এটা demo/pilot ছাড়া ব্যবহার নিষেধ এবং CLI deploy এর মাধ্যমে কার্যকর।
+
+### সিঙ্ক ও CI/CD
+
+- **লাইভ web = HEAD `1a682e6`** (version.json দিয়ে প্রমাণিত — build stamp এই কাজেই
+  দরকার হলো); লাইভ bundle-এর API base = `agro-bridge-api-vantiq-systems.vercel.app/api/v1`
+  (alias 200 উত্তর দেয়)। **লাইভ API = CLI deploy** (`vercel --prod` run
+  agro-bridge-dnguviipb) একই কমিট + নতুন env ফ্ল্যাগ সহ।
+- CI + CodeQL **success @1a682e6**; Android debug artifact workflow success (run
+  39002890823); release workflow run 39003660938 setup/checkout পেরিয়ে শুধু signing-secret
+  guard-এ থামে (ইচ্ছাকৃত — keystore owner-নির্ভর)।
+- `qa-evidence/` এখন gitignored (লোকাল QA artifacts: sweep screenshots/results, API টেস্ট
+  logs) — আগের রাউন্ডগুলোও এই অভ্যাসেই চলত; reviewer password কোনো ফাইলে নেই (grep-verified),
+  owner-কে rotate করার পরামর্শ ফাইনাল রিপোর্টে।

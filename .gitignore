@@ -78,3 +78,6 @@ apps/web/src/api/
 
 # ZCode session tooling (local plans/task artifacts)
 .zcode/
+
+# Local QA artifacts (sweep screenshots/results, test logs, ad-hoc probes)
+qa-evidence/
