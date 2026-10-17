@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 // Login is eager (critical path); all other pages are code-split via lazy + Suspense.
 import Login from "./features/auth/Login";
 
-// STEP 42: all non-auth pages are code-split via lazy + Suspense.
+// All non-auth pages are code-split via lazy + Suspense.
 const Register = lazy(() => import("./features/auth/Register"));
 const Home = lazy(() => import("./features/home/Home"));
 const MyFarm = lazy(() => import("./features/farms/MyFarm"));
@@ -172,7 +172,7 @@ function Shell({ children }: { children: ReactNode }) {
               to="/settings"
               aria-label={t("settings", lang)}
               title={t("settings", lang)}
-              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <SettingsIcon className="h-4 w-4" aria-hidden />
             </NavLink>
@@ -182,7 +182,7 @@ function Shell({ children }: { children: ReactNode }) {
               aria-label={t("themeToggleAria", lang)}
               aria-pressed={dark}
               onClick={toggleDark}
-              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               title={t("themeToggleAria", lang)}
             >
               {dark ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
@@ -191,16 +191,16 @@ function Shell({ children }: { children: ReactNode }) {
               type="button"
               aria-label={t("langToggleAria", lang)}
               onClick={() => setLang(lang === "bn" ? "en" : "bn")}
-              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               {lang === "bn" ? "EN" : "বাং"}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
-              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[36px] items-center rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
+              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[44px] items-center rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
                 {t("admin", lang)}
               </NavLink>
             )}
-            <button onClick={logout} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/25 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <button onClick={logout} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-white/25 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <LogOut className="h-4 w-4" aria-hidden /> {t("logout", lang)}
             </button>
           </div>

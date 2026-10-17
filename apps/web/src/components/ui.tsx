@@ -43,6 +43,12 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
 function useDialogA11y(open: boolean, onClose?: () => void) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // Read the callback through a ref: the effect must depend on `open` alone. Callers
+  // pass inline closures, and re-running this setup resets focus to the dialog's first
+  // focusable element — which stole focus on every keystroke in dialogs whose state
+  // updates as the user types (the withdraw amount field, the booking form).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -51,12 +57,20 @@ function useDialogA11y(open: boolean, onClose?: () => void) {
     const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
     if (scrollbarW > 0) document.body.style.paddingRight = `${scrollbarW}px`;
-    // Make background inert while dialog is open (a11y + scroll already locked)
-    const mainEl = document.getElementById("main");
-    const hadInert = mainEl?.hasAttribute("inert");
-    if (mainEl && !hadInert) mainEl.setAttribute("inert", "");
-
+    // Make the app chrome inert while the dialog is open. Inerting #main alone left the
+    // header, sidebar, bottom nav and skip link reachable to assistive technology behind
+    // an aria-modal dialog. The selectors are listed rather than blanket-inerting the
+    // body's children because the confirm dialog renders inside the React tree (only the
+    // Modal uses a portal), so blanketing would have inerted the dialog itself.
+    // `!el.contains(container)` is the safeguard for the mirror case: a dialog rendered
+    // inside one of these regions must never be inerted by its own open effect.
     const container = containerRef.current;
+    const chrome = Array.from(
+      document.querySelectorAll<HTMLElement>("#main, header, nav[aria-label], aside, a[href='#main']"),
+    ).filter((el) => !container || !el.contains(container));
+    const marked = chrome.filter((el) => !el.hasAttribute("inert"));
+    for (const el of marked) el.setAttribute("inert", "");
+
     if (container) {
       const focusables = getFocusable(container);
       (focusables[0] ?? container).focus();
@@ -79,17 +93,17 @@ function useDialogA11y(open: boolean, onClose?: () => void) {
           first.focus();
         }
       }
-      if (e.key === "Escape" && onClose) onClose();
+      if (e.key === "Escape" && onCloseRef.current) onCloseRef.current();
     }
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
       document.body.style.paddingRight = "";
-      if (mainEl && !hadInert) mainEl.removeAttribute("inert");
+      for (const el of marked) el.removeAttribute("inert");
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return containerRef;
 }

@@ -1,25 +1,38 @@
 # UI/UX Contract — Locked Visual Surface
 
+> **HISTORICAL — do not use as a current merge gate.** This documented the Phase 0 visual lock at
+> commit `849366f` (2026-09-02). Since then the code moved and the verification regime changed:
+> - feature files moved from `apps/web/src/pages/**` to `apps/web/src/features/**` — the table
+>   paths below are corrected, but every `App.tsx:`/`ui.tsx:`/`tokens.css:` line number in this
+>   document is historical and no longer matches HEAD;
+> - routes added later (`/orders`, `/settings`, `/privacy`, `/terms`, `/account-deletion`) are not
+>   covered here;
+> - §6's pixel snapshots under `e2e/__screenshots__` were retired — the current check is the
+>   structural `apps/web/e2e/visual-contract.spec.ts` (see WEB-12 in
+>   `docs/CODE_QUALITY_REVIEW_2026-10-17.md`).
+>
+> Current token contract: `docs/design-tokens.md`. Kept only for provenance of the lock.
+
 **Effective from:** 2026-09-02 (Phase 0)
-**Applies to commit:** `849366f` (HEAD)
+**Applies to commit:** `849366f` (HEAD at the time — historical)
 **Rule:** Nothing the user sees, touches, or experiences may change. Any PR touching `apps/web` must attach a pixel-diff report; non-zero diff blocks merge unless page is on allow-list and declared.
 
 ## 1. Locked Routes (default: LOCKED unless on allow-list)
 
 | Route | File | Layout Locked | Notes |
 |---|---|---|---|
-| `/login` | `apps/web/src/pages/Login.tsx` | **LOCKED** | Eager loaded (`App.tsx:18`), `+880` phone + password, `Demo` hint, no Google/FB (easy farmer) |
-| `/register` | `apps/web/src/pages/Register.tsx` | **LOCKED** | Lazy, phone+password+confirm |
-| `/` | `apps/web/src/pages/Home.tsx` | **LOCKED** | Hero `87%` + 4-card grid + `AI Ask` + `দ্রুত সেবা` 4 + `Smart Alerts` — not `28°C` complex (see `v1.2.0-easy-dashboard` revert base) |
-| `/farm` | `apps/web/src/pages/MyFarm.tsx` | **LOCKED** | Farm/plot/crop forms, `Tractor` header, addFarm CTA |
-| `/market` | `apps/web/src/pages/Market.tsx` | **LOCKED** | Product grid, cart modal, checkout wizard |
-| `/sell` | `apps/web/src/pages/SellCrop.tsx` | **LOCKED** | Grade select, moisture, price calc |
-| `/services` | `apps/web/src/pages/Services.tsx` | **LOCKED** | `ServiceCard` hero 148px + floating IconBox 40px + `Popular/New` + `Verified` + `⭐4.9` + price tabular + dual CTA, search + chips `সব/যন্ত্রপাতি/পরামর্শ/পরীক্ষা` |
-| `/advisor` | `apps/web/src/pages/Advisor.tsx` | **LOCKED** | Chat + compress/upload |
-| `/wallet` | `apps/web/src/pages/Wallet.tsx` | **LOCKED** | Summary + monthly cards + skeleton |
-| `/notifications` | `apps/web/src/pages/Notifications.tsx` | **LOCKED** | Tablist `role=tab` (known a11y gap, but visual locked) |
-| `/admin` | `apps/web/src/pages/Admin.tsx` | **LOCKED** | Breadcrumb `Home`, admin tables |
-| `/onboarding` | `apps/web/src/pages/Onboarding.tsx` | **LOCKED** | Feature-flag `VITE_FEATURE_ONBOARDING` |
+| `/login` | `apps/web/src/features/auth/Login.tsx` | **LOCKED** | Eager loaded (`App.tsx:18`), `+880` phone + password, `Demo` hint, no Google/FB (easy farmer) |
+| `/register` | `apps/web/src/features/auth/Register.tsx` | **LOCKED** | Lazy, phone+password+confirm |
+| `/` | `apps/web/src/features/home/Home.tsx` | **LOCKED** | Hero `87%` + 4-card grid + `AI Ask` + `দ্রুত সেবা` 4 + `Smart Alerts` — not `28°C` complex (see `v1.2.0-easy-dashboard` revert base) |
+| `/farm` | `apps/web/src/features/farms/MyFarm.tsx` | **LOCKED** | Farm/plot/crop forms, `Tractor` header, addFarm CTA |
+| `/market` | `apps/web/src/features/marketplace/Market.tsx` | **LOCKED** | Product grid, cart modal, checkout wizard |
+| `/sell` | `apps/web/src/features/sell-crop/SellCrop.tsx` | **LOCKED** | Grade select, moisture, price calc |
+| `/services` | `apps/web/src/features/services/Services.tsx` | **LOCKED** | `ServiceCard` hero 148px + floating IconBox 40px + `Popular/New` + `Verified` + `⭐4.9` + price tabular + dual CTA, search + chips `সব/যন্ত্রপাতি/পরামর্শ/পরীক্ষা` |
+| `/advisor` | `apps/web/src/features/advisor/Advisor.tsx` | **LOCKED** | Chat + compress/upload |
+| `/wallet` | `apps/web/src/features/wallet/Wallet.tsx` | **LOCKED** | Summary + monthly cards + skeleton |
+| `/notifications` | `apps/web/src/features/notifications/Notifications.tsx` | **LOCKED** | Tablist `role=tab` (known a11y gap, but visual locked) |
+| `/admin` | `apps/web/src/features/admin-panel/Admin.tsx` | **LOCKED** | Breadcrumb `Home`, admin tables |
+| `/onboarding` | `apps/web/src/features/onboarding/Onboarding.tsx` | **LOCKED** | Feature-flag `VITE_FEATURE_ONBOARDING` |
 | `*` | `App.tsx:82 NotFound` | **LOCKED** | `Compass` + `notFoundTitle` + `backHome` |
 
 **Router:** `App.tsx:245-258` — `ReverseGuard` for `/login|/register`, `Shell` for all authenticated routes, `Suspense fallback PageFallback` (`Skeleton`), `ErrorBoundary key={pathname}` per route, `PageTransition` only on `/services`.

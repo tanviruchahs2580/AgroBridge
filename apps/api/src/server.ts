@@ -23,7 +23,7 @@ process.on("uncaughtException", (err) => {
   setTimeout(() => process.exit(1), 5_000).unref();
 });
 
-// Graceful shutdown (Section 35/48 operational hygiene)
+// Graceful shutdown — drain in-flight requests before exiting
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     logger.info({ signal }, "shutting down gracefully");

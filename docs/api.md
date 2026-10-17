@@ -23,6 +23,14 @@ rule, 429 rate-limited).
 - `POST /auth/refresh` — `{refreshToken}` → rotated pair (old refresh revoked).
 - `POST /auth/logout` — revokes provided refresh token.
 - `GET/PATCH /auth/me` — profile read/update (district/upazila/address/language).
+- `POST /auth/otp/request` — issues a 6-digit phone-verification code for the caller's own phone
+  (stored hashed; delivered via the SMS provider — sandbox logs it). Sandbox responses outside
+  production echo `devCode`; supersedes any previous unconsumed challenge.
+- `POST /auth/otp/verify` — `{code}` → `{phoneVerified: true}`; marks the phone verified (required
+  before wallet withdrawals). Attempt- and time-limited (422 on expired/exhausted/incorrect).
+- `DELETE /auth/me` — self-service account deletion: anonymizes identity fields and disables the
+  account, revoking all refresh tokens; 422 while an order or withdrawal is still unresolved.
+  Financial/ledger rows are retained (see `docs/data-protection.md`).
 
 ## Farms (`/farms`)
 - `GET /farms` · `POST /farms` · `PATCH /farms/:id` · `DELETE /farms/:id`
@@ -51,6 +59,8 @@ rule, 429 rate-limited).
 - `GET /products?page&pageSize&category&search` · `POST /products` (`products:manage`)
 - `GET /cart` · `POST /cart/items` `{productId, qty}` · `DELETE /cart/items/:productId`
 - `GET /orders` · `GET /orders/:id` · `POST /orders/checkout` (atomic stock decrement + tier discount)
+- `DELETE /orders/:id` — removes a finished order (refused with 422 while PENDING/CONFIRMED/SHIPPED).
+  Sandbox payment rows go with the order; real-gateway payment records are kept for audit.
 
 ## Services & bookings
 - `GET /services` (with active providers) · `POST /services` (`services:manage`)
@@ -64,8 +74,17 @@ rule, 429 rate-limited).
 - `POST /procurement/:id/review` (`procurement:review`) — actions: `QC_PASS → ISSUE_PO → COLLECT` or `REJECT`.
 
 ## Payments / wallet / membership
-- `POST /payments/intent` `{purposeType: ORDER|BOOKING|MEMBERSHIP, purposeId}`
+- `POST /payments/intent` `{purposeType: ORDER|BOOKING|MEMBERSHIP, purposeId}` → `{paymentId, refNo,
+  amountPaisa, providerMode, redirectUrl?, messageBn?, messageEn?}`. Live gateways return the hosted
+  checkout `redirectUrl`; sandbox returns `providerMode: "sandbox"` plus the no-real-money notice.
+  A production deployment with no gateway configured refuses instead of fabricating a payable intent.
 - `POST /payments/:id/confirm` — sandbox confirmation; applies business side-effect atomically.
+- `GET /payments/:id/status` — reconciliation probe: re-verifies a PENDING payment with the
+  provider (live mode) and settles it if paid; `{status, reconciled, providerMode?}`.
+- `POST /payments/gateway/return/:outcome` — public, unauthenticated hosted-checkout return
+  (`outcome` = `success|fail|cancel`): asks the provider whether money actually moved, then
+  303-redirects the buyer back to the web origin (`/orders?payment=…&ref=…`). Trusts nothing in the
+  request; the signed gateway webhook remains the primary settlement path.
 - `POST /payments/payouts` (`procurement:pay`) — credits farmer wallet from COLLECTED PO.
 - `GET /payments` · `GET /wallet` (balance + ledger) · `GET /membership/plans`
 

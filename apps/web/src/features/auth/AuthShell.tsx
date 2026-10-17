@@ -57,7 +57,7 @@ export function AuthLangToggle({ lang, onChange }: { lang: Lang; onChange: (l: L
       type="button"
       aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"}
       onClick={() => onChange(lang === "bn" ? "en" : "bn")}
-      className="inline-flex min-h-[36px] items-center rounded-chip border border-surface-border-strong bg-surface-card px-3 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
+      className="inline-flex min-h-[44px] items-center rounded-chip border border-surface-border-strong bg-surface-card px-3 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
     >
       {lang === "bn" ? "EN" : "বাং"}
     </button>

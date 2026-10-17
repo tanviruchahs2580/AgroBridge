@@ -6,7 +6,7 @@ import { retrieve, sanitizeQuestion } from "./knowledge.js";
  * Adapter for any OpenAI-compatible chat completions API.
  * System prompt is hardened against prompt injection; retrieved KB entries
  * are injected as grounding context and the model is instructed to refuse
- * when context is insufficient (hallucination mitigation, Section 33/55).
+ * when context is insufficient (hallucination mitigation).
  */
 export class OpenAiCompatibleProvider implements AiProvider {
   readonly name = "openai-compatible";

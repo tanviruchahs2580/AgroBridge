@@ -28,18 +28,38 @@ function readQueue(): unknown[] {
 }
 
 describe("lib/offlineQueue — isQueueable", () => {
-  it("allow-lists only URLs containing /events", () => {
-    expect(isQueueable("/api/v1/farms/123/events")).toBe(true);
-    expect(isQueueable("/farms/abc/events")).toBe(true);
-    expect(isQueueable("/api/v1/products")).toBe(false);
-    expect(isQueueable("/api/v1/auth/me")).toBe(false);
-    expect(isQueueable("/events")).toBe(true);
+  it("allow-lists state-changing methods on /events, /cart and /orders URLs", () => {
+    expect(isQueueable("POST", "/api/v1/farms/123/events")).toBe(true);
+    expect(isQueueable("PATCH", "/farms/abc/events")).toBe(true);
+    expect(isQueueable("DELETE", "/cart/items/9")).toBe(true);
+    expect(isQueueable("POST", "/events")).toBe(true);
+    expect(isQueueable("POST", "/api/v1/products")).toBe(false);
+    expect(isQueueable("POST", "/api/v1/auth/me")).toBe(false);
   });
 
-  it("is case-sensitive and substring-based (characterization)", () => {
-    expect(isQueueable("/API/v1/farms/events")).toBe(true); // includes lower /events? no — case sensitive, so false? actually url.includes("/events") is case-sensitive
-    expect(isQueueable("/api/v1/farms/EVENTS")).toBe(false);
-    expect(isQueueable("/api/v1/farms/events?type=other")).toBe(true);
+  // WEB-4: the allow-list used to be URL-only, so a failed read (GET /orders)
+  // was queued and later replayed as if it were a mutation — and it inflated the
+  // user-facing "pending changes" counter for a request that changes nothing.
+  // Only state-changing methods enter the queue now.
+  it("never queues read methods — a queued GET is not a pending change", () => {
+    expect(isQueueable("GET", "/orders")).toBe(false);
+    expect(isQueueable("GET", "/cart")).toBe(false);
+    expect(isQueueable("get", "/farms/1/events")).toBe(false);
+    expect(isQueueable("HEAD", "/orders/abc")).toBe(false);
+    // The same URL as a real mutation is a pending change and stays queueable.
+    expect(isQueueable("POST", "/orders/x/status")).toBe(true);
+  });
+
+  it("keeps the NEVER_QUEUE exclusion — /orders/checkout is never replayable (any method)", () => {
+    expect(isQueueable("POST", "/orders/checkout")).toBe(false);
+    expect(isQueueable("PATCH", "/api/v1/orders/checkout/pay")).toBe(false);
+  });
+
+  it("method match is case-insensitive; URL match stays case-sensitive and substring-based (characterization)", () => {
+    expect(isQueueable("post", "/farms/1/events")).toBe(true);
+    expect(isQueueable("POST", "/API/v1/farms/events")).toBe(true); // "/events" still appears verbatim (lowercase) in the path
+    expect(isQueueable("POST", "/api/v1/farms/EVENTS")).toBe(false);
+    expect(isQueueable("POST", "/api/v1/farms/events?type=other")).toBe(true);
   });
 });
 
@@ -78,6 +98,15 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
   it("enqueue ignores non-queueable URLs and returns null (characterization)", () => {
     const id = enqueue({ url: "/api/v1/products", method: "POST", body: {} });
     expect(id).toBeNull();
+    expect(readQueue()).toHaveLength(0);
+  });
+
+  it("enqueue refuses read methods — a failed GET never becomes a pending change (WEB-4)", () => {
+    const id = enqueue({ url: "/orders", method: "GET" });
+    expect(id).toBeNull();
+    // size() backs the user-facing pending-changes badge: a read that failed
+    // offline must not be counted (or replayed) as unsent work.
+    expect(size()).toBe(0);
     expect(readQueue()).toHaveLength(0);
   });
 
@@ -328,8 +357,8 @@ describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documen
     // synchronously; it falls back to `await getOfflineQueue()` in the NetworkError handler.
     // For queueable URLs this still eventually enqueues, but for non-queueable it silently drops.
     // No assertion — documentation only; the `api.test.ts` offline-enqueue test already characterizes this.
-    expect(isQueueable("/farms/1/events")).toBe(true);
-    expect(isQueueable("/products")).toBe(false);
+    expect(isQueueable("POST", "/farms/1/events")).toBe(true);
+    expect(isQueueable("POST", "/products")).toBe(false);
   });
 
   it("GAP: dedupe uses clientUuid AND payload hash — identical payloads with different auto-generated UUIDs are collapsed by hash dedupe", () => {

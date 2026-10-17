@@ -22,14 +22,26 @@ const KEY = "agrobridge.mutationQueue";
  */
 const NEVER_QUEUE = ["/orders/checkout"];
 
-/** Allow-list: farm events, cart, and orders sync endpoints. */
-export function isQueueable(url: string): boolean {
+/**
+ * Methods that change server state and are therefore the only ones worth
+ * replaying. A failed GET is a read, not a pending change: replaying it later
+ * would send a stale request as if it were a mutation and would inflate the
+ * user-facing queue badge for work no one ever asked to retry.
+ */
+const QUEUEABLE_METHODS = new Set(["POST", "PATCH", "DELETE"]);
+
+/**
+ * Allow-list: state-changing requests to farm events, cart, and orders sync
+ * endpoints. Method-aware (WEB-4): reads (`GET`/`HEAD`/…) are never queued.
+ */
+export function isQueueable(method: string, url: string): boolean {
+  if (!QUEUEABLE_METHODS.has(method.toUpperCase())) return false;
   if (NEVER_QUEUE.some((p) => url.includes(p))) return false;
   return url.includes("/events") || url.includes("/cart") || url.includes("/orders");
 }
 
 const listeners = new Set<(count: number) => void>();
-/** STEP 55: enqueue toast notifiers — App.tsx registers toast.info when a mutation is queued offline */
+/** Enqueue toast notifiers — App.tsx registers toast.info when a mutation is queued offline */
 const enqueueNotifiers = new Set<() => void>();
 export function onEnqueue(cb: () => void): () => void {
   enqueueNotifiers.add(cb);
@@ -86,12 +98,12 @@ function uuid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Queue a mutation for later replay. Non-allow-listed URLs are ignored silently.
+/** Queue a mutation for later replay. Non-allow-listed methods/URLs are ignored silently.
  * Dedupes by clientUuid first (primary), then by hash (secondary for auto-generated).
  * When an explicit clientUuid is given, only that UUID is checked — preventing
  * false-positive dedup that would block identical payloads with different UUIDs. */
 export function enqueue(m: Omit<QueuedMutation, "clientUuid" | "payloadHash"> & { clientUuid?: string }): string | null {
-  if (!isQueueable(m.url)) return null;
+  if (!isQueueable(m.method, m.url)) return null;
   const clientUuid = m.clientUuid ?? uuid();
   const hash = payloadHashFn(m.method.toUpperCase(), m.url, m.body);
   const list = load();
@@ -110,7 +122,7 @@ export function enqueue(m: Omit<QueuedMutation, "clientUuid" | "payloadHash"> & 
   const entry: QueuedMutation = { method: m.method.toUpperCase(), url: m.url, body: m.body, clientUuid, payloadHash: hash };
   list.push(entry);
   save(list);
-  // STEP 55: notify UI that an offline mutation was queued (toast "অফলাইন — পরে পাঠানো হবে")
+  // Notify the UI that an offline mutation was queued (toast "অফলাইন — পরে পাঠানো হবে")
   notifyEnqueue();
   return clientUuid;
 }

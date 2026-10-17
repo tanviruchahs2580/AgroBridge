@@ -201,7 +201,7 @@ The architecture is production-grade in design (provider abstraction, health che
 | 13.1 | CI status | PASS | — | Latest HEAD commit green (run 33532255809, all 9 jobs pass). CodeQL passes. | — |
 | 13.2 | Production domain | FAIL | CRITICAL | All URLs are placeholders (`example.com`). No real production domain configured. `render.yaml` has internal IP `10.23.41.26`. | Configure real domain with TLS. |
 | 13.3 | Monitoring | PASS | — | Prometheus + Grafana + 6 alert rules (5xx, latency, DB, payments, AI fallback, instance). | — |
-| 13.4 | Backup strategy | FAIL | MEDIUM | `DISASTER_RECOVERY_REPORT.md` exists but no automated backup scripts. | Configure automated PostgreSQL backups (pg_dump cron or managed service). |
+| 13.4 | Backup strategy | FAIL | MEDIUM | `docs/archive/2026-08-09/DISASTER_RECOVERY_REPORT.md` exists but no automated backup scripts. | Configure automated PostgreSQL backups (pg_dump cron or managed service). |
 
 ### Phase 14 – Final Pre-Launch Gate
 

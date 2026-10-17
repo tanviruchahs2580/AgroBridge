@@ -11,7 +11,7 @@ import { getTokens, setTokens as smSetTokens, clearTokens as smClearTokens } fro
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
 // Lazy offlineQueue helpers (dynamic import avoids a circular init).
-let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (url: string) => boolean } | null = null;
+let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (method: string, url: string) => boolean } | null = null;
 async function getOfflineQueue() {
   if (_offlineQueue) return _offlineQueue;
   try {
@@ -267,7 +267,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       // orders; the caller shows an error for that case instead.
       if (!isOnline()) {
         const oq = await getOfflineQueue();
-        if (oq?.isQueueable(path)) {
+        if (oq?.isQueueable(method, path)) {
           oq.enqueue({ url: path, method, body });
         }
       }
@@ -288,7 +288,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
           if (err instanceof NetworkError) {
             if (!isOnline()) {
               const oq = await getOfflineQueue();
-              if (oq?.isQueueable(path)) oq.enqueue({ url: path, method, body });
+              if (oq?.isQueueable(method, path)) oq.enqueue({ url: path, method, body });
             }
             throw networkApiError(err);
           }

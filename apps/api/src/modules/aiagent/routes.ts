@@ -12,7 +12,7 @@ import { createRedisStore } from "../../lib/rateLimitRedis.js";
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
-// AI endpoints are expensive -> stricter limit than global (Section 33).
+// AI endpoints are expensive -> stricter limit than global.
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -37,7 +37,7 @@ aiRouter.post(
     try {
       const { question, lang, cropName } = req.body as { question: string; lang: "bn" | "en"; cropName?: string };
 
-      // Context extraction: farmer + active crop context (Section 13 pipeline).
+      // Context extraction: farmer + active crop context for grounding.
       const user = await prisma.user.findUnique({
         where: { id: req.auth!.userId },
         select: {
