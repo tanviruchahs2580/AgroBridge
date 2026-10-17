@@ -56,6 +56,8 @@ async function assertNoHorizontalOverflow(page: import("@playwright/test").Page,
 }
 
 test.describe("Visual contract — 8 pages render, laid out, in both themes", () => {
+  // Theme preference lives in each browser context's localStorage, and Playwright
+  // gives every test a fresh context, so no theme cleanup is needed between tests.
   /**
    * Two tests, one sign-in each. The earlier shape ran one test per page and
    * signed in per test: nine logins for nine assertions, which exhausted the
@@ -91,6 +93,9 @@ test.describe("Visual contract — 8 pages render, laid out, in both themes", ()
   });
 
   test("dark mode renders the same pages without overflow", async ({ page }) => {
+    // Eight page loads, each painting a theme transition: too close to the 30s
+    // default on a 2-vCPU runner (it timed out in CI on 2026-10-17).
+    test.slow();
     await seededLogin(page);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -107,9 +112,5 @@ test.describe("Visual contract — 8 pages render, laid out, in both themes", ()
         /কিছু ভুল হয়েছে|Something went wrong/i
       );
     }
-
-    // Restore the light theme so other suites keep their expectations.
-    await page.locator("header button[aria-pressed]").first().click();
-    await page.waitForTimeout(400);
   });
 });
