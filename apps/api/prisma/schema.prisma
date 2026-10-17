@@ -210,6 +210,8 @@ model Product {
   updatedAt     DateTime  @updatedAt
   orderItems    OrderItem[]
   cartItems     CartItem[]
+
+  @@index([isActive, category])
 }
 
 model Cart {
@@ -252,6 +254,7 @@ model Order {
   items          OrderItem[]
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([status])
   @@index([status, createdAt])
 }
@@ -484,6 +487,7 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorId])
+  @@index([createdAt])
 }
 
 model AiUsageLog {
