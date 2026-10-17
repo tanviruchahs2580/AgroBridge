@@ -608,3 +608,28 @@ Prisma EPERM-এর ধাপ।
 
 **নোট:** PR #14 ছিল ২৫ আগস্টের পর প্রথম PR merge — অর্থাৎ নতুন গেট কার্যকর হওয়ার আগেই
 PR-path + ১১টি check রিপোর্ট হওয়া যাচাই করা হয়েছে, তারপর ruleset চালু করা হয়েছে।
+
+### Phase 0 addendum — নতুন গেট নিজেই দুটি বাগ ধরে ফেলল (এবং এটাই তার মূল্য)
+
+Phase 0 শেষ হওয়ার পর `deploy-verify` গেটের প্রথম প্রকৃত চালানাতেই দুটি ভুল বেরিয়ে এলো —
+প্রতিটিই গেটের ভুল, production-এর নয়। এটাই লিখে রাখার মতো, কারণ "গেট সবুজ" তখনই অর্থবহ যখন
+গেট ব্যর্থ হতে পারে:
+
+1. **Monorepo semantics:** `201172e` (শুধু web + CI ফাইল) merge হলে Vercel API ডিপ্লয়মেন্ট
+   skip করে — API বৈধভাবে আগের commit-এ থাকে। প্রথম গেট `live == HEAD` দাবি করত, তাই ভুলভাবে
+   red হলো। সংশোধন: প্রতি প্রজেক্টের জন্য ancestry-check — "চলমান build-এ এই প্রজেক্টের
+   সর্বশেষ পরিবর্তনগুলো আছে কি, এবং commit-টা main-এর উপর আছে কি।"
+2. **Shallow clone:** `actions/checkout` ডিফল্টে `fetch-depth: 1`, ফলে `git log -- <path>`
+   যেকোনো path-এর জন্য HEAD ফেরাত এবং `git merge-base` exit 128 দিত। আমার আগের কód
+   `2>/dev/null || rc=$?` দিয়ে সেই error-কে এক চেকে pass আর অন্য চেকে fail বানিয়ে ফেলেছিল —
+   তিনটি "অসম্পর্কিত" ব্যর্থতার মতো দেখতে হয়েছিল। সংশোধন: `fetch-depth: 0` (ancestry check-এর
+   জন্য history দরকার, এটা সুবিধা নয়) এবং সব জায়গায় explicit tri-state (0=ancestor,
+   1=not ancestor, >1=তুলনা করা যায়নি → জোরে fail)।
+
+দুটোই PR #16 ও #17 দিয়ে ঠিক করা হয়েছে (গেটের ভেতর দিয়েই), এবং চূড়ান্ত merge `5324fe2`-এ
+গেট নিজেই **success** — অর্থাৎ mechanism এখন প্রমাণিত, শুধু "সেট করা আছে" নয়।
+
+**PR #14-এর ফলো-আপ:** সেটাও নিজের দুই ধাপে ঠিক হলো — (ক) login rate-limit budget
+(`LOGIN_RATE_LIMIT_MAX` config + CI-তে 500 + spec-এ ৯ login → ২), (খ) e2e contention
+(`workers: 1` config-এ, এবং payment-এর fixed 3s sleep → outcome-poll)। তিনটি CI ব্যর্থতার
+প্রতিটির কারণ, সংশোধন ও প্রমাণ PR/commit-এ আছে — লুকানোর মতো কিছু নেই।
