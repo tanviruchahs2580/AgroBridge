@@ -104,9 +104,17 @@ async function checkoutOneItem(page: any): Promise<{ successText: string; orderN
   const payBtn = page.locator("button", { hasText: /পেমেন্ট করুন|Pay now/i }).first();
   await expect(payBtn, "no Pay now button after placing order").toBeVisible({ timeout: 5000 });
   await payBtn.click();
-  await page.waitForTimeout(3000); // sandbox payment takes time
 
-  // Step 4: Success (bn: পেমেন্ট সম্পন্ন হয়েছে)
+  // Step 4: Success (bn: পেমেন্ট সম্পন্ন হয়েছে).
+  // A fixed 3s sleep was the flake: on a loaded CI runner the intent+confirm
+  // round-trip can take longer, and the suite then reported "did not reach
+  // success" for a payment that was still in flight. Poll for the outcome and
+  // fail with what actually arrived.
+  await expect
+    .poll(async () => (await dialog.textContent()) ?? "", { timeout: 25_000, message: "sandbox payment did not settle" })
+    .toMatch(/পেমেন্ট সম্পন্ন|Payment complete|কিছু ভুল হয়েছে|Something went wrong/i);
+  await page.waitForTimeout(300); // let the success step paint before we read it
+
   const successText = (((await dialog.textContent()) || "")).trim();
   expect(
     successText,

@@ -4,6 +4,17 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
   fullyParallel: false,
+  /**
+   * One worker, deliberately. The specs are independent, but the backend they
+   * drive is not: a single API process over a single SQLite file. Running specs
+   * in parallel made a 2-vCPU CI runner contend for both — payment round-trips
+   * exceeded the waits and later tests failed at sign-in with no relation to the
+   * change under review (observed 2026-10-17, three "unrelated" failures). The
+   * project had already learned this locally ("E2E 20/20 --workers=1"); the
+   * config now says it instead of relying on whoever runs the command.
+   * Revisit only when the suite gets its own per-worker database.
+   */
+  workers: 1,
   retries: 0,
   reporter: "list",
   use: {
