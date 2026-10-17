@@ -5,7 +5,7 @@ import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
-import { env } from "../../config/env.js";
+import { env, primaryWebOrigin } from "../../config/env.js";
 import { sslcommerzSignature, applyPaymentSideEffects, claimAndApplyPayment } from "./routes.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 
@@ -121,7 +121,10 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
       }
     }
 
-    const target = new URL("/orders", env.WEB_ORIGIN);
+    // Send the buyer back to exactly one origin: WEB_ORIGIN is an allow-list
+    // (site + Capacitor origin), and feeding the whole list to URL() builds a
+    // malformed location.
+    const target = new URL("/orders", primaryWebOrigin);
     target.searchParams.set("payment", outcome);
     if (payment) target.searchParams.set("ref", payment.refNo);
     res.redirect(303, target.toString());

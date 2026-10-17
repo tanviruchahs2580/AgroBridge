@@ -104,3 +104,30 @@ if (parsed.data.NODE_ENV === "production") {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
 export const isTest = env.NODE_ENV === "test";
+
+/** Fallback used when WEB_ORIGIN is empty or unparseable. */
+const LOCAL_WEB_ORIGIN = "http://localhost:5173";
+
+/**
+ * The single browser origin to send a redirect to.
+ *
+ * WEB_ORIGIN is an allow-list (comma-separated) because a deployment serves the
+ * site *and* the Capacitor app, whose WebView origin is `https://localhost`.
+ * CORS wants the whole list; a redirect needs exactly one entry — passing the
+ * list straight into `new URL()` silently produced a malformed location such as
+ * `https://site.example,https/orders`.
+ */
+export function primaryOriginOf(webOrigin: string): string {
+  const first = webOrigin
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)[0];
+  if (!first) return LOCAL_WEB_ORIGIN;
+  try {
+    return new URL(first).origin;
+  } catch {
+    return LOCAL_WEB_ORIGIN;
+  }
+}
+
+export const primaryWebOrigin = primaryOriginOf(env.WEB_ORIGIN);

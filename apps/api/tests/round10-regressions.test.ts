@@ -203,6 +203,24 @@ describe("round 10 regressions", () => {
     expect(status.body.data.reconciled).toBe(false);
   });
 
+  it("gateway return redirects to a single well-formed origin", async () => {
+    // WEB_ORIGIN is an allow-list (site origin + the Capacitor `https://localhost`).
+    // Feeding the whole list to `new URL()` produced a malformed location in
+    // production — caught by probing the live deployment, pinned here.
+    const { primaryOriginOf } = await import("../src/config/env.js");
+    expect(primaryOriginOf("https://agrobridge-web.vercel.app,https://localhost")).toBe("https://agrobridge-web.vercel.app");
+    expect(primaryOriginOf(" https://site.example , https://localhost ")).toBe("https://site.example");
+    expect(primaryOriginOf("https://site.example")).toBe("https://site.example");
+    expect(primaryOriginOf("")).toBe("http://localhost:5173");
+    expect(primaryOriginOf("not a url")).toBe("http://localhost:5173");
+
+    // And the endpoint itself must answer with a usable Location header.
+    const res = await request(app).get("/api/v1/payments/gateway/return/success").redirects(0);
+    expect(res.status).toBe(303);
+    const location = res.headers.location ?? "";
+    expect(location).toMatch(/^https?:\/\/[^,]+\/orders\?payment=success$/);
+  });
+
   it("logout rejects a non-string refresh token instead of throwing a 500", async () => {
     const farmer = await registerFarmer();
     const res = await request(app)
