@@ -2,16 +2,22 @@
 #
 # Deployment itself is performed by Vercel's Git integration on push to main
 # (plus `vercel --prod` for API changes that need a new environment variable).
-# This workflow is the GATE that proves a deployment actually happened and that
-# the artifact running in production includes the reviewed sources — without it,
+# This workflow is the GATE that proves a deployment happened and that the
+# artifact running in production includes the reviewed sources — without it,
 # "deployed" was an assumption made from a CLI output.
 #
 # It needs no secrets: it reads the build stamp the web bundle publishes and the
 # commit the API reports on /health.
 #
-# If this job is red, production is stale for a project (or running something not
-# on main). That is a release blocker, not a flake: redeploy, do not re-run the
-# check and move on.
+# Shape history (all three were found by running it, not by reading it):
+#   1. v1 demanded `live == HEAD` — wrong in a monorepo where the host deploys per
+#      project, so a web-only commit legitimately left the API behind.
+#   2. v2 used ancestry but with `fetch-depth: 1`, whose truncated history made
+#      `git log -- <path>` return HEAD for any path and `merge-base` exit 128.
+#   3. v3 gave the web step a retry loop but left the API step single-shot, so a
+#      deployment still in flight read as "stale" (a50ac54).
+# Both projects now poll the same way, and a real staleness still fails after the
+# window — the difference is patience, not tolerance.
 name: Deploy verification
 
 on:
@@ -39,73 +45,62 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
         with:
           # Full history is required, not a convenience: this gate compares commits
-          # by ancestry. The default depth-1 clone made `git log -- <path>` return
-          # HEAD for any path and `git merge-base` exit 128 ("Not a valid object
-          # name"), which the first version of this job silently mistook for a
-          # pass in one check and a failure in the next.
+          # by ancestry, and a depth-1 clone cannot do that.
           fetch-depth: 0
 
-      - name: Wait for the web build to include the current web sources
+      - name: Wait for the web and API builds to include the reviewed sources
         run: |
           set -euo pipefail
 
-          # 0 = ancestor, 1 = not an ancestor, >1 = could not compare (unknown
-          # object / shallow history). The third case must never be read as either
-          # answer, so it is handled explicitly wherever it can occur.
-          compare() { git merge-base --is-ancestor "$1" "$2" 2>/dev/null; local rc=$?; return $rc; }
+          # Poll a deployment that reports its commit (web: version.json,
+          # API: /health) until it includes `required`. Distinguishes three
+          # outcomes: ancestor (done), not an ancestor yet (keep waiting), and
+          # could-not-compare (fail immediately — that is a broken environment,
+          # not a slow deployment).
+          wait_for_inclusion() {
+            local required="$1" url="$2" label="$3" attempts="${4:-30}"
+            for attempt in $(seq 1 "$attempts"); do
+              local body live rc=0
+              body=$(curl -fsS -m 20 "$url" || true)
+              live=$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(JSON.parse(s).commit||''))}catch{process.stdout.write('')}})")
+              if [ -n "$live" ]; then
+                git merge-base --is-ancestor "$required" "$live" 2>/dev/null || rc=$?
+                case $rc in
+                  0) echo "$label: $live includes every change through $required"; return 0 ;;
+                  1) echo "$label: attempt $attempt/$attempts — $live does not include $required yet" ;;
+                  *) echo "::error::$label: cannot compare $required with $live (git exit $rc)"; return 2 ;;
+                esac
+              else
+                echo "$label: attempt $attempt/$attempts — no commit reported yet"
+              fi
+              sleep 20
+            done
+            echo "::error::$label: production never reported a build including $required within the window — the deployment failed or did not run"
+            return 1
+          }
 
           HEAD_SHA=$(git rev-parse HEAD)
-          REQUIRED=$(git log -1 --format=%h -- apps/web version.json)
-          echo "newest commit touching web sources: $REQUIRED (HEAD $HEAD_SHA)"
+          REQUIRED_WEB=$(git log -1 --format=%h -- apps/web version.json)
+          REQUIRED_API=$(git log -1 --format=%h -- apps/api version.json scripts/vercel-build-api.mjs)
+          echo "HEAD $HEAD_SHA · newest web change $REQUIRED_WEB · newest API change $REQUIRED_API"
 
-          for attempt in $(seq 1 40); do
-            BODY=$(curl -fsS -m 20 "$WEB_URL/version.json" || true)
-            LIVE=$(printf '%s' "$BODY" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(JSON.parse(s).commit||''))}catch{process.stdout.write('')}})")
-            if [ -n "$LIVE" ]; then
-              rc=0; compare "$REQUIRED" "$LIVE" || rc=$?
-              case $rc in
-                0) ;;
-                1) echo "attempt $attempt/40: live=$LIVE does not include $REQUIRED yet — waiting 30s"; sleep 30; continue ;;
-                *) echo "::error::could not compare $REQUIRED with live $LIVE (git exit $rc) — history unavailable?"; exit 1 ;;
-              esac
-              rc=0; compare "$LIVE" "$HEAD_SHA" || rc=$?
-              case $rc in
-                0) ;;
-                1) echo "::error::the web deployment reports $LIVE, which is not on main — a deploy came from somewhere else"; exit 1 ;;
-                *) echo "::error::could not compare live $LIVE with main (git exit $rc)"; exit 1 ;;
-              esac
-              echo "web build $LIVE includes every change through $REQUIRED and is on main"
-              exit 0
-            fi
-            echo "attempt $attempt/40: production web reported no commit yet — waiting 30s"
-            sleep 30
-          done
-          echo "::error::production web never reported a commit including $REQUIRED within ~20 minutes"
-          exit 1
+          wait_for_inclusion "$REQUIRED_WEB" "$WEB_URL/version.json" "web"
 
-      - name: API readiness, freshness and surface check
+          # Off-main deploys are a different failure: something shipped that was
+          # never reviewed. Checked after freshness so the message is unambiguous.
+          LIVE_WEB=$(curl -fsS -m 20 "$WEB_URL/version.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{process.stdout.write(String(JSON.parse(s).commit))})")
+          git merge-base --is-ancestor "$LIVE_WEB" "$HEAD_SHA" 2>/dev/null || {
+            echo "::error::the web deployment reports $LIVE_WEB, which is not on main — a deploy came from somewhere else"
+            exit 1
+          }
+
+          wait_for_inclusion "$REQUIRED_API" "$API_URL/health" "api"
+
+      - name: API readiness and surface check
         run: |
           set -euo pipefail
-          compare() { git merge-base --is-ancestor "$1" "$2" 2>/dev/null; local rc=$?; return $rc; }
-
           curl -fsS -m 30 "$API_URL/ready" | tee /tmp/ready.json
           grep -q '"db":true' /tmp/ready.json || { echo "::error::API reports the database is not ready"; exit 1; }
-
-          curl -fsS -m 30 "$API_URL/health" | tee /tmp/health.json
-          LIVE_API=$(node -e "const j=require('/tmp/health.json');process.stdout.write(String(j.commit||''))")
-          REQUIRED_API=$(git log -1 --format=%h -- apps/api version.json scripts/vercel-build-api.mjs)
-          echo "newest commit touching API sources: $REQUIRED_API"
-
-          if [ -z "$LIVE_API" ]; then
-            echo "::warning::the API did not report a commit (VERCEL_GIT_COMMIT_SHA unset) — freshness could not be checked"
-          else
-            rc=0; compare "$REQUIRED_API" "$LIVE_API" || rc=$?
-            case $rc in
-              0) echo "API build $LIVE_API includes every change through $REQUIRED_API" ;;
-              1) echo "::error::the API is running $LIVE_API but API sources changed in $REQUIRED_API — the API deployment is stale"; exit 1 ;;
-              *) echo "::error::could not compare API $LIVE_API with $REQUIRED_API (git exit $rc)"; exit 1 ;;
-            esac
-          fi
 
           # A public route that only exists in recent builds: proves the deployed
           # code is current rather than merely healthy. Expect a 303 to the web app.
