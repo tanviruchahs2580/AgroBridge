@@ -104,7 +104,7 @@ jobs:
         run: npx vitest run --config vitest.config.pg.ts
 
   web-quality:
-    name: Web — TypeCheck · Build
+    name: Web — Lint · Unit · Build
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     env:
@@ -112,13 +112,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5028 # pin v7.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
+
+      - name: Lint (eslint + jsx-a11y)
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: i18n dictionary check
+        working-directory: apps/web
+        run: npm run i18n:check
 
       - name: Unit tests (vitest)
         working-directory: apps/web

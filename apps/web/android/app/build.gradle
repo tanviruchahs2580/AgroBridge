@@ -1,9 +1,38 @@
 apply plugin: 'com.android.application'
 
-// Release signing: reads keystore config from key.properties (git-ignored).
+// ── App version: one source of truth (repo-root version.json) ───────────────
+// The web bundle reads the same file at build time (apps/web/vite.config.ts),
+// so the APK/AAB versionName and the shipped bundle can never disagree.
+// `-PversionCode=… -PversionName=…` override it (used by CI release builds).
+def appVersionCode = (project.findProperty("versionCode") ?: "1") as Integer
+def appVersionName = (project.findProperty("versionName") ?: "0.0.0") as String
+def repoVersionFile = rootProject.file("../../../version.json")
+if (repoVersionFile.exists()) {
+    try {
+        def repoVersion = new groovy.json.JsonSlurper().parse(repoVersionFile)
+        if (!project.hasProperty("versionCode") && repoVersion.versionCode) {
+            appVersionCode = repoVersion.versionCode as Integer
+        }
+        if (!project.hasProperty("versionName") && repoVersion.version) {
+            appVersionName = repoVersion.version as String
+        }
+    } catch (Exception e) {
+        logger.warn("version.json present but unreadable (${e.message}); using ${appVersionName} (${appVersionCode})")
+    }
+} else {
+    logger.warn("version.json not found at ${repoVersionFile}; using ${appVersionName} (${appVersionCode})")
+}
+
+// ── Release signing ────────────────────────────────────────────────────────
+// Keystore config lives in key.properties (git-ignored). Both the android
+// project root (android/key.properties) and the app module (android/app/
+// key.properties) are accepted so either documented layout works.
 // Generate: keytool -genkeypair -v -keystore agrobridge-release.keystore -alias agrobridge -keyalg RSA -keysize 2048 -validity 10000
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file("key.properties")
+if (!keystorePropertiesFile.exists()) {
+    keystorePropertiesFile = file("key.properties")
+}
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
@@ -15,12 +44,12 @@ android {
         applicationId "com.agrobridge.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13007
-        versionName "1.3.7"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+        // Files and dirs to omit from the packaged assets dir (the modern
+        // replacement for the deprecated aaptOptions block).
+        androidResources {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
@@ -36,9 +65,15 @@ android {
     }
     buildTypes {
         release {
-            // Falls back to debug signing when key.properties is absent (CI artifact builds);
-            // Play Store uploads MUST be built with the real release keystore present.
-            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            // Sign only with the real upload key. There is deliberately NO
+            // fallback to debug signing: an artifact signed with the debug key
+            // is rejected by Play, and silently producing one hides the
+            // misconfiguration until submission. Without key.properties this
+            // build type produces an UNSIGNED artifact instead — use
+            // `assembleDebug` for local testing.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -57,7 +92,6 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
