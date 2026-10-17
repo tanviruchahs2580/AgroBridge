@@ -69,14 +69,24 @@ farmsRouter.get("/", async (req: import("express").Request, res: import("express
 
 farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const data = req.body as z.infer<typeof farmBody>;
+    const data: z.infer<typeof farmBody> = req.body;
     if (data.organizationId) {
       const member = await prisma.organizationMember.findFirst({ where: { organizationId: data.organizationId, userId: req.auth!.userId } });
       const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
       if (!member && !isPrivileged) throw forbidden("Not a member of the target organization");
     }
     const farm = await prisma.farm.create({
-      data: { ...(data as Record<string, unknown>), ownerId: req.auth!.userId } as never,
+      data: {
+        ownerId: req.auth!.userId,
+        name: data.name,
+        address: data.address,
+        district: data.district,
+        upazila: data.upazila,
+        lat: data.lat,
+        lng: data.lng,
+        totalAreaBigha: data.totalAreaBigha,
+        organizationId: data.organizationId,
+      },
     });
     ok(res, farm, 201);
   } catch (e) {
@@ -120,16 +130,25 @@ export function plotsRouter() {
   return Router({ mergeParams: true })
     .post("/plots", validate({ body: plotBody }), async (req, res, next) => {
       try {
+        const body: z.infer<typeof plotBody> = req.body;
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
         // Plots collectively must fit inside the farm's declared total area.
         if (farm.totalAreaBigha != null) {
-          const area = (req.body as { areaBigha: number }).areaBigha;
+          const area = body.areaBigha;
           const others = await prisma.plot.aggregate({ where: { farmId: farm.id }, _sum: { areaBigha: true } });
           if (area + (others._sum.areaBigha ?? 0) > farm.totalAreaBigha + 1e-9) {
             throw badRequest("Plot areas would exceed the farm's total area");
           }
         }
-        const plot = await prisma.plot.create({ data: { ...(req.body as object), farmId: farm.id } as never });
+        const plot = await prisma.plot.create({
+          data: {
+            farmId: farm.id,
+            name: body.name,
+            areaBigha: body.areaBigha,
+            soilType: body.soilType,
+            irrigationType: body.irrigationType,
+          },
+        });
         ok(res, plot, 201);
       } catch (e) {
         next(e);
@@ -153,14 +172,25 @@ export function plotsRouter() {
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
         const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId!, farmId: farm.id } });
         if (!existing) throw notFound("Plot");
-        const body = req.body as { areaBigha?: number };
+        // Same shape as the validated plotBody.partial() — every field optional.
+        const body: Partial<z.infer<typeof plotBody>> = req.body;
         if (body.areaBigha !== undefined && farm.totalAreaBigha != null) {
           const others = await prisma.plot.aggregate({ where: { farmId: farm.id, id: { not: existing.id } }, _sum: { areaBigha: true } });
           if ((others._sum.areaBigha ?? 0) + body.areaBigha > farm.totalAreaBigha + 1e-9) {
             throw badRequest("Plot areas would exceed the farm's total area");
           }
         }
-        const plot = await prisma.plot.update({ where: { id: existing.id }, data: req.body as never });
+        const plot = await prisma.plot.update({
+          where: { id: existing.id },
+          // An omitted field must stay unchanged in the database, so only the
+          // keys present in the parsed body are sent.
+          data: {
+            ...(body.name !== undefined ? { name: body.name } : {}),
+            ...(body.areaBigha !== undefined ? { areaBigha: body.areaBigha } : {}),
+            ...(body.soilType !== undefined ? { soilType: body.soilType } : {}),
+            ...(body.irrigationType !== undefined ? { irrigationType: body.irrigationType } : {}),
+          },
+        });
         ok(res, plot);
       } catch (e) {
         next(e);
@@ -178,6 +208,15 @@ const cropBody = z.object({
 });
 
 const STAGES = ["SEED", "GERMINATION", "VEGETATIVE", "FLOWERING", "GRAIN_FRUIT_DEVELOPMENT", "HARVEST"] as const;
+
+/** Crop-cycle patch body: all fields optional, but at least one required. */
+const cropUpdateBody = z
+  .object({
+    stage: z.enum(STAGES).optional(),
+    status: z.enum(["ACTIVE", "HARVESTED", "FAILED"]).optional(),
+    yieldKg: z.number().positive().max(1_000_000).optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
 
 export function cropStageFor(plantedAt: Date, now = new Date()): string {
   // Generic lifecycle heuristic by elapsed days.
@@ -277,15 +316,7 @@ export function cropsRouter() {
     })
     .patch(
       "/crops/:cropId",
-      validate({
-        body: z
-          .object({
-            stage: z.enum(STAGES).optional(),
-            status: z.enum(["ACTIVE", "HARVESTED", "FAILED"]).optional(),
-            yieldKg: z.number().positive().max(1_000_000).optional(),
-          })
-.refine((b) => Object.keys(b).length > 0, { message: "No fields to update" })
-      }),
+      validate({ body: cropUpdateBody }),
       async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
         try {
           const existing = await prisma.cropCycle.findFirst({
@@ -295,7 +326,17 @@ export function cropsRouter() {
           if (!existing) throw notFound("Crop cycle");
           // Same access rule as plots: owner, privileged, or org member.
           await assertFarmAccess(existing.plot.farmId, req.auth!.userId, req.auth!.role);
-          const updated = await prisma.cropCycle.update({ where: { id: existing.id }, data: req.body as never });
+          const body: z.infer<typeof cropUpdateBody> = req.body;
+          const updated = await prisma.cropCycle.update({
+            where: { id: existing.id },
+            // Omitted fields stay unchanged in the database: only keys the
+            // agronomist actually sent are written.
+            data: {
+              ...(body.stage !== undefined ? { stage: body.stage } : {}),
+              ...(body.status !== undefined ? { status: body.status } : {}),
+              ...(body.yieldKg !== undefined ? { yieldKg: body.yieldKg } : {}),
+            },
+          });
           ok(res, updated);
         } catch (e) {
           next(e);

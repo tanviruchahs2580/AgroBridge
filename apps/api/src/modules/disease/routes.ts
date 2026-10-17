@@ -145,9 +145,18 @@ diseaseRouter.post(
       // recorded agronomist diagnosis (the app's highest-stakes content).
       if (kase.status !== "PENDING_REVIEW") throw conflict(`Case already ${kase.status}`);
 
+      const review: z.infer<typeof reviewSchema> = req.body;
       const updated = await prisma.diseaseCase.update({
         where: { id: kase.id },
-        data: { ...(req.body as object), status: "REVIEWED", reviewedBy: req.auth!.userId, reviewedAt: new Date() } as never,
+        data: {
+          // Exactly the schema's three fields, plus the server-set audit trio.
+          diagnosis: review.diagnosis,
+          severity: review.severity,
+          recommendation: review.recommendation,
+          status: "REVIEWED",
+          reviewedBy: req.auth!.userId,
+          reviewedAt: new Date(),
+        },
       });
 
       // The diagnosis decision itself is the auditable event.

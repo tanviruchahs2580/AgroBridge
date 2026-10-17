@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { badRequest } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
@@ -54,14 +55,14 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     // this one) despite the gateway collecting money — that case must NOT be
     // answered with processed:true, it is a reconciliation case.
     let processed = false;
-    await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
         data: { status: "SUCCEEDED", providerRef: valId || payment.providerRef, metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },
       });
       if (claimed.count !== 1) return; // lost race / superseded
       processed = true;
-      await applyPaymentSideEffects(tx as never, payment);
+      await applyPaymentSideEffects(tx, payment);
     }, { timeout: 15000, maxWait: 8000 });
 
     if (!processed) {

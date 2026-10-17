@@ -92,7 +92,22 @@ productsRouter.post(
   validate({ body: productBody }),
   async (req, res, next) => {
     try {
-      const product = await prisma.product.create({ data: req.body as never });
+      const body: z.infer<typeof productBody> = req.body;
+      const product = await prisma.product.create({
+        data: {
+          sku: body.sku,
+          name: body.name,
+          category: body.category,
+          description: body.description,
+          unit: body.unit,
+          pricePaisa: body.pricePaisa,
+          stockQty: body.stockQty,
+          batchNo: body.batchNo,
+          expiryDate: body.expiryDate,
+          supplier: body.supplier,
+          cropRelevance: body.cropRelevance,
+        },
+      });
       await audit({ actorId: req.auth!.userId, action: "PRODUCT_CREATE", entityType: "Product", entityId: product.id });
       ok(res, product, 201);
     } catch (e) {
