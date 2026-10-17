@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, setUnauthorizedHandler } from "./api";
 import { getTokens, clearTokens as smClearTokens } from "./sessionManager";
-import { identify, track } from "./analytics";
+import { track } from "./analytics";
 import { t } from "./i18n";
 import { useToast } from "../components/ui";
 
@@ -13,6 +13,8 @@ export interface Session {
   role: string;
   lang: "bn" | "en";
   dark: boolean;
+  /** Profile district, used to localise weather advice (null until the user sets one). */
+  district: string | null;
 }
 
 interface Ctx {
@@ -79,9 +81,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // attempt) clears the session. The api layer retries GETs on network
     // errors and 5xx before we ever see the throw.
     try {
-      const me = await api<{ id: string; fullName: string; role: string; langPref: "bn" | "en" }>("GET", "/auth/me");
-      setSession({ userId: me.id, fullName: me.fullName, role: me.role, lang: me.langPref, dark });
-      identify(me.id);
+      const me = await api<{ id: string; fullName: string; role: string; langPref: "bn" | "en"; farmerProfile?: { district?: string | null } | null }>("GET", "/auth/me");
+      setSession({ userId: me.id, fullName: me.fullName, role: me.role, lang: me.langPref, dark, district: me.farmerProfile?.district?.trim() || null });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         smClearTokens();
@@ -120,7 +121,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   function logout() {
     void api("POST", "/auth/logout", {}).catch(() => undefined); // revoke server-side; network errors are non-fatal
     smClearTokens();
-    identify("");
     setSession(null);
   }
 

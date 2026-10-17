@@ -14,8 +14,17 @@ export interface QueuedMutation {
 
 const KEY = "agrobridge.mutationQueue";
 
+/**
+ * Endpoints that must never be replayed blind. A checkout is not idempotent:
+ * replaying a queued attempt after the user retried manually creates a second
+ * order and decrements stock twice, so it stays out even though it lives under
+ * /orders.
+ */
+const NEVER_QUEUE = ["/orders/checkout"];
+
 /** Allow-list: farm events, cart, and orders sync endpoints. */
 export function isQueueable(url: string): boolean {
+  if (NEVER_QUEUE.some((p) => url.includes(p))) return false;
   return url.includes("/events") || url.includes("/cart") || url.includes("/orders");
 }
 

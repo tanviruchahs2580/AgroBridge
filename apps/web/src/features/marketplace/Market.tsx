@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, setCriticalFlow } from "../../lib/api";
+import { api, setCriticalFlow, ApiError } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -226,7 +226,15 @@ export default function Market() {
     setPlacing(true);
     setPlaceOrderError(null);
     try {
-      const o = await api<Order>("POST", "/orders/checkout");
+      // The delivery details validated in step 1 must travel with the order —
+      // they are what fulfilment uses, and the server rejects a malformed
+      // value rather than silently dropping it.
+      const recipient = session?.fullName?.trim() ?? "";
+      const o = await api<Order>("POST", "/orders/checkout", {
+        ...(recipient.length >= 2 ? { shippingName: recipient } : {}),
+        ...(phone.trim() ? { shippingPhone: phone.trim() } : {}),
+        ...(address.trim() ? { shippingAddress: address.trim() } : {}),
+      });
       setOrder(o);
       setStep(PAY_STEP);
       // Order already created; a failed refresh must not block payment.
@@ -247,10 +255,23 @@ export default function Market() {
     if (!order) return;
     setPaying(true);
     try {
-      const intent = await api<{ paymentId: string; providerMode: string }>("POST", "/payments/intent", {
+      const intent = await api<{
+        paymentId: string;
+        providerMode: string;
+        redirectUrl?: string;
+      }>("POST", "/payments/intent", {
         purposeType: "ORDER",
         purposeId: order.id,
       });
+
+      if (intent.redirectUrl) {
+        // A real gateway is configured: the hosted checkout page collects the
+        // money and returns the buyer to the app (POST -> API -> /orders).
+        track("checkout_payment_redirect", { totalPaisa: order.totalPaisa });
+        window.location.assign(intent.redirectUrl);
+        return;
+      }
+
       if (intent.providerMode === "sandbox") {
         await api("POST", `/payments/${intent.paymentId}/confirm`);
         setPaid(true);
@@ -264,6 +285,14 @@ export default function Market() {
         loadProducts(category),
       ]);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "PAYMENT_GATEWAY_NOT_CONFIGURED") {
+        // The order exists and is genuinely unpaid — say exactly that instead
+        // of reporting a payment that never happened.
+        setPaid(false);
+        setStep(SUCCESS_STEP);
+        await loadCart().catch(() => undefined);
+        return;
+      }
       toast.error(mapError(err, lang));
     } finally {
       setPaying(false);

@@ -70,6 +70,18 @@ const WD_STATUS_KEYS: Record<string, DictKey> = {
 };
 export const withdrawalStatusLabel = (raw: string, lang: Lang): string => fromMap(WD_STATUS_KEYS, raw, lang);
 
+// ── Order lifecycle + payment state ──
+const ORDER_STATUS_KEYS: Record<string, DictKey> = {
+  PENDING: "statusPENDING", CONFIRMED: "statusCONFIRMED", PAID: "statusPAID",
+  SHIPPED: "statusSHIPPED", DELIVERED: "statusDELIVERED", CANCELLED: "statusCANCELLED",
+};
+export const orderStatusLabel = (raw: string, lang: Lang): string => fromMap(ORDER_STATUS_KEYS, raw, lang);
+
+const PAYMENT_STATUS_KEYS: Record<string, DictKey> = {
+  UNPAID: "statusUNPAID", PAID: "statusPAID", REFUNDED: "statusREFUNDED",
+};
+export const paymentStatusLabel = (raw: string, lang: Lang): string => fromMap(PAYMENT_STATUS_KEYS, raw, lang);
+
 // ── Withdrawal channels ──
 const CHANNEL_KEYS: Record<string, DictKey> = {
   BKASH: "withdrawMethodBKASH", NAGAD: "withdrawMethodNAGAD", BANK: "withdrawMethodBANK",

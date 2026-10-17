@@ -1,21 +1,22 @@
-// Lightweight product analytics: batched beacon POSTs, offline-safe.
-// Events buffer in memory and flush every 5s or at 10 events via
-// navigator.sendBeacon (fallback: fetch keepalive). Silently no-ops offline.
-import { API_BASE } from "./api";
+// Lightweight first-party product analytics: batched, authenticated POSTs.
+// Events buffer in memory and flush every 5s, at 10 events, or when the app
+// backgrounds. The API requires a bearer token and derives the user from it,
+// so the payload carries only what the endpoint accepts (name + props) —
+// never a client-supplied identity or `ts` the server would ignore anyway.
+import { API_BASE, refreshAccessToken } from "./api";
+import { getTokens } from "./sessionManager";
 
 interface EventRecord {
   name: string;
   props?: Record<string, string | number>;
-  ts: string;
-  userId?: string;
 }
 
 const ENDPOINT = `${API_BASE}/analytics/events`;
 const FLUSH_INTERVAL_MS = 5_000;
 const FLUSH_AT_COUNT = 10;
+const MAX_BUFFERED = 200;
 
 let buffer: EventRecord[] = [];
-let userId: string | undefined;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleFlush() {
@@ -26,23 +27,34 @@ function scheduleFlush() {
   }, FLUSH_INTERVAL_MS);
 }
 
-async function send(events: EventRecord[]): Promise<boolean> {
-  const payload = JSON.stringify({ events });
-  if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-    const blob = new Blob([payload], { type: "application/json" });
-    if (navigator.sendBeacon(ENDPOINT, blob)) return true;
-  }
+/**
+ * `keepalive` keeps the request alive while the page is being hidden, which is
+ * what sendBeacon used to provide — but sendBeacon cannot attach an
+ * Authorization header, and without one every batch was rejected with 401 and
+ * silently discarded (the admin analytics screen showed an empty dataset).
+ */
+async function post(events: EventRecord[]): Promise<Response | null> {
+  const token = getTokens().accessToken;
+  if (!token) return null; // nothing to attribute the events to; drop the batch
   try {
-    const res = await fetch(ENDPOINT, {
+    return await fetch(ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: payload,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ events }),
       keepalive: true,
     });
-    return res.ok;
   } catch {
-    return false;
+    return null; // offline / blocked: keep the batch buffered
   }
+}
+
+async function send(events: EventRecord[]): Promise<boolean> {
+  if (!getTokens().accessToken) return true; // drop: the endpoint requires auth
+  let res = await post(events);
+  if (res && res.status === 401) {
+    if (await refreshAccessToken()) res = await post(events);
+  }
+  return res ? res.ok : false;
 }
 
 /** Fire-and-forget; resolves when the batch left the buffer (sent or restored after failure). */
@@ -58,25 +70,21 @@ async function flush(): Promise<void> {
   buffer = [];
   const sent = await send(batch);
   if (!sent) {
-    // Restore to the front, cap at 200 events to bound memory.
-    buffer = [...batch, ...buffer].slice(0, 200);
+    // Restore to the front, capped to bound memory.
+    buffer = [...batch, ...buffer].slice(0, MAX_BUFFERED);
     scheduleFlush();
   }
 }
 
-export function identify(id: string): void {
-  userId = id;
-}
-
 export function track(name: string, props?: Record<string, string | number>): void {
-  buffer.push({ name, props, ts: new Date().toISOString(), userId });
+  buffer.push(props ? { name, props } : { name });
   if (buffer.length >= FLUSH_AT_COUNT) void flush();
   else scheduleFlush();
 }
 
-// Best-effort flush when the page goes away / app backgrounds.
+// Best-effort flush when the app goes to the background / the tab is hidden.
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && buffer.length > 0 && navigator.onLine !== false) void send(buffer).then((ok) => ok && (buffer = []));
+    if (document.visibilityState === "hidden") void flush();
   });
 }

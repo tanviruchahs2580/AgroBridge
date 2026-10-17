@@ -8,7 +8,7 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
-import { getWeatherCoords } from "../../lib/geo";
+import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
 
@@ -85,7 +85,8 @@ export default function Home() {
     setError(false);
     setLoaded(false);
     try {
-      const coords = await getWeatherCoords();
+      // Localised from the farmer's profile district; no location permission needed.
+      const coords = getWeatherCoords(session?.district);
       const [farmsData, notif, weatherData] = await Promise.allSettled([
         api<FarmShape[]>("GET", "/farms"),
         api<{ unread: number }>("GET", "/notifications"),
@@ -104,7 +105,11 @@ export default function Home() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // session?.district is a real dependency: weather is localised to it, so a
+    // profile change must refetch rather than keep showing the old area.
+    // load() itself is intentionally omitted (it is recreated each render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.district]);
 
   const cropCycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const primaryCrop = cropCycles[0];
@@ -150,22 +155,40 @@ export default function Home() {
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
-              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> {t("healthScore", lang)}
+              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> {t("farmReadiness", lang)}
             </p>
             <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
-              {hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
+              {farms.length === 0 ? t("aiFarmEmptyTitle", lang) : hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
             </h2>
             <p className="mt-1 max-w-[36ch] text-sm leading-relaxed text-white/85">
-              {hasRisk ? t("aiFarmAttentionSub", lang) : t("aiFarmHealthySub", lang)}
+              {farms.length === 0
+                ? t("aiFarmEmptySub", lang)
+                : hasRisk
+                  ? t("aiFarmAttentionSub", lang)
+                  : t("aiFarmHealthySub", lang)}
             </p>
             <Link to="/farm" className="mt-3 inline-flex min-h-[36px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
             </Link>
           </div>
-          <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
-            <HealthRing score={healthScore} />
-            <span className="text-xs font-medium tracking-wide text-white/85">{healthScore}% • {t("activeLabel", lang)}</span>
-          </div>
+          {/* The readiness ring is computed from the farm/crop records and today's
+              weather. With no farm on file there is nothing to score, so the
+              number is withheld rather than showing a floor value as if it meant
+              something. */}
+          {farms.length === 0 ? (
+            <div className="flex shrink-0 flex-col items-center gap-1.5 self-center rounded-card bg-white/10 p-4 text-center ring-1 ring-white/15 backdrop-blur sm:self-auto">
+              <Sprout className="h-6 w-6 text-white/80" aria-hidden />
+              <span className="max-w-[14ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+                {t("aiFarmEmptyMeter", lang)}
+              </span>
+            </div>
+          ) : (
+            <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
+              <HealthRing score={healthScore} />
+              {/* The ring already prints the number; repeating it below was noise. */}
+              <span className="max-w-[18ch] text-center text-[10px] leading-snug text-white/70">{t("farmReadinessBasis", lang)}</span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -209,7 +232,20 @@ export default function Home() {
           <div className="relative flex-1 p-4">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-[0.07]" aria-hidden style={{ background: "var(--gradient-sky)" }} />
             <div className="relative flex items-start justify-between gap-2">
-              <h2 className="text-[15px] font-bold text-stone-800">{t("weather", lang)}</h2>
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-bold text-stone-800">{t("weather", lang)}</h2>
+                {/* Weather is resolved from the profile district; say so plainly
+                    instead of presenting a national default as local advice. */}
+                <p className="mt-0.5 truncate text-xs text-stone-500">
+                  {isDistrictResolved(session?.district) ? (
+                    session?.district
+                  ) : (
+                    <Link to="/settings" className="font-semibold text-link hover:underline">
+                      {t("districtWeatherHintShort", lang)}
+                    </Link>
+                  )}
+                </p>
+              </div>
               <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100 shadow-sm"><CloudSun style={{ width: 20, height: 20 }} /></span>
             </div>
             {!loaded && !weather ? (

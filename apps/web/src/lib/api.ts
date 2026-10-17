@@ -213,6 +213,16 @@ function parseEnvelope(res: Response): Promise<Envelope> {
 
 /** Single-flight refresh to avoid stampedes on 401. */
 let refreshing: Promise<boolean> | null = null;
+
+/**
+ * Refreshes the access token once, sharing the same in-flight promise as the
+ * `api()` 401 handler. Exposed for best-effort callers that bypass `api()`
+ * (analytics) so they reuse one refresh instead of stampeding the endpoint.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
+  return tryRefresh();
+}
+
 async function tryRefresh(): Promise<boolean> {
   const tokens = getTokens();
   if (!tokens.refreshToken) return false;

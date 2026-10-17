@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { t } from "./lib/i18n";
@@ -31,6 +31,8 @@ const Onboarding = lazy(() => import("./features/onboarding/Onboarding"));
 const Advisor = lazy(() => import("./features/advisor/Advisor"));
 const AdminPanel = lazy(() => import("./features/admin-panel/Admin"));
 const MyOrdersPage = lazy(() => import("./features/orders/MyOrders"));
+const SettingsPage = lazy(() => import("./features/settings/Settings"));
+const LegalDoc = lazy(() => import("./features/legal/Legal"));
 
 const ROUTE_TITLES: Record<string, DictKey> = {
   "/": "home",
@@ -46,6 +48,10 @@ const ROUTE_TITLES: Record<string, DictKey> = {
   "/onboarding": "onboarding",
   "/login": "login",
   "/register": "register",
+  "/settings": "settings",
+  "/privacy": "privacyPolicy",
+  "/terms": "termsOfService",
+  "/account-deletion": "dataDeletionInfo",
 };
 
 /** Live connectivity state driven by navigator online/offline events. */
@@ -139,18 +145,37 @@ function Shell({ children }: { children: ReactNode }) {
       >
         {t("skipToContent", lang)}
       </a>
-      <header className="agro-header sticky top-0 z-10">
+      <header
+        className="agro-header sticky top-0 z-10"
+        // Android 15+ (targetSdk 35+) draws edge-to-edge: without the top inset
+        // the sticky header renders underneath the status bar.
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
             <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
               <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
             </span>
-            <div>
-              <div className="text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
-              <div className="mt-0.5 text-[10px] font-medium tracking-wide text-white/70">{t("tagline", lang)}</div>
+            <div className="min-w-0">
+              <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
+              {/* The tagline only fits once the action row stops competing for
+                  space; at 360px it wrapped to three lines and squeezed the brand. */}
+              <div className="mt-0.5 hidden text-[10px] font-medium tracking-wide text-white/70 sm:block">
+                {t("tagline", lang)}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Account & settings: profile edit, phone verification, policies,
+                and the in-app account-deletion path Google Play requires. */}
+            <NavLink
+              to="/settings"
+              aria-label={t("settings", lang)}
+              title={t("settings", lang)}
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-white/25 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <SettingsIcon className="h-4 w-4" aria-hidden />
+            </NavLink>
             {/* Dark/Light Mode Toggle — driven by session context (reactive) */}
             <button
               type="button"
@@ -287,6 +312,12 @@ export default function App() {
         <Route path="/orders" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><MyOrdersPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/admin" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><AdminPanel /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Onboarding /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        <Route path="/settings" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><SettingsPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
+        {/* Public legal pages: must be reachable without an account (Play requires a
+            public privacy-policy URL and a public data-deletion URL). */}
+        <Route path="/privacy" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="privacy" /></Suspense>} />
+        <Route path="/terms" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="terms" /></Suspense>} />
+        <Route path="/account-deletion" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="deletion" /></Suspense>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

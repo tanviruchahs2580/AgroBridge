@@ -52,7 +52,7 @@ export default function MyFarm() {
       const farmsData = await api<Farm[]>("GET", "/farms");
       setFarms(farmsData);
       try {
-        const coords = await getWeatherCoords();
+        const coords = getWeatherCoords(session?.district);
         const weatherData = await api<{ risks: WeatherAdvisory[] }>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
         setWeather(weatherData as { risks: WeatherAdvisory[] });
       } catch {
@@ -67,7 +67,11 @@ export default function MyFarm() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // session?.district is a real dependency: weather is localised to it, so a
+    // profile change must refetch rather than keep showing the old area.
+    // load() itself is intentionally omitted (it is recreated each render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.district]);
 
   const stats = useMemo(() => {
     const plots = farms.flatMap((f) => f.plots);

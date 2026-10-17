@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
@@ -136,16 +136,35 @@ export default function WalletPage() {
     if (!okToBuy) return;
     setPlanBusyTier(tier);
     try {
-      const intent = await api<{ paymentId: string; providerMode: string }>("POST", "/payments/intent", {
+      const intent = await api<{
+        paymentId: string;
+        providerMode: string;
+        redirectUrl?: string;
+      }>("POST", "/payments/intent", {
         purposeType: "MEMBERSHIP",
         purposeId: tier,
       });
-      if (intent.providerMode === "sandbox") {
-        await api("POST", `/payments/${intent.paymentId}/confirm`);
+
+      if (intent.redirectUrl) {
+        // Real gateway: the purchase completes on the hosted checkout page and
+        // the membership is activated by the verified payment, not by this click.
+        window.location.assign(intent.redirectUrl);
+        return;
       }
+      if (intent.providerMode !== "sandbox") {
+        // Nothing was collected, so nothing is activated — report pending
+        // instead of a success that did not happen.
+        toast.info(t("paymentPendingNote", lang));
+        return;
+      }
+      await api("POST", `/payments/${intent.paymentId}/confirm`);
       toast.success(t("membershipActiveToast", lang, { tier }));
       await Promise.all([refresh(), reloadBalances()]);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "PAYMENT_GATEWAY_NOT_CONFIGURED") {
+        toast.info(t("paymentPendingNote", lang));
+        return;
+      }
       toast.error(mapError(err, lang));
     } finally {
       setPlanBusyTier(null);

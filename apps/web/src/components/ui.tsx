@@ -235,7 +235,7 @@ export function Field({
   );
 }
 
-type BadgeTone = "default" | "brand" | "success" | "warning" | "danger" | "info" | "ai" | "outline";
+export type BadgeTone = "default" | "brand" | "success" | "warning" | "danger" | "info" | "ai" | "outline";
 
 export function Badge({ className = "", tone = "default", ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
   const tones: Record<BadgeTone, string> = {

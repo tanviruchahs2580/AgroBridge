@@ -3,39 +3,51 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
+import { orderStatusLabel, paymentStatusLabel } from "../../lib/labels";
 import { Package, MapPin, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, ErrorBanner, Skeleton, useConfirm, useToast } from "../../components/ui";
+import type { BadgeTone } from "../../components/ui";
 import { mapError } from "../../lib/errors-ui";
 
+/**
+ * Line items arrive as immutable snapshots (`nameSnapshot`/`unitPricePaisa`) —
+ * the API never joins the live product, so a price change or a delisted
+ * product cannot rewrite order history.
+ */
 interface OrderItem {
   id: string;
   qty: number;
-  product: { name: string; pricePaisa: number };
+  nameSnapshot: string;
+  skuSnapshot?: string;
+  unitPricePaisa: number;
 }
 
 interface Order {
   id: string;
   orderNo: string;
   status: string;
+  paymentStatus: string;
   subtotalPaisa: number;
   discountPaisa: number;
   deliveryFeePaisa: number;
   totalPaisa: number;
   items: OrderItem[];
-  addressLine: string;
-  phone: string;
+  shippingName: string | null;
+  shippingPhone: string | null;
+  shippingAddress: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 type TabKey = "all" | "active" | "delivered";
 
-const STATUS_MAP: Record<string, { labelBn: string; labelEn: string; badgeClass: string }> = {
-  PENDING: { labelBn: "অপেক্ষমাণ", labelEn: "Pending", badgeClass: "bg-amber-100 text-amber-800 border-amber-200" },
-  CONFIRMED: { labelBn: "নিশ্চিত", labelEn: "Confirmed", badgeClass: "bg-blue-100 text-blue-800 border-blue-200" },
-  SHIPPED: { labelBn: "শিপিংয়ে", labelEn: "Shipped", badgeClass: "bg-purple-100 text-purple-800 border-purple-200" },
-  DELIVERED: { labelBn: "ডেলিভার্ড", labelEn: "Delivered", badgeClass: "bg-green-100 text-green-800 border-green-200" },
-  CANCELLED: { labelBn: "বাতিল", labelEn: "Cancelled", badgeClass: "bg-red-100 text-red-700 border-red-200" },
+const STATUS_TONES: Record<string, BadgeTone> = {
+  PENDING: "warning",
+  CONFIRMED: "info",
+  PAID: "brand",
+  SHIPPED: "info",
+  DELIVERED: "success",
+  CANCELLED: "danger",
 };
 
 export default function MyOrders() {
@@ -117,10 +129,11 @@ export default function MyOrders() {
             key={tb.key}
             type="button"
             onClick={() => setTab(tb.key)}
-            className={`min-h-[40px] rounded-full px-4 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+            aria-pressed={tab === tb.key}
+            className={`min-h-[44px] rounded-full px-4 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
               tab === tb.key
-                ? "bg-green-700 text-white"
-                : "bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-green-50"
+                ? "bg-action text-white"
+                : "bg-surface-card text-stone-600 ring-1 ring-surface-border-strong hover:bg-brand-50"
             }`}
           >
             {tb.label}
@@ -160,21 +173,20 @@ export default function MyOrders() {
       )}
 
       {!loading && filtered.map((order) => {
-        const statusInfo = STATUS_MAP[order.status] || {
-          labelBn: order.status,
-          labelEn: order.status,
-          badgeClass: "bg-stone-100 text-stone-600 border-stone-200",
-        };
         const isExpanded = expandedId === order.id;
+        const refunded = order.paymentStatus === "REFUNDED";
 
         return (
           <Card key={order.id} className="overflow-hidden">
             {/* Summary row */}
             <div className="flex items-start justify-between gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-bold text-green-800">{order.orderNo}</span>
-                  <Badge className={statusInfo.badgeClass}>{lang === "bn" ? statusInfo.labelBn : statusInfo.labelEn}</Badge>
+                  <Badge tone={STATUS_TONES[order.status] ?? "default"}>
+                    {orderStatusLabel(order.status, lang)}
+                  </Badge>
+                  {refunded && <Badge tone="warning">{paymentStatusLabel(order.paymentStatus, lang)}</Badge>}
                 </div>
                 <div className="mt-1 flex items-center gap-3 text-xs text-stone-500">
                   <span className="flex items-center gap-1">
@@ -217,8 +229,8 @@ export default function MyOrders() {
                 <ul className="divide-y divide-stone-200">
                   {order.items.map((item) => (
                     <li key={item.id} className="flex justify-between py-1.5">
-                      <span className="text-stone-700">{item.product.name} × {item.qty}</span>
-                      <span className="text-stone-600">{formatBDT(item.product.pricePaisa * item.qty, lang)}</span>
+                      <span className="text-stone-700">{item.nameSnapshot} × {item.qty}</span>
+                      <span className="text-stone-600">{formatBDT(item.unitPricePaisa * item.qty, lang)}</span>
                     </li>
                   ))}
                 </ul>
@@ -243,8 +255,26 @@ export default function MyOrders() {
                     <MapPin className="h-3.5 w-3.5 text-stone-500" aria-hidden />
                     {t("deliveryAddressLabel", lang)}
                   </p>
-                  <p className="mt-0.5 text-stone-600 break-all">{order.addressLine}</p>
-                  {order.phone && <p className="mt-0.5 text-stone-600">{order.phone}</p>}
+                  {order.shippingAddress ? (
+                    <>
+                      {order.shippingName && (
+                        <p className="mt-0.5 text-stone-600">
+                          <span className="text-stone-500">{t("ordReceiverLabel", lang)}: </span>
+                          {order.shippingName}
+                        </p>
+                      )}
+                      <p className="mt-0.5 break-all text-stone-600">{order.shippingAddress}</p>
+                      {order.shippingPhone && <p className="mt-0.5 text-stone-600">{order.shippingPhone}</p>}
+                    </>
+                  ) : (
+                    // Orders placed before the delivery form was wired up carry no
+                    // address; say so instead of rendering an empty box.
+                    <p className="mt-0.5 text-stone-500">{t("ordNoAddress", lang)}</p>
+                  )}
+                  <p className="mt-1 text-stone-500">
+                    <span>{t("ordPaymentLabel", lang)}: </span>
+                    {paymentStatusLabel(order.paymentStatus, lang)}
+                  </p>
                 </div>
 
                 {/* Last updated */}

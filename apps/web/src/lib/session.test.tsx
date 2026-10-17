@@ -29,10 +29,8 @@ vi.mock("./api.js", async () => {
   };
 });
 
-const mockIdentify = vi.fn();
 const mockTrack = vi.fn();
 vi.mock("./analytics.js", () => ({
-  identify: (...args: unknown[]) => mockIdentify(...args),
   track: (...args: unknown[]) => mockTrack(...args),
 }));
 
@@ -126,7 +124,6 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     mockClearTokens.mockClear();
     mockSetUnauthorizedHandler.mockClear();
     capturedUnauthorizedHandler = null;
-    mockIdentify.mockClear();
     mockTrack.mockClear();
     mockToastError.mockClear();
     tSpy.mockClear?.();
@@ -152,15 +149,14 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     unmount();
   });
 
-  it("when ab_at present, successful GET /auth/me sets session and calls identify", async () => {
+  it("when ab_at present, a successful GET /auth/me hydrates the session", async () => {
     localStorage.setItem("ab_at", "fake-at");
     localStorage.setItem("ab_rt", "fake-rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "Karim", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     expect(mockApi).toHaveBeenCalledWith("GET", "/auth/me");
-    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn", dark: false });
+    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn", dark: false, district: null });
     expect(getCtx().loading).toBe(false);
-    expect(mockIdentify).toHaveBeenCalledWith("u1");
     expect(document.documentElement.lang).toBe("bn");
     unmount();
   });
@@ -219,14 +215,13 @@ describe("lib/session — logout", () => {
     localStorage.clear();
     mockApi.mockReset();
     mockClearTokens.mockClear();
-    mockIdentify.mockClear();
     capturedUnauthorizedHandler = null;
     mockLocation = { pathname: "/wallet", search: "" };
     mockNavigate.mockClear();
   });
   afterEach(() => localStorage.clear());
 
-  it("logout calls POST /auth/logout, clears tokens, identifies empty, sets session null", async () => {
+  it("logout calls POST /auth/logout, clears tokens and sets session null", async () => {
     localStorage.setItem("ab_at", "at");
     localStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" }); // initial refresh
@@ -241,7 +236,6 @@ describe("lib/session — logout", () => {
     });
     expect(mockApi).toHaveBeenCalledWith("POST", "/auth/logout", {});
     expect(mockClearTokens).toHaveBeenCalled();
-    expect(mockIdentify).toHaveBeenCalledWith("");
     expect(getCtx().session).toBeNull();
     unmount();
   });
