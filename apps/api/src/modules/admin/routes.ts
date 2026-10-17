@@ -83,7 +83,10 @@ adminRouter.get("/users", requirePermission("users:read"), validate({ query: use
     const [items, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        select: { id: true, fullName: true, phone: true, email: true, role: true, status: true, createdAt: true, farmerProfile: { select: { membershipTier: true, district: true } } },
+        // `region` is included because the panel EDITS it (PATCH /admin/users/:id
+        // accepts it); omitting it from the read meant the field rendered empty and
+        // an admin could not see the value they were about to overwrite.
+        select: { id: true, fullName: true, phone: true, email: true, role: true, status: true, region: true, createdAt: true, farmerProfile: { select: { membershipTier: true, district: true } } },
         skip: (q.page - 1) * q.pageSize,
         take: q.pageSize,
         orderBy: { createdAt: "desc" },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import type { FarmListItem, ProcurementListItem } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -11,16 +12,6 @@ import { Coins, Sprout } from "lucide-react";
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Field, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Stepper, useConfirm, useToast,
 } from "../../components/ui";
-
-interface ProcurementOrder {
-  id: string;
-  poNo: string;
-  cropName: string;
-  quantityKg: number;
-  qualityGrade: string;
-  netPayablePaisa: number;
-  status: string;
-}
 
 const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
 const PIPE_KEYS: Record<string, DictKey> = {
@@ -35,8 +26,8 @@ export default function SellCrop() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
-  const [orders, setOrders] = useState<ProcurementOrder[]>([]);
+  const [farms, setFarms] = useState<FarmListItem[]>([]);
+  const [orders, setOrders] = useState<ProcurementListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
@@ -46,7 +37,7 @@ export default function SellCrop() {
     setLoading(true);
     setLoadError(null);
     try {
-      setOrders(await api<ProcurementOrder[]>("GET", "/procurement"));
+      setOrders(await api<ProcurementListItem[]>("GET", "/procurement"));
     } catch (err) {
       setLoadError(mapError(err, lang));
     } finally {
@@ -57,7 +48,7 @@ export default function SellCrop() {
   useEffect(() => {
     void (async () => {
       try {
-        setFarms(await api<{ id: string; name: string }[]>("GET", "/farms"));
+        setFarms(await api<FarmListItem[]>("GET", "/farms"));
       } catch (err) {
         setLoadError(mapError(err, lang));
       }
@@ -180,7 +171,7 @@ export default function SellCrop() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                      {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
+                      {t(GRADE_KEYS[o.qualityGrade ?? ""] ?? "qualityGrade", lang)}
                       <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                     </div>
                     <div className="flex items-center gap-2 text-right">
@@ -197,7 +188,7 @@ export default function SellCrop() {
                 <div className="mb-3 flex items-center justify-between gap-2 text-sm">
                   <div className="min-w-0">
                     <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                    {t(GRADE_KEYS[o.qualityGrade] ?? "qualityGrade", lang)}
+                    {t(GRADE_KEYS[o.qualityGrade ?? ""] ?? "qualityGrade", lang)}
                     <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                   </div>
                   <p className="font-bold text-accent">{formatBDT(o.netPayablePaisa, lang)}</p>

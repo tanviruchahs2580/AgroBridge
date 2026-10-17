@@ -52,6 +52,23 @@ ci(deploy): verify production is running the reviewed commit
    stale docs are treated as a defect, not a follow-up.
 5. Never commit `.env`, keystores, `key.properties`, real personal data or release binaries.
 
+## Changing an API response
+
+Response shapes are a contract with the web app, and the contract lives in one place:
+`apps/web/src/lib/api-types.ts`. Two rules keep it honest:
+
+1. `apps/api/tests/response-contract.test.ts` records the key structure of every endpoint
+   the web consumes in `contracts/api-response-shapes.json`. **It fails when a response
+   changes.** The failure names the endpoint and the endpoints' diff — that is a decision
+   point, not a chore: a key that disappeared is a breaking change for a client.
+2. When you decide to change a response, change all four in one PR: the route, the fixture
+   (`WRITE_CONTRACT_FIXTURE=1 npx vitest run tests/response-contract.test.ts` regenerates it
+   deliberately), `api-types.ts`, and the consuming feature. Regenerating the fixture to make
+   a red build green is the exact drift the guard exists to catch.
+
+The rule that makes this work: **types are read off the API route, never off a feature that
+consumes it** — the feature is the thing that drifts.
+
 ## Evidence receipts
 
 Numbers CI produces are durable by themselves (run IDs). Numbers produced on a workstation are

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../lib/api";
+import type { MembershipPlan, PaymentIntent, PaymentListItem, WalletData, WalletSummary, Withdrawal } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
@@ -10,47 +11,6 @@ import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Walle
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
-
-interface Tx {
-  id: string;
-  direction: string;
-  amountPaisa: number;
-  reason: string;
-  createdAt: string;
-}
-interface WalletData {
-  balancePaisa: number;
-  transactions: Tx[];
-}
-interface WalletSummary {
-  monthCreditsPaisa: number;
-  monthDebitsPaisa: number;
-  pendingWithdrawalsPaisa: number;
-  membership?: { tier: string; expiresAt: string | null; discountPct: number };
-}
-interface Withdrawal {
-  id: string;
-  refNo: string;
-  amountPaisa: number;
-  status: string;
-  channel: string;
-  destination?: string | null;
-  createdAt: string;
-}
-interface PaymentRecord {
-  id: string;
-  refNo: string;
-  purposeType: string;
-  amountPaisa: number;
-  method: string;
-  status: string; // PENDING|SUCCEEDED|FAILED|REFUNDED
-  createdAt: string;
-}
-interface Plan {
-  tier: string;
-  pricePaisa: number;
-  benefits: string[];
-}
 
 const MIN_WITHDRAWAL_PAISA = 10_000; // mirrors API rule
 const CHANNELS = ["BKASH", "NAGAD", "BANK"] as const;
@@ -64,8 +24,8 @@ export default function WalletPage() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [summary, setSummary] = useState<WalletSummary | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [payments, setPayments] = useState<PaymentListItem[]>([]);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -85,8 +45,8 @@ export default function WalletPage() {
         api<WalletData>("GET", "/wallet"),
         api<WalletSummary>("GET", "/wallet/summary"),
         api<Withdrawal[]>("GET", "/wallet/withdrawals"),
-        api<Plan[]>("GET", "/membership/plans"),
-        api<PaymentRecord[]>("GET", "/payments"),
+        api<MembershipPlan[]>("GET", "/membership/plans"),
+        api<PaymentListItem[]>("GET", "/payments"),
       ]);
       setWallet(w);
       setSummary(s);
@@ -111,7 +71,7 @@ export default function WalletPage() {
         api<WalletData>("GET", "/wallet"),
         api<WalletSummary>("GET", "/wallet/summary"),
         api<Withdrawal[]>("GET", "/wallet/withdrawals"),
-        api<PaymentRecord[]>("GET", "/payments"),
+        api<PaymentListItem[]>("GET", "/payments"),
       ]);
       setWallet(w);
       setSummary(s);
@@ -136,11 +96,7 @@ export default function WalletPage() {
     if (!okToBuy) return;
     setPlanBusyTier(tier);
     try {
-      const intent = await api<{
-        paymentId: string;
-        providerMode: string;
-        redirectUrl?: string;
-      }>("POST", "/payments/intent", {
+      const intent = await api<PaymentIntent>("POST", "/payments/intent", {
         purposeType: "MEMBERSHIP",
         purposeId: tier,
       });

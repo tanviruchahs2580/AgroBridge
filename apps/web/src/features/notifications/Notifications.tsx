@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../../lib/api";
+import type { AppNotification, NotificationPreferences, NotificationsData } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -11,22 +12,6 @@ import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Pack
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, Label, PageHeader, Skeleton, useToast,
 } from "../../components/ui";
-
-interface Notification {
-  id: string;
-  type: string;
-  category?: string;
-  title: string;
-  body: string;
-  readAt: string | null;
-  createdAt: string;
-}
-
-interface Prefs {
-  critical: boolean;
-  action: boolean;
-  info: boolean;
-}
 
 const TYPE_ICONS: Record<string, ReactNode> = {
   ORDER: <Package className="h-5 w-5" aria-hidden />,
@@ -75,7 +60,7 @@ export default function Notifications() {
   const lang = session?.lang ?? "bn";
   const toast = useToast();
 
-  const [items, setItems] = useState<Notification[]>([]);
+  const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [metaCounts, setMetaCounts] = useState<{ critical: number; action: number }>({ critical: 0, action: 0 });
   const [tab, setTab] = useState<TabKey>("ALL");
@@ -83,7 +68,7 @@ export default function Notifications() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [prefsFailed, setPrefsFailed] = useState(false);
 
@@ -93,7 +78,7 @@ export default function Notifications() {
       setLoadError(null);
       try {
         const q = which === "ALL" ? "" : `?category=${which}`;
-        const data = await api<{ items: Notification[]; unread: number; counts?: { critical: number; action: number } }>(
+        const data = await api<NotificationsData>(
           "GET",
           `/notifications${q}`
         );
@@ -118,7 +103,7 @@ export default function Notifications() {
   }, [tab, load]);
 
   useEffect(() => {
-    api<Prefs>("GET", "/notifications/preferences")
+    api<NotificationPreferences>("GET", "/notifications/preferences")
       .then((p) => {
         setPrefs(p);
         setPrefsFailed(false);
@@ -144,9 +129,9 @@ export default function Notifications() {
     }
   }
 
-  async function togglePref(key: keyof Prefs) {
+  async function togglePref(key: keyof NotificationPreferences) {
     if (!prefs) return;
-    const next: Prefs = { ...prefs, [key]: !prefs[key] };
+    const next: NotificationPreferences = { ...prefs, [key]: !prefs[key] };
     setPrefs(next);
     try {
       await api("PATCH", "/notifications/preferences", next);
@@ -222,7 +207,7 @@ export default function Notifications() {
                 ["critical", "prefCategoryCritical"],
                 ["action", "prefCategoryAction"],
                 ["info", "prefCategoryInfo"],
-              ] as [keyof Prefs, DictKey][]).map(([key, labelKey]) => (
+              ] as [keyof NotificationPreferences, DictKey][]).map(([key, labelKey]) => (
                 <div key={key} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 px-3 py-2">
                   <Label className="!mb-0 flex-1 cursor-pointer text-sm" htmlFor={`pref-${key}`}>
                     {t(labelKey, lang)}

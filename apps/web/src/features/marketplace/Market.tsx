@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, setCriticalFlow, ApiError } from "../../lib/api";
+import type { Cart, CartLine, Me, Order, PaymentIntent, ProductList, ProductListItem } from "../../lib/api-types";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -11,30 +12,6 @@ import { Check, Inbox, MapPin, Package, Phone, ShieldCheck, ShoppingBasket, Shop
 import {
   Badge, Button, Card, EmptyState, ErrorBanner, IconButton, Input, Label, Modal, PageHeader, Skeleton, Stepper, useToast,
 } from "../../components/ui";
-
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  unit: string;
-  pricePaisa: number;
-  stockQty: number;
-}
-interface CartItem {
-  id: string;
-  productId?: string;
-  qty: number;
-  product: { id: string; name: string; pricePaisa: number };
-}
-interface Order {
-  id: string;
-  orderNo: string;
-  subtotalPaisa: number;
-  discountPaisa: number;
-  deliveryFeePaisa: number;
-  totalPaisa: number;
-}
 
 const CATEGORY_FILTERS: { value: string; key: DictKey }[] = [
   { value: "", key: "catAll" },
@@ -65,11 +42,11 @@ export default function Market() {
   const lang = session?.lang ?? "bn";
   const toast = useToast();
 
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductListItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [category, setCategory] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartLine[]>([]);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [cartBusyIds, setCartBusyIds] = useState<Set<string>>(new Set());
   const [cartError, setCartError] = useState(false);
@@ -92,7 +69,7 @@ export default function Market() {
       setProductsLoading(true);
       setLoadError(false);
       try {
-        const data = await api<{ items: Product[] }>("GET", `/products?pageSize=50${cat ? `&category=${cat}` : ""}`);
+        const data = await api<ProductList>("GET", `/products?pageSize=50${cat ? `&category=${cat}` : ""}`);
         setProducts(data.items);
       } catch {
         setLoadError(true);
@@ -104,7 +81,7 @@ export default function Market() {
   );
 
   const loadCart = useCallback(async () => {
-    const data = await api<{ items: CartItem[] }>("GET", "/cart");
+    const data = await api<Cart>("GET", "/cart");
     setCart(data.items);
   }, []);
 
@@ -131,7 +108,7 @@ export default function Market() {
     });
   }
 
-  async function addToCart(p: Product) {
+  async function addToCart(p: ProductListItem) {
     markBusy(p.id, true);
     try {
       await api("POST", "/cart/items", { productId: p.id, qty: 1 });
@@ -149,7 +126,7 @@ export default function Market() {
   }
 
   /** POST /cart/items upserts an ABSOLUTE qty (verified against marketplace routes). */
-  async function changeQty(item: CartItem, delta: number) {
+  async function changeQty(item: CartLine, delta: number) {
     const productId = item.product?.id ?? item.productId;
     if (!productId) return;
     const nextQty = item.qty + delta;
@@ -168,7 +145,7 @@ export default function Market() {
     }
   }
 
-  async function removeLine(item: CartItem) {
+  async function removeLine(item: CartLine) {
     const productId = item.product?.id ?? item.productId;
     if (!productId) return;
     markBusy(item.id, true);
@@ -192,7 +169,7 @@ export default function Market() {
     if (!prefillDone) {
       setPrefillDone(true);
       try {
-        const me = await api<{ phone: string; farmerProfile?: { district?: string; upazila?: string; address?: string } }>("GET", "/auth/me");
+        const me = await api<Me>("GET", "/auth/me");
         const fp = me.farmerProfile;
         setAddress(fp?.address ?? [fp?.district, fp?.upazila].filter(Boolean).join(", "));
         setPhone(me.phone.startsWith("01") ? me.phone : "");
@@ -255,11 +232,7 @@ export default function Market() {
     if (!order) return;
     setPaying(true);
     try {
-      const intent = await api<{
-        paymentId: string;
-        providerMode: string;
-        redirectUrl?: string;
-      }>("POST", "/payments/intent", {
+      const intent = await api<PaymentIntent>("POST", "/payments/intent", {
         purposeType: "ORDER",
         purposeId: order.id,
       });
