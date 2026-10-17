@@ -633,3 +633,53 @@ Phase 0 শেষ হওয়ার পর `deploy-verify` গেটের প�
 (`LOGIN_RATE_LIMIT_MAX` config + CI-তে 500 + spec-এ ৯ login → ২), (খ) e2e contention
 (`workers: 1` config-এ, এবং payment-এর fixed 3s sleep → outcome-poll)। তিনটি CI ব্যর্থতার
 প্রতিটির কারণ, সংশোধন ও প্রমাণ PR/commit-এ আছে — লুকানোর মতো কিছু নেই।
+
+## 2026-10-17 — Phase 1 (part 1): এক typed API contract + drift guard (round 13)
+
+রিপোর্টের Phase 1-এর প্রথম ও সবচেয়ে বড় লিভারেজের কাজ: WEB-2। ৫টি PR (#19–#21 + আগের #14)
+সবই গেটের ভেতর দিয়ে গেছে।
+
+**সমস্যাটা কী ছিল:** ৩৩টি API interface ১১টি feature ফাইলে হাতে লেখা ছিল — `Order` দুবার
+(ভিন্ন field নিয়ে), `Farm` দুবার, user type তিনবার। এটা কসমেটিক নয়: order-history স্ক্রিন
+`item.product.name` পড়ত অথচ API পাঠাত `nameSnapshot` — পেজ ক্র্যাশ করত শুধু তখন, যখন
+ব্যবহারকারী অর্ডার expand করতেন। Compiler ওই ভুল দেখতে পায় না, কারণ টাইপটা হাতে লেখা মিথ্যা।
+
+**যা হলো:**
+- `apps/web/src/lib/api-types.ts` — web যে response shapes consume করে, সব এক জায়গায়, প্রতিটি
+  **API route থেকে পড়া** (Prisma select/include), feature থেকে নয়। যে অসামঞ্জস্যগুলো ভুলের মতো
+  দেখায় কিন্তু সত্যি (যেমন `GET /orders/:id`-এ `user.phone` নেই, `POST /cart/items`-এ
+  `subtotalPaisa` নেই), সেগুলো মন্তব্যে লেখা।
+- ১২টি ফাইল থেকে **২৬টি inline interface মুছে ফেলা** (net −190 লাইন); feature-এ আর কোনো API
+  টাইপ নেই। status/stage/role গুলো `string` রাখা হয়েছে, union নয় — DB column-এ কোনো constraint
+  নেই, তাই union মানে মিথ্যা।
+- **Drift guard:** `apps/api/tests/response-contract.test.ts` ২৪টি endpoint-এর key-structure
+  `contracts/api-response-shapes.json`-এ লিখে রাখে এবং বদলালেই fail করে। **প্রমাণ:** ইচ্ছে করে
+  fixture থেকে `nameSnapshot` মুছে দিয়ে চালালে guard fail করে — "orders: response shape
+  changed → update contracts/api-response-shapes.json AND apps/web/src/lib/api-types.ts together"।
+  Regeneration ইচ্ছাকৃত (`WRITE_CONTRACT_FIXTURE=1`), কখনোই "red-কে green করার" পথ নয় —
+  সেটা CONTRIBUTING-এ লেখা আছে। `null` normalize করা হয়, যাতে fixture ভাগ্যবান-নয়।
+
+**মাইগ্রেশনে দুটি আসল বাগ ধরা পড়ল (দুটোই ঠিক করা হয়েছে):**
+1. `GET /admin/users` `region` select করত না, অথচ প্যানেল সেটা **দেখায় ও সম্পাদনা করে** —
+   মানে অ্যাডমিন এমন মান overwrite করতেন যা তিনি দেখতেই পাননি। এখন select-এ `region` আছে,
+   `AdminUser`-এ যোগ হয়েছে, আর Admin.tsx-এর local `UserRow` কাজ শেষ।
+2. `SellCrop.tsx` `qualityGrade`-কে non-null ধরে নিত; API null পাঠাতে পারে, আর
+  `GRADE_KEYS[null]` অর্থহীন lookup।
+
+**Test infrastructure-এর দুটি ত্রুটি (নিজের বানানো জিনিস ব্যবহার করেই ধরা):**
+3. `global-setup` প্রতিবার `prisma generate` চালাত। Windows-এ চলমান dev server query-engine
+   DLL ধরে রাখে → `EPERM` → পুরো suite মরে, অথচ error-এ dev server-এর নামই থাকে না (এই রাউন্ডে
+   চারবার সময় নষ্ট)। এখন client কার্যকরভাবে পুরোনো হলেই regenerate হয়; schema সত্যিই বদলালে
+   জোরে fail করে কারণ+সমাধান লিখে। **dev server চালু রেখেই যাচাই করা হয়েছে।**
+4. আমার নতুন guard-ই flaky ছিল: `admin/withdrawals`-এর element shape নির্ভর করত অন্য test file
+   আগে row রেখে গেছে কি না। এমন guard fixture regenerate করার অভ্যাস শেখায় — যা guard-এর
+   উদ্দেশ্যের ঠিক বিপরীত। এখন probe নিজেই যা দরকার তা তৈরি করে (wallet সরাসরি credit; payout
+   path-এর জন্য আলাদা suite আছে)। পরপর দুবার green।
+
+**Gates:** API **151 passed / 1 skipped** (guard-টাই +1); web unit 108; tsc/lint/i18n clean;
+**Playwright e2e 27/27** — অর্থাৎ মাইগ্রেট করা স্ক্রিনগুলো রানটাইমে যাচাই করা, শুধু compiler-এ নয়।
+Live: web ও API দুটোই `73f0945`, deploy-verify success।
+
+**প্রসেস-ভুল (লিখে রাখা):** একটি commit branch খোলার *আগে* main-এ হয়ে গিয়েছিল, ফলে remote-এ
+squash merge হলেও local main-এ duplicate commit + merge commit জমে। Content অভিন্ন প্রমাণ করে
+local main origin-এ reset করা হয়েছে; শিক্ষা — **আগে branch, পরে commit**।
