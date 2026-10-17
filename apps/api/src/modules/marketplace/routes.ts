@@ -18,7 +18,7 @@ export const productsRouter = Router();
 export const cartRouter = Router();
 export const ordersRouter = Router();
 
-// Financial hot paths get stricter limits than the global one (Section 33).
+// Financial hot paths get stricter limits than the global one.
 // Keyed by authenticated user (falls back to IP pre-auth) so one busy user
 // cannot exhaust another's quota behind a shared NAT/127.0.0.1.
 const byUserOrIp = (req: { auth?: { userId?: string }; ip?: string }) =>

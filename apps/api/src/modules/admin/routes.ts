@@ -20,7 +20,7 @@ adminRouter.use((req, res, next) => {
   next();
 });
 
-// ---- Metrics: every number maps to real backend data (Rule 27/53) ----
+// ---- Metrics: every number maps to real backend data ----
 // Company-wide revenue and farmer counts are not AREA/PROCUREMENT-manager
 // concerns; the permission map grants admin:metrics to ADMIN, SUPER_ADMIN and
 // REGIONAL_MANAGER only.

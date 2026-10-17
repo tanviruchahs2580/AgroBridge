@@ -1,9 +1,10 @@
 # AgroBridge — ENTERPRISE CERTIFICATION STATUS
 
 **Authoritative certification record.** Single source of truth per the 2026-09-15 enterprise
-certification engagement. Older root reports (`ENTERPRISE_MASTER_REPORT.md`,
+certification engagement. Older reports (`ENTERPRISE_MASTER_REPORT.md`,
 `FINAL_ENTERPRISE_VALIDATION_REPORT.md`, `PRODUCTION_CERTIFICATION_REPORT.md`, etc.) are
-historical and superseded by this file where they conflict.
+historical and superseded by this file where they conflict; they are archived under
+`docs/archive/2026-08-09/` (see the README there for what superseded each).
 
 - **Date:** 2026-09-15
 - **Auditor:** ZCode agent (independent audit + remediation engagement)

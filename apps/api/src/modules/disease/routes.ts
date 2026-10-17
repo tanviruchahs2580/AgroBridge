@@ -18,11 +18,11 @@ const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_SIZE_BYTES = 8 * 1024 * 1024;
 
 /**
- * Disease detection workflow (Section 14):
+ * Disease detection workflow:
  * Image upload -> basic quality checks -> heuristic triage -> persisted case.
  * The classification itself is provider-abstracted; without a trained model
  * configured the case is queued as PENDING_REVIEW for agronomist review and
- * NEVER presented as a confirmed AI diagnosis (Rule 53).
+ * NEVER presented as a confirmed AI diagnosis.
  */
 diseaseRouter.post(
   "/cases",

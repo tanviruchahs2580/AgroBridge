@@ -172,7 +172,7 @@ const COMPILED = KNOWLEDGE_BASE.map((entry) => {
   return { entry, rules };
 });
 
-/** Strip instruction-like patterns to reduce prompt-injection surface (Section 33). */
+/** Strip instruction-like patterns to reduce the prompt-injection surface. */
 export function sanitizeQuestion(raw: string): string {
   return raw
     .replace(/```[\s\S]*?```/g, "[code-block removed]")

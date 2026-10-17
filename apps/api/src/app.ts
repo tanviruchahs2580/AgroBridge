@@ -67,7 +67,7 @@ export function createApp() {
   });
   app.use("/api/", globalLimiter);
 
-  // ---- Observability endpoints (Section 35) ----
+  // ---- Observability endpoints ----
   /**
    * Liveness. Also reports the deployed commit so a deployment can be verified
    * against a specific SHA without opening the dashboard: Vercel injects

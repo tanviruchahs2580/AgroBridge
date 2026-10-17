@@ -250,7 +250,7 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
 | Surface | Implementation | Evidence |
 |---|---|---|
 | **Body/query/params** | `apps/api/src/middleware/validate.ts:7-28` — `validate({ body, query, params })` with `safeParse` + `badRequest` mapping of `issues[].path + message`, assigns coerced values back | All farmer/market/service/booking/payment routes use `validate({ body: z.object({...}) })` — e.g., `apps/api/src/modules/farms/routes.ts:13,70,87` `farmBody`, `apps/api/src/modules/marketplace/routes.ts:21,69`, `apps/api/src/modules/services/routes.ts:41`. |
-| **Body limits** | `apps/api/src/app.ts:48-49` `express.json({limit:"1mb"}), urlencoded({limit:"200kb"})` + `disease.ts` 8 MB multipart cap with magic-byte check | `PRODUCTION_CERTIFICATION_REPORT.md:35` PASS |
+| **Body limits** | `apps/api/src/app.ts:48-49` `express.json({limit:"1mb"}), urlencoded({limit:"200kb"})` + `disease.ts` 8 MB multipart cap with magic-byte check | `docs/archive/2026-08-09/PRODUCTION_CERTIFICATION_REPORT.md:35` PASS |
 | **BD phone regex** | `z.string().regex(/^01[3-9]\\d{8}$/)` in auth + marketplace shipping | marketplace checkout `shippingPhone` `apps/api/src/modules/marketplace/routes.ts:181-183` (optional) |
 | **File upload** | MIME allowlist + magic sniff + cap | `disease.ts:16` + `docs/ai.md:30` |
 

@@ -3,7 +3,7 @@ import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js"
 /**
  * Deterministic offline weather provider for development/test/demo.
  * Clearly NOT production data — selected only when WEATHER_PROVIDER=mock
- * or when no real provider credentials are configured (Rule 53/63).
+ * or when no real provider credentials are configured.
  */
 export class MockWeatherProvider implements WeatherProvider {
   readonly name = "mock";

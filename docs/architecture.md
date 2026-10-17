@@ -42,3 +42,12 @@ SQLite (dev/test) ⇄ PostgreSQL (production target)
    responses are labelled `providerMode: "sandbox"`; `sslcommerz` adapter implements signature verification and is only instantiated when creds present.
 8. **Observability:** Prometheus `/metrics` (`agrobridge_http_requests_total`, `http_request_duration_seconds`, `db_up`, `ai_requests_total`, `payment_intents_total` + default process metrics) scraped by monitoring; alert rules in `docs/operations.md`.
 9. **Storage abstraction:** `StorageProvider` interface + `LocalStorageProvider`; disease images via `getStorageProvider()` — prod can switch to S3 without code change (see `STORAGE_PROVIDER`).
+
+## Architecture Decision Records (`docs/adr/`)
+
+- [0001 — Marketplace catalog is login-gated by design](adr/ADR-0001-login-gated-marketplace-catalog.md)
+- [0002 — Hand-rolled web data layer](adr/0002-hand-rolled-data-layer.md) (`api()` + `useResource`, no query library)
+- [0003 — Token storage in localStorage](adr/0003-token-storage-in-localstorage.md) (accepted XSS risk; cookie migration trigger)
+- [0004 — Dual-dialect Prisma](adr/0004-dual-dialect-prisma.md) (SQLite dev / PostgreSQL prod; every schema copy must be updated)
+- [0005 — Provider adapters](adr/0005-provider-adapters.md) (weather/AI/payment/storage; `ALLOW_PLACEHOLDER_PROVIDERS` fail-fast)
+- [0006 — Version single source](adr/0006-version-single-source.md) (`version.json`; `RELEASE_MANIFEST.md` is historical)

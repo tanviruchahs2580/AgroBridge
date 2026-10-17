@@ -43,7 +43,7 @@ Dashboard / My Farm(Farms·Plots·Crops·Tasks·Records) / Advisory(Weather·Cop
 
 ## 5. Risk & Production Gap Registers
 
-Technical: stale-client clobber (GAP-003 pattern) recurs between sqlite/pg profiles — mitigation: profile-aware generate script. Product: test-data leakage into demo catalog (F-QA1). Ops: soak/chaos unproven on staging HW; TLS/payment/Play Console remain external (FINAL_ENTERPRISE_VALIDATION_REPORT GO/NO-GO list). Compliance: privacy policy + data-safety required before Play launch.
+Technical: stale-client clobber (GAP-003 pattern) recurs between sqlite/pg profiles — mitigation: profile-aware generate script. Product: test-data leakage into demo catalog (F-QA1). Ops: soak/chaos unproven on staging HW; TLS/payment/Play Console remain external (docs/archive/2026-08-09/FINAL_ENTERPRISE_VALIDATION_REPORT.md GO/NO-GO list). Compliance: privacy policy + data-safety required before Play launch.
 
 ## 6. KPIs
 

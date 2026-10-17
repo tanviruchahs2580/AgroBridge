@@ -7,7 +7,7 @@ export type NotificationCategory = "CRITICAL" | "ACTION" | "INFO";
 
 /**
  * In-app notification service. SMS/email adapters plug in here later
- * (NotificationProvider abstraction, Section 54). In-app delivery is real:
+ * (NotificationProvider abstraction). In-app delivery is real:
  * notifications are persisted and served via /notifications.
  */
 export async function notify(params: {

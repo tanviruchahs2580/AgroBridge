@@ -42,7 +42,7 @@ procurementRouter.post(
         throw unprocessable(`Crop '${b.cropName}' is not in the procurement catalogue. Supported: ${Object.keys(CATALOGUE_BASE_PAISA_PER_KG).join(", ")}`);
       }
 
-      // Auditable price calculation (Section 19)
+      // Auditable price calculation
       const calc = calcProcurement({
         quantityKg: b.quantityKg,
         basePricePerKgPaisa,

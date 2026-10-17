@@ -65,9 +65,14 @@ npm run dev --workspace apps/web          # Web on :5173 (proxies /api to :4000)
 ## Tests
 
 ```bash
-npx vitest run        # inside apps/api — 149 tests (SQLite profile, 1 PG-gated skip by design);
-                      # 149/149 with npm run test:pg provisioned (docker postgres)
+npm run test --workspace apps/api        # API suite (SQLite profile; one PG-gated test skips by design)
+npm run test:pg --workspace apps/api     # same suite against a provisioned PostgreSQL (docker postgres)
+npm run test --workspace apps/web        # web unit tests (vitest)
+npm run test:e2e --workspace apps/web    # Playwright browser suite (needs the local stack + seeded demo farmer)
 ```
+
+The counts move with every round — on 2026-10-18 the API suite ran **157 passed / 1 skipped**
+(take the number from your own run rather than from this file).
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
 real HTTP API end-to-end: registration→login→profile, farm→plot→crop, weather advisories, AI agent
@@ -99,7 +104,10 @@ at are served by the SPA at `/privacy`, `/terms` and `/account-deletion`.
 See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [database](docs/database.md)
 · [ai](docs/ai.md) · [security](docs/security.md) · [testing](docs/testing.md)
 · [deployment](docs/deployment.md) · [operations](docs/operations.md)
-· [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md) · [Play release runbook](docs/play/release-runbook.md)
+· [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md)
+· [Play release runbook](docs/play/release-runbook.md)
+· [code-quality review 2026-10-17](docs/CODE_QUALITY_REVIEW_2026-10-17.md)
+· [dependency backlog](docs/DEPENDENCY_BACKLOG.md) · [ADRs](docs/adr/)
 
 ## License
 

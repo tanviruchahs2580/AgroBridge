@@ -31,7 +31,7 @@ export interface AgriRisk {
 }
 
 /**
- * Weather -> agricultural decision support (Section 15).
+ * Weather -> agricultural decision support.
  * Converts raw weather + crop stage into actionable risks.
  */
 export function deriveAgriRisks(current: CurrentWeather, forecast: DailyForecast[], cropStage?: string): AgriRisk[] {

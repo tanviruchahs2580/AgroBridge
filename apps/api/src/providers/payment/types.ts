@@ -20,7 +20,7 @@ export interface PaymentIntent {
 }
 
 /**
- * PaymentProvider abstraction (Section 24/54). Business logic never talks to
+ * PaymentProvider abstraction. Business logic never talks to
  * a specific gateway. Real gateways (SSLCommerz/bKash etc.) plug in here when
  * credentials are available — until then only sandbox mode is offered and is
  * clearly labelled as such everywhere it appears.
