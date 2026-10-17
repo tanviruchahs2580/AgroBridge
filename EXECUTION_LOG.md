@@ -447,3 +447,33 @@ query-engine DLL ধরে রাখে) → API dev process (PID 22256) বন�
 warning); localStorage→httpOnly cookie (ক্রস-কাটিং auth পরিবর্তন, pre-launch ঝুঁকি); R8
 minify (ডিভাইস ভেরিফিকেশন ছাড়া WebView bridge ভাঙার ঝুঁকি); monochrome icon layer (রেপোতে
 brand vector source নেই — হাতে আঁকা glyph দিলে দ্বিতীয় অসামঞ্জস্য mark তৈরি হতো)।
+
+### Addendum — CI pin ছিল অস্তিত্বহীন (রিলিজ ব্লকার, push-এর পর ধরা পড়ে)
+
+Push-এর পর `Web — Lint · Unit · Build` job "Set up job"-এ মরে যায়:
+`Unable to resolve action actions/setup-node@820762786026740c76f36085b0efc47a31fe5028,
+unable to find version`। প্রথমে transient মনে হয়েছিল (একই run-এর অন্য job-গুলো একই SHA
+ব্যবহার করে সফল), তাই re-run — কিন্তু দ্বিতীয়বারও একই জায়গায় fail।
+
+কারণ বের করতে GitHub API দিয়ে প্রতিটা pin যাচাই করা হয়: `…fe5028` **আপস্ট্রিমে নেই**
+(422), আর আসল v7.0.0 commit হলো `…fe5020` (শেষ অক্ষর আলাদা — এতেই চোখ এড়িয়ে গিয়েছিল;
+প্রথম যাচাইয়ের লুপে ৮ অক্ষরে truncate করে ছাপানোর কারণে দুটো একই দেখাচ্ছিল, তাই ভুলভাবে
+OK পড়েছিল — সেটাও ধরা পড়ে পুনরায় full-SHA যাচাই করে)।
+
+প্রভাব: এই pin দুটো ফাইলে ছিল — `ci.yml`-এর web-quality job এবং **`android-release.yml`**
+(অর্থাৎ Play-এর AAB বানানোর একমাত্র পথ)। GitHub-এর resolution cache থাকতে থাকতে job চলত;
+workflow ফাইলের digest বদলালেই cache miss → job setup-এই মরে। তাই এটা প্রচলিত "সব CI
+সবুজ" অবস্থাতেও লুকিয়ে ছিল এবং Play release workflow প্রথম চালাতেই ব্যর্থ হতো।
+
+ফিক্স: দুটো ফাইলেই verified `…fe5020`-এ re-pin, এবং `.github/workflows/**`-এর **প্রতিটা** SHA
+আপস্ট্রিম repo-র সাথে মিলিয়ে যাচাই (checkout, codeql-action v4.39.0, upload-artifact,
+setup-java, docker/*, trivy, gitleaks, appleboy/*, treosh/lighthouse-ci-action — সবগুলোই
+বৈধ; এই একটা-ই অস্তিত্বহীন ছিল)। `github/codeql-action/*`-এর প্রথম "BAD" ফলাফল আমার
+যাচাই-লুপের bug ছিল (sub-path action-কে repo মনে করছিল) — সঠিক repo ধরে যাচাইয়ে v4.39.0
+বৈধ প্রমাণিত।
+
+প্রমাণ: push `f46f202` → CI run 39003351899 **9/9 job success**, web-quality job এখন
+lint + i18n check + unit + build চালায় (45s)। CodeQL run 39003351898 success।
+`android-release.yml` dispatch (run 39003660938): **"Set up job" ✓ ও checkout ✓ পেরিয়ে** এখন
+শুধু "Fail fast if signing secrets are absent"-এ থামে — অর্থাৎ রিলিজ পথ কার্যকর, এবং
+শুধু keystore (owner-নির্ভর) বাকি; guard-টা ঠিক কাজ করছে (ভুল-হস্তাকৃত artifact তৈরি হবে না)।
