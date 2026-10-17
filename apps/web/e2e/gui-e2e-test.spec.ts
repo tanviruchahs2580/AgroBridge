@@ -121,7 +121,11 @@ async function checkoutOneItem(page: any): Promise<{ successText: string; orderN
     `checkout wizard did not reach success step; dialog text: ${successText.substring(0, 300)}`,
   ).toMatch(/পেমেন্ট সম্পন্ন|Payment complete/i);
 
-  const orderNoMatch = successText.match(/ORD-[0-9A-Z-]+/i);
+  // refNo() builds ORD-YYYYMMDD-8-hex (apps/api/src/shared/utils/money.ts). The old
+  // "letters and dashes" pattern swallowed the next word: in the English UI the
+  // dialog reads "Order no: ORD-… Net payable", so the captured number became
+  // "ORD-…DNet" and the MyOrders assertion failed for a wording reason.
+  const orderNoMatch = successText.match(/ORD-\d{8}-[0-9A-F]{8}/i);
   return { successText, orderNo: orderNoMatch ? orderNoMatch[0] : "" };
 }
 

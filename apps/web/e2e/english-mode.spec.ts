@@ -40,8 +40,26 @@ test.describe("English mode toggle", () => {
     // Document language attribute follows the UI language.
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe("en");
 
-    // Toggling back restores Bengali labels (also resets persisted pref).
+    // Toggling back restores Bengali labels AND must persist it: every later spec
+    // starts a fresh browser context and hydrates the language from the account, so a
+    // restore that only reached the UI leaks English into the rest of the suite (it did
+    // on 2026-10-17 — T2, T8 and the visual-contract scan then failed for the wrong
+    // reason). Asserting the persisted preference is the difference between "the label
+    // changed" and "the next spec will start in Bengali".
     await page.locator(bnToggle).click();
     await expect(page.getByRole("link", { name: /বাজার/u }).first()).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(async () => {
+            const raw = localStorage.getItem("ab_at"); // sessionManager owns this key
+            const res = await fetch("/api/v1/auth/me", { headers: raw ? { Authorization: `Bearer ${raw}` } : {} });
+            if (!res.ok) return `http_${res.status}`;
+            const body = await res.json();
+            return body?.data?.langPref ?? "missing";
+          }),
+        { timeout: 10_000, message: "the Bengali preference never reached the server — later specs would start in English" }
+      )
+      .toBe("bn");
   });
 });

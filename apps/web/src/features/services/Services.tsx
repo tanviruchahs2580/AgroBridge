@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { BookingWithRelations, FarmListItem, ServiceWithProviders } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
@@ -37,6 +38,21 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const } },
 };
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function Services() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
@@ -44,45 +60,29 @@ export default function Services() {
   const confirm = useConfirm();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const [services, setServices] = useState<ServiceWithProviders[]>([]);
-  const [bookings, setBookings] = useState<BookingWithRelations[]>([]);
-  const [farms, setFarms] = useState<FarmListItem[]>([]);
+  // The page reads three independent endpoints, so it holds three independent
+  // resources: a failure in any one block leaves the others on screen.
+  const servicesRes = useResource<ServiceWithProviders[]>("services", () => api<ServiceWithProviders[]>("GET", "/services"));
+  const bookingsRes = useResource<BookingWithRelations[]>("services-bookings", () => api<BookingWithRelations[]>("GET", "/bookings"));
+  const farmsRes = useResource<FarmListItem[]>("services-farms", () => api<FarmListItem[]>("GET", "/farms"));
+
+  const services = servicesRes.data ?? [];
+  const bookings = bookingsRes.data ?? [];
+  const farms = farmsRes.data ?? [];
+
   const [selected, setSelected] = useState<ServiceWithProviders | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [formErrs, setFormErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("ALL");
-  const [sort, setSort] = useState<"default" | "priceAsc" | "priceDesc">("default");
+  type SortKey = "default" | "priceAsc" | "priceDesc";
+  const [sort, setSort] = useState<SortKey>("default");
 
-  async function load() {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const [svc, bkg, frm] = await Promise.all([
-        api<ServiceWithProviders[]>("GET", "/services"),
-        api<BookingWithRelations[]>("GET", "/bookings"),
-        api<FarmListItem[]>("GET", "/farms"),
-      ]);
-      setServices(svc);
-      setBookings(bkg);
-      setFarms(frm);
-    } catch (err) {
-      setLoadError(mapError(err, lang));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // Search, category chips and price sort stay client-side over the catalogue
+  // resource, exactly as they were over the state array.
   const filtered = useMemo(() => {
-    let out = services.filter((s) => {
+    let out = (servicesRes.data ?? []).filter((s) => {
       const cats = FILTER_MAP[activeFilter];
       const matchesFilter = activeFilter === "ALL" || cats.includes(s.category);
       const q = query.trim().toLowerCase();
@@ -92,7 +92,7 @@ export default function Services() {
     if (sort === "priceAsc") out = [...out].sort((a, b) => a.basePricePaisa - b.basePricePaisa);
     if (sort === "priceDesc") out = [...out].sort((a, b) => b.basePricePaisa - a.basePricePaisa);
     return out;
-  }, [services, activeFilter, query, sort]);
+  }, [servicesRes.data, activeFilter, query, sort]);
 
   async function book(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,7 +120,12 @@ export default function Services() {
       track("booking_created", { serviceCategory: selected.category });
       toast.success(t("bookingReceivedToast", lang));
       setSelected(null);
-      await load();
+      // The new booking moves the bookings list and the provider assignment that
+      // comes with it; the old page-wide `load()` refreshed all three resources,
+      // so all three families are invalidated — no more, no less.
+      invalidate("services");
+      invalidate("services-bookings");
+      invalidate("services-farms");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -141,7 +146,10 @@ export default function Services() {
     try {
       await api("POST", `/bookings/${b.id}/status`, { status: "CANCELLED" });
       toast.success(t("bookingCancelledToast", lang));
-      await load();
+      // Same refetch set as the old page-wide `load()`.
+      invalidate("services");
+      invalidate("services-bookings");
+      invalidate("services-farms");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -202,14 +210,11 @@ export default function Services() {
         </div>
       </section>
 
-      {loadError && (
-        <div className="space-y-2">
-          <ErrorBanner message={loadError} />
-          <Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button>
-        </div>
-      )}
+      {/* Farms — the "add a farm first" hint and its failure share this slot, so
+          neither the catalogue nor the bookings go down with them. */}
+      <BlockError error={farmsRes.error} retryLabel={t("retry", lang)} onRetry={() => void farmsRes.reload()} />
 
-      {!loading && !loadError && farms.length === 0 && (
+      {!farmsRes.loading && !farmsRes.error && farms.length === 0 && (
         <Card className="flex items-center gap-2 border-warning-border bg-warning-bg text-sm font-medium text-warning-text">
           <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden /> {t("needFarmFirst", lang)}
           <Link to="/farm" className="ml-auto inline-flex min-h-[44px] items-center text-xs font-bold underline hover:no-underline"> {t("myFarm", lang)} →</Link>
@@ -250,7 +255,7 @@ export default function Services() {
             <span className="sr-only">{t("svcSortLabel", lang)}</span>
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value as never)}
+              onChange={(e) => setSort(e.target.value as SortKey)}
               className="min-h-[44px] rounded-button border border-surface-border bg-surface-card px-3 py-2 text-sm font-medium text-stone-800 focus:border-action focus:outline-none focus:ring-2 focus:ring-brand-200"
               aria-label={t("svcSortLabel", lang)}
             >
@@ -266,17 +271,22 @@ export default function Services() {
       </section>
 
       {/* SECTION 05 — ALL SERVICES — 1col mobile, 2-col tablet, 3-col desktop, 20px gap */}
-      {loading && !loadError ? (
+      <BlockError error={servicesRes.error} retryLabel={t("retry", lang)} onRetry={() => void servicesRes.reload()} />
+
+      {servicesRes.loading ? (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <ServiceCardSkeleton key={i} />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          title={t("svcEmptyTitle", lang)}
-          description={t("svcEmptyHint", lang)}
-        />
+        // A failed catalogue must not read as "no services exist".
+        servicesRes.error ? null : (
+          <EmptyState
+            title={t("svcEmptyTitle", lang)}
+            description={t("svcEmptyHint", lang)}
+          />
+        )
       ) : (
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((s, i) => (
@@ -487,16 +497,20 @@ export default function Services() {
           title={t("myBookings", lang)}
           action={<Badge tone="brand">{bookings.length}</Badge>}
         />
-        {loading && !loadError ? (
+        <BlockError error={bookingsRes.error} retryLabel={t("retry", lang)} onRetry={() => void bookingsRes.reload()} />
+        {bookingsRes.loading ? (
           <Card>
             <Skeleton className="h-16 w-full" />
           </Card>
         ) : bookings.length === 0 ? (
-          <EmptyState
-            icon={<ClipboardList className="h-10 w-10 text-stone-300" aria-hidden />}
-            title={t("noBookings", lang)}
-            description={t("svcBookingEmptyHint", lang)}
-          />
+          // A failed list must not read as "no bookings".
+          bookingsRes.error ? null : (
+            <EmptyState
+              icon={<ClipboardList className="h-10 w-10 text-stone-300" aria-hidden />}
+              title={t("noBookings", lang)}
+              description={t("svcBookingEmptyHint", lang)}
+            />
+          )
         ) : (
           <div className="space-y-3">
             {bookings.map((b) => (
