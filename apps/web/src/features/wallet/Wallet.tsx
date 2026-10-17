@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { api, ApiError } from "../../lib/api";
 import type { MembershipPlan, PaymentIntent, PaymentListItem, WalletData, WalletSummary, Withdrawal } from "../../lib/api-types";
+import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
@@ -15,19 +16,39 @@ import {
 const MIN_WITHDRAWAL_PAISA = 10_000; // mirrors API rule
 const CHANNELS = ["BKASH", "NAGAD", "BANK"] as const;
 
+/**
+ * Failure UI for one resource: its own mapped error text plus a retry, shown
+ * where that resource's data would be. Only the block that owns the failed
+ * resource shows it — every block whose data arrived keeps rendering.
+ */
+function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
+    </div>
+  );
+}
+
 export default function WalletPage() {
   const { session, refresh } = useSession();
   const lang = session?.lang ?? "bn";
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [summary, setSummary] = useState<WalletSummary | null>(null);
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [payments, setPayments] = useState<PaymentListItem[]>([]);
-  const [plans, setPlans] = useState<MembershipPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  // The page reads five independent endpoints, so it holds five independent
+  // resources: a failure in any one block leaves the others on screen.
+  const walletRes = useResource<WalletData>("wallet", () => api<WalletData>("GET", "/wallet"));
+  const summaryRes = useResource<WalletSummary>("wallet-summary", () => api<WalletSummary>("GET", "/wallet/summary"));
+  const withdrawalsRes = useResource<Withdrawal[]>("wallet-withdrawals", () => api<Withdrawal[]>("GET", "/wallet/withdrawals"));
+  const paymentsRes = useResource<PaymentListItem[]>("wallet-payments", () => api<PaymentListItem[]>("GET", "/payments"));
+  const plansRes = useResource<MembershipPlan[]>("wallet-plans", () => api<MembershipPlan[]>("GET", "/membership/plans"));
+
+  const wallet = walletRes.data;
+  const summary = summaryRes.data;
+  const withdrawals = withdrawalsRes.data ?? [];
+  const plans = plansRes.data ?? [];
 
   // Withdraw dialog
   const [wdOpen, setWdOpen] = useState(false);
@@ -36,51 +57,6 @@ export default function WalletPage() {
   const [wdErr, setWdErr] = useState("");
   const [wdBusy, setWdBusy] = useState(false);
   const [planBusyTier, setPlanBusyTier] = useState<string | null>(null);
-
-  async function load() {
-    setLoadError(false);
-    setLoading(true);
-    try {
-      const [w, s, wd, p, pay] = await Promise.all([
-        api<WalletData>("GET", "/wallet"),
-        api<WalletSummary>("GET", "/wallet/summary"),
-        api<Withdrawal[]>("GET", "/wallet/withdrawals"),
-        api<MembershipPlan[]>("GET", "/membership/plans"),
-        api<PaymentListItem[]>("GET", "/payments"),
-      ]);
-      setWallet(w);
-      setSummary(s);
-      setWithdrawals(wd);
-      setPlans(p);
-      setPayments(pay);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function reloadBalances() {
-    try {
-      const [w, s, wd, pay] = await Promise.all([
-        api<WalletData>("GET", "/wallet"),
-        api<WalletSummary>("GET", "/wallet/summary"),
-        api<Withdrawal[]>("GET", "/wallet/withdrawals"),
-        api<PaymentListItem[]>("GET", "/payments"),
-      ]);
-      setWallet(w);
-      setSummary(s);
-      setWithdrawals(wd);
-      setPayments(pay);
-    } catch (err) {
-      toast.error(mapError(err, lang));
-    }
-  }
 
   async function buyPlan(tier: string) {
     const plan = plans.find((p) => p.tier === tier);
@@ -115,7 +91,14 @@ export default function WalletPage() {
       }
       await api("POST", `/payments/${intent.paymentId}/confirm`);
       toast.success(t("membershipActiveToast", lang, { tier }));
-      await Promise.all([refresh(), reloadBalances()]);
+      // The purchase moves the balance, the month summary and the payment list
+      // (and the membership tier); the previous refetch set plus the plans.
+      invalidate("wallet");
+      invalidate("wallet-summary");
+      invalidate("wallet-withdrawals");
+      invalidate("wallet-payments");
+      invalidate("wallet-plans");
+      await refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === "PAYMENT_GATEWAY_NOT_CONFIGURED") {
         toast.info(t("paymentPendingNote", lang));
@@ -155,7 +138,11 @@ export default function WalletPage() {
       toast.success(t("withdrawRequestedToast", lang));
       setWdOpen(false);
       setWdAmount("");
-      await reloadBalances();
+      // The new request moves the balance and the month summary and adds a
+      // history row; those three resources own all of it.
+      invalidate("wallet");
+      invalidate("wallet-summary");
+      invalidate("wallet-withdrawals");
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -163,16 +150,41 @@ export default function WalletPage() {
     }
   }
 
+  // Wallet ledger merged with payment records (orders/bookings paid outside the
+  // wallet balance; WALLET_CREDIT skipped to avoid double rows). Derived from
+  // whichever of the two resources has data, so one failure still shows the other.
+  const ledgerRows = useMemo(() => {
+    const txnRows = (walletRes.data?.transactions ?? []).map((tx) => ({
+      id: tx.id,
+      label: reasonLabel(tx.reason, lang),
+      ref: tx.id,
+      amountPaisa: tx.amountPaisa,
+      credit: tx.direction === "CREDIT",
+      createdAt: tx.createdAt,
+    }));
+    const paymentRows = (paymentsRes.data ?? [])
+      .filter((p) => (p.status === "SUCCEEDED" || p.status === "REFUNDED") && p.method !== "WALLET_CREDIT")
+      .map((p) => ({
+        id: p.id,
+        label: p.status === "REFUNDED"
+          ? `${paymentPurposeLabel(p.purposeType, lang)} · ${t("walletREFUND", lang)}`
+          : paymentPurposeLabel(p.purposeType, lang),
+        ref: p.refNo,
+        amountPaisa: p.amountPaisa,
+        credit: p.status === "REFUNDED",
+        createdAt: p.createdAt,
+      }));
+    return [...txnRows, ...paymentRows].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [walletRes.data, paymentsRes.data, lang]);
+
+  const ledgerLoading = walletRes.loading || paymentsRes.loading;
+  const ledgerFailed = Boolean(walletRes.error || paymentsRes.error);
+
   return (
     <div className="min-w-0 space-y-5">
       <PageHeader icon={<Wallet className="h-5 w-5" aria-hidden />} title={t("wallet", lang)} />
-
-      {loadError && (
-        <div className="space-y-2">
-          <ErrorBanner message={t("errorGeneric", lang)} />
-          <Button variant="outline" onClick={() => void load()}>{t("retry", lang)}</Button>
-        </div>
-      )}
 
       {/* Summary cards row — balance hero card + StatTile metrics */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
@@ -181,7 +193,7 @@ export default function WalletPage() {
           <div aria-live="polite" aria-atomic="true">
             {wallet ? (
               <p className="mt-0.5 text-2xl font-bold">{formatBDT(wallet.balancePaisa, lang)}</p>
-            ) : loading ? (
+            ) : walletRes.loading ? (
               <Skeleton className="mt-1 h-8 w-28" />
             ) : (
               <p className="mt-0.5 text-2xl font-bold">—</p>
@@ -203,83 +215,76 @@ export default function WalletPage() {
             <StatTile tone="danger" icon={<ArrowDownCircle className="h-5 w-5" aria-hidden />} value={formatBDT(summary.monthDebitsPaisa, lang)} label={t("monthOut", lang)} />
             <StatTile tone="warning" icon={<Clock3 className="h-5 w-5" aria-hidden />} value={formatBDT(summary.pendingWithdrawalsPaisa, lang)} label={t("pendingWithdrawals", lang)} />
           </>
-        ) : (
+        ) : summaryRes.loading ? (
           [0, 1, 2].map((i) => (
             <Card key={i} variant="static" className="min-w-0 overflow-hidden">
               <Skeleton className="mt-1 h-10 w-full" />
             </Card>
           ))
+        ) : (
+          <div className="col-span-2 lg:col-span-3">
+            <BlockError error={summaryRes.error} retryLabel={t("retry", lang)} onRetry={() => void summaryRes.reload()} />
+          </div>
         )}
       </div>
+
+      {/* Balance failed: the hero card keeps its place with "—" and the
+          withdraw button disabled; the retry lives with the error. */}
+      <BlockError error={walletRes.error} retryLabel={t("retry", lang)} onRetry={() => void walletRes.reload()} />
 
       {/* Membership */}
       <section>
         <SectionHeader title={t("membership", lang)} />
-        <div className="grid gap-2 sm:gap-4 sm:grid-cols-3">
-          {plans.map((p) => (
-            <Card key={p.tier} className={`min-w-0 overflow-hidden ${p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}`}>
-              <h3 className="font-bold text-stone-800">{p.tier}</h3>
-              <p className="my-1 text-xl font-bold text-accent">
-                {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
-              </p>
-              <ul className="mb-3 space-y-1 text-xs text-stone-600">
-                {p.benefits.map((b, i) => (
-                  <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-success-text" aria-hidden /> {membershipBenefitLabel(b, lang)}</li>
-                ))}
-              </ul>
-              {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
-                const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);
-                if (daysLeft <= 7 && daysLeft >= 0) return <Badge tone="warning" className="mb-2">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
-                if (daysLeft < 0) return <Badge tone="danger" className="mb-2">{t("membershipExpired", lang)}</Badge>;
-                return null;
-              })()}
-              {p.pricePaisa > 0 && (
-                <Button variant="outline" className="w-full" loading={planBusyTier === p.tier} onClick={() => void buyPlan(p.tier)}>
-                  {t("payNow", lang)}
-                </Button>
-              )}
-            </Card>
-          ))}
+        <div className="space-y-2">
+          <BlockError error={plansRes.error} retryLabel={t("retry", lang)} onRetry={() => void plansRes.reload()} />
+          <div className="grid gap-2 sm:gap-4 sm:grid-cols-3">
+            {plans.map((p) => (
+              <Card key={p.tier} className={`min-w-0 overflow-hidden ${p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}`}>
+                <h3 className="font-bold text-stone-800">{p.tier}</h3>
+                <p className="my-1 text-xl font-bold text-accent">
+                  {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
+                </p>
+                <ul className="mb-3 space-y-1 text-xs text-stone-600">
+                  {p.benefits.map((b, i) => (
+                    <li key={i} className="flex items-center gap-1"><Check className="h-3 w-3 text-success-text" aria-hidden /> {membershipBenefitLabel(b, lang)}</li>
+                  ))}
+                </ul>
+                {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
+                  const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);
+                  if (daysLeft <= 7 && daysLeft >= 0) return <Badge tone="warning" className="mb-2">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
+                  if (daysLeft < 0) return <Badge tone="danger" className="mb-2">{t("membershipExpired", lang)}</Badge>;
+                  return null;
+                })()}
+                {p.pricePaisa > 0 && (
+                  <Button variant="outline" className="w-full" loading={planBusyTier === p.tier} onClick={() => void buyPlan(p.tier)}>
+                    {t("payNow", lang)}
+                  </Button>
+                )}
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Transactions — wallet ledger merged with payment records (orders/bookings
-          paid outside the wallet balance; WALLET_CREDIT skipped to avoid double rows) */}
+      {/* Transactions — wallet ledger merged with payment records. Shares the
+          wallet resource with the balance card and owns the payments resource. */}
       <section>
         <SectionHeader title={t("transactionsTitle", lang)} />
-        {!wallet && loading ? (
-          <Card className="space-y-2">
-            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
-          </Card>
-        ) : (() => {
-          const txnRows = (wallet?.transactions ?? []).map((tx) => ({
-            id: tx.id,
-            label: reasonLabel(tx.reason, lang),
-            ref: tx.id,
-            amountPaisa: tx.amountPaisa,
-            credit: tx.direction === "CREDIT",
-            createdAt: tx.createdAt,
-          }));
-          const paymentRows = payments
-            .filter((p) => (p.status === "SUCCEEDED" || p.status === "REFUNDED") && p.method !== "WALLET_CREDIT")
-            .map((p) => ({
-              id: p.id,
-              label: p.status === "REFUNDED"
-                ? `${paymentPurposeLabel(p.purposeType, lang)} · ${t("walletREFUND", lang)}`
-                : paymentPurposeLabel(p.purposeType, lang),
-              ref: p.refNo,
-              amountPaisa: p.amountPaisa,
-              credit: p.status === "REFUNDED",
-              createdAt: p.createdAt,
-            }));
-          const rows = [...txnRows, ...paymentRows].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          return rows.length === 0 ? (
-            <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
+        <div className="space-y-2">
+          <BlockError error={walletRes.error} retryLabel={t("retry", lang)} onRetry={() => void walletRes.reload()} />
+          <BlockError error={paymentsRes.error} retryLabel={t("retry", lang)} onRetry={() => void paymentsRes.reload()} />
+          {ledgerLoading ? (
+            <Card className="space-y-2">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </Card>
+          ) : ledgerRows.length === 0 ? (
+            // A failed half must not read as "no transactions".
+            ledgerFailed ? null : (
+              <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
+            )
           ) : (
             <Card variant="static" padded={false} className="divide-y divide-stone-100">
-              {rows.map((row) => (
+              {ledgerRows.map((row) => (
                 <div key={row.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
                   <div className="min-w-0">
                     <p className="break-words font-medium text-stone-700 [overflow-wrap:anywhere]">{row.label}</p>
@@ -292,37 +297,42 @@ export default function WalletPage() {
                 </div>
               ))}
             </Card>
-          );
-        })()}
+          )}
+        </div>
       </section>
 
       {/* Withdrawal history */}
       <section>
         <SectionHeader title={t("withdrawHistory", lang)} />
-        {!wallet && loading ? (
-          <Card className="space-y-2">
-            {[0, 1].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
-          </Card>
-        ) : withdrawals.length === 0 ? (
-          <EmptyState icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
-        ) : (
-          <Card variant="static" padded={false} className="divide-y divide-stone-100">
-            {withdrawals.map((wd) => (
-              <div key={wd.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <div className="min-w-0">
-                  <p className="break-words font-bold text-stone-700 [overflow-wrap:anywhere]">{formatBDT(wd.amountPaisa, lang)} · {channelLabel(wd.channel, lang)}</p>
-                  <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">
-                    {wd.refNo}{wd.destination ? ` · ${t("destinationLabel", lang)}: ${wd.destination}` : ""} · {formatDateTime(wd.createdAt, lang)}
-                  </p>
-                  <p className="break-all text-xs font-mono text-stone-500 [overflow-wrap:anywhere]">{wd.id}</p>
+        <div className="space-y-2">
+          <BlockError error={withdrawalsRes.error} retryLabel={t("retry", lang)} onRetry={() => void withdrawalsRes.reload()} />
+          {withdrawalsRes.loading ? (
+            <Card className="space-y-2">
+              {[0, 1].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </Card>
+          ) : withdrawals.length === 0 ? (
+            withdrawalsRes.error ? null : (
+              <EmptyState icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
+            )
+          ) : (
+            <Card variant="static" padded={false} className="divide-y divide-stone-100">
+              {withdrawals.map((wd) => (
+                <div key={wd.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="break-words font-bold text-stone-700 [overflow-wrap:anywhere]">{formatBDT(wd.amountPaisa, lang)} · {channelLabel(wd.channel, lang)}</p>
+                    <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">
+                      {wd.refNo}{wd.destination ? ` · ${t("destinationLabel", lang)}: ${wd.destination}` : ""} · {formatDateTime(wd.createdAt, lang)}
+                    </p>
+                    <p className="break-all text-xs font-mono text-stone-500 [overflow-wrap:anywhere]">{wd.id}</p>
+                  </div>
+                  <Badge tone={wd.status === "PAID" ? "success" : wd.status === "REJECTED" ? "danger" : "warning"}>
+                    {withdrawalStatusLabel(wd.status, lang)}
+                  </Badge>
                 </div>
-                <Badge tone={wd.status === "PAID" ? "success" : wd.status === "REJECTED" ? "danger" : "warning"}>
-                  {withdrawalStatusLabel(wd.status, lang)}
-                </Badge>
-              </div>
-            ))}
-          </Card>
-        )}
+              ))}
+            </Card>
+          )}
+        </div>
       </section>
 
       {/* Withdraw dialog */}
