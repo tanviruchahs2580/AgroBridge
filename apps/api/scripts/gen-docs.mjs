@@ -121,9 +121,10 @@ ensureDir(TMP_JSON);
 ensureDir(OUTPUT_MD);
 ensureDir(COVERAGE_SUMMARY);
 
-// Clean previous tmp
+// Clean previous tmp. No existsSync check: truncating a missing file is not an
+// error and a check-then-write pair is a TOCTOU race (js/file-system-race).
 try {
-  if (existsSync(TMP_JSON)) writeFileSync(TMP_JSON, "");
+  writeFileSync(TMP_JSON, "");
 } catch {}
 
 // Build vitest command
@@ -332,19 +333,20 @@ const testFileRows =
 // Preserve web E2E section if the md already exists (written by apps/web/scripts/gen-docs.mjs)
 let existingWebSection = "";
 try {
-  if (existsSync(OUTPUT_MD)) {
-    const prev = readFileSync(OUTPUT_MD, "utf8");
-    const marker = "<!-- web-e2e:start -->";
-    const endMarker = "<!-- web-e2e:end -->";
-    const s = prev.indexOf(marker);
-    const e = prev.indexOf(endMarker);
-    if (s !== -1 && e !== -1 && e > s) {
-      existingWebSection = prev.slice(s, e + endMarker.length);
-    } else if (prev.includes("## Web E2E")) {
-      // fallback: slice from Web E2E heading to end
-      const idx = prev.indexOf("## Web E2E");
-      if (idx !== -1) existingWebSection = prev.slice(idx);
-    }
+  // No existsSync guard: an absent file throws ENOENT from readFileSync, which
+  // the catch below absorbs; check-then-read is a TOCTOU race with no safety
+  // benefit (js/file-system-race).
+  const prev = readFileSync(OUTPUT_MD, "utf8");
+  const marker = "<!-- web-e2e:start -->";
+  const endMarker = "<!-- web-e2e:end -->";
+  const s = prev.indexOf(marker);
+  const e = prev.indexOf(endMarker);
+  if (s !== -1 && e !== -1 && e > s) {
+    existingWebSection = prev.slice(s, e + endMarker.length);
+  } else if (prev.includes("## Web E2E")) {
+    // fallback: slice from Web E2E heading to end
+    const idx = prev.indexOf("## Web E2E");
+    if (idx !== -1) existingWebSection = prev.slice(idx);
   }
 } catch {}
 
