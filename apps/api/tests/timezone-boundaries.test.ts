@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { dhakaMonthStart } from "../src/modules/payments/routes.js";
 import { dhakaDate } from "../src/providers/weather/day.js";
 import { OpenWeatherProvider } from "../src/providers/weather/openweather.js";
-import { MockWeatherProvider } from "../src/providers/weather/mock.js";
+import { MOCK_REFERENCE_NOW, MockWeatherProvider } from "../src/providers/weather/mock.js";
 
 /**
  * AUD-115 (S2): two boundaries were computed in the wrong timezone.
@@ -56,10 +56,32 @@ describe("Asia/Dhaka boundaries", () => {
     expect(out[1].rainMm).toBe(4);
   });
 
-  it("the mock adapter emits Dhaka-labelled dates", async () => {
+  it("the mock adapter emits Dhaka-labelled dates from its fixed reference (no wall clock)", async () => {
     const out = await new MockWeatherProvider().getForecast(25.9, 89.1, 3);
     expect(out).toHaveLength(3);
-    expect(out[0].date).toBe(dhakaDate(new Date()));
+    // AUD-126: the fixture provider is pinned to MOCK_REFERENCE_NOW
+    // (2026-06-15T00:00:00Z = 06:00 Dhaka) — identical for every test run.
+    expect(out.map((d) => d.date)).toEqual(["2026-06-15", "2026-06-16", "2026-06-17"]);
+    // The exposed `date` is the Dhaka calendar day of the underlying instant.
+    expect(out[0]!.date).toBe(dhakaDate(MOCK_REFERENCE_NOW));
+    expect(out[2]!.date).toBe(dhakaDate("2026-06-17T00:00:00Z"));
     for (const day of out) expect(day.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("the forecast `date` boundary: 18:30Z belongs to the next Dhaka day (exposed field)", async () => {
+    // A slot at 18:30Z on Oct 31 is 00:30 on Nov 1 in Dhaka — the exposed
+    // `date` must say Nov 1, not Oct 31 (AUD-126 / AUD-115).
+    const list = [
+      { dt_txt: "2026-10-31 17:30:00", main: { temp_min: 20, temp_max: 30, humidity: 60 }, wind: { speed: 2 } },
+      { dt_txt: "2026-10-31 18:30:00", main: { temp_min: 21, temp_max: 31, humidity: 61 }, wind: { speed: 3 } },
+    ];
+    vi.stubGlobal("fetch", async () => ({ ok: true, json: async () => ({ list }) }));
+    const out = await new OpenWeatherProvider("test-key").getForecast(25.9, 89.1, 2);
+    expect(out.map((d) => d.date)).toEqual(["2026-10-31", "2026-11-01"]);
+  });
+
+  it("the mock observedAt is the fixed reference instant", async () => {
+    const cur = await new MockWeatherProvider().getCurrent(25.9);
+    expect(cur.observedAt).toBe(MOCK_REFERENCE_NOW.toISOString());
   });
 });

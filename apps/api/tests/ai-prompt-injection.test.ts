@@ -220,14 +220,19 @@ describe("AI prompt-injection posture — prompt builder and tool surface", () =
     const serialized = JSON.stringify(msgs);
     expect(serialized).not.toMatch(/tool_calls|"tools"|"functions"/);
     const res = await engine.ask("ধানের সেচ কখন দেব?", { lang: "bn" });
+    // Exact key set: the offline engine's answer carries only these fields —
+    // plus the additive `kbVersion` provenance field (A2-04). `promptVersion`
+    // is hosted-provider-only and must be absent here.
     expect(Object.keys(res).sort()).toEqual([
       "answer",
       "confidence",
       "groundedRefs",
+      "kbVersion",
       "lowConfidenceFlag",
       "model",
       "provider",
     ]);
+    expect(res.promptVersion).toBeUndefined();
   });
 
   it("the KB corpus itself carries no instruction-like markers (no self-injection)", () => {

@@ -51,11 +51,26 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
   try {
     const answer = await provider.ask(question, ctx);
     aiRequestsTotal.inc({ provider: answer.provider, status: "success" });
-    await logUsage({ userId: ctx.userId, provider: answer.provider, model: answer.model, latencyMs: Date.now() - started, success: true, tokensIn: answer.tokensIn, tokensOut: answer.tokensOut });
+    await logUsage({
+      userId: ctx.userId,
+      provider: answer.provider,
+      model: answer.model,
+      kbVersion: answer.kbVersion,
+      promptVersion: answer.promptVersion,
+      latencyMs: Date.now() - started,
+      success: true,
+      tokensIn: answer.tokensIn,
+      tokensOut: answer.tokensOut,
+    });
     await persistQuery(ctx.userId, question, answer);
     return answer;
   } catch (err) {
-    logger.warn({ err: (err as Error).message }, "primary AI provider failed");
+    // Error context names the prompt template version in play (A4-06), so a
+    // failing hosted-provider call is attributable to a prompt revision.
+    logger.warn(
+      { err: (err as Error).message, provider: provider.name, promptVersion: provider.promptVersion },
+      "primary AI provider failed",
+    );
     if (isProd) {
       const { markDown } = await import("../health.js");
       markDown("ai", (err as Error).message);
@@ -65,21 +80,33 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     const fallback = new OfflineAgroEngine();
     const answer = await fallback.ask(question, ctx);
     aiRequestsTotal.inc({ provider: fallback.name, status: "fallback_success" });
-    await logUsage({ userId: ctx.userId, provider: fallback.name, model: fallback.model, latencyMs: Date.now() - started, success: true });
+    await logUsage({ userId: ctx.userId, provider: fallback.name, model: fallback.model, kbVersion: answer.kbVersion, latencyMs: Date.now() - started, success: true });
     await persistQuery(ctx.userId, question, answer);
     return answer;
   }
 }
 
+/**
+ * Usage telemetry. `AiUsageLog` has no kbVersion/promptVersion columns and this
+ * wave must not add any, so the lineage rides the existing provider/model row
+ * plus one structured debug log line (A2-04/A3-07/A4-06); the response itself
+ * carries `kbVersion`/`promptVersion` for the client and support.
+ */
 async function logUsage(p: {
   userId?: string;
   provider: string;
   model: string;
+  kbVersion?: string;
+  promptVersion?: string;
   latencyMs: number;
   success: boolean;
   tokensIn?: number;
   tokensOut?: number;
 }) {
+  logger.debug(
+    { provider: p.provider, model: p.model, kbVersion: p.kbVersion, promptVersion: p.promptVersion, latencyMs: p.latencyMs, success: p.success },
+    "ai usage",
+  );
   try {
     const tokens = (p.tokensIn ?? 0) + (p.tokensOut ?? 0);
     const costEstimatePaisa =

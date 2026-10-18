@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface KbEntry {
   id: string;
   crop: string; // lowercase crop key or "general"
@@ -139,6 +141,41 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     status: "UNSOURCED",
   },
 ];
+
+/**
+ * Stable serialization of a KB corpus: fixed field order per entry and sorted
+ * keywords, so the digest depends on content only — not object/keyword
+ * insertion order — while any answer/title/confidence/provenance edit still
+ * changes it.
+ */
+export function kbVersionOf(corpus: KbEntry[]): string {
+  const canonical = corpus
+    .map((e) =>
+      JSON.stringify({
+        id: e.id,
+        crop: e.crop,
+        keywords: [...e.keywords].sort(),
+        titleEn: e.titleEn,
+        answerEn: e.answerEn,
+        answerBn: e.answerBn,
+        confidence: e.confidence,
+        sourceName: e.sourceName,
+        sourceUrl: e.sourceUrl,
+        reviewedAt: e.reviewedAt,
+        status: e.status,
+      }),
+    )
+    .join("\n");
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 12);
+}
+
+/**
+ * Content-addressed version of the production knowledge base, computed once at
+ * module load (A2-04 / A3-07 / A4-06). Every advisory response carries it as
+ * `kbVersion`, so which KB answered a farmer is auditable from the response
+ * itself and a silent KB edit becomes visible instead of untraceable.
+ */
+export const KB_VERSION = kbVersionOf(KNOWLEDGE_BASE);
 
 /** Crop-name aliases per crop. Matching these is *weak* evidence: every entry of
  *  a crop repeats them, so a bare crop mention must never outrank an entry that

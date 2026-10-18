@@ -7,7 +7,17 @@ import {
   AiProvider,
   AiProviderError,
 } from "./types.js";
-import { retrieve, sanitizeQuestion, KbEntry } from "./knowledge.js";
+import { retrieve, sanitizeQuestion, KbEntry, KB_VERSION } from "./knowledge.js";
+
+/**
+ * Version of the prompt template in this file (system prompt + reference-data
+ * framing). Bump whenever the prompt changes materially (A2-04 / A3-07 / A4-06):
+ * answers are only comparable — for evals, for incident review — when the
+ * prompt that produced them is identifiable. Reported in the response as
+ * `promptVersion` and in gateway log context; the offline engine has no prompt
+ * and omits the field (`kb-retrieval-v1` is its template identity).
+ */
+export const PROMPT_VERSION = "v1";
 
 /**
  * Adapter for any OpenAI-compatible chat completions API.
@@ -81,6 +91,7 @@ export function buildChatMessages(question: string, ctx: AiContext, entries: KbE
 export class OpenAiCompatibleProvider implements AiProvider {
   readonly name = "openai-compatible";
   readonly model = env.OPENAI_MODEL;
+  readonly promptVersion = PROMPT_VERSION;
   private readonly retryDelayMs: number;
 
   constructor(opts: { retryDelayMs?: number } = {}) {
@@ -139,6 +150,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
       groundedRefs: entries.map((e) => e.id),
       tokensIn: usage?.prompt_tokens,
       tokensOut: usage?.completion_tokens,
+      kbVersion: KB_VERSION,
+      promptVersion: PROMPT_VERSION,
     };
   }
 

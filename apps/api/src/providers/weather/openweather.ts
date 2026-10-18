@@ -18,6 +18,7 @@ export class OpenWeatherProvider implements WeatherProvider {
       wind: { speed: number };
       weather: { description: string }[];
       rain?: { "1h"?: number };
+      dt?: number; // observation time, unix seconds (AUD-126 / A5-01)
     };
     return {
       tempC: j.main.temp,
@@ -26,6 +27,9 @@ export class OpenWeatherProvider implements WeatherProvider {
       windKmh: j.wind.speed * 3.6,
       precipitationMm: j.rain?.["1h"] ?? 0,
       condition: j.weather[0]?.description ?? "unknown",
+      // The provider's own observation instant — omitted (not invented) if the
+      // body carries no `dt`.
+      ...(typeof j.dt === "number" ? { observedAt: new Date(j.dt * 1000).toISOString() } : {}),
     };
   }
 
