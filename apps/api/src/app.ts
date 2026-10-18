@@ -13,10 +13,22 @@ import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
+import { readSchemaState } from "./infrastructure/schemaState.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
 const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
 if (sharedStore) logger.info("rate limiting backed by Redis");
+/**
+ * Which store the limiters actually use. Reported by `/ready` because it is a
+ * real operational property, not trivia: without Redis every serverless
+ * instance enforces its own windows, so the effective quota is
+ * (instances × configured max) — an accepted fail-open (docs/security.md) that
+ * must at least be visible to whoever reads production state.
+ */
+const limiterStore: "redis" | "memory" = sharedStore ? "redis" : "memory";
+if (!sharedStore && isProd) {
+  logger.warn("REDIS_URL is unset in production: rate-limit windows are per instance (documented fail-open)");
+}
 
 import { authRouter } from "./modules/auth/routes.js";
 import { farmsRouter } from "./modules/farms/routes.js";
@@ -89,7 +101,11 @@ export function createApp() {
     try {
       await prisma.$queryRaw`SELECT 1`;
       dbUp.set(1);
-      res.json({ ok: true, ready: true, db: true });
+      // Schema state is part of the answer to "can this release serve?" — the
+      // deploy gate compares `schema.latest` with the repository's newest
+      // migration (ADR-0007).
+      const schema = await readSchemaState();
+      res.json({ ok: true, ready: true, db: true, schema, limiterStore });
     } catch {
       dbUp.set(0);
       res.status(503).json({ ok: false, ready: false, db: false });
