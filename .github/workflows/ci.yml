@@ -205,6 +205,18 @@ jobs:
         working-directory: apps/web
         run: npx playwright test
 
+      # A failing browser run must leave evidence behind (AUD-119): traces,
+      # screenshots and the HTML report are otherwise lost with the runner.
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin v7.0.1
+        with:
+          name: playwright-diagnostics
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          if-no-files-found: ignore
+
   android-build:
     name: Android — Build debug APK artifact
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19

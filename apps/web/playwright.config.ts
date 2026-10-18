@@ -16,13 +16,17 @@ export default defineConfig({
    */
   workers: 1,
   retries: 0,
-  reporter: "list",
+  // list for the console, html for the artifact CI uploads on failure
+  // (AUD-119: trace was "on-first-retry" while retries are 0, so no trace
+  // could EVER be produced — a failing run left nothing to diagnose with).
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     // 127.0.0.1, not localhost: on Windows `localhost` resolves to IPv6 ::1
     // first, so an unrelated IPv6 dev server could shadow ours (seen in QA
     // 2026-09-15 when e2e silently tested a different app on ::1:5173).
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
