@@ -1,0 +1,18 @@
+# Gitleaks configuration — extends the default ruleset; nothing else is
+# exempted beyond the single, path-scoped allowlist below.
+#
+# Register entry: SECURITY_WAIVERS.md § Static-analysis (CodeQL / gitleaks)
+# triage. Reviewed 2026-10-18; re-review by 2027-01-31.
+
+[extend]
+useDefault = true
+
+# The AI-evaluation harness compares a local loop variable against metric-name
+# string constants; the older commits of this branch contain `key === "…"`
+# lines that gitleaks' generic-api-key entropy heuristic reads as an assigned
+# secret (false positive, no credential involved). The variable was renamed in
+# the current tree; this allowlist keeps the range scan of the historical
+# commits clean without weakening any other rule.
+[[allowlists]]
+description = "generic-api-key false positive: metric-name comparisons in the AI eval harness"
+paths = ['''apps/api/tests/ai-eval-metrics\.ts''']

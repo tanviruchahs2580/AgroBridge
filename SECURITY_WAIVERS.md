@@ -9,13 +9,21 @@ must be re-reviewed or remediated. Reviewed monthly alongside `npm audit` (docs/
 | GHSA-5xrq-8626-4rwp | vitest (+@vitest/*) | Moderate | Dev-only test dependency — never installed in production images (runtime stage uses `npm ci --omit=dev`); fix requires a major-version test-framework bump scheduled separately | Not exposed to network traffic; CI-only execution; production tree audited clean (`npm audit --omit=dev` = 0 findings, verified 2026-09-15) | **2026-12-31** |
 | — | @capacitor/cli, autocannon | Moderate | Dev/ops tooling only (Android build, local load test) — not present in any shipped image | Local execution only; not reachable from production | **2026-12-31** |
 
-## Static-analysis (CodeQL) triage — 2026-10-18 audit
+## Static-analysis (CodeQL / gitleaks) triage — 2026-10-18 audit
 
 Open code-scanning alerts that are acknowledged rather than fixed in code. The other four
 open alerts at HEAD (insecure randomness in the offline queue; three TOCTOU reads in the
 two `gen-docs.mjs` scripts) were fixed in code during the 2026-10-18 audit and clear on the
 next scan of the default branch. The alert below stays open in GitHub until the owner
 dismisses it with this rationale — the audit did not change alert state.
+
+**gitleaks allowlist (`.gitleaks.toml`, added 2026-10-18):** one path-scoped allowlist for
+`apps/api/tests/ai-eval-metrics.ts`, where metric-name string comparisons (`key === "…"`)
+tripped the `generic-api-key` entropy heuristic. It is a false positive — the file compares
+evaluation metric names, no credential is involved — and the offending variable was renamed
+in the current tree; the allowlist exists so the range scan of this branch's historical
+commits stays clean. Removable once those commits age out of scan ranges. Re-review by
+**2027-01-31**; no other path or rule is exempted.
 
 | Alert | Location | Severity | Why accepted | Compensating control | Review by |
 |---|---|---|---|---|---|
