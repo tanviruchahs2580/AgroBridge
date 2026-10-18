@@ -12,6 +12,8 @@ jobs:
   analyze:
     name: Analyze (javascript-typescript)
     runs-on: ubuntu-24.04
+    # Static analysis only — no browsers or docker; 20 min matches the other scan jobs.
+    timeout-minutes: 20
     permissions:
       actions: read
       contents: read

@@ -4,6 +4,7 @@ import { getWeatherProvider, deriveAgriRisks } from "../../providers/weather/ind
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
+import { getCachedWeather, setCachedWeather, type CachedWeatherPayload } from "./cache.js";
 
 export const weatherRouter = Router();
 weatherRouter.use(requireAuth);
@@ -15,20 +16,44 @@ weatherRouter.get(
     try {
       const { lat, lng, cropStage } = req.query as unknown as { lat: number; lng: number; cropStage?: string };
       const provider = getWeatherProvider();
-      const [current, forecast] = await Promise.all([
-        provider.getCurrent(lat, lng),
-        provider.getForecast(lat, lng, 3),
-      ]);
-      const risks = deriveAgriRisks(current, forecast, cropStage);
+
+      // Cache hits reuse the ORIGINAL successful payload and its fetch time.
+      // A provider failure takes the `catch` path below and is NEVER served
+      // from a cache entry: an outage must surface as an honest error, not as
+      // stale "current" weather presented as fresh (A5-05 / AUD-126). Risks
+      // are re-derived per request because they depend on the caller's
+      // cropStage, which is not part of the cached payload.
+      const cachedPayload = getCachedWeather(lat, lng);
+      let payload: CachedWeatherPayload;
+      if (cachedPayload) {
+        payload = cachedPayload;
+      } else {
+        const [current, forecast] = await Promise.all([
+          provider.getCurrent(lat, lng),
+          provider.getForecast(lat, lng, 3),
+        ]);
+        payload = { current, forecast, fetchedAt: Date.now() };
+        setCachedWeather(lat, lng, payload);
+      }
+
+      // Provenance envelope (AUD-126 / A5-01): where the data came from, when
+      // it was fetched from the provider, the provider's own observation time
+      // (when reported), and whether this response was a cache reuse.
+      const current = { ...payload.current, source: payload.current.source ?? provider.name };
+      const risks = deriveAgriRisks(current, payload.forecast, cropStage);
       ok(res, {
         provider: provider.name,
+        source: provider.name,
+        fetchedAt: new Date(payload.fetchedAt).toISOString(),
+        cached: cachedPayload !== null,
         current,
-        forecast,
+        forecast: payload.forecast,
         risks,
       });
     } catch (e) {
-      // Provider failures surface as their typed error (502 via the error
-      // handler) — farmers get an actionable message, never a fake forecast.
+      // Provider failures currently surface as a generic server error (the
+      // adapter throws plain Errors) — never a fake forecast. Mapping them to
+      // an explicit 502/503 is tracked as a deferred improvement (AUD-117).
       next(e);
     }
   }

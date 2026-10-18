@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface KbEntry {
   id: string;
   crop: string; // lowercase crop key or "general"
@@ -6,6 +8,21 @@ export interface KbEntry {
   answerEn: string;
   answerBn: string;
   confidence: number;
+  /**
+   * Provenance ledger (AUD-117-ai). Every entry must carry explicit
+   * source/review metadata so an unsourced entry is visible in code review:
+   *   sourceName — human-readable source title, or null when none is recorded
+   *   sourceUrl  — public URL, or null
+   *   reviewedAt — ISO date an agronomist signed off the content, or null
+   *   status     — "UNSOURCED" until provenance + rights are reviewed
+   * All entries below are UNSOURCED: no external source, rights basis or
+   * agronomist sign-off has been recorded yet. Provenance/rights are pending
+   * owner + agronomist review — do NOT invent citations to fill these fields.
+   */
+  sourceName: string | null;
+  sourceUrl: string | null;
+  reviewedAt: string | null;
+  status: "UNSOURCED" | "REVIEWED";
 }
 
 /**
@@ -24,6 +41,10 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "রাইস ব্লাস্টে পাতায় সিগারের মতো ধূসর কেন্দ্রযুক্ত দাগ দেখা যায়। ব্যবস্থাপনা: ১) আক্রমণ দেখা দিলে জমিতে জমা পানি সরিয়ে শুকনো-ভেজা অবস্থা রাখুন। ২) অতিরিক্ত ইউরিয়া সেচ বন্ধ করুন। ৩) প্রথম দাগ দেখা মাত্রই অনুমোদিত ছত্রাকনাশক (ট্রাইসাইক্লাজল/আইসোপ্রথিওলেন গ্রুপ) স্প্রে করুন — ওষুধ নির্বাচনে কৃষি কর্মকর্তার পরামর্শ নিন। ৪) ফসল কাটার পর আক্রান্ত খড় পুড়িয়ে ফেলুন।",
     confidence: 0.82,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "rice-urea",
@@ -35,6 +56,10 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "আধুনিক উচ্চফলনশীল বোরো/আউশ ধানে ইউরিয়া ৩ কিস্তিতে দিন — রোপণের ১৫ দিন পর ৫০%, প্যানিকল আসার সময় (~৪০ দিন) ৩০%, ফুল আসার ঠিক আগে ২০%। জমিতে পানি না থাকলে ইউরিয়া দেবেন না। লিফ কালার চার্টে ৪ নম্বর রঙ হলে সঠিক মাত্রা।",
     confidence: 0.88,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "wheat-rust",
@@ -46,6 +71,10 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "গমের পাতায় হলুদ/কমলা গুঁড়োর মতো দাগ হলে মরিচা রোগ। উষ্ণ-আর্দ্র আবহাওয়ায় বাড়ে। পাতার ৫%-এর বেশি আক্রান্ত হলে ট্রায়াজল গ্রুপের ছত্রাকনাশক স্প্রে করুন (স্থানীয়ভাবে অনুমোদিত ওষুধ নিশ্চিত করুন)। পরের মৌসুমে মরিচা-প্রতিরোধী জাত (বারি গম সিরিজ) বপন করুন।",
     confidence: 0.8,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "jute-stem-rot",
@@ -57,6 +86,10 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "পাটে কাণ্ড পচা রোগ সাধারণত জমাত পানির কারণে হয়। জমির নিষ্কাশন নিশ্চিত করুন, আগাছা পরিষ্কারের সময় গাছে আঘাত এড়ান, মাটি পরীক্ষা অনুযায়ী পটাশ দিন এবং ধানের সাথে ফসল পর্যায় করুন।",
     confidence: 0.75,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "mustard-aphid",
@@ -64,10 +97,14 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     keywords: ["mustard", "সরিষা", "aphid", "এফিড", "green insects mustard", "সবুজ পোকা", "পোকা জড়ো"],
     titleEn: "Mustard aphid control",
     answerEn:
-      "Aphids cluster on flowering shoots causing curling and poor pod set. Spray water jet first for light infestations; if populations are high, use an approved insecticide in late afternoon (protects bees), rotate actives between sprays, and harvest timely. Encourage ladybird beetles — natural predators.",
+      "Aphids cluster on flowering shoots causing curling and poor pod set. Spray water jet first for light infestations; if populations are high, use an approved insecticide in late afternoon (protects bees), rotate actives between sprays, and harvest timely. Encourage ladybird beetles — natural predators. Confirm the specific product with a licensed dealer or DAE agronomist before spraying.",
     answerBn:
-      "সরিষার মুকুলে এফিড জড়ো হলে পাতা কুঁকড়ে যায়, ফল কমে। হালকা আক্রমণে পানির ঝাপটা দিন; বেশি হলে বিকেলে অনুমোদিত কীটনাশক স্প্রে করুন (মৌমাছি রক্ষার্থে), পরপর স্প্রেতে ওষুধ পরিবর্তন করুন। লেডিবার্ড পোকা প্রাকৃতিক শত্রু — ধ্বংস করবেন না।",
+      "সরিষার মুকুলে এফিড জড়ো হলে পাতা কুঁকড়ে যায়, ফল কমে। হালকা আক্রমণে পানির ঝাপটা দিন; বেশি হলে বিকেলে অনুমোদিত কীটনাশক স্প্রে করুন (মৌমাছি রক্ষার্থে), পরপর স্প্রেতে ওষুধ পরিবর্তন করুন। লেডিবার্ড পোকা প্রাকৃতিক শত্রু — ধ্বংস করবেন না। স্প্রের আগে নির্দিষ্ট ওষুধের নাম অনুমোদিত ডিলার বা কৃষি কর্মকর্তার সাথে নিশ্চিত করুন।",
     confidence: 0.8,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "soil-test",
@@ -79,6 +116,10 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "প্রতি ২–৩ বছর অন্তর মূল মৌসুমের আগে মাটি পরীক্ষা করান। প্লটের ৮–১০ জায়গা থেকে ১৫ সেমি গভীরতায় মাটি নিয়ে মিশিয়ে ~৫০০ গ্রাম নিকটস্থ SRDI/কৃষি অফিসে পাঠান। মাটি পরীক্ষা-ভিত্তিক সার প্রয়োগে ২০–৩০% সাশ্রয় হয়। AgroBridge-এর Services থেকে মাটি পরীক্ষার বুকিং দেওয়া যায়।",
     confidence: 0.9,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
   {
     id: "irrigation-general",
@@ -94,8 +135,47 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     answerBn:
       "সকালে বা বিকালে সেচ দিন — পানি বাষ্পীভবনে কম নষ্ট হবে। বেশিরভাগ ফসলে জমাত পানি না রেখে ভেজা-শুকনা পর্যায় ভালো। তাপপ্রবাহের আগে সেচ দিন এবং ভারী বৃষ্টির ৪৮ ঘণ্টার মধ্যে সেচ এড়িয়ে চলুন।",
     confidence: 0.85,
+    sourceName: null,
+    sourceUrl: null,
+    reviewedAt: null,
+    status: "UNSOURCED",
   },
 ];
+
+/**
+ * Stable serialization of a KB corpus: fixed field order per entry and sorted
+ * keywords, so the digest depends on content only — not object/keyword
+ * insertion order — while any answer/title/confidence/provenance edit still
+ * changes it.
+ */
+export function kbVersionOf(corpus: KbEntry[]): string {
+  const canonical = corpus
+    .map((e) =>
+      JSON.stringify({
+        id: e.id,
+        crop: e.crop,
+        keywords: [...e.keywords].sort(),
+        titleEn: e.titleEn,
+        answerEn: e.answerEn,
+        answerBn: e.answerBn,
+        confidence: e.confidence,
+        sourceName: e.sourceName,
+        sourceUrl: e.sourceUrl,
+        reviewedAt: e.reviewedAt,
+        status: e.status,
+      }),
+    )
+    .join("\n");
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 12);
+}
+
+/**
+ * Content-addressed version of the production knowledge base, computed once at
+ * module load (A2-04 / A3-07 / A4-06). Every advisory response carries it as
+ * `kbVersion`, so which KB answered a farmer is auditable from the response
+ * itself and a silent KB edit becomes visible instead of untraceable.
+ */
+export const KB_VERSION = kbVersionOf(KNOWLEDGE_BASE);
 
 /** Crop-name aliases per crop. Matching these is *weak* evidence: every entry of
  *  a crop repeats them, so a bare crop mention must never outrank an entry that
@@ -162,30 +242,46 @@ function compileRule(canonical: string, weak: boolean): MatchRule {
   return { weak, phrase: n.includes(" "), asciiRe: null, literal: n };
 }
 
-const COMPILED = KNOWLEDGE_BASE.map((entry) => {
-  const aliases = new Set([...(CROP_ALIASES[entry.crop] ?? []), entry.crop].map(normalizeQuery));
-  const rules = entry.keywords.flatMap((kw) => {
-    const n = normalizeQuery(kw);
-    const weak = aliases.has(n);
-    return [kw, ...(BANGLISH_ALIASES[n] ?? [])].map((alias) => compileRule(alias, weak));
+function compileCorpus(corpus: KbEntry[]): { entry: KbEntry; rules: MatchRule[] }[] {
+  return corpus.map((entry) => {
+    const aliases = new Set([...(CROP_ALIASES[entry.crop] ?? []), entry.crop].map(normalizeQuery));
+    const rules = entry.keywords.flatMap((kw) => {
+      const n = normalizeQuery(kw);
+      const weak = aliases.has(n);
+      return [kw, ...(BANGLISH_ALIASES[n] ?? [])].map((alias) => compileRule(alias, weak));
+    });
+    return { entry, rules };
   });
-  return { entry, rules };
-});
+}
 
-/** Strip instruction-like patterns to reduce the prompt-injection surface. */
+const COMPILED = compileCorpus(KNOWLEDGE_BASE);
+
+/**
+ * Strip instruction-like patterns to reduce the prompt-injection surface.
+ * Fenced code blocks, chat role prefixes, angle brackets and bracketed
+ * instruction markers ([INST]/[SYS]/[SYSTEM] and their closing forms) are
+ * removed; the result is trimmed and capped at 1000 chars to bound input.
+ */
 export function sanitizeQuestion(raw: string): string {
   return raw
     .replace(/```[\s\S]*?```/g, "[code-block removed]")
     .replace(/(system|assistant|developer)\s*[:：]/gi, "")
+    .replace(/\[\/?(?:INST|SYS|SYSTEM)\]/gi, "")
     .replace(/[<>]/g, "")
     .trim()
     .slice(0, 1000);
 }
 
-export function retrieve(questionLower: string, hintCrop?: string): { entries: KbEntry[]; scores: number[] } {
+/**
+ * `corpus` defaults to the built-in KB — production retrieval is unchanged.
+ * It exists so evaluation/degradation runs can inject a variant (empty or
+ * limited corpus) and prove the eval gate fails when retrieval degrades.
+ */
+export function retrieve(questionLower: string, hintCrop?: string, corpus: KbEntry[] = KNOWLEDGE_BASE): { entries: KbEntry[]; scores: number[] } {
   const nq = normalizeQuery(questionLower);
   const hint = hintCrop ? normalizeQuery(hintCrop) : undefined;
-  const scored = COMPILED.map(({ entry, rules }, index) => {
+  const compiled = corpus === KNOWLEDGE_BASE ? COMPILED : compileCorpus(corpus);
+  const scored = compiled.map(({ entry, rules }, index) => {
     let score = 0;
     let topical = 0; // topical-keyword evidence — required to ground an answer
     let weakMatched = false; // a crop mention counts at most once per entry

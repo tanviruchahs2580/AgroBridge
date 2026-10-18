@@ -4,8 +4,8 @@
  * replace), serving stale versions. This file deliberately exists so the old
  * SW's update check finds valid JS with new bytes: it then installs, clears
  * every cache, unregisters all registrations and reloads open clients.
- * After this one-time migration, no SW is registered again (the app's own
- * /service-worker.js probe 404s → main.tsx no-ops). */
+ * After this one-time migration, no SW is registered again: the app itself
+ * ships no service worker and main.tsx registers nothing. */
 self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {

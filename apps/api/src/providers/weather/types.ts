@@ -5,9 +5,22 @@ export interface CurrentWeather {
   windKmh: number;
   precipitationMm: number;
   condition: string;
+  /**
+   * Provider-reported observation instant (ISO 8601), when the provider
+   * exposes one (OpenWeather `dt`). Absent — never fabricated — when the
+   * provider does not report an observation time (AUD-126 / A5-01).
+   */
+  observedAt?: string;
+  /** Provider slug; enriched by the route so the client can trust `current` alone. */
+  source?: string;
 }
 
 export interface DailyForecast {
+  /**
+   * Calendar day (`YYYY-MM-DD`) of the forecast bucket in **Asia/Dhaka** —
+   * the grouping this product's farming day follows (see day.ts). Kept
+   * explicit and stable for clients (AUD-126 / A5-01).
+   */
   date: string;
   minC: number;
   maxC: number;

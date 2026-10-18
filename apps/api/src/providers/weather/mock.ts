@@ -1,4 +1,14 @@
 import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js";
+import { dhakaDate } from "./day.js";
+
+/**
+ * Fixed reference instant for the fixture provider. The whole mock payload is
+ * a function of latitude and this constant only — no wall clock — so identical
+ * requests produce byte-identical responses and tests can assert exact
+ * timestamps/dates. It is explicitly NOT current weather (AUD-126 / A5-01).
+ * 2026-06-15T00:00:00Z == 06:00 on 2026-06-15 in Dhaka.
+ */
+export const MOCK_REFERENCE_NOW = new Date("2026-06-15T00:00:00Z");
 
 /**
  * Deterministic offline weather provider for development/test/demo.
@@ -21,6 +31,9 @@ export class MockWeatherProvider implements WeatherProvider {
       windKmh: 12,
       precipitationMm: 0,
       condition: "Partly cloudy",
+      // Derived deterministically from the fixed reference instead of "now":
+      // fixture data must never masquerade as a live observation.
+      observedAt: MOCK_REFERENCE_NOW.toISOString(),
     };
   }
 
@@ -28,10 +41,13 @@ export class MockWeatherProvider implements WeatherProvider {
     const current = await this.getCurrent(lat);
     const out: DailyForecast[] = [];
     for (let i = 0; i < Math.min(Math.max(days, 1), 7); i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
+      // Fixed reference + UTC-date arithmetic: the Dhaka calendar day of each
+      // bucket is deterministic regardless of the host timezone.
+      const d = new Date(MOCK_REFERENCE_NOW);
+      d.setUTCDate(d.getUTCDate() + i);
       out.push({
-        date: d.toISOString().slice(0, 10),
+        // Grouped on the Dhaka calendar day, like the live adapter (day.ts).
+        date: dhakaDate(d),
         minC: Number((current.tempC - 6).toFixed(1)),
         maxC: Number((current.tempC + 4).toFixed(1)),
         rainMm: i % 3 === 2 ? 18 : i % 3 === 1 ? 6 : 0,

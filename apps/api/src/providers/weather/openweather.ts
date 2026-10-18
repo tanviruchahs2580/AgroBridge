@@ -1,4 +1,5 @@
 import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js";
+import { dhakaDate } from "./day.js";
 
 const BASE = "https://api.openweathermap.org/data/2.5";
 const FETCH_TIMEOUT_MS = 8_000;
@@ -17,6 +18,7 @@ export class OpenWeatherProvider implements WeatherProvider {
       wind: { speed: number };
       weather: { description: string }[];
       rain?: { "1h"?: number };
+      dt?: number; // observation time, unix seconds (AUD-126 / A5-01)
     };
     return {
       tempC: j.main.temp,
@@ -25,6 +27,9 @@ export class OpenWeatherProvider implements WeatherProvider {
       windKmh: j.wind.speed * 3.6,
       precipitationMm: j.rain?.["1h"] ?? 0,
       condition: j.weather[0]?.description ?? "unknown",
+      // The provider's own observation instant — omitted (not invented) if the
+      // body carries no `dt`.
+      ...(typeof j.dt === "number" ? { observedAt: new Date(j.dt * 1000).toISOString() } : {}),
     };
   }
 
@@ -38,7 +43,10 @@ export class OpenWeatherProvider implements WeatherProvider {
     };
     const byDate = new Map<string, { minC: number; maxC: number; rainMm: number; humidityPct: number; windKmh: number }>();
     for (const item of j.list.slice(0, days * 8)) {
-      const date = item.dt_txt.slice(0, 10);
+      // dt_txt is UTC ("YYYY-MM-DD HH:MM:SS") — bucket by the Dhaka calendar
+      // day (see day.ts), so an evening UTC slot lands on the local day it
+      // actually belongs to. `+ "Z"` pins the parse to UTC.
+      const date = dhakaDate(`${item.dt_txt.replace(" ", "T")}Z`);
       const agg =
         byDate.get(date) ??
         { minC: Infinity, maxC: -Infinity, rainMm: 0, humidityPct: item.main.humidity, windKmh: item.wind.speed * 3.6 };

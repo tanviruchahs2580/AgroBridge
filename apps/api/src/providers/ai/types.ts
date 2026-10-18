@@ -17,12 +17,52 @@ export interface AiAnswer {
   groundedRefs: string[];
   tokensIn?: number;
   tokensOut?: number;
+  /**
+   * Content version (sha256[:12]) of the knowledge base that grounded this
+   * answer — present for BOTH engines (A2-04 / A3-07 / A4-06). The offline
+   * engine reports the version of the corpus it actually retrieved from.
+   */
+  kbVersion: string;
+  /**
+   * Hosted-provider prompt template version. Only set by the OpenAI-compatible
+   * adapter; the offline engine omits it — its `model` id ("kb-retrieval-v1")
+   * already names the deterministic template that produced the answer.
+   */
+  promptVersion?: string;
 }
 
 export interface AiProvider {
   readonly name: string;
   readonly model: string;
+  /** Set only by providers whose output depends on a prompt template. */
+  readonly promptVersion?: string;
   ask(question: string, ctx: AiContext): Promise<AiAnswer>;
+}
+
+/**
+ * Typed provider failure taxonomy (AUD-107 / A4-03). The adapter previously
+ * threw one generic `Error("AI provider error <status>")`, so 429 vs 5xx vs a
+ * blocked/truncated/empty generation were indistinguishable to callers and to
+ * the gateway. `retryable` marks the classes the adapter itself retries once.
+ */
+export type AiProviderErrorCode =
+  | "EMPTY_CONTENT" // 2xx with empty/whitespace-only content — never served as an answer
+  | "CONTENT_FILTERED" // finish_reason=content_filter — provider blocked the output
+  | "TRUNCATED" // finish_reason=length — output cut off mid-answer
+  | "RATE_LIMITED" // HTTP 429
+  | "UPSTREAM" // other non-2xx / transport failure
+  | "TIMEOUT"; // AbortSignal.timeout fired
+
+export class AiProviderError extends Error {
+  constructor(
+    public readonly code: AiProviderErrorCode,
+    message: string,
+    public readonly status?: number,
+    public readonly retryable = false,
+  ) {
+    super(message);
+    this.name = "AiProviderError";
+  }
 }
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.55;

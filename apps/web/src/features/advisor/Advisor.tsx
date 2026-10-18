@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import type { AdvisoryAnswer, DiseaseCase } from "../../lib/api-types";
+import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -8,7 +8,9 @@ import { formatDate } from "../../lib/format";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Bot, Camera, Sprout } from "lucide-react";
-import { Badge, Button, Card, ErrorBanner, Input, PageHeader, Skeleton, Spinner } from "../../components/ui";
+import { Badge, Button, Card, ErrorBanner, Input, Modal, PageHeader, Skeleton, Spinner, useToast } from "../../components/ui";
+import { confidenceSupportKey } from "./supportLabel";
+import { answerModeLabel, shortKbVersion } from "./answerMeta";
 
 const CROP_KEYWORDS = /rice|wheat|jute|mustard|maize|potato|ধান|গম|পাট|সরিষা|ভুট্টা|আলু/i;
 
@@ -52,12 +54,28 @@ function BlockError({ error, retryLabel, onRetry }: { error: string | null; retr
 export default function Advisor() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
+  const toast = useToast();
   const [question, setQuestion] = useState("");
-  const [chat, setChat] = useState<{ role: "user" | "ai"; text: string; confidence?: number; low?: boolean; refs?: string[] }[]>([]);
+  const [chat, setChat] = useState<{
+    role: "user" | "ai";
+    text: string;
+    confidence?: number;
+    low?: boolean;
+    refs?: string[];
+    /** Provenance of the answer (A4-04/A2-04): which engine and KB version produced it. */
+    provider?: string;
+    model?: string;
+    kbVersion?: string;
+  }[]>([]);
   const [busy, setBusy] = useState(false);
   const [showAllCases, setShowAllCases] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [reporting, setReporting] = useState<AdvisoryHistoryItem | null>(null);
+  const [reason, setReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // The only fetch on this screen is the user's disease-case list; the chat is
@@ -65,6 +83,12 @@ export default function Advisor() {
   // fetch no longer has to be swallowed silently.
   const casesRes = useResource<DiseaseCase[]>("advisor-cases", () => api<DiseaseCase[]>("GET", "/disease/cases"));
   const cases = casesRes.data ?? [];
+
+  // Stored advisories. This is the only surface carrying row ids (the chat list
+  // is local state and POST /ai/advisory returns no id), so the report-a-problem
+  // action (A7-07) attaches here.
+  const historyRes = useResource<AdvisoryHistoryItem[]>("advisor-history", () => api<AdvisoryHistoryItem[]>("GET", "/ai/history"));
+  const history = historyRes.data ?? [];
 
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -91,6 +115,9 @@ export default function Advisor() {
           confidence: res.confidence,
           low: res.lowConfidenceFlag,
           refs: Array.isArray(res.groundedRefs) ? res.groundedRefs : [],
+          provider: res.provider,
+          model: res.model,
+          kbVersion: res.kbVersion,
         },
       ]);
     } catch (err) {
@@ -123,6 +150,35 @@ export default function Advisor() {
       setUploadMsg(mapError(err, lang));
     } finally {
       setUploading(false);
+    }
+  }
+
+  function openReport(item: AdvisoryHistoryItem) {
+    setReporting(item);
+    setReason("");
+    setReportError(null);
+  }
+
+  /**
+   * Report-a-problem (A7-07): POSTs the farmer's reason for a stored answer.
+   * The API overwrites a previous report (there is one feedback slot per row),
+   * so a repeat submission is simply accepted again and confirmed with the same
+   * success toast. The row is updated from the response, never optimistically.
+   */
+  async function submitReport() {
+    if (!reporting || reportBusy || reason.trim().length < 3) return;
+    const id = reporting.id;
+    setReportBusy(true);
+    setReportError(null);
+    try {
+      const res = await api<AdvisoryFeedback>("POST", `/ai/history/${id}/feedback`, { reason: reason.trim() });
+      historyRes.setData((historyRes.data ?? []).map((h) => (h.id === res.id ? { ...h, feedbackReason: res.feedbackReason, feedbackAt: res.feedbackAt } : h)));
+      toast.success(t("feedbackThanks", lang));
+      setReporting(null);
+    } catch (err) {
+      setReportError(mapError(err, lang));
+    } finally {
+      setReportBusy(false);
     }
   }
 
@@ -208,10 +264,19 @@ export default function Advisor() {
                 </ul>
               )}
               {m.confidence !== undefined && (
-                <Badge tone={m.low ? "warning" : "success"}>
-                  {Math.round((m.confidence ?? 0) * 100)}% ·{" "}
-                  {m.low ? t("lowConfidence", lang) : t("groundedAnswer", lang)}
+                // Coarse support band, never a percentage: the score behind it
+                // is a keyword-retrieval heuristic, not a calibrated
+                // probability (AUD-108).
+                <Badge tone={confidenceSupportKey(m.confidence ?? 0, m.low ?? false) === "lowConfidence" ? "warning" : "success"}>
+                  {t(confidenceSupportKey(m.confidence ?? 0, m.low ?? false), lang)}
                 </Badge>
+              )}
+              {/* Which engine/mode answered and the KB version it was grounded in
+                  (A4-04 / A2-04) — a disclosure line, not a score. */}
+              {m.kbVersion && (
+                <p className="px-1 text-[11px] text-stone-500">
+                  {answerModeLabel(m.provider ?? "", m.model ?? "", lang)} · {t("advisorKbVersion", lang, { v: shortKbVersion(m.kbVersion) })}
+                </p>
               )}
             </div>
           )
@@ -235,6 +300,81 @@ export default function Advisor() {
         />
         <Button type="submit" className="shrink-0" disabled={busy || !question.trim()}>{t("send", lang)}</Button>
       </form>
+
+      {/* Stored advisories — the only surface with row ids, so report-a-problem
+          (A7-07) lives on these rows. Collapsed by default; the chat stays the
+          primary surface. */}
+      <section className="space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="px-1 text-xs"
+          aria-expanded={showHistory}
+          onClick={() => setShowHistory((v) => !v)}
+        >
+          {showHistory ? t("showLess", lang) : t("advisorHistory", lang)}
+        </Button>
+        {showHistory && (
+          <Card variant="static" className="space-y-2">
+            <BlockError error={historyRes.error} retryLabel={t("retry", lang)} onRetry={() => void historyRes.reload()} />
+            {historyRes.loading ? (
+              <Skeleton className="h-14 w-full" />
+            ) : history.length === 0 && !historyRes.error ? (
+              <p className="text-xs text-stone-500">{t("advisorNoHistory", lang)}</p>
+            ) : (
+              <ul className="space-y-2">
+                {history.map((h) => (
+                  <li key={h.id} className="space-y-1 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
+                    <p className="text-[11px] text-stone-500">{formatDate(h.createdAt, lang)}</p>
+                    <p className="text-sm leading-snug text-stone-700">{h.question}</p>
+                    {h.feedbackAt ? (
+                      // The stored report is reflected from the server fields, not
+                      // from local state: a reload shows the same "Reported" row.
+                      <p className="text-xs font-medium text-success-text" title={h.feedbackReason ?? undefined}>
+                        ✓ {t("feedbackReported", lang)}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openReport(h)}
+                        className="rounded-chip text-xs font-medium text-stone-500 underline decoration-stone-300 underline-offset-2 transition-colors hover:text-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+                      >
+                        {t("reportIssue", lang)}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        )}
+      </section>
+
+      {reporting && (
+        <Modal
+          title={t("reportIssueTitle", lang)}
+          onClose={() => setReporting(null)}
+          closeLabel={t("close", lang)}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setReporting(null)} disabled={reportBusy}>{t("cancel", lang)}</Button>
+              <Button onClick={() => void submitReport()} loading={reportBusy} disabled={reason.trim().length < 3}>{t("reportSubmit", lang)}</Button>
+            </div>
+          }
+        >
+          <p className="text-sm text-stone-600">{t("reportIssueBody", lang)}</p>
+          <p className="mt-2 line-clamp-2 text-xs text-stone-500">{reporting.question}</p>
+          <textarea
+            aria-label={t("reportReasonLabel", lang)}
+            className="mt-3 w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
+            rows={4}
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          {reportError && <div className="mt-2"><ErrorBanner message={reportError} /></div>}
+        </Modal>
+      )}
     </div>
   );
 }

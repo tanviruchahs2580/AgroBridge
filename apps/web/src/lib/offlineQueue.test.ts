@@ -17,7 +17,7 @@ vi.mock("./api.js", async () => {
   };
 });
 
-import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue } from "./offlineQueue";
+import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue, onDrop, onSync, dropToastMessage, syncToastMessage } from "./offlineQueue";
 import { ApiError } from "./api";
 
 const STORAGE_KEY = "agrobridge.mutationQueue";
@@ -309,11 +309,141 @@ describe("lib/offlineQueue — flushAll", () => {
     expect(mockApi).not.toHaveBeenCalled();
   });
 
+  // AUD-112b: a permanently refused write used to disappear with only a
+  // console.warn; onDrop is the hook App.tsx uses to raise the bilingual toast.
+  it("notifies onDrop with the discarded entry and status on a permanent 4xx", async () => {
+    const dropped: { url: string; method: string }[] = [];
+    const statuses: number[] = [];
+    const unsub = onDrop((entry, status) => {
+      dropped.push({ url: entry.url, method: entry.method });
+      statuses.push(status);
+    });
+    enqueue({ url: "/cart/items/9", method: "DELETE" });
+    mockApi.mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "bad"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(dropped).toEqual([{ url: "/cart/items/9", method: "DELETE" }]);
+    expect(statuses).toEqual([400]);
+    unsub();
+  });
+
+  it("onDrop stays silent while a 401/403 is re-queued, then fires on the second strike", async () => {
+    const cb = vi.fn();
+    const unsub = onDrop(cb);
+    enqueue({ url: "/farms/1/events", method: "POST" });
+    mockApi.mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "no"));
+    await flushAll();
+    expect(size()).toBe(1); // re-queued once — nothing is lost yet, no toast
+    expect(cb).not.toHaveBeenCalled();
+
+    mockApi.mockRejectedValueOnce(new ApiError(403, "FORBIDDEN", "no"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb.mock.calls[0][1]).toBe(403);
+    unsub();
+  });
+
+  it("onDrop unsubscribe stops delivery", async () => {
+    const cb = vi.fn();
+    onDrop(cb)();
+    enqueue({ url: "/orders/x/status", method: "POST" });
+    mockApi.mockRejectedValueOnce(new ApiError(422, "UNPROCESSABLE", "no"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(cb).not.toHaveBeenCalled();
+  });
+
   it("flushAll never throws even when api throws non-ApiError", async () => {
     enqueue({ url: "/farms/1/events", method: "POST" });
     mockApi.mockRejectedValueOnce(new TypeError("unexpected"));
     await expect(flushAll()).resolves.toBeUndefined();
     expect(size()).toBe(1); // kept for retry
+  });
+});
+
+// G-07: a flush that saved queued work must say so (once, with a count), and a
+// drop must distinguish a state conflict (409/422 → "needs your review") from a
+// plain permanent failure ("discarded").
+describe("lib/offlineQueue — synced/drop outcome signalling (G-07)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockApi.mockReset();
+    mockIsOnline.mockReturnValue(true);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("onSync fires once with the count of entries that landed", async () => {
+    const cb = vi.fn();
+    const unsub = onSync(cb);
+    enqueue({ url: "/farms/1/events", method: "POST", body: { n: 1 }, clientUuid: "11111111-1111-4111-8111-111111111111" });
+    enqueue({ url: "/cart/items/9", method: "DELETE", body: { n: 2 }, clientUuid: "22222222-2222-4222-8222-222222222222" });
+    mockApi.mockResolvedValueOnce({}).mockResolvedValueOnce({});
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledWith(2);
+    unsub();
+  });
+
+  it("onSync stays silent when nothing synced (all entries kept for retry)", async () => {
+    const cb = vi.fn();
+    const unsub = onSync(cb);
+    enqueue({ url: "/farms/1/events", method: "POST" });
+    mockApi.mockRejectedValueOnce(new ApiError(500, "SERVER_ERROR", "boom"));
+    await flushAll();
+    expect(size()).toBe(1);
+    expect(cb).not.toHaveBeenCalled();
+    unsub();
+  });
+
+  it("onSync unsubscribe stops delivery", async () => {
+    const cb = vi.fn();
+    onSync(cb)();
+    enqueue({ url: "/farms/1/events", method: "POST" });
+    mockApi.mockResolvedValueOnce({});
+    await flushAll();
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it("onDrop reports 409/422 as a conflict and other 4xx as discarded", async () => {
+    const outcomes: string[] = [];
+    const unsub = onDrop((_entry, _status, outcome) => outcomes.push(outcome));
+    enqueue({ url: "/orders/x/status", method: "POST", body: { a: 1 }, clientUuid: "33333333-3333-4333-8333-333333333333" });
+    enqueue({ url: "/cart/items/9", method: "DELETE", body: { b: 2 }, clientUuid: "44444444-4444-4444-8444-444444444444" });
+    enqueue({ url: "/farms/1/events", method: "POST", body: { c: 3 }, clientUuid: "55555555-5555-4555-8555-555555555555" });
+    mockApi
+      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "already exists"))
+      .mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "bad"))
+      .mockRejectedValueOnce(new ApiError(422, "UNPROCESSABLE", "stale"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(outcomes).toEqual(["conflict", "discarded", "conflict"]);
+    unsub();
+  });
+
+  it("dropToastMessage maps conflict vs discarded to different copy (both languages)", async () => {
+    const entry = { url: "/cart/items/9", method: "DELETE", clientUuid: "x", payloadHash: "y" };
+    for (const lang of ["bn", "en"] as const) {
+      const conflict = dropToastMessage(entry, "conflict", lang);
+      const discarded = dropToastMessage(entry, "discarded", lang);
+      expect(conflict).not.toBe(discarded);
+      expect(conflict.length).toBeGreaterThan(0);
+      expect(discarded.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("syncToastMessage uses singular/plural English and reads the count", async () => {
+    const entry = { url: "/farms/1/events", method: "POST", clientUuid: "x", payloadHash: "y" };
+    expect(syncToastMessage(1, "en")).toContain("1");
+    expect(syncToastMessage(3, "en")).toContain("3");
+    expect(syncToastMessage(1, "en")).not.toBe(syncToastMessage(3, "en"));
+    expect(syncToastMessage(2, "bn")).toContain("2");
+    void entry;
   });
 });
 

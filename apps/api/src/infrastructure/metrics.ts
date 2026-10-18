@@ -44,7 +44,11 @@ collectDefaultMetrics({ register: registry, prefix: "agrobridge_" });
 export function metricsMiddleware(req: Request, res: Response, next: NextFunction) {
   const start = process.hrtime.bigint();
   res.on("finish", () => {
-    const route = (req.route?.path as string) || req.path;
+    // The route label must come from the matched route PATTERN, never the raw
+    // URL: unmatched requests (404s, scanner traffic — they bypass the /api
+    // rate limiter) previously minted one label per attacker-chosen path,
+    // growing the registry without bound (AUD-114 / I-09).
+    const route = req.route?.path ? `${req.baseUrl}${req.route.path as string}` : "unmatched";
     const labels = { method: req.method, route, status: String(res.statusCode) };
     httpRequestsTotal.inc(labels);
     const duration = Number(process.hrtime.bigint() - start) / 1e9;

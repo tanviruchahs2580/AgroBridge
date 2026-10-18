@@ -1,4 +1,4 @@
-import { retrieve } from "./knowledge.js";
+import { retrieve, KbEntry, KB_VERSION, kbVersionOf } from "./knowledge.js";
 import { AiContext, AiAnswer, expertVerificationNote, LOW_CONFIDENCE_THRESHOLD, AiProvider } from "./types.js";
 
 /**
@@ -10,9 +10,25 @@ export class OfflineAgroEngine implements AiProvider {
   readonly name = "offline-agro-engine";
   readonly model = "kb-retrieval-v1";
 
+  /**
+   * Version of the corpus this instance retrieves from. Production engines use
+   * the frozen `KB_VERSION` constant; an evaluation-only corpus override
+   * (degradation runs) gets its own content hash so a test answer can never
+   * masquerade as grounded in the production KB.
+   */
+  private readonly kbVersion: string;
+
+  /**
+   * `corpus` is an evaluation-only override (degradation runs); production
+   * constructs the engine with no arguments and retrieves from the built-in KB.
+   */
+  constructor(private readonly opts: { corpus?: KbEntry[] } = {}) {
+    this.kbVersion = opts.corpus ? kbVersionOf(opts.corpus) : KB_VERSION;
+  }
+
   async ask(question: string, ctx: AiContext): Promise<AiAnswer> {
     const q = question.toLowerCase();
-    const { entries, scores } = retrieve(q, ctx.cropName);
+    const { entries, scores } = retrieve(q, ctx.cropName, this.opts.corpus);
 
     if (entries.length === 0) {
       const answer =
@@ -27,6 +43,7 @@ export class OfflineAgroEngine implements AiProvider {
         model: this.model,
         lowConfidenceFlag: true,
         groundedRefs: [],
+        kbVersion: this.kbVersion,
       };
     }
 
@@ -53,6 +70,7 @@ export class OfflineAgroEngine implements AiProvider {
       model: this.model,
       lowConfidenceFlag: confidence < LOW_CONFIDENCE_THRESHOLD,
       groundedRefs: entries.map((e) => e.id),
+      kbVersion: this.kbVersion,
     };
   }
 }

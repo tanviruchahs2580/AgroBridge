@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { badRequest } from "../../shared/errors/index.js";
@@ -6,6 +7,7 @@ import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
+import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
 import { sslcommerzSignature, applyPaymentSideEffects, claimAndApplyPayment } from "./routes.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
@@ -27,8 +29,13 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     const storePassword = env.SSLCOMMERZ_STORE_PASSWORD;
     if (!storePassword) throw badRequest("Payment gateway not configured");
 
+    // Constant-time comparison (both sides are 32-char MD5 hex; a plain !==
+    // would leak a timing oracle over the digest, B-19).
     const expected = sslcommerzSignature(params, storePassword);
-    if (!params.verify_sign || expected !== params.verify_sign.toUpperCase()) {
+    const provided = (params.verify_sign ?? "").toUpperCase();
+    const expectedBuf = Buffer.from(expected, "utf8");
+    const providedBuf = Buffer.from(provided, "utf8");
+    if (expectedBuf.length !== providedBuf.length || !timingSafeEqual(expectedBuf, providedBuf)) {
       // Log minimal info; never echo payload internals on failure.
       return res.status(401).json({ ok: false, error: { code: "INVALID_SIGNATURE", message: "Webhook signature verification failed" } });
     }
@@ -47,6 +54,25 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     }
     if (payment.status === "SUCCEEDED" || payment.status === "REFUNDED") {
       return ok(res, { received: true, processed: false, reason: "already_final" });
+    }
+
+    // Gateway amount verification: a valid signature proves the IPN came from
+    // the gateway, not that it belongs to THIS charge. SSLCommerz sends
+    // `amount` in BDT (decimals allowed) and `currency`. A mismatch (or a
+    // missing/non-numeric amount, which no real IPN has) is refused and the
+    // payment deliberately stays PENDING for reconciliation — never confirmed.
+    const amountRaw = params.amount;
+    const gatewayAmountPaisa = amountRaw != null && amountRaw !== "" ? Math.round(Number(amountRaw) * 100) : NaN;
+    if (!Number.isFinite(gatewayAmountPaisa) || gatewayAmountPaisa !== payment.amountPaisa) {
+      logger.warn(
+        { tranId, paymentId: payment.id, expectedPaisa: payment.amountPaisa, gatewayAmount: amountRaw ?? null },
+        "SSLCommerz webhook amount mismatch — payment left PENDING"
+      );
+      throw badRequest("Webhook amount does not match the payment");
+    }
+    if (params.currency && params.currency.toUpperCase() !== "BDT") {
+      logger.warn({ tranId, paymentId: payment.id, currency: params.currency }, "SSLCommerz webhook currency mismatch — payment left PENDING");
+      throw badRequest("Webhook currency is not BDT");
     }
 
     // The PENDING->SUCCEEDED claim is the idempotency gate: exactly one

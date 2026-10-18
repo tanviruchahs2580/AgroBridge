@@ -29,6 +29,40 @@ const REVIEW_STEP = 2;
 const PAY_STEP = 3;
 const SUCCESS_STEP = 4;
 
+/**
+ * One checkout idempotency key per attempt (AUD-125), persisted so a page
+ * reload or a manual/offline retry re-sends the SAME key — the server then
+ * replays the already-created order instead of charging/ordering twice.
+ * Cleared on success and whenever the cart is observed empty, so the next
+ * checkout mints a fresh key.
+ */
+const PENDING_CHECKOUT_KEY = "checkout:pendingReqId";
+
+function pendingCheckoutKey(): string {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    /* storage blocked (private mode) — no persisted key to reuse */
+  }
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  try {
+    localStorage.setItem(PENDING_CHECKOUT_KEY, id);
+  } catch {
+    /* not persisted: still idempotent within this page's life */
+  }
+  return id;
+}
+
+function clearPendingCheckoutKey(): void {
+  try {
+    localStorage.removeItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    /* storage blocked — nothing to clear */
+  }
+}
+
 /** Category → tinted icon tile (same visual grammar as ServiceCard's AgriIconBox). */
 const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
   SEED: { icon: Sprout, box: "bg-brand-50 text-brand-700 ring-brand-100" },
@@ -87,6 +121,10 @@ export default function Market() {
   const [deliveryErrs, setDeliveryErrs] = useState<{ address?: string; phone?: string }>({});
   const [order, setOrder] = useState<Order | null>(null);
   const [paid, setPaid] = useState(false);
+  // Server-reported provider mode from POST /payments/intent (`providerMode`).
+  // Until the intent response arrives the mode is unknown, so no sandbox claim
+  // is rendered — the wording appears only when the server says "sandbox".
+  const [intentMode, setIntentMode] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placeOrderError, setPlaceOrderError] = useState<string | null>(null);
@@ -95,6 +133,14 @@ export default function Market() {
     track("market_view", { category: category || "ALL" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A loaded, empty cart means any pending checkout key is spent (the order
+  // consumed the cart) or obsolete — the next checkout mints a fresh one.
+  // Guarded on loaded data so the pre-fetch empty state cannot wipe a key that
+  // a page reload mid-checkout must reuse.
+  useEffect(() => {
+    if (cartRes.data && cartRes.data.items.length === 0) clearPendingCheckoutKey();
+  }, [cartRes.data]);
 
   function markBusy(id: string, busy: boolean) {
     setCartBusyIds((prev) => {
@@ -163,6 +209,7 @@ export default function Market() {
     setStep(0);
     setOrder(null);
     setPaid(false);
+    setIntentMode(null);
     setDeliveryErrs({});
     setCriticalFlow(true);  // Guard: prevent session-destroy during checkout
     if (!prefillDone) {
@@ -201,16 +248,21 @@ export default function Market() {
   async function placeOrder() {
     setPlacing(true);
     setPlaceOrderError(null);
+    // Reused across retries/reloads; only cleared once the order is confirmed.
+    const clientRequestId = pendingCheckoutKey();
     try {
       // The delivery details validated in step 1 must travel with the order —
       // they are what fulfilment uses, and the server rejects a malformed
       // value rather than silently dropping it.
       const recipient = session?.fullName?.trim() ?? "";
       const o = await api<Order>("POST", "/orders/checkout", {
+        clientRequestId,
         ...(recipient.length >= 2 ? { shippingName: recipient } : {}),
         ...(phone.trim() ? { shippingPhone: phone.trim() } : {}),
         ...(address.trim() ? { shippingAddress: address.trim() } : {}),
       });
+      // Order confirmed (created or replayed) — this key is spent.
+      clearPendingCheckoutKey();
       setOrder(o);
       setStep(PAY_STEP);
       // Order already created; the refresh is fire-and-forget, so a failed cart
@@ -236,6 +288,8 @@ export default function Market() {
         purposeType: "ORDER",
         purposeId: order.id,
       });
+      // The real mode is whatever the server reports for this deployment.
+      setIntentMode(intent.providerMode);
 
       if (intent.redirectUrl) {
         // A real gateway is configured: the hosted checkout page collects the
@@ -522,7 +576,6 @@ export default function Market() {
                   {t("payNow", lang)}
                 </Button>
               )}
-              <p className="text-xs leading-relaxed text-stone-500">{t("sandboxPaymentNote", lang)}</p>
               <Button variant="ghost" className="w-full" onClick={closeWizard}>{t("close", lang)}</Button>
             </div>
           )}
@@ -536,6 +589,8 @@ export default function Market() {
               </h3>
               <p className="break-all text-sm text-stone-600 [overflow-wrap:anywhere]">{t("checkoutOrderNo", lang, { no: order.orderNo })}</p>
               {!paid && <p className="text-xs text-stone-500">{t("paymentPendingNote", lang)}</p>}
+              {/* Sandbox wording only when the server reported sandbox mode. */}
+              {paid && intentMode === "sandbox" && <p className="text-xs text-stone-500">{t("sandboxPaymentNote", lang)}</p>}
               <p className="text-sm font-bold text-stone-700">{t("netPayable", lang)}: {formatBDT(order.totalPaisa, lang)}</p>
               <Button className="w-full" onClick={closeWizard}>{t("done", lang)}</Button>
             </div>

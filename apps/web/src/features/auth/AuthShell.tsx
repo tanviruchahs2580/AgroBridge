@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Bot, Leaf, Store } from "lucide-react";
-import { t } from "../../lib/i18n";
+import { otherLang, t } from "../../lib/i18n";
 import type { Lang } from "../../lib/i18n";
 import { useSession } from "../../lib/session";
 
@@ -55,11 +55,11 @@ export function AuthLangToggle({ lang, onChange }: { lang: Lang; onChange: (l: L
   return (
     <button
       type="button"
-      aria-label={lang === "bn" ? "Switch to English" : "বাংলায় ফিরুন"}
-      onClick={() => onChange(lang === "bn" ? "en" : "bn")}
+      aria-label={t("langSwitchAria", lang)}
+      onClick={() => onChange(otherLang(lang))}
       className="inline-flex min-h-[44px] items-center rounded-chip border border-surface-border-strong bg-surface-card px-3 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
     >
-      {lang === "bn" ? "EN" : "বাং"}
+      {t("langToggleButton", lang)}
     </button>
   );
 }

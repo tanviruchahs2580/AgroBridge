@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Bell, Bot, Calendar, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
@@ -10,7 +9,9 @@ import { useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import { cropLabel, stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import { deriveTodayTasks } from "./todayTasks";
+import { weatherProvenanceLine } from "./weatherProvenance";
 import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
@@ -50,12 +51,12 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-const TASK_KEYS: { id: string; key: import("../../lib/i18n").DictKey }[] = [
-  { id: "t1", key: "taskMorningIrrigation" },
-  { id: "t2", key: "taskWeedClean" },
-  { id: "t3", key: "taskFertilizerCheck" },
-  { id: "t4", key: "taskCropMonitor" },
-];
+/** Tone classes for a derived care suggestion (same grammar as MyFarm's chips). */
+function careToneClass(tone: "danger" | "warning" | "success"): string {
+  if (tone === "danger") return "bg-danger-bg text-danger-text border-danger-border";
+  if (tone === "warning") return "bg-warning-bg text-warning-text border-warning-border";
+  return "bg-success-bg text-success-text border-success-border";
+}
 
 const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] = [
   { key: "aiActionDiagnose", icon: Stethoscope },
@@ -90,7 +91,11 @@ export default function Home() {
   const farms = farmsRes.data ?? [];
   const weather = weatherRes.data;
   const unread = notifRes.data?.unread ?? 0;
-  const [tasks, setTasks] = useState<Record<string, boolean>>({ t1: true, t2: false, t3: false, t4: false });
+  // Today's tasks are derived from the same `GET /farms` crop cycles the rest of
+  // the screen reads (stage + planting date, via the shared care logic). Up to
+  // three real suggestions — nothing pre-checked, nothing persisted, because no
+  // task-completion write exists on the API.
+  const todayTasks = deriveTodayTasks(farms, lang);
 
   const cropCycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const primaryCrop = cropCycles[0];
@@ -178,7 +183,9 @@ export default function Home() {
 
       {/* 4-card status grid */}
       <section className="animate-enterprise grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" style={{ animationDelay: "140ms" } as React.CSSProperties}>
-        {/* আজকের কাজ */}
+        {/* আজকের কাজ — real suggestions derived from the user's active crop
+            cycles. No checkbox: there is no write API for task completion, so a
+            tick would only ever be local fiction. No progress badge either. */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
           <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
             <div className="flex items-center gap-2">
@@ -187,24 +194,31 @@ export default function Home() {
               </span>
               <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
             </div>
-            <span className="rounded-chip bg-brand-50 px-2 py-0.5 text-xs font-bold tabular-nums text-accent ring-1 ring-inset ring-brand-100">
-              {Object.values(tasks).filter(Boolean).length}/{TASK_KEYS.length}
-            </span>
           </div>
           <div className="flex-1 p-2">
-            <ul className="divide-y divide-surface-border">
-              {TASK_KEYS.map((task) => {
-                const checked = tasks[task.id] ?? false;
-                return (
-                  <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-card-subdued">
-                    <button type="button" role="checkbox" aria-checked={checked} aria-label={t(task.key, lang)} onClick={() => setTasks((p) => ({ ...p, [task.id]: !p[task.id] }))} className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${checked ? "border-action bg-action text-white" : "border-surface-border-strong bg-surface-card"}`}>
-                      {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>}
-                    </button>
-                    <span className={`min-w-0 flex-1 text-sm leading-tight ${checked ? "font-medium text-success-text line-through decoration-success-border" : "text-stone-700"}`}>{t(task.key, lang)}</span>
+            {farmsRes.loading ? (
+              <div className="space-y-2 p-2"><Skeleton className="h-11 w-full" /><Skeleton className="h-11 w-full" /></div>
+            ) : todayTasks.length > 0 ? (
+              <ul className="divide-y divide-surface-border">
+                {todayTasks.map((task) => (
+                  <li key={task.id} className="flex items-start gap-3 rounded-lg px-2 py-2.5">
+                    <span className={`mt-0.5 shrink-0 rounded-chip border px-2 py-0.5 text-[11px] font-semibold ${careToneClass(task.care.tone)}`}>{task.care.label}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm leading-tight text-stone-700">{task.care.task}</span>
+                      <span className="mt-0.5 block truncate text-xs leading-tight text-stone-500">
+                        {task.farmName} • {task.plotName} — {cropLabel(task.cropName, lang)} • {stageLabel(task.stage, lang)}
+                      </span>
+                    </span>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center gap-2 p-4 text-center">
+                <Sprout className="h-6 w-6 text-brand-600" aria-hidden />
+                <p className="text-sm font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
+                <p className="text-xs leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
+              </div>
+            )}
           </div>
           <Link to="/farm" className="flex items-center justify-center gap-1 border-t border-surface-border py-2.5 text-sm font-semibold text-link transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
             {t("viewAllTasks", lang)} <span aria-hidden>→</span>
@@ -255,6 +269,10 @@ export default function Home() {
                     <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
                 </div>
+                {/* Provenance (A5-01): fetched time + source, "cached copy" when the
+                    provider payload was reused. The time is always the ORIGINAL
+                    fetch time, never the response time. */}
+                <p className="relative mt-3 text-xs text-stone-500">{weatherProvenanceLine(weather, lang)}</p>
               </>
             ) : <p className="relative mt-3 text-sm text-stone-500">—</p>}
           </div>

@@ -268,24 +268,25 @@ try {
 let existingApiSection = "";
 let existingHeader = "";
 try {
-  if (existsSync(OUTPUT_MD)) {
-    const prev = readFileSync(OUTPUT_MD, "utf8");
-    // Header up to first "## API"
-    const apiIdx = prev.indexOf("## API");
-    if (apiIdx !== -1) {
-      existingHeader = prev.slice(0, apiIdx);
-      // Find where API section ends and Web E2E begins
-      const webIdx = prev.indexOf("<!-- web-e2e:start -->");
-      const webHeading = prev.indexOf("## Web E2E");
-      let apiEnd = -1;
-      if (webIdx !== -1) apiEnd = webIdx;
-      else if (webHeading !== -1) apiEnd = webHeading;
-      else apiEnd = prev.length;
-      existingApiSection = prev.slice(apiIdx, apiEnd);
-    } else {
-      // No API section — keep whole file as header
-      existingHeader = prev;
-    }
+  // No existsSync guard: an absent file throws ENOENT from readFileSync, which
+  // the catch below absorbs; check-then-read is a TOCTOU race with no safety
+  // benefit (js/file-system-race).
+  const prev = readFileSync(OUTPUT_MD, "utf8");
+  // Header up to first "## API"
+  const apiIdx = prev.indexOf("## API");
+  if (apiIdx !== -1) {
+    existingHeader = prev.slice(0, apiIdx);
+    // Find where API section ends and Web E2E begins
+    const webIdx = prev.indexOf("<!-- web-e2e:start -->");
+    const webHeading = prev.indexOf("## Web E2E");
+    let apiEnd = -1;
+    if (webIdx !== -1) apiEnd = webIdx;
+    else if (webHeading !== -1) apiEnd = webHeading;
+    else apiEnd = prev.length;
+    existingApiSection = prev.slice(apiIdx, apiEnd);
+  } else {
+    // No API section — keep whole file as header
+    existingHeader = prev;
   }
 } catch {}
 

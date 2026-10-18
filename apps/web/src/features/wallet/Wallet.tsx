@@ -251,7 +251,7 @@ export default function WalletPage() {
                 </ul>
                 {summary?.membership?.tier === p.tier && summary.membership.expiresAt && (() => {
                   const daysLeft = Math.ceil((new Date(summary.membership!.expiresAt!).getTime() - Date.now()) / 86400000);
-                  if (daysLeft <= 7 && daysLeft >= 0) return <Badge tone="warning" className="mb-2">{lang === "bn" ? `মেয়াদ শেষ ${daysLeft} দিনে` : `Expires in ${daysLeft}d`}</Badge>;
+                  if (daysLeft <= 7 && daysLeft >= 0) return <Badge tone="warning" className="mb-2">{t("walletExpiresIn", lang, { days: daysLeft })}</Badge>;
                   if (daysLeft < 0) return <Badge tone="danger" className="mb-2">{t("membershipExpired", lang)}</Badge>;
                   return null;
                 })()}

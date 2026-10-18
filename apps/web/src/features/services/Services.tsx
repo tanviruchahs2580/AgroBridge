@@ -165,22 +165,20 @@ export default function Services() {
         <div className="grid gap-6 p-6 sm:grid-cols-[1.2fr_0.8fr] sm:p-8">
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-accent">
-              <Leaf className="h-3.5 w-3.5" aria-hidden /> {lang === "bn" ? "মাঠের সেবা • যাচাইকৃত" : "Field services • Verified"}
+              <Leaf className="h-3.5 w-3.5" aria-hidden /> {t("svcBadgeVerified", lang)}
             </div>
             <h1 className="mt-3 text-balance text-2xl font-bold leading-8 tracking-[-0.02em] text-stone-800">
-              {lang === "bn" ? "আপনার জমির জন্য সঠিক সেবা, এক ক্লিকে" : "The right service for your field, in one tap"}
+              {t("svcHeroTitle", lang)}
             </h1>
             <p className="mt-2 max-w-[52ch] text-sm leading-6 text-stone-600">
-              {lang === "bn"
-                ? "যন্ত্রপাতি, স্মার্ট ফার্মিং ও মাটি পরীক্ষা — স্বচ্ছ মূল্য, স্থানীয় প্রদানকারী, দ্রুত বুকিং।"
-                : "Machinery, smart farming and soil testing — transparent pricing, local providers, fast booking."}
+              {t("svcHeroSub", lang)}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button onClick={() => searchRef.current?.focus()}>
-                {lang === "bn" ? "সেবা খুঁজুন" : "Find a service"} <ArrowRight className="ml-1 h-4 w-4" aria-hidden />
+                {t("svcFindService", lang)} <ArrowRight className="ml-1 h-4 w-4" aria-hidden />
               </Button>
               <span className="inline-flex items-center rounded-full bg-surface-subdued px-3 py-1 text-xs font-medium text-stone-600">
-                {services.length} {lang === "bn" ? "টি সেবা" : "services"}
+                {t("svcCount", lang, { n: services.length })}
               </span>
               {bookings.length > 0 && (
                 <a href="#my-bookings" className="inline-flex min-h-[36px] items-center rounded-full px-3 text-xs font-semibold text-link hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
@@ -193,18 +191,18 @@ export default function Services() {
             <div className="grid w-full max-w-[280px] gap-3">
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning-bg text-warning-text ring-1 ring-warning-border"><Tractor className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{lang==="bn"?"যন্ত্রপাতি":"Machinery"}</p><p className="text-xs text-stone-500">5 {lang==="bn"?"প্রকার":"types"}</p></div>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterMech", lang)}</p><p className="text-xs text-stone-500">5 {t("svcTypesPlural", lang)}</p></div>
                 <ArrowRight className="ml-auto h-4 w-4 text-stone-500" aria-hidden />
               </div>
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-info-bg text-info-text ring-1 ring-info-border"><Wrench className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{lang==="bn"?"পরামর্শ":"Advisory"}</p><p className="text-xs text-stone-500">2 {lang==="bn"?"প্রকার":"types"}</p></div>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterAdvisory", lang)}</p><p className="text-xs text-stone-500">2 {t("svcTypesPlural", lang)}</p></div>
                 <CheckCircle2 className="ml-auto h-4 w-4 text-link" aria-hidden />
               </div>
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-enterprise-soil-50 text-warning-text ring-1 ring-warning-border"><ShieldCheck className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{lang==="bn"?"পরীক্ষা":"Testing"}</p><p className="text-xs text-stone-500">1 {lang==="bn"?"প্রকার":"type"}</p></div>
-                <span className="ml-auto text-xs font-bold text-link">{lang==="bn"?"স্বচ্ছ":"Clear"}</span>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterTest", lang)}</p><p className="text-xs text-stone-500">1 {t("svcTypeSingular", lang)}</p></div>
+                <span className="ml-auto text-xs font-bold text-link">{t("svcClearLabel", lang)}</span>
               </div>
             </div>
           </div>
@@ -224,7 +222,7 @@ export default function Services() {
 
       {/* SECTION 02 — SERVICE DISCOVERY */}
       <section aria-labelledby="discover-title" className="space-y-3">
-        <h2 id="discover-title" className="sr-only">{lang==="bn" ? "সেবা খুঁজুন" : "Discover services"}</h2>
+        <h2 id="discover-title" className="sr-only">{t("svcDiscoverSr", lang)}</h2>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500" aria-hidden />
           <input
@@ -318,17 +316,17 @@ export default function Services() {
       {/* SECTION 06 — HOW IT WORKS — real flow only */}
       <section aria-labelledby="how-title" className="rounded-card border border-surface-border bg-surface-card p-6 shadow-sm sm:p-8">
         <h2 id="how-title" className="text-lg font-bold tracking-[-0.01em] text-stone-800">
-          {lang === "bn" ? "কিভাবে কাজ করে" : "How it works"}
+          {t("svcHowTitle", lang)}
         </h2>
-        <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "৩টি সহজ ধাপে বুকিং সম্পন্ন করুন।" : "Book in 3 simple steps."}</p>
+        <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowSub", lang)}</p>
         <ol className="mt-6 grid gap-6 sm:grid-cols-3">
           <li className="flex gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-link ring-1 ring-brand-100" aria-hidden>
               <Search className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "১. সেবা নির্বাচন" : "1. Choose a service"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "প্রয়োজন অনুযায়ী সেবা খুঁজুন ও নির্বাচন করুন।" : "Find and select the service you need."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep1Title", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep1Body", lang)}</p>
             </div>
           </li>
           <li className="flex gap-3">
@@ -336,8 +334,8 @@ export default function Services() {
               <CalendarClock className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "২. জমি ও সময়" : "2. Field & schedule"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "আপনার ফার্ম, তারিখ ও জমির পরিমাণ দিন।" : "Pick your farm, date and area."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep2Title", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep2Body", lang)}</p>
             </div>
           </li>
           <li className="flex gap-3">
@@ -345,8 +343,8 @@ export default function Services() {
               <CheckCircle2 className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "৩. নিশ্চিত করুন" : "3. Confirm"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "বুক করুন — প্রদানকারী নির্ধারিত হবে।" : "Book — a provider will be assigned."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep3Title", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep3Body", lang)}</p>
             </div>
           </li>
         </ol>
@@ -355,28 +353,28 @@ export default function Services() {
       {/* SECTION 07 — TRUST — real claims only */}
       <section aria-labelledby="trust-title" className="rounded-card border border-surface-border bg-surface-subdued p-6 sm:p-8">
         <h2 id="trust-title" className="text-lg font-bold tracking-[-0.01em] text-stone-800">
-          {lang === "bn" ? "কেন এগ্রোব্রিজ" : "Why AgroBridge"}
+          {t("svcWhyTitle", lang)}
         </h2>
         <ul className="mt-4 grid gap-4 sm:grid-cols-3">
           <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "যাচাইকৃত সেবা" : "Verified services"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "সক্রিয় সেবা ও প্রদানকারী তালিকা।" : "Active services and providers."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcTrustVerifiedTitle", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustVerifiedBody", lang)}</p>
             </div>
           </li>
           <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
             <Leaf className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "স্বচ্ছ মূল্য" : "Transparent pricing"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "প্রতি বিঘা/ঘণ্টা/দিন হিসাব।" : "Per bigha/hour/day."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcTrustPriceTitle", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustPriceBody", lang)}</p>
             </div>
           </li>
           <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
             <Phone className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{lang === "bn" ? "সহায়তা" : "Support"}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "প্রয়োজনে যোগাযোগ করুন।" : "Get help when you need it."}</p>
+              <p className="text-sm font-semibold text-stone-800">{t("svcTrustSupportTitle", lang)}</p>
+              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustSupportBody", lang)}</p>
             </div>
           </li>
         </ul>
@@ -385,15 +383,15 @@ export default function Services() {
       {/* SECTION 08 — FINAL CTA — existing working action */}
       <section className="flex flex-col items-start gap-3 rounded-card border border-brand-200 bg-brand-50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-[-0.01em] text-accent">{lang === "bn" ? "সহায়তা প্রয়োজন?" : "Need help?"}</h2>
-          <p className="mt-1 text-sm leading-5 text-stone-600">{lang === "bn" ? "আপনার ফার্ম যোগ করুন — সেবা বুকিং দ্রুত হবে।" : "Add your farm — booking will be faster."}</p>
+          <h2 className="text-lg font-bold tracking-[-0.01em] text-accent">{t("svcHelpTitle", lang)}</h2>
+          <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHelpBody", lang)}</p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
           <Link to="/farm" className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-button border border-brand-300 bg-surface-card px-4 py-2.5 text-sm font-semibold text-accent transition hover:bg-surface-subdued focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] sm:flex-none">
             {t("myFarm", lang)}
           </Link>
           <Button onClick={() => searchRef.current?.focus()} className="flex-1 sm:flex-none">
-            {lang === "bn" ? "সেবা খুঁজুন" : "Find services"} <ArrowRight className="h-4 w-4" aria-hidden />
+            {t("svcFindServices", lang)} <ArrowRight className="h-4 w-4" aria-hidden />
           </Button>
         </div>
       </section>

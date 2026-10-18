@@ -18,8 +18,20 @@ The profile expects a **fresh** database: re-provisioning re-seeds with upserts,
 not restore stock an earlier run decremented, so tests that buy seeded products can fail on a
 used database. Drop and recreate it first.
 
-Current totals: **159 passed + 1 skipped on SQLite, 160 passed on PostgreSQL 17** (the skip is
-the PostgreSQL-gated concurrency suite); CI runs the PG profile against postgres:17-alpine.
+Current totals (2026-10-18, post audit-remediation): **341 passed + 1 skipped on SQLite,
+342 passed on PostgreSQL 17** (the skip is the PostgreSQL-gated concurrency test; on PG it runs).
+Web unit: 159; web e2e: 30. CI runs the PG profile against postgres:17-alpine.
+
+Local note: the two profiles generate different Prisma clients. After running the PG profile,
+regenerate the SQLite client (`npx prisma generate` in `apps/api`) before the SQLite suite —
+otherwise the seed runs against a PG-generated client and the suite aborts with a seed error.
+
+E2E limits note (AUD-134): the browser suite makes far more requests than a person. CI's e2e job
+therefore raises `RATE_LIMIT_MAX` (2000) and `LOGIN_RATE_LIMIT_MAX` (500) for its throwaway
+instance; when running the suite locally against your own server, export the same two variables
+(or restart the API between full runs) — otherwise the global 300-req/15-min window is exhausted
+mid-suite and unrelated tests fail with 429-driven timeouts. The production policies remain
+exercised by the API suites.
 
 ## Suites
 1. `unit-core.test.ts` — procurement price engine, membership discounts, weather→risk engine,
@@ -47,6 +59,17 @@ the PostgreSQL-gated concurrency suite); CI runs the PG profile against postgres
 11. `ai-eval.test.ts` — behavioural evaluation: Bengali disease queries retrieve correct KB entries;
     English parity; Banglish mixed-script grounding; out-of-domain refusal (hallucination guard);
     prompt-injection neutralization; no unverified chemical dosage instructions.
+12. `ai-eval-harness.test.ts` + `ai-eval-degradation.test.ts` — the frozen 109-item held-out
+    set with pre-registered thresholds (hit-rate, containment, abstention, clarify, language,
+    safety referral, p95); the degradation test proves the gate fails on a broken corpus.
+    `npm run eval:ai` writes `apps/api/eval-artifacts/ai-eval-latest.json`.
+13. `ai-prompt-injection.test.ts` — 51 table-driven injection cases across ten categories.
+14. `ai-provider-adapter.test.ts` — the OpenAI-compatible adapter's full failure taxonomy
+    (empty/filtered/truncated/429/5xx/timeout, one bounded retry) with stubbed fetch.
+15. Audit-remediation regressions: `services-pricing-rating`, `checkout-idempotency`,
+    `order-cancel-restock`, `payments-webhook-amount`, `payments-refund-provider-mode`,
+    `timezone-boundaries`, `farm-event-sync-scoping`, `cors-origin-policy`, `log-redaction`,
+    `admin-pagination-bounds`, `ai-history-refs`.
 
 ## Performance baseline (local PostgreSQL 17.5, 10s autocannon bursts)
 | Endpoint | req/s | p50 | p90 | p99 |

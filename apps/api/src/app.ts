@@ -6,7 +6,7 @@ import * as helmetModule from "helmet";
 import * as rateLimitModule from "express-rate-limit";
 const helmet = helmetModule.default;
 const rateLimit = rateLimitModule.default;
-import { env, isProd } from "./config/env.js";
+import { corsAllowedOrigins, env, isProd } from "./config/env.js";
 import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
@@ -45,6 +45,7 @@ import { organizationsRouter } from "./modules/organizations/routes.js";
 import { analyticsRouter } from "./modules/analytics/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
 import { metricsGuard } from "./middleware/metricsGuard.js";
+import { rateLimitHandler } from "./middleware/rateLimitResponse.js";
 
 export function createApp() {
   const app = express();
@@ -55,9 +56,13 @@ export function createApp() {
   app.use(helmet({ contentSecurityPolicy: isProd ? undefined : false }));
   app.use(
     cors({
-      origin: env.WEB_ORIGIN.split(",").map((s) => s.trim()),
+      origin: corsAllowedOrigins,
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE"],
+      // Custom response headers the web client reads: the correlation id and
+      // the list totals that make truncation visible (C-06/C-22). Without
+      // this, cross-origin callers see neither.
+      exposedHeaders: ["X-Request-Id", "X-Total-Count"],
     })
   );
   // Global body limits; JSON only for non-multipart routes.
@@ -76,6 +81,7 @@ export function createApp() {
     skip: () => process.env.NODE_ENV === "development",
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
+    handler: rateLimitHandler,
   });
   app.use("/api/", globalLimiter);
 

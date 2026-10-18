@@ -2,17 +2,23 @@ import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { askAgroAgent } from "../../providers/ai/gateway.js";
+import { KNOWLEDGE_BASE } from "../../providers/ai/knowledge.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import { audit } from "../../middleware/audit.js";
+import { notFound } from "../../shared/errors/index.js";
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
-// AI endpoints are expensive -> stricter limit than global.
+// AI endpoints are expensive -> stricter limit than global. The custom handler
+// keeps this limiter's message but wraps it in the standard error envelope with
+// the request id (H-07), so a throttled caller is still correlatable.
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -20,6 +26,7 @@ const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   store: aiStore,
+  handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "AI advisory limit reached for this hour. Please try later." } },
 });
 
@@ -75,16 +82,97 @@ aiRouter.post(
   }
 );
 
+/**
+ * Stored `groundedRefs` may point at KB entries removed after the answer was
+ * persisted (AUD-110b / A2-04). Resolve them against the current KB at read
+ * time and return only refs that still exist, preserving stored order. The
+ * field is additive, so existing clients keep working; a removed entry simply
+ * disappears from a history row instead of being served as a live citation.
+ */
+export function liveGroundedRefs(stored: string | null): string[] {
+  if (!stored) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const live = new Set(KNOWLEDGE_BASE.map((e) => e.id));
+  const out: string[] = [];
+  for (const ref of parsed) {
+    if (typeof ref === "string" && live.has(ref) && !out.includes(ref)) out.push(ref);
+  }
+  return out;
+}
+
 aiRouter.get("/history", async (req, res, next) => {
   try {
-    const history = await prisma.advisoryQuery.findMany({
+    const rows = await prisma.advisoryQuery.findMany({
       where: { userId: req.auth!.userId },
       orderBy: { createdAt: "desc" },
       take: 20,
-      select: { id: true, question: true, answer: true, confidence: true, lowConfidenceFlag: true, createdAt: true },
+      select: {
+        id: true,
+        question: true,
+        answer: true,
+        confidence: true,
+        lowConfidenceFlag: true,
+        groundedRefs: true,
+        feedbackReason: true,
+        feedbackAt: true,
+        createdAt: true,
+      },
     });
+    const history = rows.map(({ groundedRefs, ...row }) => ({ ...row, groundedRefs: liveGroundedRefs(groundedRefs) }));
     ok(res, history);
   } catch (e) {
     next(e);
   }
 });
+
+/**
+ * Advisory feedback (A7-07): the farmer says why an answer was not useful.
+ * Ownership is part of the lookup — another user's row is indistinguishable
+ * from a missing one (404, no existence oracle). A second report OVERWRITES
+ * the first: a farmer refining "not clear" into the concrete crop problem must
+ * not be blocked, and there is exactly one feedback slot per advisory; the
+ * latest assessment wins (documented in docs/ai.md). Each write is audited.
+ */
+aiRouter.post(
+  "/history/:id/feedback",
+  validate({
+    params: z.object({ id: z.string().min(1) }),
+    body: z.object({ reason: z.string().trim().min(3).max(500) }),
+  }),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params as unknown as { id: string };
+      const { reason } = req.body as { reason: string };
+
+      const own = await prisma.advisoryQuery.findFirst({
+        where: { id, userId: req.auth!.userId },
+        select: { id: true },
+      });
+      if (!own) throw notFound("Advisory");
+
+      const updated = await prisma.advisoryQuery.update({
+        where: { id },
+        data: { feedbackReason: reason, feedbackAt: new Date() },
+        select: { id: true, feedbackReason: true, feedbackAt: true },
+      });
+
+      await audit({
+        actorId: req.auth!.userId,
+        action: "AI_ADVISORY_FEEDBACK",
+        entityType: "AdvisoryQuery",
+        entityId: id,
+        ip: req.ip,
+      });
+
+      ok(res, updated);
+    } catch (e) {
+      next(e);
+    }
+  }
+);

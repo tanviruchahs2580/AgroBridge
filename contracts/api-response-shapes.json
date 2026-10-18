@@ -68,6 +68,9 @@
     "[].answer: string",
     "[].confidence: number",
     "[].createdAt: string",
+    "[].feedbackAt: null",
+    "[].feedbackReason: null",
+    "[].groundedRefs[]: array<string>",
     "[].id: string",
     "[].lowConfidenceFlag: boolean",
     "[].question: string"
@@ -240,6 +243,7 @@
   "orders": [
     "[]: object",
     "[].cancelReason: null",
+    "[].clientRequestId: null",
     "[].createdAt: string",
     "[].deliveryFeePaisa: number",
     "[].discountPaisa: number",
@@ -268,6 +272,7 @@
   ],
   "orders/:id": [
     "cancelReason: null",
+    "clientRequestId: null",
     "createdAt: string",
     "deliveryFeePaisa: number",
     "discountPaisa: number",
@@ -385,13 +390,17 @@
     "[].userId: string"
   ],
   "weather": [
+    "cached: boolean",
     "current: object",
     "current.condition: string",
     "current.feelsLikeC: number",
     "current.humidityPct: number",
+    "current.observedAt: string",
     "current.precipitationMm: number",
+    "current.source: string",
     "current.tempC: number",
     "current.windKmh: number",
+    "fetchedAt: string",
     "forecast[]: object",
     "forecast[].date: string",
     "forecast[].humidityPct: number",
@@ -405,6 +414,7 @@
     "risks[].severity: string",
     "risks[].titleBn: string",
     "risks[].titleEn: string",
-    "risks[].type: string"
+    "risks[].type: string",
+    "source: string"
   ]
 }

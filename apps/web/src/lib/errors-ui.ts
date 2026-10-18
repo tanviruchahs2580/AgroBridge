@@ -199,14 +199,14 @@ function mapValidationError(err: ApiError, lang: Lang): string | null {
 function mapValidationMessage(msg: string, field: string | undefined, lang: Lang): string | null {
   const m = msg.toLowerCase();
   const label = fieldLabel(field, lang);
-  if (m.includes("required") || m.includes("must be")) return lang === "bn" ? `${label} প্রয়োজন` : `${label} is required`;
-  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return lang === "bn" ? `${label} সঠিক নয়` : `${label} is invalid`;
-  if (m.includes("too short") || m.includes("less than")) return lang === "bn" ? `${label} খুব ছোট` : `${label} is too short`;
-  if (m.includes("too long")) return lang === "bn" ? `${label} খুব বড়` : `${label} is too long`;
-  if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return lang === "bn" ? `${label} সংখ্যা হতে হবে` : `${label} must be a number`;
-  if (m.includes("must be positive") || m.includes("must be greater than 0")) return lang === "bn" ? `${label} শূন্যের বেশি হতে হবে` : `${label} must be greater than 0`;
-  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return lang === "bn" ? `${label} বৈধ নয়` : `${label} is not valid`;
-  if (m.includes("duplicate") || m.includes("already")) return lang === "bn" ? `${label} ইতিমধ্যে বিদ্যমান` : `${label} already exists`;
-  if (m.includes("password")) return lang === "bn" ? "পাসওয়ার্ড সঠিক নয়" : "Incorrect password";
+  if (m.includes("required") || m.includes("must be")) return t("errValidationRequired", lang, { label });
+  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return t("errValidationInvalid", lang, { label });
+  if (m.includes("too short") || m.includes("less than")) return t("errValidationTooShort", lang, { label });
+  if (m.includes("too long")) return t("errValidationTooLong", lang, { label });
+  if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return t("errValidationNumber", lang, { label });
+  if (m.includes("must be positive") || m.includes("must be greater than 0")) return t("errValidationPositive", lang, { label });
+  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return t("errValidationEmailUrl", lang, { label });
+  if (m.includes("duplicate") || m.includes("already")) return t("errValidationDuplicate", lang, { label });
+  if (m.includes("password")) return t("errValidationPassword", lang);
   return null;
 }

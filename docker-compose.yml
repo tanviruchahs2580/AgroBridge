@@ -34,10 +34,19 @@ services:
       # DEV-ONLY bypass of the production placeholder guard (env.ts fail-fast).
       # Never set this on a real deployment; prod compose must not include it.
       ALLOW_PLACEHOLDER_PROVIDERS: "1"
+      # DEV-ONLY: this stack is NODE_ENV=production but the web UI is served
+      # from http://localhost:8080, which the production CORS filter would drop.
+      # Never set on a real deployment.
+      ALLOW_DEV_ORIGINS: "1"
     ports:
       - "4000:4000"
+    # Readiness, not liveness (H-09): /ready additionally proves the DB answers
+    # (`SELECT 1`) and reports the applied schema state, so anything waiting on
+    # "healthy" — including the web service below via depends_on — waits for a
+    # serve-capable API, not merely a running process. /health remains the
+    # liveness probe for process supervision (see docs/deployment.md).
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/ready"]
       interval: 10s
       timeout: 5s
       start_period: 10s

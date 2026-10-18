@@ -42,10 +42,22 @@ machinery services, procurement, payments and market access.
 - **Observability** — `/health`, `/ready`, structured pino logs with secret redaction, request IDs on
   every response.
 
+### PWA and offline behaviour — what actually ships
+
+The web app is **installable**: `apps/web/public/manifest.webmanifest` provides the name, theme and
+icons, and the SPA registers no service worker by design — `apps/web/public/sw.js` is a one-time
+kill switch that removes the workbox service worker an earlier version shipped (see its header
+comment and ADR-0008). Offline support therefore means **write queueing, not an offline app shell**:
+state-changing requests to allow-listed endpoints (farm events, cart, order sync) are saved to a
+durable client-side queue and replayed when connectivity returns, with server-side idempotency
+(`clientUuid`) preventing double application (ADR-0009, `apps/web/src/lib/offlineQueue.ts`).
+Screens still require the network; nothing pretends otherwise.
+
 ## Quick start (development)
 
 ```bash
 npm install                      # workspaces install
+cp .env.example .env             # required: the API reads DATABASE_URL + JWT secrets at startup
 npm run db:migrate --workspace apps/api   # or: npx prisma migrate dev (in apps/api)
 npm run db:seed --workspace apps/api      # demo data (public demo credentials)
 npm run dev --workspace apps/api          # API on :4000
@@ -71,8 +83,9 @@ npm run test --workspace apps/web        # web unit tests (vitest)
 npm run test:e2e --workspace apps/web    # Playwright browser suite (needs the local stack + seeded demo farmer)
 ```
 
-The counts move with every round — on 2026-10-18 the API suite ran **157 passed / 1 skipped**
-(take the number from your own run rather than from this file).
+The counts move with every round — on 2026-10-18 the API suite ran **341 passed / 1 skipped on
+SQLite and 342 passed on PostgreSQL 17** (web unit: 159, web e2e: 30; take the number from your
+own run rather than from this file).
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
 real HTTP API end-to-end: registration→login→profile, farm→plot→crop, weather advisories, AI agent
@@ -103,9 +116,9 @@ at are served by the SPA at `/privacy`, `/terms` and `/account-deletion`.
 
 See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [database](docs/database.md)
 · [ai](docs/ai.md) · [security](docs/security.md) · [testing](docs/testing.md)
-· [deployment](docs/deployment.md) · [operations](docs/operations.md)
+· [deployment](docs/deployment.md) · [operations](docs/operations.md) · [performance](docs/performance.md)
 · [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md)
-· [Play release runbook](docs/play/release-runbook.md)
+· [runbooks](docs/runbooks/) · [Play release runbook](docs/play/release-runbook.md)
 · [code-quality review 2026-10-17](docs/CODE_QUALITY_REVIEW_2026-10-17.md)
 · [dependency backlog](docs/DEPENDENCY_BACKLOG.md) · [ADRs](docs/adr/)
 

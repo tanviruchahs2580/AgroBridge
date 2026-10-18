@@ -44,14 +44,14 @@ async function seededLogin(page: import("@playwright/test").Page) {
 }
 
 /** Fails when the document scrolls sideways at phone width. */
-async function assertNoHorizontalOverflow(page: import("@playwright/test").Page, label: string) {
+async function assertNoHorizontalOverflow(page: import("@playwright/test").Page, label: string, width = 390) {
   const overflow = await page.evaluate(() => {
     const el = document.documentElement;
     return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
   });
   expect(
     overflow.scrollWidth,
-    `${label}: horizontal overflow at 390px (scrollWidth ${overflow.scrollWidth} > clientWidth ${overflow.clientWidth})`
+    `${label}: horizontal overflow at ${width}px (scrollWidth ${overflow.scrollWidth} > clientWidth ${overflow.clientWidth})`
   ).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
@@ -111,6 +111,33 @@ test.describe("Visual contract — 8 pages render, laid out, in both themes", ()
       await expect(page.locator("body"), `${p.name} (dark): error boundary fired`).not.toContainText(
         /কিছু ভুল হয়েছে|Something went wrong/i
       );
+    }
+  });
+
+  /**
+   * 360×640 (G-05): the narrowest phone the app claims to support, and the
+   * constraint the 390-wide Pixel 5 profile does not exercise. Same eight
+   * critical pages, same overflow assertion — only the viewport changes.
+   * Signed-out pages first (after sign-in the reverse guard bounces /login and
+   * /register), then one sign-in for the six signed-in pages.
+   */
+  test("360×640: every critical page fits without horizontal overflow", async ({ page }) => {
+    test.slow(); // 8 page loads at phone width + one sign-in
+    await page.setViewportSize({ width: 360, height: 640 });
+
+    for (const p of PAGES.filter((x) => !x.auth)) {
+      await page.goto(p.path);
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator(p.control).first(), `${p.name} (360): ${p.control} not visible`).toBeVisible({ timeout: 20_000 });
+      await assertNoHorizontalOverflow(page, `${p.name} (360)`, 360);
+    }
+
+    await seededLogin(page);
+    for (const p of PAGES.filter((x) => x.auth)) {
+      await page.goto(p.path);
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator("body"), `${p.name} (360): expected copy missing`).toContainText(p.marker, { timeout: 15_000 });
+      await assertNoHorizontalOverflow(page, `${p.name} (360)`, 360);
     }
   });
 });

@@ -21,17 +21,26 @@
 > | Linear history | required (`required_linear_history`) |
 > | Review threads | must be resolved before merge |
 > | Stale reviews | dismissed on push |
-> | Bypass | **none** — the owner is bound by the same rules |
+> | Merges | `merge`, `squash`, `rebase` all allowed |
+> | Bypass | **none** — `bypass_actors: []`; `current_user_can_bypass: "never"`, the owner is bound by the same rules |
 >
-> ### Two deliberate deviations from the original intent in §3 below
+> ### Three deliberate deviations from the original intent in §3 below
 >
 > 1. **`required_approving_review_count: 0` instead of 1.** GitHub does not allow approving your own
 >    pull request, so a 1-approval requirement on a single-maintainer repository deadlocks every
 >    change — the intent as written could never have been turned on (which is consistent with it
 >    never having been turned on). Raise it to 1 in the same commit that adds a second maintainer.
-> 2. **`strict_required_status_checks_policy: false`** (the "branch must be up to date" setting).
+> 2. **`require_code_owner_review: false` instead of true.** `.github/CODEOWNERS` names the same
+>    single maintainer, so requiring code-owner review would block the only person who may merge
+>    money/schema/CI paths. Enable it when a second reviewer exists; the CODEOWNERS file already
+>    marks the paths that must then get an independent eye.
+> 3. **`strict_required_status_checks_policy: false`** (the "branch must be up to date" setting).
 >    With one active contributor and Dependabot churn this only adds rebase round-trips. Turn it on
 >    when two or more people work on `main` concurrently.
+>
+> The machine-readable record of this state (read back from the API on 2026-10-18) lives in
+> `docs/generated/governance-branch-protection.json`; it is a description, not a PUT payload.
+> Re-verify with `gh api repos/tanviruchahs2580/AgroBridge/rulesets/25297401`.
 >
 > **Break-glass** (production incident): GitHub UI → Settings → Rules → `main — protected` →
 > *Disabled*, record the act in `EXECUTION_LOG.md`, re-enable afterwards. Documented in
@@ -40,6 +49,8 @@
 > **Verified evidence (2026-10-17):** a direct `git push origin main` was rejected with
 > "Changes must be made through a pull request" + "11 of 11 required status checks are expected";
 > PR #14 merged through the gate with all 11 checks green.
+> **Re-verified (2026-10-18):** the ruleset read back via the API matches the table above —
+> 11 contexts, `bypass_actors: []`, `current_user_can_bypass: "never"`, and the three deviations.
 
 ---
 
@@ -245,9 +256,16 @@ JSON
 
 ---
 
-## 8. Companion JSON file (for `gh api --input`)
+## 8. Companion JSON file
 
-> The JSON below is also intended to be saved as `docs/generated/governance-branch-protection.json` for the `--input` flag.
+> **Updated 2026-10-18:** `docs/generated/governance-branch-protection.json` no longer holds a
+> PUT payload — it was replaced with a read-back of the **actual enforced ruleset**
+> (`main — protected`, id 25297401: its 11 required contexts, `bypass_actors: []` and the three
+> deliberate deviations with rationales). The legacy branch-protection JSON that previously lived
+> there is kept below as the historical record of what §3 originally planned; it was never
+> applied, because the endpoint rejects it for user-owned repositories (see the status block).
+
+> Historical payload (was intended for `gh api --input`):
 
 ```json
 {

@@ -146,7 +146,29 @@ class NetworkError extends Error {
   }
 }
 
-async function rawRequest(method: string, path: string, body?: unknown): Promise<Response> {
+// ── Request correlation id (I-01) ──
+// Every API request carries one, so a client-side failure report can be tied to
+// the server's log line for the same call. One id per *logical* request: the
+// GET/5xx retry loop and the post-refresh replay of the same `api()` call reuse
+// the id of their first attempt, while a new request (including each offline
+// queue replay) gets a fresh one. crypto.randomUUID() is required; the
+// getRandomValues fallback covers non-secure contexts (plain-HTTP dev hosts),
+// matching offlineQueue's uuid() posture — Math.random never generates these.
+let requestIdFallback = 0;
+function newRequestId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  if (typeof c?.getRandomValues === "function") {
+    const bytes = c.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80; // variant 10
+    const hex = Array.from(bytes, (b: number) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  return `${Date.now().toString(36)}-${(requestIdFallback++).toString(36)}`;
+}
+
+async function rawRequest(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -155,6 +177,7 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
       headers: {
         ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
         ...(getTokens().accessToken ? { Authorization: `Bearer ${getTokens().accessToken}` } : {}),
+        "X-Request-Id": requestId,
       },
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
       signal: ctrl.signal,
@@ -173,13 +196,14 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-/** GET-only retry on network errors/timeouts/5xx with exponential backoff. Never retries 4xx. */
-async function performWithRetry(method: string, path: string, body?: unknown): Promise<Response> {
+/** GET-only retry on network errors/timeouts/5xx with exponential backoff. Never retries 4xx.
+ *  Attempts share one `requestId` — they are the same logical request. */
+async function performWithRetry(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
   const isGet = method.toUpperCase() === "GET";
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     try {
-      res = await rawRequest(method, path, body);
+      res = await rawRequest(method, path, body, requestId);
     } catch (err) {
       if (isGet && attempt < GET_RETRY_DELAYS_MS.length && err instanceof NetworkError) {
         await sleep(GET_RETRY_DELAYS_MS[attempt]);
@@ -230,7 +254,7 @@ async function tryRefresh(): Promise<boolean> {
     try {
       const res = await fetch(`${BASE}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Request-Id": newRequestId() },
         body: JSON.stringify({ refreshToken: tokens.refreshToken }),
       });
       if (!res.ok) return false;
@@ -253,13 +277,16 @@ async function tryRefresh(): Promise<boolean> {
 
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const wasAuthed = Boolean(getTokens().accessToken);
+  // One correlation id for this logical request: retries (5xx/network) and the
+  // post-refresh replay below all reuse it (I-01).
+  const requestId = newRequestId();
 
   // Prime offlineQueue lazy import for later sync enqueue (non-blocking)
   void getOfflineQueue();
 
   let res: Response;
   try {
-    res = await performWithRetry(method, path, body);
+    res = await performWithRetry(method, path, body, requestId);
   } catch (err) {
     if (err instanceof NetworkError) {
       // Queue a retry ONLY when actually offline — enqueueing a write that
@@ -282,7 +309,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       // Try one silent refresh + replay.
       if (await tryRefresh()) {
         try {
-          res = await performWithRetry(method, path, body);
+          res = await performWithRetry(method, path, body, requestId);
           json = await parseEnvelope(res);
         } catch (err) {
           if (err instanceof NetworkError) {

@@ -1,6 +1,9 @@
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { StorageProvider } from "./types.js";
+
+/** Prefix every provider returns from `save` for disease uploads. */
+const UPLOAD_PREFIX = "uploads/disease/";
 
 export class LocalStorageProvider implements StorageProvider {
   readonly name = "local";
@@ -13,7 +16,7 @@ export class LocalStorageProvider implements StorageProvider {
     await mkdir(dir, { recursive: true });
     const full = path.join(dir, fileName);
     await writeFile(full, data);
-    return `uploads/disease/${fileName}`;
+    return `${UPLOAD_PREFIX}${fileName}`;
   }
 
   async get(p: string): Promise<Buffer | null> {
@@ -21,6 +24,25 @@ export class LocalStorageProvider implements StorageProvider {
       return await readFile(path.resolve(p));
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Deletes a stored upload. Mirrors `save`: a key under the shared
+   * `uploads/disease/` prefix resolves under `baseDir` (the directory `save`
+   * actually wrote to), anything else is treated as a filesystem path the way
+   * `get` treats it. Missing file (ENOENT) is a success — deletion is
+   * idempotent by contract.
+   */
+  async delete(key: string): Promise<void> {
+    const full = key.startsWith(UPLOAD_PREFIX)
+      ? path.join(this.baseDir, "disease", path.basename(key.slice(UPLOAD_PREFIX.length)))
+      : path.resolve(key);
+    try {
+      await unlink(full);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw e;
     }
   }
 }
