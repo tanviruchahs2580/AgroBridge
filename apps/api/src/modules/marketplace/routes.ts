@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { notFound, badRequest, unprocessable } from "../../shared/errors/index.js";
+import { notFound, badRequest, unprocessable, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { audit } from "../../middleware/audit.js";
@@ -238,6 +238,66 @@ ordersRouter.delete("/:id", async (req, res, next) => {
   }
 });
 
+const cancelOrderSchema = z.object({ reason: z.string().trim().min(3).max(500).optional() });
+
+// Tolerate an absent body (a bare cancel click) while rejecting a present but
+// malformed one — same convention as the checkout wizard's shipping fields.
+const cancelOrderBodySchema = z.preprocess(
+  (raw) => (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
+  cancelOrderSchema
+);
+
+/**
+ * Owner cancels an UNPAID CONFIRMED order. Checkout decrements stock when the
+ * order is placed, so this is the only path that puts that stock back; without
+ * it an unpaid order was stuck (DELETE refuses in-progress orders).
+ *
+ * Claim-atomic: the status+paymentStatus predicate is part of the UPDATE, so a
+ * double-cancel (or a cancel racing a payment) updates 0 rows and restocks
+ * nothing. Paid/shipped/delivered orders stay untouched — money already moved.
+ */
+ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id!, userId: req.auth!.userId },
+      include: { items: true },
+    });
+    if (!order) throw notFound("Order");
+    const { reason } = req.body as z.infer<typeof cancelOrderSchema>;
+
+    const cancelled = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, userId: req.auth!.userId, status: "CONFIRMED", paymentStatus: "UNPAID" },
+        data: { status: "CANCELLED", cancelReason: reason ?? null },
+      });
+      if (claimed.count !== 1) {
+        throw conflict("Order cannot be cancelled — it is already paid or no longer awaiting payment");
+      }
+
+      // Restock exactly once per cancelled line (the claim above guarantees it).
+      for (const item of order.items) {
+        await tx.product.updateMany({ where: { id: item.productId }, data: { stockQty: { increment: item.qty } } });
+      }
+      return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } });
+    }, { timeout: 15000, maxWait: 8000 });
+
+    await audit({ actorId: req.auth!.userId, action: "ORDER_CANCELLED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, reason } });
+    await notify({
+      userId: req.auth!.userId,
+      type: "ORDER",
+      titleBn: `অর্ডার বাতিল হয়েছে (${cancelled.orderNo})`,
+      titleEn: `Order cancelled (${cancelled.orderNo})`,
+      bodyBn: "অপরিশোধিত অর্ডারটি বাতিল করা হয়েছে; মজুত ফেরত নেওয়া হয়েছে।",
+      bodyEn: "The unpaid order was cancelled and its stock was returned.",
+      refType: "ORDER",
+      refId: cancelled.id,
+    });
+    ok(res, cancelled);
+  } catch (e) {
+    next(e);
+  }
+});
+
 /**
  * Delivery details captured by the checkout wizard. All three fields are
  * optional together (an order can still be placed without them), but a field
@@ -282,6 +342,16 @@ ordersRouter.post("/checkout", checkoutLimiter, validate({ body: shippingBodySch
         }
       }
 
+      // Duplicate-submit gate: the cart rows ARE the idempotency token. The
+      // first attempt deletes every row it just read and proceeds with the
+      // in-memory snapshot; a parallel retry (which also read the cart before
+      // this commit) deletes 0 rows and is rejected here — before any stock
+      // move or order row — instead of placing a second order.
+      const cartClaim = await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      if (cartClaim.count !== cart.items.length) {
+        throw conflict("Checkout already in progress — your cart was emptied by another attempt");
+      }
+
       let subtotalPaisa = 0;
       for (const item of cart.items) {
         // Atomic conditional decrement: only succeeds when sufficient stock exists,
@@ -323,7 +393,8 @@ ordersRouter.post("/checkout", checkoutLimiter, validate({ body: shippingBodySch
         include: { items: true },
       });
 
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      // The cart was already cleared by the claim above (same transaction), so
+      // a failure anywhere below rolls the claim back with it.
       return order;
     }, { timeout: 15000, maxWait: 8000 });
 
