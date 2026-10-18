@@ -11,6 +11,13 @@ Auth: `Authorization: Bearer <accessToken>` unless noted. Errors use proper HTTP
 (400 validation, 401 unauthenticated, 403 RBAC, 404 scoped-not-found, 409 conflict, 422 business
 rule, 429 rate-limited).
 
+**Capped money lists and `X-Total-Count`** — the money lists documented below return a capped
+slice and always carry an `X-Total-Count` response header whose value is the true number of rows
+in the exact scope the slice was taken from (the caller's own records for a user, all records for
+an admin, the selected `status` for the finance queue). The JSON bodies are unchanged, so a
+caller that sees `X-Total-Count` greater than the number of returned rows knows the list is
+truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GET /admin/withdrawals`.
+
 ## Health
 | Method | Path | Notes |
 |---|---|---|
@@ -28,9 +35,14 @@ rule, 429 rate-limited).
   production echo `devCode`; supersedes any previous unconsumed challenge.
 - `POST /auth/otp/verify` — `{code}` → `{phoneVerified: true}`; marks the phone verified (required
   before wallet withdrawals). Attempt- and time-limited (422 on expired/exhausted/incorrect).
-- `DELETE /auth/me` — self-service account deletion: anonymizes identity fields and disables the
-  account, revoking all refresh tokens; 422 while an order or withdrawal is still unresolved.
-  Financial/ledger rows are retained (see `docs/data-protection.md`).
+- `DELETE /auth/me` — self-service account deletion: anonymizes identity fields, disables the
+  account, revokes all refresh tokens, purges uploaded disease photos, clears OTP challenges and
+  profile location fields; 422 while an order or withdrawal is still unresolved. Financial/ledger
+  rows are retained (see `docs/data-protection.md`).
+- `GET /auth/me/export` — JSON download of everything the caller owns (profile, farms, orders,
+  payments, wallet, bookings, offers, disease-case metadata, notifications, advisory history).
+  `Content-Disposition: attachment; filename="agrobridge-export-<userId>.json"`, `no-store`,
+  limited to 5/hour/user, audit-logged. Never includes `passwordHash` or any other user's rows.
 
 ## Farms (`/farms`)
 - `GET /farms` · `POST /farms` · `PATCH /farms/:id` · `DELETE /farms/:id`
@@ -41,15 +53,25 @@ rule, 429 rate-limited).
   for offline sync.
 
 ## Weather (`/weather`)
-- `GET /weather?lat&lng&cropStage?` → `{provider, current, forecast[3], risks[]}` with bilingual
-  risk advisories.
+- `GET /weather?lat&lng&cropStage?` → `{provider, source, fetchedAt, cached, current, forecast[3],
+  risks[]}` with bilingual risk advisories. `fetchedAt` is when the provider data was retrieved
+  (reused responses keep the ORIGINAL time and set `cached: true`); `current.observedAt` is the
+  provider's observation time when it supplies one. Successful fetches are cached per rounded
+  location for `WEATHER_CACHE_TTL_SECONDS`; provider failures are never served from cache.
+  Rules/thresholds: `docs/weather.md`.
 
 ## AI (`/ai`)
 - `POST /ai/advisory` `{question, lang, cropName?}` → `{answer, confidence, provider, model,
-  lowConfidenceFlag, groundedRefs}`. Rate limited to 30/hour/user.
+  kbVersion, promptVersion?, lowConfidenceFlag, groundedRefs}`. Rate limited to 30/hour/user.
+  `kbVersion` identifies the knowledge-base revision that answered; `promptVersion` exists only
+  for the hosted provider. `confidence` is a retrieval-support heuristic — clients must not
+  present it as a probability (`docs/ai.md`).
 - `GET /ai/history` → last 20 rows `{id, question, answer, confidence, lowConfidenceFlag,
-  groundedRefs, createdAt}`. `groundedRefs` is resolved against the current KB at read
-  time: entries removed after the answer was stored are dropped, never served as live citations.
+  groundedRefs, feedbackReason, feedbackAt, createdAt}`. `groundedRefs` is resolved against the
+  current KB at read time: entries removed after the answer was stored are dropped, never served
+  as live citations.
+- `POST /ai/history/:id/feedback` — `{reason: 3..500}` records why an answer was not useful on
+  the caller's own row (404 otherwise); a repeat report overwrites. Audit-logged.
 
 ## Disease (`/disease`)
 - `POST /disease/cases` — multipart `image` (JPEG/PNG/WebP ≤8MB) + optional `cropCycleId`,
@@ -60,7 +82,13 @@ rule, 429 rate-limited).
 ## Marketplace
 - `GET /products?page&pageSize&category&search` · `POST /products` (`products:manage`)
 - `GET /cart` · `POST /cart/items` `{productId, qty}` · `DELETE /cart/items/:productId`
-- `GET /orders` · `GET /orders/:id` · `POST /orders/checkout` (atomic stock decrement + tier discount)
+- `GET /orders` — newest first, capped at 100 rows; `X-Total-Count` is the order count for the
+  caller's scope (own orders, or all orders for an admin). · `GET /orders/:id`
+- `POST /orders/checkout` — atomic stock decrement + tier discount. Optional `clientRequestId`
+  (8–100 chars, opaque) makes the call idempotent: the first request that creates an order with
+  that key owns it, and a later request with the same key replays that same order with 200 and
+  causes no stock/ledger side effects (contract: one key = one order, even if the key is later
+  re-used for a different cart).
 - `DELETE /orders/:id` — removes a finished order (refused with 422 while PENDING/CONFIRMED/SHIPPED).
   Sandbox payment rows go with the order; real-gateway payment records are kept for audit.
 
@@ -88,7 +116,46 @@ rule, 429 rate-limited).
   303-redirects the buyer back to the web origin (`/orders?payment=…&ref=…`). Trusts nothing in the
   request; the signed gateway webhook remains the primary settlement path.
 - `POST /payments/payouts` (`procurement:pay`) — credits farmer wallet from COLLECTED PO.
-- `GET /payments` · `GET /wallet` (balance + ledger) · `GET /membership/plans`
+- `POST /payments/:id/refund` (`payments:refund`) — platform-initiated refund for ORDER payments:
+  moves the payment `SUCCEEDED → REFUNDED` atomically and records a compensating wallet entry.
+  Sandbox provider: simulated, and the notification says the entry is a wallet adjustment, not
+  gateway money. Live provider: the refund must first be issued in the gateway dashboard, then
+  recorded here as `{reason, gatewayRef (4–64)}` — the supplied reference is stored as the
+  payment's `refundRef` and the wallet entry documents it; without `gatewayRef` the request is
+  refused with 422 before any write (the endpoint never claims money returned that it cannot
+  prove). Membership purchases are non-refundable while active.
+- `GET /payments` — newest first, capped at 100 rows (own payments, or all payments for an
+  admin); `X-Total-Count` carries the scope's true count. · `GET /wallet` (balance + ledger;
+  the ledger is capped at 50 transactions and `X-Total-Count` is the caller's ledger-row count)
+  · `GET /membership/plans`
+
+## Wallet withdrawal queue (`/wallet/withdrawals`)
+- `POST /wallet/withdrawals` `{amountPaisa ≥ 10000, channel: BKASH|NAGAD|BANK}` — places a
+  withdrawal request: the amount is **held** (`heldPaisa`) so it cannot be double-spent while
+  pending; phone verification required in production; destination is masked. 201 with the
+  withdrawal row (`status: PENDING`, `refNo` `WDL…`); 422 when the available balance
+  (`balance − held`) is insufficient.
+- `GET /wallet/withdrawals` — the caller's own requests, newest first (max 50).
+- Finance decisions live under Admin: `GET /admin/withdrawals?status=PENDING|APPROVED|REJECTED|PAID`
+  — the finance queue, capped at 100 rows with `X-Total-Count` set to the selected status' true
+  count — and `POST /admin/withdrawals/:id/decision` `{action: APPROVE|REJECT|MARK_PAID, note?}`
+  (`finance:withdrawals`). APPROVE debits the wallet and releases the hold; REJECT releases the
+  hold; MARK_PAID completes an already-approved manual bKash/Nagad/bank transfer.
+
+## Organizations (`/organizations`, multi-tenant)
+- `POST /organizations` `{name, type: COOPERATIVE|CORPORATE|NGO|GOVT, district?}` — ADMIN/SUPER_ADMIN
+  or CORPORATE/COOPERATIVE only; creator joins as org ADMIN.
+- `GET /organizations` — privileged roles see all; everyone else only organizations they belong to
+  (`_count.farms` included).
+- `GET /organizations/:id` · `GET /organizations/:id/farms` — members only (admins any).
+- `POST /organizations/:id/members` `{phone, role?}` · `DELETE /organizations/:id/members/:userId`
+  — org ADMIN (or platform admin) manages membership; farm queries for CORPORATE/COOPERATIVE roles
+  are scoped to `ownerId` OR organization membership.
+
+## Analytics (`/analytics`)
+- `POST /analytics/events` `{events: [{name(lower_snake_case), sessionId?, props?}] ≤ 20}` —
+  first-party product analytics ingest (202, fire-and-forget; no PII in props). Feeds the
+  activation/funnel KPIs; self-hosted, nothing is sent to third parties.
 
 ## Notifications
 - `GET /notifications` → `{items, unread}` · `POST /notifications/read` `{ids?} | {all:true}`
@@ -98,3 +165,5 @@ rule, 429 rate-limited).
 - `GET /admin/users?role&status&search&page&pageSize` · `PATCH /admin/users/:id` (role/status;
   suspends sessions immediately).
 - `GET /admin/audit-logs` (`audit:read`) · `GET /admin/ai-usage`
+- `GET /admin/withdrawals?status=` · `POST /admin/withdrawals/:id/decision` (`finance:withdrawals`)
+  — the finance withdrawal queue (see the wallet withdrawal section above).

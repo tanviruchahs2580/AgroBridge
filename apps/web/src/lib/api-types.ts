@@ -209,9 +209,25 @@ export interface WeatherAdvisory {
   detailEn: string;
 }
 
-/** GET /weather — `data`. `forecast` length is provider-dependent (3 requested). */
+/**
+ * GET /weather — `data`. `forecast` length is provider-dependent (3 requested).
+ * The route adds a provenance envelope (AUD-126 / A5-01): `source`, `fetchedAt`
+ * and `cached` describe the payload, and `current.observedAt` is the provider's
+ * own observation instant **when the provider reports one** — absent, never
+ * fabricated, otherwise.
+ */
 export interface WeatherData {
   provider: string;
+  /** Provider slug that produced this payload (`current.source` mirrors it). */
+  source: string;
+  /**
+   * When the payload was fetched from the provider (ISO 8601). On a cache hit
+   * this is the **original** fetch time, not the time this response was served
+   * — that is the point of the field.
+   */
+  fetchedAt: IsoDateTime;
+  /** True when the response reused a cached provider payload instead of a fresh call. */
+  cached: boolean;
   current: {
     tempC: number;
     feelsLikeC: number;
@@ -219,6 +235,10 @@ export interface WeatherData {
     windKmh: number;
     precipitationMm: number;
     condition: string;
+    /** Provider-reported observation instant; present only when the provider exposes one. */
+    observedAt?: IsoDateTime;
+    /** Provider slug, enriched by the route so `current` can be trusted alone. */
+    source: string;
   };
   forecast: {
     date: IsoDate;
@@ -244,6 +264,10 @@ export interface AdvisoryAnswer {
   groundedRefs: string[];
   tokensIn?: number;
   tokensOut?: number;
+  /** Content version (sha256[:12]) of the knowledge base that grounded the answer — both engines. */
+  kbVersion: string;
+  /** Prompt-template version; only the hosted (OpenAI-compatible) adapter sets it. */
+  promptVersion?: string;
 }
 
 /**
@@ -258,7 +282,18 @@ export interface AdvisoryHistoryItem {
   confidence: number;
   lowConfidenceFlag: boolean;
   groundedRefs: string[];
+  /** Latest report reason, or null when the answer was never reported (A7-07). */
+  feedbackReason: string | null;
+  /** When the report was recorded; null when never reported. A repeat report overwrites. */
+  feedbackAt: IsoDateTime | null;
   createdAt: IsoDateTime;
+}
+
+/** POST /ai/history/:id/feedback — `data`. Own rows only; a repeat report overwrites the first. */
+export interface AdvisoryFeedback {
+  id: string;
+  feedbackReason: string;
+  feedbackAt: IsoDateTime;
 }
 
 /** POST /disease/cases (201) and GET /disease/cases element. */
@@ -370,6 +405,8 @@ export interface Order {
   shippingPhone: string | null;
   shippingAddress: string | null;
   cancelReason: string | null;
+  /** Checkout idempotency key supplied by the client (null for older orders). */
+  clientRequestId: string | null;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }
