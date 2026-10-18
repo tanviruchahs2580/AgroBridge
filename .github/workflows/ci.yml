@@ -140,6 +140,14 @@ jobs:
         working-directory: apps/web
         run: npm run build
 
+      # Runs against dist/ and both vercel.json files: the CSP hash of the inline
+      # theme script, the API origin the bundle bakes into connect-src, the two
+      # Vercel configs agreeing, and the performance budgets. Each of those fails
+      # silently in production and cannot be seen from source alone.
+      - name: Release preflight (CSP hash, API origin, budgets)
+        working-directory: apps/web
+        run: npm run preflight
+
   web-e2e:
     name: Web — E2E (Playwright)
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
