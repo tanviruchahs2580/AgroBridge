@@ -161,14 +161,16 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
     localStorage.clear();
   });
 
-  it("onEnqueue notifier fires on successful enqueue and dispatches window event", () => {
+  it("notifies exactly once per enqueue — no second path to the same toast", () => {
     const cb = vi.fn();
     const unsub = onEnqueue(cb);
+    // The window event dispatched alongside the notifier was a duplicate path to
+    // the same UI: App.tsx subscribed to both and the offline toast appeared twice.
     const winSpy = vi.fn();
     window.addEventListener("agrobridge:offline-queued", winSpy as EventListener);
     enqueue({ url: "/farms/1/events", method: "POST" });
     expect(cb).toHaveBeenCalledTimes(1);
-    expect(winSpy).toHaveBeenCalledTimes(1);
+    expect(winSpy).not.toHaveBeenCalled();
     // non-queueable should not trigger
     cb.mockClear();
     winSpy.mockClear();

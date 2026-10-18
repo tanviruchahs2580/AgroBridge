@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { FarmListItem, WeatherData } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -48,7 +49,7 @@ export default function MyFarm() {
   // below changes it — and the district's weather, which only the AI briefing
   // reads. A failed farms read no longer takes the weather block down with it, and
   // a failed weather read cannot hide the farm data.
-  const farmsRes = useResource<FarmListItem[]>("farms", () => api<FarmListItem[]>("GET", "/farms"));
+  const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
   // `session?.district` is a real dependency: weather is localised to it, so a
   // profile change must refetch rather than keep showing the old area.
   const weatherRes = useResource<WeatherData>(
@@ -105,7 +106,7 @@ export default function MyFarm() {
       track("farm_created"); toast.success(t("farmCreatedToast", lang)); setShowFarmForm(false); (e.target as HTMLFormElement).reset();
       // The old `load()` refetched the farm list and the district weather after
       // every mutation — both families are invalidated, no more and no less.
-      invalidate("farms");
+      invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
@@ -119,7 +120,7 @@ export default function MyFarm() {
       await api("POST", `/farms/${farmId}/plots`, { name: fd.get("name"), areaBigha: area, soilType: String(fd.get("soil") ?? "").trim() || undefined });
       toast.success(t("plotCreatedToast", lang)); setPlotFor(null); (e.target as HTMLFormElement).reset();
       // Same refetch set as the old `load()`.
-      invalidate("farms");
+      invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
@@ -132,7 +133,7 @@ export default function MyFarm() {
       await api("POST", "/farms/crops", { plotId: cropPlotId, cropName: fd.get("crop"), plantedAt: new Date(fd.get("date") as string).toISOString() });
       toast.success(t("cropCreatedToast", lang)); setCropPlotId(null); (e.target as HTMLFormElement).reset();
       // Same refetch set as the old `load()`.
-      invalidate("farms");
+      invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }

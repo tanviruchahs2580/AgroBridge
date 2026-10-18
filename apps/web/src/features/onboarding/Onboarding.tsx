@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
+import { invalidate } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
@@ -37,6 +39,9 @@ export default function Onboarding() {
           totalAreaBigha: area ? Number(area) : undefined,
         });
         track("farm_created");
+        // The first farm changes what every farm consumer should show (Home, My Farm,
+        // the booking dialog, the sell form) — they all read RESOURCE_KEYS.farms.
+        invalidate(RESOURCE_KEYS.farms);
       }
       localStorage.setItem("ab_onboarded", "1");
       nav("/");

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { BookingWithRelations, FarmListItem, ServiceWithProviders } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
@@ -64,7 +65,7 @@ export default function Services() {
   // resources: a failure in any one block leaves the others on screen.
   const servicesRes = useResource<ServiceWithProviders[]>("services", () => api<ServiceWithProviders[]>("GET", "/services"));
   const bookingsRes = useResource<BookingWithRelations[]>("services-bookings", () => api<BookingWithRelations[]>("GET", "/bookings"));
-  const farmsRes = useResource<FarmListItem[]>("services-farms", () => api<FarmListItem[]>("GET", "/farms"));
+  const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
 
   const services = servicesRes.data ?? [];
   const bookings = bookingsRes.data ?? [];

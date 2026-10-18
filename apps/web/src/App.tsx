@@ -254,15 +254,12 @@ export default function App() {
     });
   }, []);
 
-  // Offline toast (in the active UI language) when a mutation is queued
+  // Offline toast (in the active UI language) when a mutation is queued.
+  // One subscription only: the queue notifies through this callback, and the
+  // window-event mirror that used to sit beside it made every queued mutation
+  // raise the toast twice.
   const toast = useToast();
   useEffect(() => onOfflineEnqueue(() => toast.info(t("offlineBanner", lang))), [toast, lang]);
-  // Also handle window event for cases where onEnqueue fires before React mount
-  useEffect(() => {
-    const h = () => toast.info(t("offlineBanner", lang));
-    window.addEventListener("agrobridge:offline-queued", h as EventListener);
-    return () => window.removeEventListener("agrobridge:offline-queued", h as EventListener);
-  }, [toast, lang]);
 
   // Route-view analytics + bilingual document.title + move focus to main on navigation.
   useEffect(() => {
