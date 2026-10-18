@@ -4,6 +4,31 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Added (2026-10-18 enterprise architecture pass — release integrity)
+- **Schema state is part of the release contract and the deploy gate enforces it (ADR-0007).** `/ready`
+  reports `schema: { known, applied, latest }` (read from `_prisma_migrations`, 60 s per-instance
+  cache, honest `known:false` — never a 500 — where the table is absent) and `limiterStore`, and
+  `deploy-verify.yml` fails that merge's verification run when production's newest applied migration
+  is behind the newest in `apps/api/prisma/postgres/migrations`, naming the remediation command.
+
+### Fixed (2026-10-18 enterprise architecture pass)
+- **Production had 2 of 5 migrations applied — the pending-payment partial unique index and six
+  hot-query indexes had never reached the database.** Found by querying production directly during
+  the architecture audit; every gate was green throughout, because the schema was the one release
+  artifact nothing compared. Applied with the documented `scripts/deploy-migrations.mjs` after
+  verifying no duplicate PENDING intents existed; `migrate status` is now up to date and all seven
+  indexes are present. Evidence: `qa-evidence/receipts/2026-10-18-schema-drift-and-release-contract.md`.
+- **`.env.example` documented `API_BASE_URL`, a variable no code ever read** — an operator setting it
+  got no effect while payment-gateway return URLs silently derived from the request host. The example
+  now names `API_PUBLIC_URL`, which `env.ts` and the payment routes actually read.
+- **`.trivyignore` carried an expired waiver date (2026-09-30) that disagreed with the register**
+  (`SECURITY_WAIVERS.md`: 2026-12-31). Reconciled to the register with the renewal recorded; the
+  production dependency tree was re-audited the same day (`npm audit --omit=dev` = 0).
+- **`docs/security.md` understated the shipped controls and misdescribed the audit gate** (it claimed
+  a non-blocking high-severity audit; CI fails on moderate+ for production dependencies). Rewritten
+  to match the code, including the per-instance rate-limit caveat and the static-site header gap.
+
+
 ### Fixed (2026-10-18 live verification round)
 - **The committed-receipt rule could never commit a receipt.** `.gitignore` excluded
   `qa-evidence/` *as a directory*, and git cannot re-include a file under an excluded

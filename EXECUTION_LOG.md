@@ -1,5 +1,33 @@
 # AgroBridge — Execution Log
 
+## 2026-10-18 — Enterprise architecture pass (round 17, part A): production schema drift fixed and gated
+
+Full evidence: `qa-evidence/receipts/2026-10-18-schema-drift-and-release-contract.md`.
+
+- **How the finding surfaced:** a scored architecture audit (API, security, web — three parallel
+  read-only reviews, with every load-bearing claim re-verified by hand before it was acted on).
+  **No P0 was found.** The one finding with production weight was in the release pipeline, not the
+  code: `prisma migrate status` against Neon showed **2 of 5 migrations applied** while every gate
+  was green. Missing: the pending-payment partial unique index (the database-level half of "one live
+  intent per user and purpose") and six hot-query indexes (three of them the Phase 3 `data/ops` work
+  whose changelog entry was true about the repository and false about production).
+- **Remediated** with the documented, idempotent `apps/api/scripts/deploy-migrations.mjs` after a
+  read-only pre-flight proved no duplicate PENDING intents existed (0 rows). `migrate status` now
+  reports up to date; all seven indexes verified present in `pg_indexes`; live `/health`, `/ready`
+  and a reviewer login unaffected.
+- **The class of failure, closed:** `/ready` now reports `schema: { known, applied, latest }` and
+  `limiterStore`, and `deploy-verify.yml` compares the applied chain with
+  `apps/api/prisma/postgres/migrations`'s newest entry — code and schema ship together or the
+  merge's verification fails with the operator command in the message (ADR-0007). Validated
+  locally: YAML parses with the expected steps, the local readout matched the chain
+  (`applied: 9`, `hot_query_indexes`), and the 60 s cache was observed expiring.
+- **Also in this part:** `.env.example` no longer documents `API_BASE_URL` (no code ever read it;
+  the real name is `API_PUBLIC_URL`), the `.trivyignore` waiver date is reconciled with
+  `SECURITY_WAIVERS.md` (2026-12-31, renewed with the production tree re-audited at 0 findings), and
+  `docs/security.md` now describes what the code actually does.
+- **Gates:** API lint/typecheck clean · API suite **159 passed / 1 skipped** (+2 tests asserting the
+  readiness contract the gate depends on).
+
 ## 2026-10-18 — Live verification round (round 16): production walked as a user, one defect fixed
 
 Full evidence: `qa-evidence/receipts/2026-10-18-live-verification.md`. Baseline `6282ca8`,
