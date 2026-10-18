@@ -260,6 +260,9 @@ export const dict = {
   errFieldRequired: { bn: "এই ঘরটি পূরণ করুন।", en: "This field is required." },
   errNameTooShort: { bn: "নাম কমপক্ষে ২ অক্ষরের হতে হবে।", en: "Name must be at least 2 characters." },
   errAmountInvalid: { bn: "সঠিক পরিমাণ (টাকা) লিখুন।", en: "Enter a valid amount in taka." },
+  // Not the same as errAmountInvalid: the sell-crop field asks for kilos, and
+  // telling a farmer the invalid value is "in taka" names the wrong unit.
+  errQuantityInvalid: { bn: "সঠিক পরিমাণ (কেজি) লিখুন।", en: "Enter a valid quantity in kg." },
   errAreaInvalid: { bn: "সঠিক জমির পরিমাণ দিন।", en: "Enter a valid land area." },
   errDateFuture: { bn: "সময় অবশ্যই ভবিষ্যতে হতে হবে।", en: "Time must be in the future." },
   fixErrorsNote: { bn: "চিহ্নিত ভুলগুলো ঠিক করে আবার চেষ্টা করুন।", en: "Fix the highlighted errors and try again." },

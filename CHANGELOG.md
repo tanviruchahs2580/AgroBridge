@@ -4,7 +4,13 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed (2026-10-18 live verification round)
+- **The sell-crop quantity field reported the wrong unit.** `SellCrop` validated the kilos
+  field with `errAmountInvalid` — "সঠিক পরিমাণ (টাকা) লিখুন।" / "Enter a valid amount in
+  taka." — so a farmer who typed 0 kg was told to enter a valid amount of *money*. The
+  wallet's withdrawal form uses that key correctly, for taka; the sell form now has its own
+  `errQuantityInvalid` ("…(কেজি)…" / "…in kg.") at both validation sites. Found by testing
+  production as a user — evidence in `qa-evidence/receipts/2026-10-18-live-verification.md`.
 
 ## [1.4.0] - 2026-10-17
 
