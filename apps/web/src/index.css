@@ -82,6 +82,12 @@
 /* ── Self-hosted Noto Sans Bengali (variable woff2 subsets, downloaded from fonts.gstatic.com) ── */
 /* unicode-range values preserved exactly as served by Google Fonts css2. */
 
+/* Noto Sans Bengali ships once. `noto-bengali-500.woff2`, `-700.woff2` and
+   `noto-bengali-bengali.woff2` were byte-identical to `-400.woff2` (md5
+   a330372a…), and the last one was referenced nowhere: four 105 kB copies of the
+   same file, two of them preloaded in index.html, so every first visit fetched
+   107 kB twice. The three weight faces stay separate so font matching is
+   unchanged — only the URL is shared. */
 @font-face {
   font-family: "Noto Sans Bengali";
   font-style: normal;
@@ -96,7 +102,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("/fonts/noto-bengali-500.woff2") format("woff2");
+  src: url("/fonts/noto-bengali-400.woff2") format("woff2");
   unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
     U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
 }
@@ -105,7 +111,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/fonts/noto-bengali-700.woff2") format("woff2");
+  src: url("/fonts/noto-bengali-400.woff2") format("woff2");
   unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
     U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
 }
