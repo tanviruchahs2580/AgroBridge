@@ -45,6 +45,11 @@ honest, and the part that is not silently rots.
 4. **The rate-limit store is reported, not asserted.** `/ready` also returns
    `limiterStore: "redis" | "memory"` and the gate prints it. Running without Redis is a documented,
    accepted fail-open (`docs/security.md`) — the fix is visibility, not a new failure mode.
+5. **CI provisions PostgreSQL from the same chain.** The `api-postgres` job used `prisma db push`
+   against a second schema copy, so nothing in CI proved the chain could be applied and the guarded
+   copy was not the shipping one. `provision-postgres.mjs` now applies the production chain (and the
+   parity guard covers all three copies), which means a chain that cannot be applied fails a pull
+   request rather than production.
 
 ## Consequences
 

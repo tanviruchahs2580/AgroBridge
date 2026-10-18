@@ -4,12 +4,22 @@ Framework: **Vitest + Supertest** against the real Express app. Two database pro
 
 | Profile | Config | DB | Command |
 |---|---|---|---|
-| SQLite (fast, default) | `vitest.config.ts` | fresh `prisma/test.db` per run | `npx vitest run` |
-| **PostgreSQL** | `vitest.config.pg.ts` | real PostgreSQL 17 server | `DATABASE_URL=… node scripts/provision-postgres.mjs && npx vitest run --config vitest.config.pg.ts` |
+| SQLite (fast, default) | `vitest.config.ts` | fresh `prisma/test.db` per run (`migrate deploy` + seed) | `npx vitest run` |
+| **PostgreSQL** | `vitest.config.pg.ts` | real PostgreSQL 17 server, provisioned from **the production schema and migration chain** (`prisma/postgres/`) | `DATABASE_URL=… node scripts/provision-postgres.mjs && npx vitest run --config vitest.config.pg.ts` |
 
-Current totals: **79 tests, all passing on BOTH SQLite and PostgreSQL 17.5**
-(verified locally against an embedded PostgreSQL 17.5 on Windows; CI runs the PG profile
-against postgres:17-alpine).
+The PostgreSQL profile provisions with `prisma migrate deploy` against
+`prisma/postgres/schema.prisma` — the same chain `scripts/deploy-migrations.mjs` applies to
+production, and the one the deploy gate compares production against (ADR-0007). Until
+2026-10-18 it used `prisma db push` against a second schema copy, so CI's PostgreSQL job
+built its database from an artifact production never runs and nothing in CI proved the chain
+could be applied at all.
+
+The profile expects a **fresh** database: re-provisioning re-seeds with upserts, which does
+not restore stock an earlier run decremented, so tests that buy seeded products can fail on a
+used database. Drop and recreate it first.
+
+Current totals: **159 passed + 1 skipped on SQLite, 160 passed on PostgreSQL 17** (the skip is
+the PostgreSQL-gated concurrency suite); CI runs the PG profile against postgres:17-alpine.
 
 ## Suites
 1. `unit-core.test.ts` — procurement price engine, membership discounts, weather→risk engine,
