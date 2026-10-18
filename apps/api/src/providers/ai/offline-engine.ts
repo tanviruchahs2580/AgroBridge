@@ -1,4 +1,4 @@
-import { retrieve } from "./knowledge.js";
+import { retrieve, KbEntry } from "./knowledge.js";
 import { AiContext, AiAnswer, expertVerificationNote, LOW_CONFIDENCE_THRESHOLD, AiProvider } from "./types.js";
 
 /**
@@ -10,9 +10,15 @@ export class OfflineAgroEngine implements AiProvider {
   readonly name = "offline-agro-engine";
   readonly model = "kb-retrieval-v1";
 
+  /**
+   * `corpus` is an evaluation-only override (degradation runs); production
+   * constructs the engine with no arguments and retrieves from the built-in KB.
+   */
+  constructor(private readonly opts: { corpus?: KbEntry[] } = {}) {}
+
   async ask(question: string, ctx: AiContext): Promise<AiAnswer> {
     const q = question.toLowerCase();
-    const { entries, scores } = retrieve(q, ctx.cropName);
+    const { entries, scores } = retrieve(q, ctx.cropName, this.opts.corpus);
 
     if (entries.length === 0) {
       const answer =

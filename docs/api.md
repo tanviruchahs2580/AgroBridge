@@ -47,7 +47,9 @@ rule, 429 rate-limited).
 ## AI (`/ai`)
 - `POST /ai/advisory` `{question, lang, cropName?}` → `{answer, confidence, provider, model,
   lowConfidenceFlag, groundedRefs}`. Rate limited to 30/hour/user.
-- `GET /ai/history`
+- `GET /ai/history` → last 20 rows `{id, question, answer, confidence, lowConfidenceFlag,
+  groundedRefs, createdAt}`. `groundedRefs` is resolved against the current KB at read
+  time: entries removed after the answer was stored are dropped, never served as live citations.
 
 ## Disease (`/disease`)
 - `POST /disease/cases` — multipart `image` (JPEG/PNG/WebP ≤8MB) + optional `cropCycleId`,

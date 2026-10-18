@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:ai": "vitest run tests/ai-eval-harness.test.ts",
     "test:pg": "vitest run --config vitest.config.pg.ts",
     "pg:provision": "node scripts/provision-postgres.mjs",
     "pg:rehearse-backup": "node scripts/backup-restore-rehearsal.mjs",

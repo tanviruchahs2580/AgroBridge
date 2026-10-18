@@ -246,13 +246,18 @@ export interface AdvisoryAnswer {
   tokensOut?: number;
 }
 
-/** GET /ai/history — element of `data`. No provider/model/refs are returned. */
+/**
+ * GET /ai/history — element of `data`. No provider/model are returned.
+ * `groundedRefs` lists only KB references that still exist at read time;
+ * entries removed since the answer was stored are dropped by the server.
+ */
 export interface AdvisoryHistoryItem {
   id: string;
   question: string;
   answer: string;
   confidence: number;
   lowConfidenceFlag: boolean;
+  groundedRefs: string[];
   createdAt: IsoDateTime;
 }
 

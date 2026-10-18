@@ -68,6 +68,7 @@
     "[].answer: string",
     "[].confidence: number",
     "[].createdAt: string",
+    "[].groundedRefs[]: array<string>",
     "[].id: string",
     "[].lowConfidenceFlag: boolean",
     "[].question: string"
