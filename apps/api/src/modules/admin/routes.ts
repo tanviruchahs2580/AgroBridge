@@ -155,8 +155,10 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
 /** Impersonation-free support view: issue a scoped read-only audit marker instead (security). */
 adminRouter.get("/audit-logs", requirePermission("audit:read"), async (req, res, next) => {
   try {
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const pageSize = Math.min(100, Number(req.query.pageSize ?? 50));
+    // Non-numeric query values previously flowed into skip/take as NaN
+    // (Prisma error → 500); clamp to sane integers instead (AUD-116).
+    const page = Math.max(1, Math.floor(Number(req.query.page ?? 1)) || 1);
+    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.query.pageSize ?? 50)) || 50));
     const [items, total] = await Promise.all([
       prisma.auditLog.findMany({
         include: { actor: { select: { fullName: true, role: true } } },
