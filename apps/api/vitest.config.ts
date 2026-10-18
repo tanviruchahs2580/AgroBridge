@@ -7,10 +7,12 @@ import { defineConfig } from "vitest/config";
  * regressions without blocking current work.
  *
  * Note: branches measure 67.76 — marginally under the 70% aspiration — because
- * credential-gated provider adapters (providers/payment/*, providers/storage/*,
- * weather/openweather.ts, ai/openai-compat.ts) run nowhere outside production.
+ * the remaining credential-gated provider adapters (providers/payment/*,
+ * providers/storage/*, weather/openweather.ts) run nowhere outside production.
  * Raise the branches floor to 70 once those adapters get adapter-level unit
- * coverage or are moved behind a runtime-injected interface.
+ * coverage or are moved behind a runtime-injected interface. ai/openai-compat.ts
+ * is no longer excluded: tests/ai-provider-adapter.test.ts stubs globalThis.fetch
+ * and covers the adapter's success path and full typed failure taxonomy offline.
  */
 export default defineConfig({
   test: {
@@ -35,7 +37,6 @@ export default defineConfig({
         "src/providers/payment/types.ts",
         "src/providers/storage/s3.ts",
         "src/providers/storage/types.ts",
-        "src/providers/ai/openai-compat.ts",
         "src/providers/weather/openweather.ts",
         // Refactor scaffolds not wired to routes — excluded until integration tests land (keeps 75% gate green)
         "src/modules/authorization/**",

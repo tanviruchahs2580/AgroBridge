@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { askAgroAgent } from "../../providers/ai/gateway.js";
+import { KNOWLEDGE_BASE } from "../../providers/ai/knowledge.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
@@ -75,14 +76,39 @@ aiRouter.post(
   }
 );
 
+/**
+ * Stored `groundedRefs` may point at KB entries removed after the answer was
+ * persisted (AUD-110b / A2-04). Resolve them against the current KB at read
+ * time and return only refs that still exist, preserving stored order. The
+ * field is additive, so existing clients keep working; a removed entry simply
+ * disappears from a history row instead of being served as a live citation.
+ */
+export function liveGroundedRefs(stored: string | null): string[] {
+  if (!stored) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const live = new Set(KNOWLEDGE_BASE.map((e) => e.id));
+  const out: string[] = [];
+  for (const ref of parsed) {
+    if (typeof ref === "string" && live.has(ref) && !out.includes(ref)) out.push(ref);
+  }
+  return out;
+}
+
 aiRouter.get("/history", async (req, res, next) => {
   try {
-    const history = await prisma.advisoryQuery.findMany({
+    const rows = await prisma.advisoryQuery.findMany({
       where: { userId: req.auth!.userId },
       orderBy: { createdAt: "desc" },
       take: 20,
-      select: { id: true, question: true, answer: true, confidence: true, lowConfidenceFlag: true, createdAt: true },
+      select: { id: true, question: true, answer: true, confidence: true, lowConfidenceFlag: true, groundedRefs: true, createdAt: true },
     });
+    const history = rows.map(({ groundedRefs, ...row }) => ({ ...row, groundedRefs: liveGroundedRefs(groundedRefs) }));
     ok(res, history);
   } catch (e) {
     next(e);
