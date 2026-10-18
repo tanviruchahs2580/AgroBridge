@@ -193,12 +193,18 @@ adminRouter.get("/withdrawals", requirePermission("finance:withdrawals"), async 
   try {
     const status = typeof req.query.status === "string" ? req.query.status.toUpperCase() : "PENDING";
     const where = ["PENDING", "APPROVED", "REJECTED", "PAID"].includes(status) ? { status } : {};
-    const items = await prisma.withdrawal.findMany({
-      where,
-      include: { user: { select: { fullName: true, phone: true, phoneVerified: true } } },
-      orderBy: { createdAt: "asc" },
-      take: 100,
-    });
+    // X-Total-Count (C-06/C-22): the queue body stays a capped slice (100); the
+    // header is the selected status' true count so finance can see truncation.
+    const [items, total] = await Promise.all([
+      prisma.withdrawal.findMany({
+        where,
+        include: { user: { select: { fullName: true, phone: true, phoneVerified: true } } },
+        orderBy: { createdAt: "asc" },
+        take: 100,
+      }),
+      prisma.withdrawal.count({ where }),
+    ]);
+    res.setHeader("X-Total-Count", String(total));
     ok(res, items);
   } catch (e) {
     next(e);

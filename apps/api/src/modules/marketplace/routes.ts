@@ -13,6 +13,7 @@ import { notify } from "../../providers/notification/service.js";
 import { refNo } from "../../lib/money.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -31,6 +32,9 @@ const checkoutLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: byUserOrIp,
   store: checkoutStore,
+  // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
+  // this limiter's own message preserved.
+  handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many checkout attempts. Please slow down." } },
 });
 
@@ -178,12 +182,20 @@ ordersRouter.use(requireAuth);
 ordersRouter.get("/", async (req, res, next) => {
   try {
     const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
-    const orders = await prisma.order.findMany({
-      where: isPrivileged ? {} : { userId: req.auth!.userId },
-      include: { items: true, user: { select: { fullName: true, phone: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    // X-Total-Count (C-06/C-22): the body stays a capped slice (100) but the
+    // caller can tell a full list from a truncated one. Count runs over the
+    // exact same scope as the slice, so a window cannot disagree with its total.
+    const where = isPrivileged ? {} : { userId: req.auth!.userId };
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: { items: true, user: { select: { fullName: true, phone: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.order.count({ where }),
+    ]);
+    res.setHeader("X-Total-Count", String(total));
     ok(res, orders);
   } catch (e) {
     next(e);
@@ -310,114 +322,162 @@ const shippingSchema = z.object({
   shippingAddress: z.string().trim().min(5).max(400).optional(),
 });
 
+// AUD-125: optional checkout idempotency key. Opaque client token, bounded
+// (8..100 chars) so a hostile client cannot stuff unbounded keys into the
+// unique index. The composite unique is (userId, clientRequestId).
+const checkoutSchema = shippingSchema.extend({
+  clientRequestId: z.string().min(8).max(100).optional(),
+});
+
 // Tolerate a completely absent body (clients released before the wizard sent
 // delivery details POST with no payload at all) while still rejecting a body
 // that is present but malformed.
-const shippingBodySchema = z.preprocess(
+const checkoutBodySchema = z.preprocess(
   (raw) => (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}),
-  shippingSchema
+  checkoutSchema
 );
+
+/** Replay lookup used both up-front and after a lost race: one key = one order. */
+async function findOrderByClientKey(userId: string, clientRequestId: string) {
+  return prisma.order.findFirst({ where: { userId, clientRequestId }, include: { items: true } });
+}
 
 /**
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
+ *
+ * Idempotency (AUD-125): when `clientRequestId` is supplied, the first request
+ * that creates an order with that key owns it. Later requests — sequentially,
+ * after a network failure, or racing in parallel — replay that SAME order with
+ * 200 and cause no stock or ledger side effects. Contract: one key = one order
+ * for its lifetime; a key later re-used for a DIFFERENT cart still replays the
+ * FIRST order created under it (the client must mint a fresh key per checkout).
  */
-ordersRouter.post("/checkout", checkoutLimiter, validate({ body: shippingBodySchema }), async (req, res, next) => {
+ordersRouter.post("/checkout", checkoutLimiter, validate({ body: checkoutBodySchema }), async (req, res, next) => {
   try {
-    const shipping = req.body as z.infer<typeof shippingSchema>;
+    const { clientRequestId, ...shipping } = req.body as z.infer<typeof checkoutSchema>;
+
+    // Fast path: this key already produced an order (retry, reload, duplicate
+    // submit). Replay it before any stock move or cart mutation.
+    if (clientRequestId) {
+      const replay = await findOrderByClientKey(req.auth!.userId, clientRequestId);
+      if (replay) {
+        ok(res, replay);
+        return;
+      }
+    }
 
     const membership = await getActiveMembership(req.auth!.userId);
     const discountPct = membership.discountPct;
 
-    const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
-      const cart = await tx.cart.findUnique({
-        where: { userId: req.auth!.userId },
-        include: { items: { include: { product: true } } },
-      });
-      if (!cart || cart.items.length === 0) throw badRequest("Cart is empty");
-
-      for (const item of cart.items) {
-        if (item.product.stockQty < item.qty) {
-          throw unprocessable(`Insufficient stock for ${item.product.name}`, { available: item.product.stockQty });
-        }
-      }
-
-      // Duplicate-submit gate: the cart rows ARE the idempotency token. The
-      // first attempt deletes every row it just read and proceeds with the
-      // in-memory snapshot; a parallel retry (which also read the cart before
-      // this commit) deletes 0 rows and is rejected here — before any stock
-      // move or order row — instead of placing a second order.
-      const cartClaim = await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-      if (cartClaim.count !== cart.items.length) {
-        throw conflict("Checkout already in progress — your cart was emptied by another attempt");
-      }
-
-      let subtotalPaisa = 0;
-      for (const item of cart.items) {
-        // Atomic conditional decrement: only succeeds when sufficient stock exists,
-        // preventing overselling under concurrent checkouts (PostgreSQL-safe).
-        const claimed = await tx.product.updateMany({
-          where: { id: item.productId, stockQty: { gte: item.qty }, isActive: true },
-          data: { stockQty: { decrement: item.qty } },
+    try {
+      const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+        const cart = await tx.cart.findUnique({
+          where: { userId: req.auth!.userId },
+          include: { items: { include: { product: true } } },
         });
-        if (claimed.count !== 1) {
-          throw unprocessable(`Insufficient stock for ${item.product.name}`, { available: item.product.stockQty });
+        if (!cart || cart.items.length === 0) throw badRequest("Cart is empty");
+
+        for (const item of cart.items) {
+          if (item.product.stockQty < item.qty) {
+            throw unprocessable(`Insufficient stock for ${item.product.name}`, { available: item.product.stockQty });
+          }
         }
-        subtotalPaisa += item.product.pricePaisa * item.qty;
-      }
 
-      const discountPaisa = Math.round((subtotalPaisa * discountPct) / 100);
-      const deliveryFeePaisa = subtotalPaisa >= 500_000 ? 0 : 5_000; // free delivery over BDT 5000
-      const totalPaisa = subtotalPaisa - discountPaisa + deliveryFeePaisa;
+        // Duplicate-submit gate: the cart rows ARE the idempotency token. The
+        // first attempt deletes every row it just read and proceeds with the
+        // in-memory snapshot; a parallel retry (which also read the cart before
+        // this commit) deletes 0 rows and is rejected here — before any stock
+        // move or order row — instead of placing a second order.
+        const cartClaim = await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+        if (cartClaim.count !== cart.items.length) {
+          throw conflict("Checkout already in progress — your cart was emptied by another attempt");
+        }
 
-      const order = await tx.order.create({
-        data: {
-          orderNo: refNo("ORD"),
-          userId: req.auth!.userId,
-          status: "CONFIRMED",
-          subtotalPaisa,
-          discountPaisa,
-          deliveryFeePaisa,
-          totalPaisa,
-          ...shipping,
-          items: {
-            create: cart.items.map((i: { productId: string; product: { name: string; sku: string; pricePaisa: number }; qty: number }) => ({
-              productId: i.productId,
-              nameSnapshot: i.product.name,
-              skuSnapshot: i.product.sku,
-              unitPricePaisa: i.product.pricePaisa,
-              qty: i.qty,
-            })),
+        let subtotalPaisa = 0;
+        for (const item of cart.items) {
+          // Atomic conditional decrement: only succeeds when sufficient stock exists,
+          // preventing overselling under concurrent checkouts (PostgreSQL-safe).
+          const claimed = await tx.product.updateMany({
+            where: { id: item.productId, stockQty: { gte: item.qty }, isActive: true },
+            data: { stockQty: { decrement: item.qty } },
+          });
+          if (claimed.count !== 1) {
+            throw unprocessable(`Insufficient stock for ${item.product.name}`, { available: item.product.stockQty });
+          }
+          subtotalPaisa += item.product.pricePaisa * item.qty;
+        }
+
+        const discountPaisa = Math.round((subtotalPaisa * discountPct) / 100);
+        const deliveryFeePaisa = subtotalPaisa >= 500_000 ? 0 : 5_000; // free delivery over BDT 5000
+        const totalPaisa = subtotalPaisa - discountPaisa + deliveryFeePaisa;
+
+        const order = await tx.order.create({
+          data: {
+            orderNo: refNo("ORD"),
+            userId: req.auth!.userId,
+            status: "CONFIRMED",
+            subtotalPaisa,
+            discountPaisa,
+            deliveryFeePaisa,
+            totalPaisa,
+            ...shipping,
+            ...(clientRequestId ? { clientRequestId } : {}),
+            items: {
+              create: cart.items.map((i: { productId: string; product: { name: string; sku: string; pricePaisa: number }; qty: number }) => ({
+                productId: i.productId,
+                nameSnapshot: i.product.name,
+                skuSnapshot: i.product.sku,
+                unitPricePaisa: i.product.pricePaisa,
+                qty: i.qty,
+              })),
+            },
           },
-        },
-        include: { items: true },
+          include: { items: true },
+        });
+
+        // The cart was already cleared by the claim above (same transaction), so
+        // a failure anywhere below rolls the claim back with it.
+        return order;
+      }, { timeout: 15000, maxWait: 8000 });
+
+      await audit({
+        actorId: req.auth!.userId,
+        action: "ORDER_CHECKOUT",
+        entityType: "Order",
+        entityId: result.id,
+        meta: { totalPaisa: result.totalPaisa },
       });
 
-      // The cart was already cleared by the claim above (same transaction), so
-      // a failure anywhere below rolls the claim back with it.
-      return order;
-    }, { timeout: 15000, maxWait: 8000 });
+      await notify({
+        userId: req.auth!.userId,
+        type: "ORDER",
+        titleBn: `অর্ডার নিশ্চিত হয়েছে (${result.orderNo})`,
+        titleEn: `Order confirmed (${result.orderNo})`,
+        bodyBn: `মোট মূল্য ৳${(result.totalPaisa / 100).toFixed(2)}। পেমেন্ট করুন।`,
+        bodyEn: `Total ৳${(result.totalPaisa / 100).toFixed(2)}. Please complete payment.`,
+        refType: "ORDER",
+        refId: result.id,
+      });
 
-    await audit({
-      actorId: req.auth!.userId,
-      action: "ORDER_CHECKOUT",
-      entityType: "Order",
-      entityId: result.id,
-      meta: { totalPaisa: result.totalPaisa },
-    });
-
-    await notify({
-      userId: req.auth!.userId,
-      type: "ORDER",
-      titleBn: `অর্ডার নিশ্চিত হয়েছে (${result.orderNo})`,
-      titleEn: `Order confirmed (${result.orderNo})`,
-      bodyBn: `মোট মূল্য ৳${(result.totalPaisa / 100).toFixed(2)}। পেমেন্ট করুন।`,
-      bodyEn: `Total ৳${(result.totalPaisa / 100).toFixed(2)}. Please complete payment.`,
-      refType: "ORDER",
-      refId: result.id,
-    });
-
-    ok(res, result, 201);
+      ok(res, result, 201);
+    } catch (e) {
+      // Lost-race replay: P2002 on (userId, clientRequestId) — or a refused
+      // cart claim / emptied cart — means a parallel attempt with the SAME key
+      // may have committed first. That order is the winner: replay it with 200
+      // and leave every side effect to the winner. Without a key this branch is
+      // skipped entirely, so the keyless 409 ("another attempt") wording is
+      // unchanged. If the winner has not committed yet nothing is found and the
+      // original error stands — the client's retry then replays it.
+      if (clientRequestId) {
+        const replay = await findOrderByClientKey(req.auth!.userId, clientRequestId).catch(() => null);
+        if (replay) {
+          ok(res, replay);
+          return;
+        }
+      }
+      throw e;
+    }
   } catch (e) {
     next(e);
   }

@@ -29,6 +29,40 @@ const REVIEW_STEP = 2;
 const PAY_STEP = 3;
 const SUCCESS_STEP = 4;
 
+/**
+ * One checkout idempotency key per attempt (AUD-125), persisted so a page
+ * reload or a manual/offline retry re-sends the SAME key — the server then
+ * replays the already-created order instead of charging/ordering twice.
+ * Cleared on success and whenever the cart is observed empty, so the next
+ * checkout mints a fresh key.
+ */
+const PENDING_CHECKOUT_KEY = "checkout:pendingReqId";
+
+function pendingCheckoutKey(): string {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    /* storage blocked (private mode) — no persisted key to reuse */
+  }
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  try {
+    localStorage.setItem(PENDING_CHECKOUT_KEY, id);
+  } catch {
+    /* not persisted: still idempotent within this page's life */
+  }
+  return id;
+}
+
+function clearPendingCheckoutKey(): void {
+  try {
+    localStorage.removeItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    /* storage blocked — nothing to clear */
+  }
+}
+
 /** Category → tinted icon tile (same visual grammar as ServiceCard's AgriIconBox). */
 const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
   SEED: { icon: Sprout, box: "bg-brand-50 text-brand-700 ring-brand-100" },
@@ -99,6 +133,14 @@ export default function Market() {
     track("market_view", { category: category || "ALL" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A loaded, empty cart means any pending checkout key is spent (the order
+  // consumed the cart) or obsolete — the next checkout mints a fresh one.
+  // Guarded on loaded data so the pre-fetch empty state cannot wipe a key that
+  // a page reload mid-checkout must reuse.
+  useEffect(() => {
+    if (cartRes.data && cartRes.data.items.length === 0) clearPendingCheckoutKey();
+  }, [cartRes.data]);
 
   function markBusy(id: string, busy: boolean) {
     setCartBusyIds((prev) => {
@@ -206,16 +248,21 @@ export default function Market() {
   async function placeOrder() {
     setPlacing(true);
     setPlaceOrderError(null);
+    // Reused across retries/reloads; only cleared once the order is confirmed.
+    const clientRequestId = pendingCheckoutKey();
     try {
       // The delivery details validated in step 1 must travel with the order —
       // they are what fulfilment uses, and the server rejects a malformed
       // value rather than silently dropping it.
       const recipient = session?.fullName?.trim() ?? "";
       const o = await api<Order>("POST", "/orders/checkout", {
+        clientRequestId,
         ...(recipient.length >= 2 ? { shippingName: recipient } : {}),
         ...(phone.trim() ? { shippingPhone: phone.trim() } : {}),
         ...(address.trim() ? { shippingAddress: address.trim() } : {}),
       });
+      // Order confirmed (created or replayed) — this key is spent.
+      clearPendingCheckoutKey();
       setOrder(o);
       setStep(PAY_STEP);
       // Order already created; the refresh is fire-and-forget, so a failed cart

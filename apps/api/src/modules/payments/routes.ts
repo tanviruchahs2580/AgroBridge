@@ -16,6 +16,7 @@ import { audit } from "../../middleware/audit.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 
@@ -36,6 +37,9 @@ const financialLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
   store: financialStore,
+  // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
+  // this limiter's own message preserved.
+  handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many financial operations. Please slow down." } },
 });
 
@@ -315,12 +319,20 @@ paymentsRouter.get("/:id/status", async (req, res, next) => {
 paymentsRouter.get("/", async (req, res, next) => {
   try {
     const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
-    const payments = await prisma.payment.findMany({
-      where: isPrivileged ? {} : { userId: req.auth!.userId },
-      include: { user: { select: { fullName: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    // X-Total-Count (C-06/C-22): admin/finance see ALL payments while a user
+    // sees their own; either way the body is a capped slice (100) and the
+    // header carries the scope's true total so truncation is visible.
+    const where = isPrivileged ? {} : { userId: req.auth!.userId };
+    const [payments, total] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        include: { user: { select: { fullName: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.payment.count({ where }),
+    ]);
+    res.setHeader("X-Total-Count", String(total));
     ok(res, payments);
   } catch (e) {
     next(e);
@@ -329,7 +341,17 @@ paymentsRouter.get("/", async (req, res, next) => {
 
 // ---------------- Refunds (platform-initiated, orders only in v1) ----------------
 
-const refundSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+/**
+ * `gatewayRef` is the reference the LIVE gateway returned when the operator
+ * issued the refund in its dashboard. This endpoint never calls the gateway —
+ * with a live provider it records the already-issued refund bookkeeping-style,
+ * and refuses without the operator-supplied reference so a made-up refundRef
+ * can never masquerade as a real gateway refund.
+ */
+const refundSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  gatewayRef: z.string().min(4).max(64).optional(),
+});
 
 paymentsRouter.post(
   "/:id/refund",
@@ -337,15 +359,20 @@ paymentsRouter.post(
   validate({ body: refundSchema }),
   async (req, res, next) => {
     try {
-      // This endpoint only moves simulated money (a wallet-ledger entry). With
-      // a live gateway the real refund must be issued in the gateway dashboard;
-      // pretending here would report REFUNDED while the buyer's money is still
-      // with the gateway. Same provider resolution as /intent (getPaymentProvider).
+      // Same provider resolution as /intent (getPaymentProvider). Sandbox: this
+      // endpoint moves simulated money (a wallet-ledger entry). Live: the real
+      // refund must already have been issued in the gateway dashboard and the
+      // operator supplies the gateway's refund reference — otherwise we would
+      // report REFUNDED while the buyer's money is still with the gateway.
       const provider = getPaymentProvider();
-      if (provider.mode !== "sandbox") {
-        throw unprocessable("Live-provider refunds must be processed in the gateway dashboard; this endpoint only supports the sandbox provider");
+      const liveGateway = provider.mode !== "sandbox";
+      const { reason, gatewayRef } = req.body as z.infer<typeof refundSchema>;
+      if (liveGateway && !gatewayRef) {
+        throw unprocessable(
+          "Live-gateway refunds are issued in the gateway dashboard first; then record the completed refund here with the gateway's refund reference (gatewayRef)"
+        );
       }
-      if (isProd && env.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION !== "1") {
+      if (!liveGateway && isProd && env.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION !== "1") {
         throw paymentGatewayUnconfigured();
       }
 
@@ -360,9 +387,11 @@ paymentsRouter.post(
 
       await prisma.$transaction(async (tx) => {
         // Atomic claim: only one refund can transition SUCCEEDED -> REFUNDED.
+        // Live mode stores the operator-supplied gateway reference verbatim;
+        // sandbox generates its own RFND- ref (unchanged).
         const claimed = await tx.payment.updateMany({
           where: { id: payment.id, status: "SUCCEEDED" },
-          data: { status: "REFUNDED", refundedAt: new Date(), refundRef: refNo("RFND") },
+          data: { status: "REFUNDED", refundedAt: new Date(), refundRef: liveGateway ? gatewayRef! : refNo("RFND") },
         });
         if (claimed.count !== 1) throw conflict(`Payment already ${payment.status}`);
 
@@ -397,17 +426,28 @@ paymentsRouter.post(
         action: "PAYMENT_REFUNDED",
         entityType: "Payment",
         entityId: payment.id,
-        meta: { reason: req.body.reason },
+        meta: { reason, ...(liveGateway ? { gatewayRef, gatewayRefund: true } : {}) },
       });
       await notify({
         userId: payment.userId,
         type: "PAYMENT",
         category: "CRITICAL",
-        // Honest copy: this is a sandbox/wallet adjustment, not a gateway refund.
-        titleBn: "রিফান্ড রেকর্ড (স্যান্ডবক্স)",
-        titleEn: "Refund recorded (sandbox)",
-        bodyBn: "স্যান্ডবক্স রিফান্ড — প্ল্যাটফর্ম ওয়ালেট থেকে সমপরিমাণ অর্থ ডেবিট এন্ট্রি হয়েছে; প্রকৃত গেটওয়ে অর্থ ফেরত নয়।",
-        bodyEn: "Sandbox refund — the amount was recorded as a platform-wallet debit entry; no real gateway money was returned.",
+        // Honest copy, mode-specific: sandbox is a wallet adjustment (not
+        // gateway money); live is a record of a refund the operator already
+        // issued in the gateway dashboard (the wallet entry documents it).
+        ...(liveGateway
+          ? {
+              titleBn: "রিফান্ড রেকর্ড হয়েছে (গেটওয়ে)",
+              titleEn: "Refund recorded (gateway)",
+              bodyBn: `গেটওয়ে রেফারেন্স ${gatewayRef} দিয়ে রিফান্ড রেকর্ড করা হয়েছে; প্ল্যাটফর্ম ওয়ালেটের ডেবিট এন্ট্রি এটির নথি।`,
+              bodyEn: `Refund recorded with gateway reference ${gatewayRef}; the platform-wallet debit entry documents it.`,
+            }
+          : {
+              titleBn: "রিফান্ড রেকর্ড (স্যান্ডবক্স)",
+              titleEn: "Refund recorded (sandbox)",
+              bodyBn: "স্যান্ডবক্স রিফান্ড — প্ল্যাটফর্ম ওয়ালেট থেকে সমপরিমাণ অর্থ ডেবিট এন্ট্রি হয়েছে; প্রকৃত গেটওয়ে অর্থ ফেরত নয়।",
+              bodyEn: "Sandbox refund — the amount was recorded as a platform-wallet debit entry; no real gateway money was returned.",
+            }),
         refType: "PAYMENT",
         refId: payment.id,
       });
@@ -505,10 +545,16 @@ walletRouter.use(requireAuth);
 
 walletRouter.get("/", async (req, res, next) => {
   try {
-    const [wallet, transactions] = await Promise.all([
+    // X-Total-Count (C-06/C-22): the ledger body is a capped slice (50); the
+    // header is the same user scope's true count so the UI can say "showing
+    // 50 of N" without a second query shape.
+    const txWhere = { userId: req.auth!.userId };
+    const [wallet, transactions, txTotal] = await Promise.all([
       prisma.wallet.upsert({ where: { userId: req.auth!.userId }, update: {}, create: { userId: req.auth!.userId } }),
-      prisma.walletTransaction.findMany({ where: { userId: req.auth!.userId }, orderBy: { createdAt: "desc" }, take: 50 }),
+      prisma.walletTransaction.findMany({ where: txWhere, orderBy: { createdAt: "desc" }, take: 50 }),
+      prisma.walletTransaction.count({ where: txWhere }),
     ]);
+    res.setHeader("X-Total-Count", String(txTotal));
     ok(res, { balancePaisa: wallet.balancePaisa, transactions });
   } catch (e) {
     next(e);
