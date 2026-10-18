@@ -1,9 +1,11 @@
 # Gitleaks allowlist — exact finding fingerprints (registered in
-# SECURITY_WAIVERS.md § Static-analysis triage, review by 2027-01-31).
+# SECURITY_WAIVERS.md, Static-analysis triage; review by 2027-01-31).
 #
-# generic-api-key false positive: the AI-eval harness compared metric-name
-# string constants (`key === "latencyP95Ms"`), which the entropy heuristic reads
-# as an assigned secret. No credential is involved; the variable was renamed in
-# the current tree, so these entries cover only the branch's historical commits.
+# generic-api-key false positives only: the AI-eval harness compared a local
+# loop variable against metric-name string constants, which the entropy
+# heuristic read as an assigned secret (no credential involved), and an
+# earlier revision of this very comment repeated the same pattern. Every entry
+# is pinned to one commit, so nothing else is exempted now or later.
 9c94a25c5cb07bd7892548aec98a25875186d52d:apps/api/tests/ai-eval-metrics.ts:generic-api-key:222
 9c94a25c5cb07bd7892548aec98a25875186d52d:apps/api/tests/ai-eval-metrics.ts:generic-api-key:224
+d6c967dab7a2cc6b67c5ce3cd328228399364602:.gitleaksignore:generic-api-key:5

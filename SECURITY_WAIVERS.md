@@ -17,15 +17,16 @@ two `gen-docs.mjs` scripts) were fixed in code during the 2026-10-18 audit and c
 next scan of the default branch. The alert below stays open in GitHub until the owner
 dismisses it with this rationale — the audit did not change alert state.
 
-**gitleaks allowlist (`.gitleaksignore`, added 2026-10-18):** exactly two finding
-fingerprints — commit `9c94a25` in `apps/api/tests/ai-eval-metrics.ts`, lines 222 and 224,
-rule `generic-api-key`. The file compared metric-name string constants (`key === "…"`),
-which the entropy heuristic reads as an assigned secret; no credential is involved, and the
-variable was renamed in the current tree. The fingerprints are commit-pinned, so the entry
-covers only the branch's historical commits and exempts nothing else, now or later.
-Re-review by **2027-01-31**. (An initial path-scoped `.gitleaks.toml` allowlist was tried
-first and did not suppress the findings under gitleaks 8.24.3; it was replaced by the
-fingerprint file.)
+**gitleaks allowlist (`.gitleaksignore`, added 2026-10-18):** three finding fingerprints,
+all rule `generic-api-key`, all commit-pinned — two in `apps/api/tests/ai-eval-metrics.ts`
+(commit `9c94a25`, lines 222/224) and one historical line of the `.gitleaksignore` file
+itself (commit `d6c967d`, whose explanatory comment repeated the same pattern). The test
+file compared metric-name string constants, which the entropy heuristic reads as an
+assigned secret; no credential is involved, and the variable was renamed in the current
+tree. Commit-pinned entries cover only those historical snapshots and exempt nothing else,
+now or later. Re-review by **2027-01-31**. (An initial path-scoped `.gitleaks.toml`
+allowlist was tried first and did not suppress the findings under gitleaks 8.24.3; it was
+replaced by the fingerprint file.)
 
 | Alert | Location | Severity | Why accepted | Compensating control | Review by |
 |---|---|---|---|---|---|
