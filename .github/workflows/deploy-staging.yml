@@ -30,6 +30,8 @@ jobs:
   build-push:
     name: Build & push images to GHCR
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    # Docker buildx builds of two images: 30 min (docker class, see docker-build in ci.yml).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
@@ -82,6 +84,8 @@ jobs:
     name: Deploy to staging VM
     needs: [build-push]
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    # Remote docker compose pull/up + two post-deploy gates: 30 min (docker class).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 

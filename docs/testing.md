@@ -26,6 +26,13 @@ Local note: the two profiles generate different Prisma clients. After running th
 regenerate the SQLite client (`npx prisma generate` in `apps/api`) before the SQLite suite —
 otherwise the seed runs against a PG-generated client and the suite aborts with a seed error.
 
+E2E limits note (AUD-134): the browser suite makes far more requests than a person. CI's e2e job
+therefore raises `RATE_LIMIT_MAX` (2000) and `LOGIN_RATE_LIMIT_MAX` (500) for its throwaway
+instance; when running the suite locally against your own server, export the same two variables
+(or restart the API between full runs) — otherwise the global 300-req/15-min window is exhausted
+mid-suite and unrelated tests fail with 429-driven timeouts. The production policies remain
+exercised by the API suites.
+
 ## Suites
 1. `unit-core.test.ts` — procurement price engine, membership discounts, weather→risk engine,
    crop lifecycle staging + calendar, KB retrieval & sanitization.

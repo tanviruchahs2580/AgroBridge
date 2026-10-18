@@ -40,8 +40,13 @@ services:
       ALLOW_DEV_ORIGINS: "1"
     ports:
       - "4000:4000"
+    # Readiness, not liveness (H-09): /ready additionally proves the DB answers
+    # (`SELECT 1`) and reports the applied schema state, so anything waiting on
+    # "healthy" — including the web service below via depends_on — waits for a
+    # serve-capable API, not merely a running process. /health remains the
+    # liveness probe for process supervision (see docs/deployment.md).
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/ready"]
       interval: 10s
       timeout: 5s
       start_period: 10s

@@ -124,6 +124,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
 
+      # K-08: version.json is canonical; a release bump must touch every manifest.
+      - name: Version consistency
+        run: node scripts/check-versions.mjs
+
       - name: Lint (eslint + jsx-a11y)
         working-directory: apps/web
         run: npm run lint
@@ -132,9 +136,9 @@ jobs:
         working-directory: apps/web
         run: npm run i18n:check
 
-      - name: Unit tests (vitest)
+      - name: Unit tests (vitest, with coverage gate)
         working-directory: apps/web
-        run: npm run test:unit
+        run: npm run test:unit -- --coverage
 
       - name: Build (includes type check)
         working-directory: apps/web
@@ -156,6 +160,14 @@ jobs:
       DATABASE_URL: "file:./test.db"
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+      # A browser suite makes far more requests and sign-ins than a person; the
+      # default production policies (300 req / 20 logins per 15 min / IP) sit
+      # close enough to the suite's own volume that a second local run against
+      # the same server exhausted them and failed unrelated tests (AUD-134).
+      # This runner instance is ephemeral; the policy limits stay exercised by
+      # the API suites.
+      RATE_LIMIT_MAX: "2000"
+      LOGIN_RATE_LIMIT_MAX: "500"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
@@ -216,6 +228,7 @@ jobs:
             apps/web/playwright-report/
             apps/web/test-results/
           if-no-files-found: ignore
+          retention-days: 14
 
   android-build:
     name: Android — Build debug APK artifact
@@ -257,6 +270,7 @@ jobs:
           name: agrobridge-debug-apk
           path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
 
   gitleaks:
     name: Security — Gitleaks secret scan
@@ -290,6 +304,28 @@ jobs:
           file: docker/api.Dockerfile
           push: false
           tags: agrobridge-api:ci
+          # loaded into the local daemon so the SBOM step below can scan it
+          load: true
+
+      # Release-artifact evidence (F-06): a CycloneDX SBOM of the image we ship,
+      # so "what is in the release?" is answerable by a file rather than a rebuild.
+      - name: Generate CycloneDX SBOM (API image)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # pin v0.24.3
+        with:
+          image: agrobridge-api:ci
+          format: cyclonedx-json
+          output-file: agrobridge-api.sbom.cdx.json
+          # upload via actions/upload-artifact below so retention-days is explicit
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin v7.0.1
+        with:
+          name: agrobridge-api-sbom
+          path: agrobridge-api.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Build Web image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # pin v7.4.0
@@ -328,6 +364,32 @@ jobs:
           exit-code: 1
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+
+  iac-scan:
+    name: Security — IaC config scan
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+
+      # Config-mode Trivy over the repo's infrastructure-as-code (Dockerfiles,
+      # YAML infrastructure). The image scan above covers CVEs *inside* built
+      # images; this covers *how* the image and hosts are configured — a root
+      # user or a missing healthcheck is invisible to vulnerability scanning
+      # of packages, because it is not a package.
+      # Accepted findings live in /.trivyignore.yaml (one entry today: the nginx
+      # TLS container's root master process, AVD-DS-0002) with a required
+      # SECURITY_WAIVERS.md cross-reference — the same process as /.trivyignore.
+      # The CLI does not auto-load the YAML ignore file, so it is passed
+      # explicitly via the action's trivyignores input.
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # pin v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          trivyignores: .trivyignore.yaml
 
   security-scan:
     name: Security — Dependency audit & secret scan

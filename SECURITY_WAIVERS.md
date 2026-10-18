@@ -11,11 +11,14 @@ must be re-reviewed or remediated. Reviewed monthly alongside `npm audit` (docs/
 
 ## Static-analysis (CodeQL / gitleaks) triage — 2026-10-18 audit
 
-Open code-scanning alerts that are acknowledged rather than fixed in code. The other four
-open alerts at HEAD (insecure randomness in the offline queue; three TOCTOU reads in the
-two `gen-docs.mjs` scripts) were fixed in code during the 2026-10-18 audit and clear on the
-next scan of the default branch. The alert below stays open in GitHub until the owner
-dismisses it with this rationale — the audit did not change alert state.
+Alerts that are acknowledged rather than fixed in code. Four of the five open alerts at HEAD
+(insecure randomness in the offline queue; three TOCTOU reads in the two `gen-docs.mjs`
+scripts) were fixed in code and cleared on the next scan. The alert below was **dismissed on
+GitHub on 2026-10-18** (state: dismissed / false positive) under explicit owner instruction,
+with this rationale as the dismissal comment; the audit had originally withheld the change.
+Because the query stays enabled, a future edit that shifts the flagged lines can surface a new
+occurrence — dismiss again with this rationale, or replace the signature helper if the gateway
+ever offers a stronger algorithm.
 
 **gitleaks allowlist (`.gitleaksignore`, added 2026-10-18):** three finding fingerprints,
 all rule `generic-api-key`, all commit-pinned — two in `apps/api/tests/ai-eval-metrics.ts`
@@ -31,6 +34,7 @@ replaced by the fingerprint file.)
 | Alert | Location | Severity | Why accepted | Compensating control | Review by |
 |---|---|---|---|---|---|
 | js/insufficient-password-hash | `apps/api/src/modules/payments/routes.ts` (`sslcommerzSignature`) | High (false positive) | The MD5 **is the SSLCommerz-mandated signature algorithm**: it hashes the gateway's store credential together with request parameters to sign/verify gateway API calls. It is not password storage, and the gateway offers no stronger option. | The credential lives only in env; the hash output is never logged (pino redaction), and webhook `verify_sign` comparison is constant-time | **2027-01-31** |
+| AVD-DS-0002 (Trivy config) | `docker/web.Dockerfile` (nginx master runs as root) | High (accepted) | The stock `nginx:alpine` image runs its master as root to bind :80 and manage cache paths; switching to the unprivileged variant changes runtime ports/paths and is its own reviewed change | The web container serves static assets only (no secrets, no writable state beyond the image); the API container is non-root; suppression is scoped to this one path in `.trivyignore.yaml` with the same expiry | **2027-01-31** |
 
 Resolved by remediation (2026-09-15, no longer waived):
 qs (GHSA via body-parser/express/superagent `~6.15.x`) and deepmerge-ts (`@prisma/config` chain)

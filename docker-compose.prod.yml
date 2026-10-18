@@ -46,8 +46,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Readiness, not liveness (H-09): /ready additionally proves the DB answers
+    # (`SELECT 1`) and reports the applied schema state (ADR-0007), so compose
+    # treats an API whose DB is unreachable as unhealthy rather than "up" — the
+    # deploy gate probes the same endpoint. /health stays the liveness signal.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/ready"]
       interval: 30s
       timeout: 5s
       start_period: 15s

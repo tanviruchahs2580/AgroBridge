@@ -1,0 +1,37 @@
+# Trivy accepted-risk suppressions for the IaC/config scan (ci.yml `iac-scan`).
+#
+# Format: trivy's YAML ignore file. Note the CLI default ignore file is
+# `.trivyignore` (plain) — a YAML ignore file is NOT auto-loaded, so ci.yml
+# passes this one explicitly via trivy-action's `trivyignores` input.
+# Every entry MUST cross-reference SECURITY_WAIVERS.md — the register is the
+# governing table; an entry here without a register row is a violation, not a
+# policy. Expired entries fail review: renew or fix.
+#
+# This file covers CONFIG findings only. Vulnerability suppressions (image scan)
+# stay in ./.trivyignore.
+
+misconfigurations:
+  # The web runtime image is nginx:1-alpine-slim listening on 80/443 (TLS
+  # termination happens in this container; docker-compose.prod.yml mounts
+  # /etc/letsencrypt and publishes 80/443). Its master process runs as root —
+  # the upstream nginx model. Running it unprivileged means changing the listen
+  # ports and the public port mapping, or swapping the base image for
+  # nginx-unprivileged: a deployment-topology change (certbot paths, compose
+  # healthcheck, deploy gates), not a Dockerfile tweak, and it is scheduled
+  # separately. Accepted 2026-10-18 by the audit; the matching SECURITY_WAIVERS.md
+  # row (reason / compensating control / expiry) must be added by the security
+  # owner — this comment is the dependency, not a substitute for it.
+  # Compensating controls: no NEW_PRIVILEGED caps, no host PID/network, the
+  # container is the only one publishing ports, and the api/db network is
+  # internal. Expiry aligns with the register's other rows.
+  - id: AVD-DS-0002
+    paths:
+      # glob: matched relative to the scan root, which differs between a scan of
+      # the repo (docker/web.Dockerfile) and a targeted scan (web.Dockerfile)
+      - "**/web.Dockerfile"
+    statement: >-
+      nginx TLS-termination container runs its master process as root (upstream
+      image model). Ephemeral, cert-mounted, no privileged capabilities; the
+      unprivileged-base migration is scheduled separately. Requires a
+      SECURITY_WAIVERS.md row (security owner).
+    expired_at: 2027-01-31

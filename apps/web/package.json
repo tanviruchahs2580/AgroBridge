@@ -1,6 +1,6 @@
 {
   "name": "@agrobridge/web",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -37,6 +37,7 @@
     "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.68.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^3.2.7",
     "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
