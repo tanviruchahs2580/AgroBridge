@@ -4,7 +4,19 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed (2026-10-18 live verification round)
+- **The committed-receipt rule could never commit a receipt.** `.gitignore` excluded
+  `qa-evidence/` *as a directory*, and git cannot re-include a file under an excluded
+  directory, so both `!qa-evidence/receipts/…` negations were inert: every receipt that
+  `CONTRIBUTING.md` requires was silently dropped on `git add` (the 2026-10-17 receipt sat
+  on disk, untracked, until this round). The ignore now targets `qa-evidence/*`, so
+  receipts are committable while the rest of `qa-evidence/` stays local.
+- **The sell-crop quantity field reported the wrong unit.** `SellCrop` validated the kilos
+  field with `errAmountInvalid` — "সঠিক পরিমাণ (টাকা) লিখুন।" / "Enter a valid amount in
+  taka." — so a farmer who typed 0 kg was told to enter a valid amount of *money*. The
+  wallet's withdrawal form uses that key correctly, for taka; the sell form now has its own
+  `errQuantityInvalid` ("…(কেজি)…" / "…in kg.") at both validation sites. Found by testing
+  production as a user — evidence in `qa-evidence/receipts/2026-10-18-live-verification.md`.
 
 ## [1.4.0] - 2026-10-17
 

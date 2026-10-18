@@ -62,7 +62,7 @@ export default function SellCrop() {
     if (!fd.get("farm")) errs.farm = t("errFieldRequired", lang);
     if (!fd.get("crop")) errs.crop = t("errFieldRequired", lang);
     const qty = Number(fd.get("qty"));
-    if (!qty || qty < 1) errs.qty = t("errAmountInvalid", lang);
+    if (!qty || qty < 1) errs.qty = t("errQuantityInvalid", lang);
     const moistureRaw = fd.get("moisture") as string;
     if (moistureRaw && (Number(moistureRaw) < 0 || Number(moistureRaw) > 60)) errs.moisture = t("errValidation", lang);
     setFormErrs(errs);
@@ -131,7 +131,7 @@ export default function SellCrop() {
             </Select>
           </Field>
           <Field label={t("quantityKg", lang)} htmlFor="of-qty" error={formErrs.qty} required>
-            <Input id="of-qty" name="qty" type="number" min="1" step="1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.qty; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v < 1) setFormErrs((prev) => ({ ...prev, qty: t("errAmountInvalid", lang) })); }} aria-invalid={Boolean(formErrs.qty)} aria-describedby={formErrs.qty ? "of-qty-err" : undefined} />
+            <Input id="of-qty" name="qty" type="number" min="1" step="1" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.qty; return n; })} onBlur={(e) => { const v = Number((e.target as HTMLInputElement).value); if (v && v < 1) setFormErrs((prev) => ({ ...prev, qty: t("errQuantityInvalid", lang) })); }} aria-invalid={Boolean(formErrs.qty)} aria-describedby={formErrs.qty ? "of-qty-err" : undefined} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("moisturePct", lang)} htmlFor="of-moisture" error={formErrs.moisture}>
