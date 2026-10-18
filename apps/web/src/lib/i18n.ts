@@ -394,6 +394,8 @@ export const dict = {
   imageTooLarge: { bn: "ছবি ৮MB-এর কম হতে হবে।", en: "Image must be under 8MB." },
   exampleQuestion: { bn: "যেমনঃ “ধানের পাতায় blast রোগ দেখছে, কী করব?”", en: 'Try: "Rice leaves show blast lesions, what should I do?"' },
   groundedAnswer: { bn: "গ্রাউন্ডেড উত্তর", en: "Grounded answer" },
+  supportHigh: { bn: "উৎস মিল: ভালো", en: "Source match: good" },
+  supportModerate: { bn: "উৎস মিল: মাঝারি", en: "Source match: moderate" },
   myCases: { bn: "আমার রোগের ছবি", en: "My disease photos" },
   showLess: { bn: "কম দেখুন", en: "Show less" },
   expandDetails: { bn: "বিস্তারিত দেখুন", en: "Expand details" },

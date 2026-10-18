@@ -9,6 +9,7 @@ import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Bot, Camera, Sprout } from "lucide-react";
 import { Badge, Button, Card, ErrorBanner, Input, PageHeader, Skeleton, Spinner } from "../../components/ui";
+import { confidenceSupportKey } from "./supportLabel";
 
 const CROP_KEYWORDS = /rice|wheat|jute|mustard|maize|potato|ধান|গম|পাট|সরিষা|ভুট্টা|আলু/i;
 
@@ -208,9 +209,11 @@ export default function Advisor() {
                 </ul>
               )}
               {m.confidence !== undefined && (
-                <Badge tone={m.low ? "warning" : "success"}>
-                  {Math.round((m.confidence ?? 0) * 100)}% ·{" "}
-                  {m.low ? t("lowConfidence", lang) : t("groundedAnswer", lang)}
+                // Coarse support band, never a percentage: the score behind it
+                // is a keyword-retrieval heuristic, not a calibrated
+                // probability (AUD-108).
+                <Badge tone={confidenceSupportKey(m.confidence ?? 0, m.low ?? false) === "lowConfidence" ? "warning" : "success"}>
+                  {t(confidenceSupportKey(m.confidence ?? 0, m.low ?? false), lang)}
                 </Badge>
               )}
             </div>
