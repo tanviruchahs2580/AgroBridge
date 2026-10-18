@@ -44,6 +44,10 @@ model User {
   auditLogs         AuditLog[]
   aiUsageLogs       AiUsageLog[]
   organizationMembers OrganizationMember[]
+
+  // Territory scoping (procurement queue/review, booking assignment, wallet
+  // payouts): those queries filter or assert on user.region via the relation.
+  @@index([region])
 }
 
 model RefreshToken {
@@ -152,6 +156,9 @@ model FarmEvent {
   cropCycle   CropCycle? @relation(fields: [cropCycleId], references: [id])
 
   @@index([farmId])
+  // Farm timeline paging: filter by farm, order by occurredAt desc, take N
+  // (farms/routes.ts getEventsHandler) — [farmId] alone forces a sort.
+  @@index([farmId, occurredAt])
   @@index([cropCycleId])
 }
 
@@ -165,6 +172,8 @@ model AdvisoryQuery {
   model             String
   lowConfidenceFlag Boolean  @default(false)
   groundedRefs      String? // JSON array of KB refs
+  feedbackReason    String? // farmer feedback: why the answer was not useful (A7-07)
+  feedbackAt        DateTime? // when the feedback was submitted (A7-07)
   createdAt         DateTime @default(now())
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -248,11 +257,16 @@ model Order {
   shippingPhone  String?
   shippingAddress String?
   cancelReason   String?
+  clientRequestId String? // client-supplied checkout idempotency key (AUD-125)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   items          OrderItem[]
 
+  // At most one order per user per client request key. NULL keys stay
+  // unconstrained: sqlite and postgres both treat NULLs as distinct in
+  // unique indexes, so orders without a key never collide.
+  @@unique([userId, clientRequestId])
   @@index([userId])
   @@index([userId, createdAt])
   @@index([status])
