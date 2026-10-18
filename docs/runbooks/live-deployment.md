@@ -69,6 +69,14 @@ export DATABASE_URL="$DATABASE_URL_UNPOOLED"   # direct connection for DDL
 node scripts/deploy-migrations.mjs
 ```
 
+**Migrations are enforced by the deploy gate since 2026-10-18 (ADR-0007).** `/ready` reports the
+applied chain (`schema: { known, applied, latest }`) and `deploy-verify.yml` compares `latest` with
+the newest directory in `apps/api/prisma/postgres/migrations`. Deploying code whose migrations were
+not applied therefore **fails the verification run for that merge**, carrying this section's command
+in the failure message. The gap it closes was real, not theoretical: three migrations — the
+pending-payment partial unique index and six hot-query indexes — sat unapplied in production for two
+days while every gate stayed green, and were applied by hand on 2026-10-18.
+
 ## Web deploy
 
 ```bash
