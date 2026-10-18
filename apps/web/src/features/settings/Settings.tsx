@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BadgeCheck, CircleAlert, Download, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
-import { api, clearTokens, ApiError, API_BASE } from "../../lib/api";
+import { api, ApiError, API_BASE } from "../../lib/api";
 import { getTokens } from "../../lib/sessionManager";
 import type { Me, OtpRequestResult } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
@@ -20,7 +20,7 @@ import {
  * the app, so this screen is the entry point for it.
  */
 export default function Settings() {
-  const { session, setLang } = useSession();
+  const { session, setLang, logout } = useSession();
   const lang = session?.lang ?? "bn";
   const navigate = useNavigate();
   const toast = useToast();
@@ -179,7 +179,12 @@ export default function Settings() {
     setDeleteErr(null);
     try {
       await api("DELETE", "/auth/me");
-      clearTokens();
+      // Reset the SESSION CONTEXT, not just storage. Clearing tokens alone left
+      // the provider's signed-in state in place, so the reverse guard bounced
+      // this very navigation back into the app and the deleted account kept
+      // rendering until a final-401 happened to fire (found by CI: the trace
+      // showed DELETE 200 followed by 401s on the still-mounted Home).
+      logout();
       toast.success(t("accountDeletedToast", lang));
       navigate("/login", { replace: true });
     } catch (err) {

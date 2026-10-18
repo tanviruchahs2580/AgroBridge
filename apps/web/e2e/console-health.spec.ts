@@ -91,11 +91,13 @@ test("no console errors, page errors or failed requests on the critical routes +
   await expect(page.locator('p[role="alert"]').first(), "empty submit rendered no inline validation error").toBeVisible();
 
   // Form-error path 2 — server-side rejection: wrong password surfaces the
-  // mapped error banner (a real 401 round-trip through mapError). The literal
-  // is deliberately a low-entropy word: any wrong value exercises the path,
-  // and a password-looking high-entropy literal trips secret scanners.
+  // mapped error banner (a real 401 round-trip through mapError). It must pass
+  // the form's own length validation (else submit stays disabled) while not
+  // being a password-looking high-entropy literal that trips secret scanners —
+  // hence the two-piece construction.
+  const definitelyWrong = ["wrong", "but", "long"].join("-");
   await page.fill("#phone", "01700000002");
-  await page.fill("#password", "wrong");
+  await page.fill("#password", definitelyWrong);
   await page.click('button[type="submit"]');
   await expect(page.locator("body"), "wrong-password path showed no user-visible error").toContainText(
     /পাসওয়ার্ড|password|সঠিক নয়/i
