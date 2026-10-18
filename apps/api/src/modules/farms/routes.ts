@@ -392,27 +392,58 @@ export function eventsRouter() {
       const farm = await prisma.farm.findFirst({ where: { id: req.params.id!, ownerId: req.auth!.userId } });
       if (!farm) throw notFound("Farm");
 
+      // Same-farm binding: an event could previously reference any plot or
+      // crop-cycle id, letting a caller attach (and later read back) another
+      // user's plot name/crop through their own farm's event list (AUD-101b).
+      if (body.plotId) {
+        const plot = await prisma.plot.findFirst({ where: { id: body.plotId, farmId: farm.id }, select: { id: true } });
+        if (!plot) throw badRequest("plotId does not belong to this farm");
+      }
+      if (body.cropCycleId) {
+        const cycle = await prisma.cropCycle.findFirst({
+          where: { id: body.cropCycleId, plot: { farmId: farm.id } },
+          select: { id: true },
+        });
+        if (!cycle) throw badRequest("cropCycleId does not belong to this farm");
+      }
+
       if (body.clientUuid) {
-        const dupe = await prisma.farmEvent.findUnique({ where: { clientUuid: body.clientUuid } });
+        // Idempotent replay: return the event THIS farm+actor already stored for
+        // this clientUuid. Owner-scoped on purpose — a global lookup let anyone
+        // who knew another user's clientUuid read their event row and receive it
+        // as the "replay" of their own submission (AUD-101 / B-09).
+        const dupe = await prisma.farmEvent.findFirst({
+          where: { clientUuid: body.clientUuid, farmId: farm.id, actorId: req.auth!.userId },
+        });
         if (dupe) return ok(res, dupe);
       }
 
-      const created = await prisma.farmEvent.create({
-        data: {
-          farmId: farm.id,
-          actorId: req.auth!.userId,
-          type: body.type,
-          title: body.title,
-          notes: body.notes,
-          plotId: body.plotId,
-          cropCycleId: body.cropCycleId,
-          metadataStr: body.metadata ? JSON.stringify(body.metadata) : undefined,
-          occurredAt: body.occurredAt,
-          clientUuid: body.clientUuid,
-          source: "APP",
-        },
-      });
-      ok(res, created, 201);
+      try {
+        const created = await prisma.farmEvent.create({
+          data: {
+            farmId: farm.id,
+            actorId: req.auth!.userId,
+            type: body.type,
+            title: body.title,
+            notes: body.notes,
+            plotId: body.plotId,
+            cropCycleId: body.cropCycleId,
+            metadataStr: body.metadata ? JSON.stringify(body.metadata) : undefined,
+            occurredAt: body.occurredAt,
+            clientUuid: body.clientUuid,
+            source: "APP",
+          },
+        });
+        ok(res, created, 201);
+      } catch (e) {
+        // clientUuid is globally unique; a collision here can only come from
+        // another user's event (this actor's own replay returned above), so it
+        // is refused rather than silently echoed back.
+        if ((e as { code?: string })?.code === "P2002") {
+          throw conflict("This clientUuid was already used by a different event");
+        }
+        throw e;
+      }
     } catch (e) {
       next(e);
     }
