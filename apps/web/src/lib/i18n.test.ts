@@ -30,18 +30,29 @@ function guestLang(session: { lang?: Lang } | null): Lang {
 }
 
 describe("lib/i18n — dict structure and bn/en coverage", () => {
-  it("dict contains expected keys and both languages for each key", () => {
-    const keys = Object.keys(dict) as (keyof typeof dict)[];
-    expect(keys.length).toBeGreaterThan(100);
-    for (const k of keys) {
-      expect(dict[k]).toHaveProperty("bn");
-      expect(dict[k]).toHaveProperty("en");
-      expect(typeof dict[k].bn).toBe("string");
-      expect(typeof dict[k].en).toBe("string");
-      expect(dict[k].bn.length).toBeGreaterThan(0);
-      expect(dict[k].en.length).toBeGreaterThan(0);
-    }
-  });
+  // ~615 keys × 6 assertions each: the default 5s is not enough when the whole
+  // suite competes for a 2-vCPU runner (E-W2-01 grew the dictionary; this is the
+  // only test whose cost scales with it).
+  it(
+    "dict contains expected keys and both languages for each key",
+    () => {
+      const keys = Object.keys(dict) as (keyof typeof dict)[];
+      expect(keys.length).toBeGreaterThan(100);
+      // Check per key but report through a single assertion: one expect() per
+      // property costs seconds of matcher overhead at this dictionary size.
+      const malformed = keys.filter((k) => {
+        const v = dict[k] as { bn?: unknown; en?: unknown };
+        return (
+          typeof v?.bn !== "string" ||
+          typeof v?.en !== "string" ||
+          v.bn.length === 0 ||
+          v.en.length === 0
+        );
+      });
+      expect(malformed, `keys missing a non-empty bn/en string: ${malformed.join(", ")}`).toEqual([]);
+    },
+    15_000
+  );
 
   it("t() returns bn string for bn lang and en for en lang", () => {
     expect(t("appName", "bn")).toBe("এগ্রোব্রিজ");

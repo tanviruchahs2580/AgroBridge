@@ -15,10 +15,51 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+/**
+ * framer-motion pass-through (test-only). jsdom never completes the exit
+ * animations AnimatePresence waits for, so a dismissed toast would linger in the
+ * DOM forever and no test could observe auto-dismissal. Replacing motion with
+ * plain, identity-stable elements keeps the DOM assertions honest: a removed
+ * child is removed. The dialog tests below exercise focus/inert behaviour, which
+ * does not depend on animation frames.
+ */
+vi.mock("framer-motion", async () => {
+  const ReactMod = await import("react");
+  const STRIP = new Set([
+    "initial",
+    "animate",
+    "exit",
+    "transition",
+    "whileHover",
+    "whileTap",
+    "whileFocus",
+    "variants",
+    "layout",
+    "layoutId",
+    "drag",
+    "onAnimationComplete",
+  ]);
+  const cache = new Map<string, React.ComponentType<Record<string, unknown>>>();
+  const passthrough = (tag: string) => {
+    const cached = cache.get(tag);
+    if (cached) return cached;
+    const Comp = ({ children, ...rest }: { children?: React.ReactNode } & Record<string, unknown>) => {
+      const domProps: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rest)) if (!STRIP.has(k)) domProps[k] = v;
+      return ReactMod.createElement(tag, domProps, children);
+    };
+    cache.set(tag, Comp);
+    return Comp;
+  };
+  const motion = new Proxy({}, { get: (_target, key: string) => passthrough(key) });
+  const Pass = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);
+  return { motion, AnimatePresence: Pass, MotionConfig: Pass, useReducedMotion: () => false };
+});
+
 vi.mock("./session", () => ({ useSession: () => null }));
 vi.mock("./api.js", () => ({ api: () => Promise.resolve({}), hasToken: () => true, API_BASE: "/api/v1" }));
 
-import { ConfirmProvider, Modal, useConfirm } from "./ui";
+import { ConfirmProvider, Modal, ToastProvider, useConfirm, useToast } from "./ui";
 
 function mount(node: React.ReactElement) {
   const container = document.createElement("div");
@@ -101,7 +142,9 @@ describe("dialog a11y — focus behaviour", () => {
       "focus left the field the user was typing in — the dialog effect re-ran and re-focused its first element"
     ).toBe(input);
     mounted.unmount();
-  });
+    // Component mounts are the slow part on a loaded runner (module transform +
+    // jsdom); 5s proved too tight in full-suite runs (E-W2-05).
+  }, 15_000);
 
   it("closes on Escape and restores focus to the previously focused element", async () => {
     const opener = document.createElement("button");
@@ -123,7 +166,64 @@ describe("dialog a11y — focus behaviour", () => {
     });
     expect(closed, "Escape did not reach onClose").toBe(true);
     mounted.unmount();
-  });
+  }, 15_000);
+});
+
+describe("toast surface — stacking, semantics, auto-dismiss (E-06)", () => {
+  /** Pushes every message on mount; the toast API object is memoised, so the
+   *  effect runs once. Four pushes exercise the max-3 stacking trim. */
+  const PILE = [
+    { kind: "info" as const, text: "toast-first" },
+    { kind: "success" as const, text: "toast-second" },
+    { kind: "error" as const, text: "toast-third" },
+    { kind: "success" as const, text: "toast-fourth" },
+  ];
+
+  function Pusher({ items = PILE }: { items?: { kind: "info" | "success" | "error"; text: string }[] }) {
+    const toast = useToast();
+    React.useEffect(() => {
+      for (const item of items) toast[item.kind](item.text);
+    }, [toast, items]);
+    return null;
+  }
+
+  it("keeps at most three toasts, dropping the oldest, and marks errors as alerts", async () => {
+    const mounted = mount(
+      React.createElement(ToastProvider, null, React.createElement(Pusher))
+    );
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("toast-second");
+    expect(text).toContain("toast-third");
+    expect(text).toContain("toast-fourth");
+    expect(text, "the oldest toast was not dropped at the 3-toast cap").not.toContain("toast-first");
+
+    // Error toasts announce assertively; the container is a polite live region.
+    const error = Array.from(document.querySelectorAll('[role="alert"]')).find((n) =>
+      (n.textContent ?? "").includes("toast-third")
+    );
+    expect(error, "the error toast lost its role=alert").toBeTruthy();
+    expect(document.querySelector('[aria-live="polite"]')).toBeTruthy();
+    mounted.unmount();
+  }, 15_000);
+
+  it("auto-dismisses a success toast (4s window) and removes it from the DOM", async () => {
+    const single = [{ kind: "success" as const, text: "toast-autodismiss" }];
+    const mounted = mount(
+      React.createElement(ToastProvider, null, React.createElement(Pusher, { items: single }))
+    );
+    expect(document.body.textContent).toContain("toast-autodismiss");
+
+    // Success toasts live 4000ms (errors 6000ms in providers' push()), plus the
+    // ~250ms exit animation — wait past both, on real timers.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 4600));
+    });
+    expect(
+      document.body.textContent,
+      "the success toast was still mounted after its 4s auto-dismiss window"
+    ).not.toContain("toast-autodismiss");
+    mounted.unmount();
+  }, 15000);
 });
 
 describe("dialog a11y — inert scope", () => {
@@ -155,7 +255,7 @@ describe("dialog a11y — inert scope", () => {
       expect(node.hasAttribute("inert"), `${node.tagName} left inert after the dialog closed`).toBe(false);
     }
     mounted.unmount();
-  });
+  }, 15_000);
 
   it("keeps the inline confirm dialog reachable (it is not portalled)", async () => {
     // The confirm dialog renders inside the React tree, not through a portal, so an
@@ -191,5 +291,5 @@ describe("dialog a11y — inert scope", () => {
       expect(node.hasAttribute("inert"), `${node.tagName} should be inert while a confirm is open`).toBe(true);
     }
     mounted.unmount();
-  });
+  }, 15_000);
 });

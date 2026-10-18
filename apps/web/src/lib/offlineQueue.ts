@@ -3,6 +3,8 @@
 // Dedupe by clientUuid AND SHA-256 payload hash — prevents duplicate mutations
 // even when the same URL is hit multiple times while offline.
 import { api, isOnline, ApiError } from "./api";
+import { t } from "./i18n";
+import type { Lang } from "./i18n";
 
 export interface QueuedMutation {
   url: string;
@@ -47,14 +49,30 @@ const enqueueNotifiers = new Set<() => void>();
  * Drop notifiers — App.tsx registers toast.error when a queued mutation is
  * discarded for good (permanent 4xx / second-strike 401/403). The user is told
  * what was lost instead of the failure living only in console.warn (AUD-112b).
+ * `outcome` separates a state conflict (409/422 — the user should review it)
+ * from a plain permanent failure (G-07).
  */
-const dropNotifiers = new Set<(entry: QueuedMutation, status: number) => void>();
-export function onDrop(cb: (entry: QueuedMutation, status: number) => void): () => void {
+export type DropOutcome = "conflict" | "discarded";
+const dropNotifiers = new Set<(entry: QueuedMutation, status: number, outcome: DropOutcome) => void>();
+export function onDrop(cb: (entry: QueuedMutation, status: number, outcome: DropOutcome) => void): () => void {
   dropNotifiers.add(cb);
   return () => dropNotifiers.delete(cb);
 }
-function notifyDrop(entry: QueuedMutation, status: number) {
-  for (const cb of dropNotifiers) cb(entry, status);
+function notifyDrop(entry: QueuedMutation, status: number, outcome: DropOutcome) {
+  for (const cb of dropNotifiers) cb(entry, status, outcome);
+}
+/**
+ * Sync notifiers — App.tsx registers the "queued changes saved" toast; fired
+ * once per flush that persisted at least one queued mutation (count in hand, so
+ * one toast covers all of them). G-07.
+ */
+const syncedNotifiers = new Set<(count: number) => void>();
+export function onSync(cb: (count: number) => void): () => void {
+  syncedNotifiers.add(cb);
+  return () => syncedNotifiers.delete(cb);
+}
+function notifySynced(count: number) {
+  for (const cb of syncedNotifiers) cb(count);
 }
 export function onEnqueue(cb: () => void): () => void {
   enqueueNotifiers.add(cb);
@@ -175,6 +193,7 @@ export function subscribe(cb: (count: number) => void): () => void {
  * - other permanent 4xx → dropped (will never succeed)
  * Drops keep their console.warn for diagnostics and also notify `onDrop`
  * subscribers, which is how the user-visible bilingual toast is raised.
+ * A flush that saved N>0 mutations notifies `onSync` exactly once with N.
  * Never throws.
  */
 export async function flushAll(): Promise<void> {
@@ -182,11 +201,13 @@ export async function flushAll(): Promise<void> {
   const list = load();
   if (list.length === 0) return;
 
+  let synced = 0;
   const remaining: QueuedMutation[] = [];
   for (const entry of list) {
     try {
       await api(entry.method, entry.url, entry.body);
       attempts.delete(entry.clientUuid);
+      synced++;
     } catch (err) {
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
         const isAuth = err.status === 401 || err.status === 403;
@@ -196,10 +217,13 @@ export async function flushAll(): Promise<void> {
           remaining.push(entry); // re-queue once
         } else {
           attempts.delete(entry.clientUuid);
-          console.warn(`[offlineQueue] dropping mutation ${entry.clientUuid} (${err.status} ${err.code})`, entry.url);
+          // 409/422 mean server state and the queued change disagree — report
+          // that as a conflict the user must review, not as a plain discard.
+          const outcome: DropOutcome = err.status === 409 || err.status === 422 ? "conflict" : "discarded";
+          console.warn(`[offlineQueue] dropping mutation ${entry.clientUuid} (${err.status} ${err.code}, ${outcome})`, entry.url);
           // Tell the user the write is gone; the queue semantics stay identical
           // (nothing is retried again after a drop).
-          notifyDrop(entry, err.status);
+          notifyDrop(entry, err.status, outcome);
         }
       } else {
         remaining.push(entry); // network / timeout / 5xx — retry next flush
@@ -207,4 +231,31 @@ export async function flushAll(): Promise<void> {
     }
   }
   save(remaining);
+  // One "synced" signal per flush, carrying how many mutations landed (G-07).
+  if (synced > 0) notifySynced(synced);
+}
+
+/** What a queued mutation was, in the active UI language (toast copy). */
+function queueItemLabel(url: string, lang: Lang): string {
+  if (url.includes("/events")) return t("queuedItemFarmEvent", lang);
+  if (url.includes("/cart")) return t("cart", lang);
+  return t("orders", lang);
+}
+
+/**
+ * Toast copy for a mutation the queue dropped — conflict-ish outcomes (409/422)
+ * read as "needs your review", every other permanent failure as "discarded".
+ */
+export function dropToastMessage(entry: QueuedMutation, outcome: DropOutcome, lang: Lang): string {
+  const item = queueItemLabel(entry.url, lang);
+  return outcome === "conflict"
+    ? t("queuedChangeConflict", lang, { item })
+    : t("queuedChangeDropped", lang, { item });
+}
+
+/** Toast copy for a successful flush of N>0 queued mutations ("queued changes saved"). */
+export function syncToastMessage(count: number, lang: Lang): string {
+  return count === 1
+    ? t("queueSyncedToastOne", lang, { n: count })
+    : t("queueSyncedToastMany", lang, { n: count });
 }

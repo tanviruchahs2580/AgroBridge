@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
-import { t } from "./lib/i18n";
+import { otherLang, t } from "./lib/i18n";
 import type { DictKey, Lang } from "./lib/i18n";
 import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
-import { flushAll, onDrop as onQueueDrop, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
+import { flushAll, onDrop as onQueueDrop, onSync as onQueueSync, dropToastMessage, syncToastMessage, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
 import { track } from "./lib/analytics";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -66,13 +66,6 @@ function useQueuedCount(): number {
   const [count, setCount] = useState(queuedMutations());
   useEffect(() => subscribeQueue(setCount), []);
   return count;
-}
-
-/** What a dropped queued mutation was, in the active UI language (toast copy). */
-function queueItemLabel(url: string, lang: Lang): string {
-  if (url.includes("/events")) return t("queuedItemFarmEvent", lang);
-  if (url.includes("/cart")) return t("cart", lang);
-  return t("orders", lang);
 }
 
 /** Authenticated users never see /login|/register — bounce back to where they came from. */
@@ -197,10 +190,10 @@ function Shell({ children }: { children: ReactNode }) {
             <button
               type="button"
               aria-label={t("langToggleAria", lang)}
-              onClick={() => setLang(lang === "bn" ? "en" : "bn")}
+              onClick={() => setLang(otherLang(lang))}
               className="inline-flex min-h-[44px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              {lang === "bn" ? "EN" : "বাং"}
+              {t("langToggleButton", lang)}
             </button>
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
               <NavLink to="/admin" className="hidden sm:inline-flex min-h-[44px] items-center rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
@@ -261,18 +254,21 @@ export default function App() {
     });
   }, []);
 
-  // Offline toast (in the active UI language) when a mutation is queued.
-  // One subscription only: the queue notifies through this callback, and the
-  // window-event mirror that used to sit beside it made every queued mutation
-  // raise the toast twice.
+  // Queued-change outcomes (G-07). A flush that saved work says so, once, with
+  // the count; a dropped write still names which change was lost, and a
+  // conflict-ish drop (409/422) reads as "needs your review" instead.
+  // Enqueue stays one subscription only: the queue notifies through this
+  // callback, and the window-event mirror that used to sit beside it made every
+  // queued mutation raise the toast twice.
   const toast = useToast();
   useEffect(() => onOfflineEnqueue(() => toast.info(t("offlineBanner", lang))), [toast, lang]);
+  useEffect(() => onQueueSync((count) => toast.success(syncToastMessage(count, lang))), [toast, lang]);
 
   // Permanent queue drop (AUD-112b): the server refused the queued change for
   // good and the queue discarded it — the user hears which change was lost
   // instead of the failure staying in console.warn.
   useEffect(
-    () => onQueueDrop((entry) => toast.error(t("queuedChangeDropped", lang, { item: queueItemLabel(entry.url, lang) }))),
+    () => onQueueDrop((entry, _status, outcome) => toast.error(dropToastMessage(entry, outcome, lang))),
     [toast, lang]
   );
 

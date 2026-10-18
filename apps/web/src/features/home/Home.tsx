@@ -11,6 +11,7 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { cropLabel, stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
 import { deriveTodayTasks } from "./todayTasks";
+import { weatherProvenanceLine } from "./weatherProvenance";
 import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
@@ -268,6 +269,10 @@ export default function Home() {
                     <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
                 </div>
+                {/* Provenance (A5-01): fetched time + source, "cached copy" when the
+                    provider payload was reused. The time is always the ORIGINAL
+                    fetch time, never the response time. */}
+                <p className="relative mt-3 text-xs text-stone-500">{weatherProvenanceLine(weather, lang)}</p>
               </>
             ) : <p className="relative mt-3 text-sm text-stone-500">—</p>}
           </div>

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BadgeCheck, CircleAlert, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
-import { api, clearTokens, ApiError } from "../../lib/api";
+import { BadgeCheck, CircleAlert, Download, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { api, clearTokens, ApiError, API_BASE } from "../../lib/api";
+import { getTokens } from "../../lib/sessionManager";
 import type { Me, OtpRequestResult } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
@@ -47,6 +48,7 @@ export default function Settings() {
 
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Prefill: every successful /auth/me result resets the form fields, so a save
   // or a phone verification re-normalises them from the server — the old
@@ -128,6 +130,39 @@ export default function Settings() {
       setOtpErr(mapError(err, lang));
     } finally {
       setOtpBusy(false);
+    }
+  }
+
+  /**
+   * Personal-data export (AUD-130). A file download cannot go through `api()`
+   * (it parses the JSON envelope), so the endpoint is fetched directly with the
+   * current access token and the blob is saved under the server-provided
+   * filename from Content-Disposition.
+   */
+  async function downloadMyData() {
+    setExporting(true);
+    try {
+      const { accessToken } = getTokens();
+      const res = await fetch(`${API_BASE}/auth/me/export`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!res.ok) throw new Error(`export failed (${res.status})`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? "agrobridge-export.json";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success(t("dataExportReadyToast", lang));
+    } catch {
+      toast.error(t("dataExportFailedToast", lang));
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -311,6 +346,20 @@ export default function Settings() {
             )}
           </div>
         )}
+      </Card>
+
+      {/* ── Personal data export ── */}
+      <Card className="space-y-3">
+        <SectionHeader title={t("dataExportTitle", lang)} />
+        <p className="text-sm text-stone-600">{t("dataExportHint", lang)}</p>
+        <Button type="button" variant="outline" onClick={() => void downloadMyData()} disabled={exporting}>
+          {exporting ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+          )}
+          {t("downloadMyData", lang)}
+        </Button>
       </Card>
 
       {/* ── Policies ── */}

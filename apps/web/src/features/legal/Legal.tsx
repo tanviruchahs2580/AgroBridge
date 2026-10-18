@@ -72,13 +72,16 @@ export default function Legal({ docId }: { docId: LegalDoc["id"] }) {
           <h1 className="text-xl font-bold text-stone-800">{lang === "bn" ? doc.title.bn : doc.title.en}</h1>
           <p className="mt-1 text-sm text-stone-600">{lang === "bn" ? doc.summary.bn : doc.summary.en}</p>
           <p className="mt-1 text-xs text-stone-500">
-            {lang === "bn" ? "সংস্করণ" : "Version"} {LEGAL_META.version} ·{" "}
-            {lang === "bn" ? "সর্বশেষ হালনাগাদ" : "Last updated"} {LEGAL_META.updated}
+            {t("appVersionLabel", lang)} {LEGAL_META.version} ·{" "}
+            {t("legalLastUpdated", lang)} {LEGAL_META.updated}
           </p>
         </div>
       </header>
 
-      <nav aria-label={lang === "bn" ? "আইনি নথি" : "Legal documents"} className="mt-5 flex flex-wrap gap-2">
+      {/* Doc content itself is a bilingual content module (./content), not UI
+          chrome — its {bn,en} pairs are data, so only the labels above go
+          through the dictionary. */}
+      <nav aria-label={t("legalNavAria", lang)} className="mt-5 flex flex-wrap gap-2">
         {(Object.keys(LEGAL_DOCS) as LegalDoc["id"][]).map((key) => {
           const d = LEGAL_DOCS[key];
           const active = key === doc.id;

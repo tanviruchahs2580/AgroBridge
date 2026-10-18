@@ -162,26 +162,27 @@ export const notifCategoryLabel = (raw: string, lang: Lang): string => fromMap(N
 
 // ── Farm-care suggestion (derived from the crop's real stage + plantedAt) ──
 // Suggestions mirror the stage calendar shipped by the API; they are presented
-// as suggestions, never as server-tracked tasks.
+// as suggestions, never as server-tracked tasks. Task copy lives in the
+// dictionary (careTask*) so it stays on the one canonical localization path.
 export type CareTone = "danger" | "warning" | "success";
 export interface CareSuggestion { label: string; tone: CareTone; task: string }
 
-const CARE_CALENDAR: Record<string, { taskEn: string; taskBn: string }[]> = {
-  SEED: [{ taskEn: "Ensure seedbed moisture", taskBn: "বীজতলার আর্দ্রতা নিশ্চিত করুন" }],
-  GERMINATION: [{ taskEn: "Gap filling for missing plants", taskBn: "অনুপস্থিত চারায় গ্যাপ পূরণ" }],
-  VEGETATIVE: [{ taskEn: "Apply urea top dressing (split)", taskBn: "কিস্তিতে ইউরিয়া সেচ" }],
-  FLOWERING: [{ taskEn: "Maintain consistent moisture", taskBn: "আর্দ্রতা বজায় রাখুন" }],
-  GRAIN_FRUIT_DEVELOPMENT: [{ taskEn: "Potash top-up if leaves yellowing", taskBn: "পাতা হলদে হলে পটাশ দিন" }],
+const CARE_CALENDAR: Record<string, DictKey[]> = {
+  SEED: ["careTaskSeedbedMoisture"],
+  GERMINATION: ["careTaskGapFilling"],
+  VEGETATIVE: ["careTaskUreaSplit"],
+  FLOWERING: ["careTaskConsistentMoisture"],
+  GRAIN_FRUIT_DEVELOPMENT: ["careTaskPotashTopUp"],
 };
 
 export function farmCareSuggestion(c: { stage: string; plantedAt: string }, lang: Lang): CareSuggestion {
   const days = Math.floor((Date.now() - new Date(c.plantedAt).getTime()) / 86400000);
   if (c.stage === "SEED" && days > 5)
-    return { label: t("careUrgent", lang), tone: "danger", task: lang === "bn" ? "বীজতলার আর্দ্রতা পরীক্ষা করুন" : "Check seedbed moisture" };
+    return { label: t("careUrgent", lang), tone: "danger", task: t("careTaskSeedbedCheck", lang) };
   if (c.stage === "VEGETATIVE" && days > 30)
-    return { label: t("careDueToday", lang), tone: "warning", task: lang === "bn" ? "ইউরিয়া সেচ দিন" : "Apply urea top dressing" };
+    return { label: t("careDueToday", lang), tone: "warning", task: t("careTaskUreaTopDressing", lang) };
   const first = (CARE_CALENDAR[c.stage] ?? CARE_CALENDAR.SEED)[0];
-  return { label: t("careRoutine", lang), tone: "success", task: lang === "bn" ? first.taskBn : first.taskEn };
+  return { label: t("careRoutine", lang), tone: "success", task: t(first, lang) };
 }
 
 // ── Membership plan benefits (stored in DB as English strings) ──

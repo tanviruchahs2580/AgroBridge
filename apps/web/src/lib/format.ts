@@ -34,6 +34,14 @@ export function formatDateTime(d: DateInput, lang: Lang): string {
   return new Intl.DateTimeFormat(DATE_LOCALE[lang], { dateStyle: "medium", timeStyle: "short" }).format(toDate(d));
 }
 
+/**
+ * Locale tag for `toLocaleDateString`-style calls in components — one source
+ * (DATE_LOCALE) instead of `lang === "bn" ? "bn-BD" : "en-GB"` at each call site.
+ */
+export function dateLocale(lang: Lang): string {
+  return DATE_LOCALE[lang];
+}
+
 export function takaToPaisa(taka: number): number {
   return Math.round(taka * 100);
 }

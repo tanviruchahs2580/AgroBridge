@@ -58,12 +58,12 @@ export default function Login() {
       footer={
         <>
           <p className="text-center text-sm text-stone-600">
-            {lang === "bn" ? "অ্যাকাউন্ট নেই? " : "No account yet? "}
+            {t("authNoAccountPrefix", lang)}{" "}
             <Link
               to="/register"
               className="inline-flex items-center gap-0.5 rounded font-bold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
             >
-              {lang === "bn" ? "রেজিস্ট্রেশন করুন" : "Register"} <span aria-hidden>›</span>
+              {t("authRegisterLink", lang)} <span aria-hidden>›</span>
             </Link>
           </p>
 
@@ -117,8 +117,8 @@ export default function Login() {
         {error && (
           <ErrorBanner
             message={error}
-            copyLabel={lang === "bn" ? "কপি" : "Copy"}
-            copiedLabel={lang === "bn" ? "কপি হয়েছে!" : "Copied!"}
+            copyLabel={t("errCopy", lang)}
+            copiedLabel={t("errCopied", lang)}
           />
         )}
 

@@ -399,6 +399,94 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
   });
 });
 
+describe("lib/api — X-Request-Id correlation (I-01)", () => {
+  let mod: typeof import("./api.js");
+  beforeEach(async () => {
+    vi.resetModules();
+    localStorage.clear();
+    mod = await import("./api.js");
+    mod.clearTokens();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function headerOf(call: unknown[]): string | undefined {
+    return ((call[1] as RequestInit).headers as Record<string, string>)["X-Request-Id"];
+  }
+
+  it("sends a non-empty X-Request-Id on every request", async () => {
+    const fetchMock = vi.fn(async () => okData({ ok: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.api("GET", "/farms");
+    await mod.api("POST", "/farms", { name: "x" });
+    expect(headerOf(fetchMock.mock.calls[0])).toBeTruthy();
+    expect(headerOf(fetchMock.mock.calls[1])).toBeTruthy();
+  });
+
+  it("keeps ONE id across the retries of a single logical request (500 → 502 → 200)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, data: {} }), { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, data: {} }), { status: 502 }))
+      .mockResolvedValueOnce(okData({ success: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.api("GET", "/products");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const ids = fetchMock.mock.calls.map((c) => headerOf(c));
+    expect(ids[0]).toBeTruthy();
+    expect(ids[1]).toBe(ids[0]);
+    expect(ids[2]).toBe(ids[0]);
+  }, 10000);
+
+  it("reuses the id for the replay after a silent token refresh (same logical request)", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    let guardedCalls = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        return new Response(JSON.stringify({ data: { accessToken: "new-at", refreshToken: "new-rt" } }), { status: 200 });
+      }
+      guardedCalls++;
+      if (guardedCalls === 1) return errEnvelope(401, "UNAUTHORIZED", "expired");
+      return okData({ id: "u1" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.api("GET", "/auth/me");
+    const guarded = fetchMock.mock.calls.filter((c) => !String(c[0]).includes("/auth/refresh"));
+    expect(guarded.length).toBe(2);
+    // The replay is the same logical request — one id across both attempts.
+    expect(headerOf(guarded[1])).toBe(headerOf(guarded[0]));
+  });
+
+  it("gives separate requests separate ids", async () => {
+    const fetchMock = vi.fn(async () => okData({ ok: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.api("GET", "/a");
+    await mod.api("GET", "/b");
+    const id1 = headerOf(fetchMock.mock.calls[0]);
+    const id2 = headerOf(fetchMock.mock.calls[1]);
+    expect(id1).toBeTruthy();
+    expect(id2).toBeTruthy();
+    expect(id2).not.toBe(id1);
+  });
+
+  it("carries an id on the token refresh request too", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    let guardedCalls = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        return new Response(JSON.stringify({ data: { accessToken: "new-at", refreshToken: "new-rt" } }), { status: 200 });
+      }
+      guardedCalls++;
+      // 401 first so the silent refresh actually fires, then succeed on replay.
+      return guardedCalls === 1 ? errEnvelope(401, "UNAUTHORIZED", "expired") : okData({ ok: 1 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await mod.api("GET", "/auth/me");
+    const refreshCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/auth/refresh"));
+    expect(refreshCall).toBeTruthy();
+    expect(headerOf(refreshCall!)).toBeTruthy();
+  });
+});
+
 describe("lib/api — isOnline / onOnlineStatusChange", () => {
   let mod: typeof import("./api.js");
   beforeEach(async () => {

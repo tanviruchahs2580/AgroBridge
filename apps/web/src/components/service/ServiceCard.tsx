@@ -4,7 +4,7 @@ import type { ServiceWithProviders } from "../../lib/api-types";
 import { formatBDT } from "../../lib/format";
 import { serviceCategoryLabel, priceUnitLabel } from "../../lib/labels";
 import { t } from "../../lib/i18n";
-import type { Lang } from "../../lib/i18n";
+import type { DictKey, Lang } from "../../lib/i18n";
 import { AgriIconBox } from "../icons/AgriIcons";
 
 interface Props {
@@ -32,22 +32,22 @@ const HERO_MAP: Record<string, string> = {
   TRACTOR: "/images/services/tractor.jpg",
 };
 
-// Service-specific honest fallback — distinct per category, not generic placeholder (fixes A2)
-const FALLBACK_DESC: Record<string, { bn: string; en: string }> = {
-  DRONE: { bn: "জমি না মাড়িয়ে দ্রুত স্প্রে — সমান কভারেজ", en: "Fast spray without trampling — even coverage" },
-  TRACTOR: { bn: "ট্রাক্টর ও চালকসহ জমি প্রস্তুত — বিঘা প্রতি", en: "Tractor with operator — per bigha" },
-  COMBINE_HARVESTER: { bn: "কাটা ও মাড়াই একসাথে — সময় ও শ্রম সাশ্রয়", en: "Harvest and thresh together — saves time and labour" },
-  POWER_TILLER: { bn: "ছোট-মাঝারি জমিতে নিখুঁত চাষ", en: "Precise tillage for small–medium plots" },
-  LAND_LEVELLER: { bn: "লেজার সমতলকরণ — সেচে পানি সাশ্রয়", en: "Laser levelling — saves irrigation water" },
-  THRESHER: { bn: "পরিষ্কার দানা, কম অপচয় — মণ প্রতি", en: "Clean grain, low waste — per maund" },
-  SOIL_TESTING: { bn: "ল্যাব রিপোর্ট + সার সুপারিশ — নমুনা প্রতি", en: "Lab report + fertilizer advice — per sample" },
-  AGRONOMIST: { bn: "মাঠ পরিদর্শন ও ব্যবস্থাপত্র — ভিজিট প্রতি", en: "Field visit and prescription — per visit" },
+// Service-specific honest fallback — distinct per category, not generic placeholder (fixes A2).
+// Copy lives in the dictionary (svcDesc*), one key per category.
+const FALLBACK_DESC: Record<string, DictKey> = {
+  DRONE: "svcDescDRONE",
+  TRACTOR: "svcDescTRACTOR",
+  COMBINE_HARVESTER: "svcDescCOMBINE_HARVESTER",
+  POWER_TILLER: "svcDescPOWER_TILLER",
+  LAND_LEVELLER: "svcDescLAND_LEVELLER",
+  THRESHER: "svcDescTHRESHER",
+  SOIL_TESTING: "svcDescSOIL_TESTING",
+  AGRONOMIST: "svcDescAGRONOMIST",
 };
 
 function fallbackFor(category: string, lang: Lang): string {
-  const f = FALLBACK_DESC[category];
-  if (f) return lang === "bn" ? f.bn : f.en;
-  return lang === "bn" ? "মাঠের সেবা — স্বচ্ছ মূল্য" : "Field service — transparent pricing";
+  const key = FALLBACK_DESC[category];
+  return t(key ?? "svcDescFallback", lang);
 }
 
 export function ServiceCard({
@@ -130,13 +130,13 @@ export function ServiceCard({
                 </span>
               ) : (
                 <span className="inline-flex items-center rounded-chip bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
-                  {lang === "bn" ? "নতুন — এখনো রেটিং নেই" : "New — no ratings yet"}
+                  {t("svcNewNoRatings", lang)}
                 </span>
               )}
               {providerCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-chip bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
                   <Users className="h-3 w-3" aria-hidden />
-                  {providerCount} {lang === "bn" ? "প্রদানকারী" : providerCount === 1 ? "provider" : "providers"}
+                  {providerCount} {providerCount === 1 ? t("svcProviderOne", lang) : t("svcProviderMany", lang)}
                 </span>
               )}
             </div>

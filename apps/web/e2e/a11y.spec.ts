@@ -6,8 +6,10 @@ import AxeBuilder from "@axe-core/playwright";
  * Requires running API + Web (see farmer-journey.spec.ts).
  * Seeds: 01700000002 / Demo@1234
  *
- * Authenticated scans share one login session to stay well under the auth
- * rate limit (20 logins / 15 min / IP).
+ * Authenticated scans share one login session; CI's e2e job raises the auth
+ * and global rate limits for its throwaway instance (docs/testing.md,
+ * AUD-134), so the suite does not depend on staying under the production
+ * login budget.
  */
 
 /** Critical/serious violations block the build; moderate/minor are tracked separately. */
@@ -62,6 +64,26 @@ test.describe("Accessibility scans", () => {
       await page.goto(route);
       await expect(page.locator("#main")).toBeVisible();
       // Ensure dynamic data (weather, farms) has loaded before axe — avoids skeleton false positives
+      await page.waitForTimeout(800);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await assertNoCriticalSerious(page);
+    }
+  });
+
+  /**
+   * The remaining signed-in routes (G-06). Same one-login-per-test pattern as
+   * above; five routes at ~4-6s each exceed the 30s default on a 2-vCPU
+   * runner, so the test is marked slow. /sell is the sell-crop route in
+   * App.tsx's route table.
+   */
+  test("remaining signed-in routes: /services, /orders, /sell, /settings, /notifications have zero critical/serious violations", async ({ page }) => {
+    test.slow();
+    await seededLogin(page);
+
+    for (const route of ["/services", "/orders", "/sell", "/settings", "/notifications"]) {
+      await page.goto(route);
+      await expect(page.locator("#main"), `${route}: main landmark missing`).toBeVisible();
+      // Let the page's resources settle (skeletons are not what a user sees last).
       await page.waitForTimeout(800);
       await page.waitForLoadState("networkidle").catch(() => {});
       await assertNoCriticalSerious(page);

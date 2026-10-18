@@ -15,15 +15,17 @@ function walk(dir) {
   return files;
 }
 
-// ── Inline-language-ternary ratchet (AUD-118 / G-03) ──
+// ── Inline-language-ternary ratchet (AUD-118 / G-03, closed by E-W2-01) ──
 // Counts source sites that carry string-literal UI copy through an inline
 // `lang === "bn" ? "…" : "…"` branch (also `lang == "bn"` and `isBn ?`) instead
 // of the dictionary. The count is comment-aware and skips the dictionary itself,
 // so commented-out code or `lib/i18n.ts` data cannot inflate it.
 //
-// The baseline is grandfathered debt: NEW code must use lib/i18n.ts. Lower the
-// constant as files migrate to the dictionary; do not raise it.
-const INLINE_LANG_BASELINE = 87; // exact count measured at 2a33ba71 remediation (E-UI-05)
+// HARD ZERO: the 87 grandfathered sites measured at 2a33ba71 were all migrated
+// to lib/i18n.ts (bn+en keys, same copy) in E-W2-01, so the ratchet now sits at
+// zero — any new inline `lang === "bn" ? "…" : "…"` copy fails this check
+// immediately. Put new copy in lib/i18n.ts and call t("key", lang).
+const INLINE_LANG_BASELINE = 0;
 
 /** Strip // and /* *\/ comments without touching string/template-literal bodies. */
 function stripComments(txt) {
@@ -127,7 +129,7 @@ const unused = [...declared].filter((k) => !used.has(k) && !["bn", "en"].include
 let ok = true;
 if (inlineTotal > INLINE_LANG_BASELINE) {
   ok = false;
-  console.error(`✗ Inline language ternaries: ${inlineTotal} found, baseline ${INLINE_LANG_BASELINE}.`);
+  console.error(`✗ Inline language ternaries: ${inlineTotal} found, baseline ${INLINE_LANG_BASELINE} (hard zero).`);
   console.error("  New inline `lang === \"bn\" ? \"…\" : \"…\"` copy must go through lib/i18n.ts");
   console.error("  (inline sites without string literals are not counted):");
   for (const [file, n] of inlineSites.sort((a, b) => b[1] - a[1])) console.error(`   - ${file}: ${n}`);
@@ -144,7 +146,7 @@ if (unused.length) {
 
 if (ok) {
   console.log(`✓ i18n OK: ${used.size} keys referenced, ${declared.size} declared, 0 missing.`);
-  console.log(`  inline language ternaries: ${inlineTotal} (ratchet baseline ${INLINE_LANG_BASELINE}, grandfathered debt — lower as files migrate).`);
+  console.log(`  inline language ternaries: ${inlineTotal} (hard-zero ratchet since E-W2-01 — new inline copy fails the check).`);
   process.exit(0);
 } else {
   process.exit(1);

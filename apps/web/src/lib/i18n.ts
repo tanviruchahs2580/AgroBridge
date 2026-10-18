@@ -72,6 +72,13 @@ export const dict = {
   signUp: { bn: "অ্যাকাউন্ট তৈরি করুন", en: "Create account" },
   haveAccount: { bn: "অ্যাকাউন্ট আছে? লগইন করুন", en: "Have an account? Log in" },
   noAccount: { bn: "অ্যাকাউন্ট নেই? রেজিস্ট্রেশন করুন", en: "No account yet? Register" },
+  // Auth footers render the sentence split around a <Link>, so the lead-in and
+  // the link text are separate keys (the combined noAccount/haveAccount keys
+  // above stay for callers that render the whole sentence as one string).
+  authNoAccountPrefix: { bn: "অ্যাকাউন্ট নেই?", en: "No account yet?" },
+  authRegisterLink: { bn: "রেজিস্ট্রেশন করুন", en: "Register" },
+  authHaveAccountPrefix: { bn: "অ্যাকাউন্ট আছে?", en: "Have an account?" },
+  authLoginLink: { bn: "লগইন করুন", en: "Log in" },
   // ── Auth surfaces (v2 unified premium auth) ──
   authWelcome: { bn: "স্বাগতম", en: "Welcome" },
   authWelcomeSub: { bn: "আপনার অ্যাকাউন্টে লগইন করুন", en: "Sign in to your account" },
@@ -83,6 +90,10 @@ export const dict = {
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
+  // Language toggle labels name the *target* language, so the bn value is the
+  // English label and the en value is the Bengali one.
+  langToggleButton: { bn: "EN", en: "বাং" },
+  langSwitchAria: { bn: "Switch to English", en: "বাংলায় ফিরুন" },
   // ── Home dashboard (v2) ──
   aiFarmAttention: { bn: "মাঠে মনোযোগ দরকার", en: "Your field needs attention" },
   aiFarmAttentionSub: { bn: "আবহাওয়ার ঝুঁকি শনাক্ত হয়েছে — আগাম ব্যবস্থা নিন।", en: "Weather risks detected — take precautionary action." },
@@ -271,6 +282,19 @@ export const dict = {
   errAreaInvalid: { bn: "সঠিক জমির পরিমাণ দিন।", en: "Enter a valid land area." },
   errDateFuture: { bn: "সময় অবশ্যই ভবিষ্যতে হতে হবে।", en: "Time must be in the future." },
   fixErrorsNote: { bn: "চিহ্নিত ভুলগুলো ঠিক করে আবার চেষ্টা করুন।", en: "Fix the highlighted errors and try again." },
+  // Server field-message patterns → localized sentence ({label} = field label).
+  errValidationRequired: { bn: "{label} প্রয়োজন", en: "{label} is required" },
+  errValidationInvalid: { bn: "{label} সঠিক নয়", en: "{label} is invalid" },
+  errValidationTooShort: { bn: "{label} খুব ছোট", en: "{label} is too short" },
+  errValidationTooLong: { bn: "{label} খুব বড়", en: "{label} is too long" },
+  errValidationNumber: { bn: "{label} সংখ্যা হতে হবে", en: "{label} must be a number" },
+  errValidationPositive: { bn: "{label} শূন্যের বেশি হতে হবে", en: "{label} must be greater than 0" },
+  errValidationEmailUrl: { bn: "{label} বৈধ নয়", en: "{label} is not valid" },
+  errValidationDuplicate: { bn: "{label} ইতিমধ্যে বিদ্যমান", en: "{label} already exists" },
+  errValidationPassword: { bn: "পাসওয়ার্ড সঠিক নয়", en: "Incorrect password" },
+  // ErrorBanner copy affordance (Login/Register pass these explicitly).
+  errCopy: { bn: "কপি", en: "Copy" },
+  errCopied: { bn: "কপি হয়েছে!", en: "Copied!" },
 
   // ── Home ──
   greeting: { bn: "আসসালামু আলাইকুম, {name} 👋", en: "Hello, {name} 👋" },
@@ -331,6 +355,11 @@ export const dict = {
   weatherRiskIRRIGATION_ADVICE: { bn: "→ ফসলের পানির চাহিদা অনুযায়ী সেচ দিন", en: "→ irrigate per crop water demand" },
   weatherRiskDISEASE_RISK: { bn: "→ প্রতিরোধমূলক ছত্রাকনাশক বিবেচনা করুন", en: "→ consider preventive fungicide" },
   weatherRiskINFO: { bn: "→ নিয়মিত ফার্ম পরিদর্শন করুন", en: "→ keep up regular farm visits" },
+  // ── Weather provenance (A5-01 / AUD-126) — when the data was fetched, from
+  // which source, and whether it is a cached copy. The time shown is the
+  // ORIGINAL fetch time even on a cache hit; the cached copy is labelled.
+  weatherAsOf: { bn: "আবহাওয়া তথ্য: {time}", en: "Weather as of {time}" },
+  weatherCachedCopy: { bn: "সংরক্ষিত কপি", en: "cached copy" },
 
   // ── Market / checkout wizard ──
   catAll: { bn: "সব", en: "All" },
@@ -402,6 +431,22 @@ export const dict = {
   collapseDetails: { bn: "বিস্তারিত লুকান", en: "Collapse details" },
   compressingImage: { bn: "ছবি প্রস্তুত করা হচ্ছে...", en: "Preparing image..." },
   questionInputLabel: { bn: "আপনার প্রশ্ন", en: "Your question" },
+  // Which provider/mode answered (A4-04 / A2-04) and the KB content version it
+  // was grounded in. Never a score/percentage — see supportLabel.ts.
+  advisorModeKb: { bn: "নলেজ বেস (KB)", en: "Knowledge base (KB)" },
+  advisorModeAi: { bn: "AI মডেল", en: "AI model" },
+  advisorKbVersion: { bn: "KB সংস্করণ {v}", en: "KB version {v}" },
+  // Advisory history + report-a-problem (A7-07). Feedback rows come from
+  // GET /ai/history (the only surface that carries row ids).
+  advisorHistory: { bn: "আগের পরামর্শের ইতিহাস", en: "Past advisory history" },
+  advisorNoHistory: { bn: "কোনো আগের পরামর্শ নেই।", en: "No previous advisories yet." },
+  reportIssue: { bn: "এই উত্তরের সমস্যা জানান", en: "Report an issue about this answer" },
+  reportIssueTitle: { bn: "সমস্যা জানান", en: "Report an issue" },
+  reportIssueBody: { bn: "এই উত্তরটি কোথায় ভুল বা অস্পষ্ট ছিল সংক্ষেপে লিখুন।", en: "Briefly say what was wrong or unclear about this answer." },
+  reportReasonLabel: { bn: "সমস্যার বিবরণ", en: "What was wrong" },
+  reportSubmit: { bn: "রিপোর্ট পাঠান", en: "Send report" },
+  feedbackThanks: { bn: "ধন্যবাদ — আপনার রিপোর্ট সংরক্ষিত হয়েছে।", en: "Thanks — the report was recorded." },
+  feedbackReported: { bn: "রিপোর্ট করা হয়েছে", en: "Reported" },
 
   // ── Notifications page ──
   markAllRead: { bn: "সব পড়া হয়েছে", en: "Mark all read" },
@@ -478,6 +523,35 @@ export const dict = {
   plotCreatedToast: { bn: "প্লট যোগ হয়েছে ✓", en: "Plot created ✓" },
   cropCreatedToast: { bn: "ফসল যোগ হয়েছে ✓", en: "Crop created ✓" },
   plantedAtLabel: { bn: "রোপণের তারিখ", en: "Planted on" },
+  myFarmViewHarvester: { bn: "হারভেস্টার দেখুন", en: "View harvester" },
+  myFarmViewInputs: { bn: "ইনপুট দেখুন", en: "View inputs" },
+  myFarmAddFarmHint: { bn: "আপনার খামার যোগ করে ফসল ও কাজ এক জায়গায় পরিচালনা করুন।", en: "Add your farm to manage crops and tasks in one place." },
+  myFarmCareOne: { bn: "আজ আপনার খামারে {n}টি ফসলের পরামর্শ আছে", en: "You have {n} farm care suggestion today" },
+  myFarmCareMany: { bn: "আজ আপনার খামারে {n}টি ফসলের পরামর্শ আছে", en: "You have {n} farm care suggestions today" },
+  myFarmTomorrowTitle: { bn: "আগামীকাল ও আসন্ন", en: "Tomorrow & upcoming" },
+  myFarmTomorrowBody: { bn: "আগামীকালের কাজ ও পরবর্তী মাইলস্টোন দেখুন।", en: "See tomorrow's work and next milestones." },
+  myFarmNoUpcoming: { bn: "কোনো আসন্ন কাজ নেই।", en: "No upcoming tasks." },
+  myFarmAiTitle: { bn: "আমার ফার্ম AI", en: "My Farm AI" },
+  myFarmAiLine: { bn: "আজ আপনার {n}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।", en: "{n} active crops — stage-based suggestions below." },
+  myFarmAiDisclaimer: { bn: "পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।", en: "Stage-based suggestion — guidance, not an expert diagnosis." },
+  myFarmActiveCropsStat: { bn: "সক্রিয় ফসল", en: "Active crops" },
+  myFarmActiveCropsChip: { bn: "সক্রিয় ফসল", en: "active crops" },
+  myFarmPlotCount: { bn: "প্লট", en: "plots" },
+  myFarmPlotsStat: { bn: "প্লট", en: "Plots" },
+  myFarmListTitle: { bn: "আমার খামার তালিকা", en: "My farms" },
+  myFarmStatusActive: { bn: "সচল", en: "Active" },
+  myFarmNeedsAttention: { bn: "নজর দিন", en: "Needs attention" },
+  myFarmDetails: { bn: "বিস্তারিত", en: "Details" },
+  myFarmViewPlots: { bn: "প্লট দেখুন", en: "View plots" },
+
+  // ── Farm-care suggestion tasks (lib/labels.ts) ──
+  careTaskSeedbedCheck: { bn: "বীজতলার আর্দ্রতা পরীক্ষা করুন", en: "Check seedbed moisture" },
+  careTaskUreaTopDressing: { bn: "ইউরিয়া সেচ দিন", en: "Apply urea top dressing" },
+  careTaskSeedbedMoisture: { bn: "বীজতলার আর্দ্রতা নিশ্চিত করুন", en: "Ensure seedbed moisture" },
+  careTaskGapFilling: { bn: "অনুপস্থিত চারায় গ্যাপ পূরণ", en: "Gap filling for missing plants" },
+  careTaskUreaSplit: { bn: "কিস্তিতে ইউরিয়া সেচ", en: "Apply urea top dressing (split)" },
+  careTaskConsistentMoisture: { bn: "আর্দ্রতা বজায় রাখুন", en: "Maintain consistent moisture" },
+  careTaskPotashTopUp: { bn: "পাতা হলদে হলে পটাশ দিন", en: "Potash top-up if leaves yellowing" },
 
   // ── Admin ──
   adminOnly: { bn: "এই পাতায় প্রবেশের অনুমতি নেই।", en: "You don't have permission to view this page." },
@@ -554,6 +628,48 @@ export const dict = {
   svcEmptyHint: { bn: "অন্য ক্যাটাগরি বা সার্চ শব্দ চেষ্টা করুন।", en: "Try another search or filter." },
   svcBookingEmptyHint: { bn: "উপরে যেকোনো সেবা থেকে বুক করুন — ফিল্ডে কাজ দ্রুত শুরু হবে।", en: "Book any service above — field work starts fast." },
 
+  // ── Services page (hero / mini-cards / how-it-works / trust / CTA) ──
+  svcBadgeVerified: { bn: "মাঠের সেবা • যাচাইকৃত", en: "Field services • Verified" },
+  svcHeroTitle: { bn: "আপনার জমির জন্য সঠিক সেবা, এক ক্লিকে", en: "The right service for your field, in one tap" },
+  svcHeroSub: { bn: "যন্ত্রপাতি, স্মার্ট ফার্মিং ও মাটি পরীক্ষা — স্বচ্ছ মূল্য, স্থানীয় প্রদানকারী, দ্রুত বুকিং।", en: "Machinery, smart farming and soil testing — transparent pricing, local providers, fast booking." },
+  svcFindService: { bn: "সেবা খুঁজুন", en: "Find a service" },
+  svcFindServices: { bn: "সেবা খুঁজুন", en: "Find services" },
+  svcTypesPlural: { bn: "প্রকার", en: "types" },
+  svcTypeSingular: { bn: "প্রকার", en: "type" },
+  svcClearLabel: { bn: "স্বচ্ছ", en: "Clear" },
+  svcDiscoverSr: { bn: "সেবা খুঁজুন", en: "Discover services" },
+  svcHowTitle: { bn: "কিভাবে কাজ করে", en: "How it works" },
+  svcHowSub: { bn: "৩টি সহজ ধাপে বুকিং সম্পন্ন করুন।", en: "Book in 3 simple steps." },
+  svcHowStep1Title: { bn: "১. সেবা নির্বাচন", en: "1. Choose a service" },
+  svcHowStep1Body: { bn: "প্রয়োজন অনুযায়ী সেবা খুঁজুন ও নির্বাচন করুন।", en: "Find and select the service you need." },
+  svcHowStep2Title: { bn: "২. জমি ও সময়", en: "2. Field & schedule" },
+  svcHowStep2Body: { bn: "আপনার ফার্ম, তারিখ ও জমির পরিমাণ দিন।", en: "Pick your farm, date and area." },
+  svcHowStep3Title: { bn: "৩. নিশ্চিত করুন", en: "3. Confirm" },
+  svcHowStep3Body: { bn: "বুক করুন — প্রদানকারী নির্ধারিত হবে।", en: "Book — a provider will be assigned." },
+  svcWhyTitle: { bn: "কেন এগ্রোব্রিজ", en: "Why AgroBridge" },
+  svcTrustVerifiedTitle: { bn: "যাচাইকৃত সেবা", en: "Verified services" },
+  svcTrustVerifiedBody: { bn: "সক্রিয় সেবা ও প্রদানকারী তালিকা।", en: "Active services and providers." },
+  svcTrustPriceTitle: { bn: "স্বচ্ছ মূল্য", en: "Transparent pricing" },
+  svcTrustPriceBody: { bn: "প্রতি বিঘা/ঘণ্টা/দিন হিসাব।", en: "Per bigha/hour/day." },
+  svcTrustSupportTitle: { bn: "সহায়তা", en: "Support" },
+  svcTrustSupportBody: { bn: "প্রয়োজনে যোগাযোগ করুন।", en: "Get help when you need it." },
+  svcHelpTitle: { bn: "সহায়তা প্রয়োজন?", en: "Need help?" },
+  svcHelpBody: { bn: "আপনার ফার্ম যোগ করুন — সেবা বুকিং দ্রুত হবে।", en: "Add your farm — booking will be faster." },
+
+  // ── Service card fallbacks (components/service/ServiceCard.tsx) ──
+  svcNewNoRatings: { bn: "নতুন — এখনো রেটিং নেই", en: "New — no ratings yet" },
+  svcProviderOne: { bn: "প্রদানকারী", en: "provider" },
+  svcProviderMany: { bn: "প্রদানকারী", en: "providers" },
+  svcDescFallback: { bn: "মাঠের সেবা — স্বচ্ছ মূল্য", en: "Field service — transparent pricing" },
+  svcDescDRONE: { bn: "জমি না মাড়িয়ে দ্রুত স্প্রে — সমান কভারেজ", en: "Fast spray without trampling — even coverage" },
+  svcDescTRACTOR: { bn: "ট্রাক্টর ও চালকসহ জমি প্রস্তুত — বিঘা প্রতি", en: "Tractor with operator — per bigha" },
+  svcDescCOMBINE_HARVESTER: { bn: "কাটা ও মাড়াই একসাথে — সময় ও শ্রম সাশ্রয়", en: "Harvest and thresh together — saves time and labour" },
+  svcDescPOWER_TILLER: { bn: "ছোট-মাঝারি জমিতে নিখুঁত চাষ", en: "Precise tillage for small–medium plots" },
+  svcDescLAND_LEVELLER: { bn: "লেজার সমতলকরণ — সেচে পানি সাশ্রয়", en: "Laser levelling — saves irrigation water" },
+  svcDescTHRESHER: { bn: "পরিষ্কার দানা, কম অপচয় — মণ প্রতি", en: "Clean grain, low waste — per maund" },
+  svcDescSOIL_TESTING: { bn: "ল্যাব রিপোর্ট + সার সুপারিশ — নমুনা প্রতি", en: "Lab report + fertilizer advice — per sample" },
+  svcDescAGRONOMIST: { bn: "মাঠ পরিদর্শন ও ব্যবস্থাপত্র — ভিজিট প্রতি", en: "Field visit and prescription — per visit" },
+
   // ── MyOrders (v2: tabs/empty/states via dictionary) ──
   ordTabActive: { bn: "সক্রিয়", en: "Active" },
   ordTabDelivered: { bn: "ডেলিভার্ড", en: "Delivered" },
@@ -615,8 +731,32 @@ export const dict = {
   },
   deleteAccountConfirm: { bn: "হ্যাঁ, মুছে ফেলুন", en: "Yes, delete" },
   accountDeletedToast: { bn: "অ্যাকাউন্ট মুছে ফেলা হয়েছে", en: "Account deleted" },
+  // ── Personal data export (AUD-130) ──
+  dataExportTitle: { bn: "আমার ডেটা", en: "My data" },
+  dataExportHint: {
+    bn: "আপনার অ্যাকাউন্টের সব তথ্য (প্রোফাইল, ফার্ম, অর্ডার, ওয়ালেট — পাসওয়ার্ড ছাড়া) JSON ফাইল হিসেবে ডাউনলোড করুন।",
+    en: "Download everything AgroBridge stores about your account (profile, farms, orders, wallet — never your password) as a JSON file.",
+  },
+  downloadMyData: { bn: "আমার ডেটা ডাউনলোড করুন", en: "Download my data" },
+  dataExportReadyToast: { bn: "ডাউনলোড শুরু হয়েছে", en: "Download started" },
+  dataExportFailedToast: {
+    bn: "ডেটা ডাউনলোড করা যায়নি — একটু পরে আবার চেষ্টা করুন",
+    en: "Could not download your data — please try again",
+  },
   appVersionLabel: { bn: "সংস্করণ", en: "Version" },
   accountIdLabel: { bn: "অ্যাকাউন্ট আইডি", en: "Account ID" },
+
+  // ── Legal pages / wallet meta ──
+  legalLastUpdated: { bn: "সর্বশেষ হালনাগাদ", en: "Last updated" },
+  legalNavAria: { bn: "আইনি নথি", en: "Legal documents" },
+  walletExpiresIn: { bn: "মেয়াদ শেষ {days} দিনে", en: "Expires in {days}d" },
+
+  // ── Offline queue outcomes (lib/offlineQueue.ts → App.tsx toasts) ──
+  // A flush that saved at least one queued change reports the count (G-07).
+  queueSyncedToastOne: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued change saved." },
+  queueSyncedToastMany: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued changes saved." },
+  // 409/422 conflicts are the user's to resolve — distinct from a plain discard.
+  queuedChangeConflict: { bn: "অফলাইনে করা {item} পরিবর্তনটি সার্ভারের তথ্যের সাথে মিলছে না — আপনার পর্যালোচনা দরকার।", en: "Your offline {item} change conflicts with server data — it needs your review." },
 } as const;
 
 export type DictKey = keyof typeof dict;
@@ -630,4 +770,10 @@ export function t(key: DictKey, lang: Lang, vars?: TVars): string {
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match
   );
+}
+
+/** The other UI language — one source for every bn/en toggle in the app. */
+const OTHER_LANG: Record<Lang, Lang> = { bn: "en", en: "bn" };
+export function otherLang(lang: Lang): Lang {
+  return OTHER_LANG[lang];
 }
