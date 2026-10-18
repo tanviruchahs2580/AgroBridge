@@ -22,9 +22,13 @@
 - **Headers/CORS:** helmet on the API (CSP, HSTS, COOP/CORP, `nosniff`, `X-Frame-Options`,
   `Referrer-Policy: no-referrer`, no `x-powered-by`); CORS restricted to the `WEB_ORIGIN` list;
   request IDs propagated via `X-Request-Id` and echoed into every error envelope.
-  **Known gap:** the static site (the SPA itself, i.e. the origin that runs the app's JavaScript)
-  ships only HSTS — Vercel's default. No CSP, `nosniff`, frame or referrer policy. Logged as a
-  P2 web-edge finding in the 2026-10-18 architecture audit.
+  The **static site** now ships its own edge policy too — CSP (`script-src 'self'` plus the
+  theme-boot script's hash, `frame-ancestors 'none'`, no `unsafe-inline` for scripts), `nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy` (camera limited to
+  self for the photo intake, geolocation off), `Cross-Origin-Opener-Policy`, and immutable caching
+  for hashed assets. Both Vercel configs carry it, the build fails if they diverge or if the CSP
+  hash drifts from the built HTML, and the deploy gate asserts the live headers. Full policy and
+  the reasoning per header: `docs/deployment.md` §7.
 - **Secrets:** `.env` never committed (`.gitignore`); `.env.example` documents the variables the
   code actually reads (`API_PUBLIC_URL`, not the `API_BASE_URL` that never existed in code); the API
   **refuses to boot** in production with default/dev JWT secrets; logs redact auth

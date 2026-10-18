@@ -4,6 +4,40 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Added (2026-10-18 enterprise architecture pass — web edge & delivery)
+- **The static site now carries its own edge security policy (ADR-0008).** It shipped only HSTS
+  before: no CSP, `nosniff`, frame or referrer policy on the origin that runs the app's JavaScript
+  and holds the tokens. Both `vercel.json` files now set CSP (`script-src 'self'` plus the inline
+  theme-boot script's SHA-256 hash, `frame-ancestors 'none'`, no `unsafe-inline` for scripts),
+  `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  `Permissions-Policy` and `Cross-Origin-Opener-Policy`. Rationale per header: `docs/deployment.md` §7.
+- **Immutable caching for hashed assets** (`/assets/*` → one year, `immutable`; fonts/icons/images/
+  brand → a week with `stale-while-revalidate`) while the document, `version.json` and `sw.js` keep
+  revalidating. Every hashed chunk used to be revalidated on every visit.
+- **`apps/web/scripts/preflight.mjs`, wired into the `web-quality` CI job and asserted live by the
+  deploy gate**: recomputes the inline script's hash from the *built* HTML, requires the API origin
+  from `.env.production` in `connect-src`, requires both Vercel configs to carry identical headers,
+  and enforces byte budgets (entry bundle, total JS/CSS gzip, fonts, images) — the repo's Lighthouse
+  config is `workflow_dispatch`-only and would never fail a build.
+- **`resourceKeys.ts` + a guard test**: `/farms` was fetched under three different cache keys while
+  `invalidate()` matches exactly, so a mutation through one name could not refresh the others. One
+  shared key, and the build fails if a feature fetches `/farms` without it.
+
+### Fixed (2026-10-18 enterprise architecture pass — web edge & delivery)
+- **The CSP hash would have blocked the theme boot in production, caught before merge.** The working
+  tree had CRLF endings (`core.autocrlf` on Windows) while Vercel builds LF bytes, so a rebuilt
+  inline script hashed differently from the committed CSP — silently degrading to a theme flash on
+  every reload. `.gitattributes` now forces `eol=lf` (the index was already 100% LF, so no committed
+  content changed) and the preflight fails on any CR byte in a built inline script.
+- **Every queued offline mutation showed the toast twice**: the queue notified React *and* dispatched
+  a window event that `App.tsx` also subscribed to. One notification path now.
+- **Four byte-identical Bengali font files shipped, two of them preloaded** (~343 kB of the payload,
+  210 kB of it on the critical path, one of the four referenced nowhere). One file, three weight
+  faces.
+- **`docs/security.md` no longer describes the static site as having no headers** (it did, correctly,
+  for a few hours), and `docs/deployment.md`'s PostgreSQL step no longer points at the retired Render
+  service or the wrong schema copy.
+
 ### Added (2026-10-18 enterprise architecture pass — release integrity)
 - **Schema state is part of the release contract and the deploy gate enforces it (ADR-0007).** `/ready`
   reports `schema: { known, applied, latest }` (read from `_prisma_migrations`, 60 s per-instance

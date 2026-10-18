@@ -1,5 +1,35 @@
 # AgroBridge — Execution Log
 
+## 2026-10-18 — Enterprise architecture pass (round 17, part B): the web edge had no policy, and delivery had no budget
+
+Full evidence: `qa-evidence/receipts/2026-10-18-web-edge-and-delivery-perf.md`.
+
+- **Measured, not assumed:** production's SPA answered with HSTS and nothing else — no CSP,
+  `nosniff`, frame or referrer policy — on the origin that runs the app's JavaScript and stores its
+  tokens, while the API had all of them. Every hashed asset was revalidated on every visit.
+- **Fixed both Vercel configs** (the Git-integration path reads the repo-root one, the documented CLI
+  path reads `apps/web`'s) with a CSP plus the standard header set, and split caching: hashed assets
+  immutable for a year, fonts/icons/images/brand a week with `stale-while-revalidate`, the document
+  and `version.json` revalidating. Recorded as ADR-0008; per-header reasoning in `docs/deployment.md` §7.
+- **Verified in a real browser, not by reading the header:** the built SPA served with the exact
+  policy rendered every route with 0 `securitypolicyviolation` events, and the hash-allowlisted
+  theme boot executed (`dataset.theme` set). The only failing request is the app's own
+  `/service-worker.js` HEAD probe (404 by design).
+- **The preflight caught the trap this pass would have shipped:** a rebuild hashed the inline script
+  differently (455 B vs 445 B) because the Windows checkout had CRLF while Vercel builds LF. The
+  committed CSP would have blocked the theme boot in production, symptomless apart from a theme
+  flash. Root-caused: `.gitattributes` now enforces `eol=lf` (the index was already all-LF, so no
+  committed content changed) and the preflight fails on CR bytes in a built inline script.
+- **Two frontend defects fixed with guards:** the offline toast appeared twice per queued mutation
+  (two notification paths), and `/farms` carried three cache identities while `invalidate()` matches
+  exactly — the resource-key guard fails the build if a feature fetches it under a private name.
+- **Delivery budget:** four byte-identical Bengali font files shipped with two of them preloaded
+  (~343 kB of payload, 210 kB of it on the critical path); one file now, with byte budgets enforced
+  by `preflight.mjs` in CI because the Lighthouse config never runs on a PR.
+- **Gates:** web lint · i18n (321/527/0) · unit **127** (the guard is +1) · build + preflight ·
+  Playwright e2e and the functional sweep on the local stack (numbers in the receipt) · deploy gate
+  extended to assert the live headers and the cache split after every push to `main`.
+
 ## 2026-10-18 — Enterprise architecture pass (round 17, part A): production schema drift fixed and gated
 
 Full evidence: `qa-evidence/receipts/2026-10-18-schema-drift-and-release-contract.md`.
