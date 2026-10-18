@@ -27,8 +27,9 @@ weatherRouter.get(
         risks,
       });
     } catch (e) {
-      // Provider failures surface as their typed error (502 via the error
-      // handler) — farmers get an actionable message, never a fake forecast.
+      // Provider failures currently surface as a generic server error (the
+      // adapter throws plain Errors) — never a fake forecast. Mapping them to
+      // an explicit 502/503 is tracked as a deferred improvement (AUD-117).
       next(e);
     }
   }
