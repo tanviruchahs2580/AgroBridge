@@ -244,8 +244,8 @@ export default function MyFarm() {
       {!farmsRes.loading && farms.length > 0 && (
         <section className="rounded-card border border-indigo-100 bg-enterprise-ai-light p-5 shadow-card">
           <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><Bot className="h-5 w-5 text-enterprise-ai" /> {lang==="bn"?"আমার ফার্ম AI":"My Farm AI"}</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
-          <p className="mt-2 text-xs text-stone-500">{lang==="bn"?"পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।":"Stage-based suggestion — guidance, not an expert diagnosis."}</p>
+          <p className="mt-2 text-sm leading-6 text-stone-700">{lang==="bn"?`আজ আপনার ${stats.crops}টি সক্রিয় ফসলের পর্যায়ে অনুযায়ী পরামর্শ নিচে দেওয়া হলো।`:`${stats.crops} active crops — stage-based suggestions below.`}</p>
+          <p className="mt-2 text-xs text-stone-500">{lang==="bn"?"পর্যায়-ভিত্তিক পরামর্শ (সাজেস্টশন — বিশেষজ্ঞের পরামর্শ নয়)।":"Stage-based suggestion — guidance, not an expert diagnosis."}</p>
           {weather?.risks?.[0] && <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {lang==="bn"?weather.risks[0].titleBn:weather.risks[0].titleEn}</p>}
         </section>
       )}
