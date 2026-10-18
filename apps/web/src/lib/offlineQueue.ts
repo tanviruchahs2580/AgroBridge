@@ -48,9 +48,13 @@ export function onEnqueue(cb: () => void): () => void {
   return () => enqueueNotifiers.delete(cb);
 }
 function notifyEnqueue() {
+  // One notification per enqueue, deliberately. This also used to dispatch an
+  // `agrobridge:offline-queued` window event "for non-React consumers" while
+  // App.tsx subscribed to both paths — a single queued mutation therefore showed
+  // the offline toast twice. Nothing outside React ever listened to the event
+  // (its only subscriber was the test asserting it), so the duplicate is gone and
+  // that test now fails if an event is emitted again.
   for (const cb of enqueueNotifiers) cb();
-  // also dispatch window event for non-React consumers
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("agrobridge:offline-queued"));
 }
 /** In-session flush attempt counters (not persisted — a fresh session gets a fresh retry budget). */
 const attempts = new Map<string, number>();

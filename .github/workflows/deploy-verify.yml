@@ -96,6 +96,45 @@ jobs:
 
           wait_for_inclusion "$REQUIRED_API" "$API_URL/health" "api"
 
+      # The SPA is the origin that runs the app's JavaScript, so its own edge
+      # policy is security surface — and until 2026-10-18 it shipped nothing but
+      # HSTS. These assertions mean a future change cannot quietly drop the
+      # posture a PR put in place; the same checks run against the build in CI
+      # (apps/web/scripts/preflight.mjs).
+      - name: Web security headers and asset caching are live
+        run: |
+          set -euo pipefail
+          HEADERS=$(curl -fsS -m 30 -D - -o /dev/null "$WEB_URL/")
+
+          has() { printf '%s' "$HEADERS" | grep -qi "^$1:" || { echo "::error::missing header $1 on $WEB_URL"; exit 1; }; }
+
+          has "Content-Security-Policy"
+          printf '%s' "$HEADERS" | grep -qi "^content-security-policy:.*frame-ancestors 'none'" \
+            || { echo "::error::CSP does not forbid framing (frame-ancestors 'none')"; exit 1; }
+          printf '%s' "$HEADERS" | grep -qi "^content-security-policy:.*script-src 'self'" \
+            || { echo "::error::CSP script-src is not 'self' (with the theme-boot hash)"; exit 1; }
+          has "X-Content-Type-Options"
+          has "Referrer-Policy"
+          has "Permissions-Policy"
+          has "Strict-Transport-Security"
+          echo "web security headers present"
+
+          # A hashed asset must be immutable — revalidating every chunk on every
+          # visit was pure latency on the connections this app targets.
+          ASSET=$(curl -fsS -m 30 "$WEB_URL/" | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)
+          [ -n "$ASSET" ] || { echo "::error::could not find the hashed entry chunk in the served HTML"; exit 1; }
+          CACHE=$(curl -fsS -m 30 -D - -o /dev/null "$WEB_URL/$ASSET" | tr -d '\r' | grep -i '^cache-control:' || true)
+          echo "$ASSET -> ${CACHE:-no cache-control}"
+          printf '%s' "$CACHE" | grep -qi 'immutable' \
+            || { echo "::error::$ASSET is not served immutable (got: ${CACHE:-none})"; exit 1; }
+
+          # The shell itself must keep revalidating, or a client could pin a stale
+          # index.html and never learn about a new bundle.
+          SHELL_CACHE=$(curl -fsS -m 30 -D - -o /dev/null "$WEB_URL/" | tr -d '\r' | grep -i '^cache-control:' || true)
+          printf '%s' "$SHELL_CACHE" | grep -qiE 'max-age=0|no-cache|no-store' \
+            || { echo "::error::the document is not revalidated (got: ${SHELL_CACHE:-none})"; exit 1; }
+          echo "asset caching policy verified"
+
       - name: API readiness and surface check
         run: |
           set -euo pipefail

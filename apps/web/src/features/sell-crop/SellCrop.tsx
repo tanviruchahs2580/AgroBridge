@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import type { FarmListItem, ProcurementListItem } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -45,7 +46,7 @@ export default function SellCrop() {
   // The farm selector and the offers list come from two separate endpoints
   // (GET /farms and GET /procurement), so they are two resources: a failed farm
   // fetch no longer blanks the offers list, and vice versa.
-  const farmsRes = useResource<FarmListItem[]>("sell-crop-farms", () => api<FarmListItem[]>("GET", "/farms"));
+  const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
   const offersRes = useResource<ProcurementListItem[]>("sell-crop-offers", () => api<ProcurementListItem[]>("GET", "/procurement"));
 
   const farms = farmsRes.data ?? [];

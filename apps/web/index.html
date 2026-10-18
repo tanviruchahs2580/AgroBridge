@@ -11,18 +11,25 @@
     <link rel="maskable" href="/icons/icon-512.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <!-- Self-hosted Hind Siliguri + Noto Sans Bengali + Inter (offline-safe, no Google CSS dependency) -->
+    <!-- Self-hosted Hind Siliguri + Noto Sans Bengali + Inter (offline-safe, no Google CSS dependency).
+         Noto Sans Bengali ships as one file for all three weights (see index.css), so it is preloaded
+         once; it used to be preloaded twice under two names for identical bytes. -->
     <link rel="preload" href="/fonts/hind-siliguri-bengali-600.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/hind-siliguri-latin-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/noto-bengali-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/noto-bengali-700.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AgroBridge" />
     <title>AgroBridge — AI কৃষকের হাতে</title>
     <!-- Theme boot: apply the persisted (or OS) theme before first paint so a
-         dark-mode reload never flashes light. Mirrors lib/session.tsx logic. -->
+         dark-mode reload never flashes light. Mirrors lib/session.tsx logic.
+
+         Deliberately inline: an external file would be a render-blocking round
+         trip before first paint on exactly the slow connections this app targets.
+         A strict CSP therefore allowlists this exact script by hash, and
+         `scripts/preflight.mjs` recomputes that hash from the built HTML and fails
+         if this script and the CSP ever disagree. -->
     <script>
       (function () {
         try {

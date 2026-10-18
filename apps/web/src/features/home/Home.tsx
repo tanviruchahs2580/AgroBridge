@@ -7,6 +7,7 @@ import {
 import { api } from "../../lib/api";
 import type { FarmListItem, NotificationsData, WeatherData } from "../../lib/api-types";
 import { useResource } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
@@ -73,7 +74,7 @@ export default function Home() {
   // read leaves the weather card and the unread badge on screen.
   // `farms` is the same family MyFarm uses: both screens read the identical
   // `GET /farms`, so adding a farm there invalidates this list too.
-  const farmsRes = useResource<FarmListItem[]>("farms", () => api<FarmListItem[]>("GET", "/farms"));
+  const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
   const notifRes = useResource<NotificationsData>("home-notifications", () => api<NotificationsData>("GET", "/notifications"));
   // `session?.district` is a real dependency: weather is localised to it, so a
   // profile change must refetch rather than keep showing the old area.
