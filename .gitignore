@@ -79,8 +79,12 @@ apps/web/src/api/
 # ZCode session tooling (local plans/task artifacts)
 .zcode/
 
-# Local QA artifacts (sweep screenshots/results, test logs, ad-hoc probes)
-qa-evidence/
+# Local QA artifacts (sweep screenshots/results, test logs, ad-hoc probes).
+# `qa-evidence/*`, not `qa-evidence/`: excluding the directory itself also excludes
+# everything below it and git cannot re-include a file under an excluded directory —
+# which is why the two negations below had never worked and no receipt was ever
+# committable (found 2026-10-18 when the first receipt was staged).
+qa-evidence/*
 # …except the committed verification receipts (see CONTRIBUTING.md)
 !qa-evidence/receipts/
 !qa-evidence/receipts/**
