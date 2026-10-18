@@ -102,8 +102,53 @@ jobs:
           curl -fsS -m 30 "$API_URL/ready" | tee /tmp/ready.json
           grep -q '"db":true' /tmp/ready.json || { echo "::error::API reports the database is not ready"; exit 1; }
 
+          # Which rate-limit store production actually runs: without Redis every
+          # serverless instance enforces its own windows (accepted fail-open,
+          # docs/security.md). Printed, not asserted — the decision is documented,
+          # the point is that it can never again be invisible.
+          STORE=$(node -e "let s=require('fs').readFileSync('/tmp/ready.json','utf8');try{process.stdout.write(String(JSON.parse(s).limiterStore||'unreported'))}catch{process.stdout.write('unparsed')}")
+          echo "rate-limit store in production: $STORE"
+
           # A public route that only exists in recent builds: proves the deployed
           # code is current rather than merely healthy. Expect a 303 to the web app.
           CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$API_URL/api/v1/payments/gateway/return/success")
           echo "gateway return responded $CODE"
           [ "$CODE" = "303" ] || { echo "::error::expected 303 from /payments/gateway/return/success, got $CODE"; exit 1; }
+
+      # Code and schema ship together, or the release is not complete.
+      #
+      # Nothing checked this until 2026-10-18, when three migrations (a partial
+      # unique index on pending payments plus six hot-query indexes) turned out to
+      # have been reviewed, merged and deployed — while production's database had
+      # never applied them. Every gate was green. The schema was the one artifact
+      # in the release with no enforcement, so the gate now compares what
+      # production reports on `/ready` with the newest migration in the repository
+      # (ADR-0007). Fix by running `apps/api/scripts/deploy-migrations.mjs` per
+      # docs/runbooks/live-deployment.md, then re-running this workflow.
+      - name: Production schema includes the reviewed migrations
+        run: |
+          set -euo pipefail
+          # Production is PostgreSQL; the SQLite chain is the local/dev dialect
+          # (ADR-0004) and must never be the reference for what production runs.
+          REQUIRED=$(ls apps/api/prisma/postgres/migrations | grep -v '^migration_lock.toml$' | sort | tail -1)
+          echo "newest reviewed migration: $REQUIRED"
+
+          for attempt in $(seq 1 30); do
+            body=$(curl -fsS -m 20 "$API_URL/ready" || true)
+            latest=$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(JSON.parse(s).schema?.latest||''))}catch{process.stdout.write('')}})")
+            if [ "$latest" = "$REQUIRED" ]; then
+              echo "schema: production has applied $latest"
+              exit 0
+            fi
+            if [ -n "$latest" ]; then
+              echo "attempt $attempt/30 — production reports schema $latest, expected $REQUIRED"
+            else
+              # Either the deployment in flight predates the schema readout, or
+              # the database is unreachable. Both resolve to patience here and a
+              # verdict after the window.
+              echo "attempt $attempt/30 — production does not report schema state yet"
+            fi
+            sleep 20
+          done
+          echo "::error::production schema is behind the reviewed migrations (expected $REQUIRED) — run apps/api/scripts/deploy-migrations.mjs (docs/runbooks/live-deployment.md), then re-run this workflow"
+          exit 1

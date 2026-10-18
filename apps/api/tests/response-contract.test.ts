@@ -97,7 +97,7 @@ describe("API response shapes consumed by the web app", () => {
 
     // Seed a little data so list endpoints return populated elements: an empty array
     // would make the shape assertion vacuous.
-    await request(app).post("/api/v1/cart/items").set(auth).send({ productId: (await firstProductId(auth)).id, qty: 1 });
+    await request(app).post("/api/v1/cart/items").set(auth).send({ productId: await probeProductId(adminAuth), qty: 1 });
     const order = await request(app).post("/api/v1/orders/checkout").set(auth).send({ shippingAddress: "গ্রাম: টেস্ট, রংপুর" });
     await request(app).post("/api/v1/procurement/offers").set(auth).send({ farmId: farm.farmId, cropName: "RICE", quantityKg: 100, qualityGrade: "A", moisturePct: 12 });
     const service = await request(app).get("/api/v1/services").set(auth);
@@ -198,9 +198,43 @@ describe("API response shapes consumed by the web app", () => {
   });
 });
 
-async function firstProductId(headers: Record<string, string>): Promise<{ id: string }> {
-  const res = await request(app).get("/api/v1/products?pageSize=5").set(headers);
-  const item = res.body.data?.items?.[0];
-  if (!item) throw new Error("no seeded product available for the contract probe");
-  return item;
+/**
+ * A product the probe can actually buy.
+ *
+ * This used to take `items[0]` from the catalog list — which is ordered
+ * `createdAt desc`, so it took whatever row another suite had created most
+ * recently. `concurrency.test.ts` deliberately creates a "Limited Item" and sells
+ * it out to prove the stock guard, so whenever that suite ran first the probe's
+ * cart-add failed with "Insufficient stock", the cart stayed empty, checkout
+ * returned no `data`, and the probe died reading `order.body.data.id`. It failed
+ * twice on 2026-10-18 (two local PostgreSQL runs, different file orders) and each
+ * time presented as a product defect.
+ *
+ * The probe now provisions what it buys; the catalog fallback only runs if
+ * creation is unavailable, and it filters for a product that actually has stock.
+ */
+async function probeProductId(adminHeaders: Record<string, string>): Promise<string> {
+  const created = await request(app)
+    .post("/api/v1/products")
+    .set(adminHeaders)
+    .send({
+      sku: `CONTRACT-PROBE-${Date.now().toString(36)}`,
+      name: "Contract probe product",
+      category: "SEED",
+      unit: "PACK",
+      pricePaisa: 1_000,
+      stockQty: 5,
+    });
+  const createdId = created.body?.data?.id;
+  if (typeof createdId === "string") return createdId;
+
+  const res = await request(app).get("/api/v1/products?pageSize=50").set(adminHeaders);
+  const item = res.body.data?.items?.find((p: { stockQty: number }) => p.stockQty >= 1);
+  if (!item) {
+    throw new Error(
+      `no purchasable product for the contract probe (product creation answered ${created.status}: ` +
+        `${JSON.stringify(created.body).slice(0, 160)})`
+    );
+  }
+  return item.id;
 }

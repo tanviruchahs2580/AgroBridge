@@ -4,5 +4,8 @@
 # Reviewed monthly with npm audit (docs/operations.md).
 
 # vitest dev-only test dependency (Moderate) — never installed in production
-# images; see SECURITY_WAIVERS.md (expiry 2026-09-30).
+# images; see SECURITY_WAIVERS.md (expiry 2026-12-31, renewed 2026-10-18).
+# The 2026-09-30 date that stood here was the waiver's first expiry, and it
+# disagreed with the register — which is the table that governs. Production
+# dependency tree re-audited clean the same day (`npm audit --omit=dev` = 0).
 GHSA-5xrq-8626-4rwp

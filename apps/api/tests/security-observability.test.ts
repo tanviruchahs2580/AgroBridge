@@ -20,6 +20,34 @@ describe("Observability & security baseline", () => {
     expect(res.body.data?.db ?? res.body.ready ?? true).toBeTruthy();
   });
 
+  it("/ready reports the schema state and limiter store the release gate reads", async () => {
+    const res = await request(app).get("/ready");
+    expect(res.status).toBe(200);
+
+    // The deploy gate (deploy-verify.yml) fails when production's `schema.latest`
+    // is behind the repository's newest migration — so the shape here is a
+    // contract with CI, not decoration (ADR-0007).
+    expect(res.body.schema).toBeTypeOf("object");
+    expect(typeof res.body.schema.known).toBe("boolean");
+    // The test database is built with `prisma migrate deploy`, so the migrations
+    // table exists and the readout must be real rather than a silent unknown.
+    expect(res.body.schema.known).toBe(true);
+    expect(res.body.schema.applied).toBeGreaterThan(0);
+    expect(typeof res.body.schema.latest).toBe("string");
+
+    // "memory" is the honest answer in tests (no REDIS_URL); production is
+    // allowed to report either, and says which.
+    expect(["redis", "memory"]).toContain(res.body.limiterStore);
+  });
+
+  it("reports a migration that is genuinely in the chain, not a placeholder", async () => {
+    const res = await request(app).get("/ready");
+    const latest = res.body.schema?.latest ?? "";
+    // Chain-latest must look like a Prisma migration directory name
+    // (`20261018000000_hot_query_indexes`), because the gate compares it to one.
+    expect(latest).toMatch(/^\d{14}_[a-z0-9_]+$/);
+  });
+
   it("security headers present (helmet)", async () => {
     const res = await request(app).get("/health");
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
