@@ -6,6 +6,14 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   /**
+   * Production escape hatch that re-admits http://localhost origins into the
+   * CORS allow-list. Only the local docker stack needs it (NODE_ENV=production
+   * there, but the web UI is served from http://localhost:8080). Never set it
+   * on a real deployment — a live allow-list containing a dev origin lets any
+   * locally-served page make cross-origin calls to this API.
+   */
+  ALLOW_DEV_ORIGINS: z.enum(["0", "1"]).optional(),
+  /**
    * Public base URL of THIS API (no trailing /api/v1). Needed so a payment
    * gateway can post the buyer back to us; derived from the request when unset.
    */
@@ -162,3 +170,33 @@ export function primaryOriginOf(webOrigin: string): string {
 }
 
 export const primaryWebOrigin = primaryOriginOf(env.WEB_ORIGIN);
+
+/**
+ * Browser origins allowed to call this API (AUD-106 / B-18).
+ *
+ * In production, plain-HTTP localhost origins are dropped from the allow-list:
+ * they are developer origins, and the live list once still contained
+ * `http://localhost:5173`, letting any locally-served page make cross-origin
+ * requests to the production API. `https://localhost` is deliberately KEPT —
+ * that is the Capacitor WebView origin the Android build uses. The docker
+ * development stack opts back in via ALLOW_DEV_ORIGINS=1.
+ */
+export function corsOrigins(webOrigin: string, opts: { prod: boolean; allowDevOrigins?: boolean }): string[] {
+  const list = webOrigin.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!opts.prod || opts.allowDevOrigins) return list;
+  return list.filter((origin) => {
+    let url: URL;
+    try {
+      url = new URL(origin);
+    } catch {
+      return false; // unparseable entries cannot be matched safely — drop them
+    }
+    const localHostname = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+    return !(url.protocol === "http:" && localHostname);
+  });
+}
+
+export const corsAllowedOrigins = corsOrigins(env.WEB_ORIGIN, {
+  prod: isProd,
+  allowDevOrigins: env.ALLOW_DEV_ORIGINS === "1",
+});
