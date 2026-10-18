@@ -104,7 +104,9 @@ describe("Payments integrity — intent lifecycle", () => {
       tran_id: first.body.data.refNo,
       val_id: "GWV-SUPERSEDED",
       status: "VALID",
-      amount: String(first.body.data.amountPaisa),
+      // SSLCommerz IPN `amount` is BDT (not paisa) — the webhook verifies it
+      // against payment.amountPaisa after converting.
+      amount: (first.body.data.amountPaisa / 100).toFixed(2),
     });
     const hit = await postWebhook(params);
     expect(hit.status).toBe(200);
@@ -182,7 +184,7 @@ describe("Payments webhook — SSLCommerz IPN", () => {
     const refNo = intent.body.data.refNo as string;
     expect(intent.body.data.providerMode).toBe("sandbox"); // sandbox confirm path stays available in test
 
-    const params = signedWebhookParams({ tran_id: refNo, val_id: "GWVAL123", status: "VALID", amount: String(intent.body.data.amountPaisa) });
+    const params = signedWebhookParams({ tran_id: refNo, val_id: "GWVAL123", status: "VALID", amount: (intent.body.data.amountPaisa / 100).toFixed(2) });
     const hit1 = await postWebhook(params);
     expect(hit1.status).toBe(200);
     expect(hit1.body.data.processed).toBe(true);

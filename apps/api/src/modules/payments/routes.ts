@@ -337,6 +337,18 @@ paymentsRouter.post(
   validate({ body: refundSchema }),
   async (req, res, next) => {
     try {
+      // This endpoint only moves simulated money (a wallet-ledger entry). With
+      // a live gateway the real refund must be issued in the gateway dashboard;
+      // pretending here would report REFUNDED while the buyer's money is still
+      // with the gateway. Same provider resolution as /intent (getPaymentProvider).
+      const provider = getPaymentProvider();
+      if (provider.mode !== "sandbox") {
+        throw unprocessable("Live-provider refunds must be processed in the gateway dashboard; this endpoint only supports the sandbox provider");
+      }
+      if (isProd && env.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION !== "1") {
+        throw paymentGatewayUnconfigured();
+      }
+
       const payment = await prisma.payment.findUnique({ where: { id: req.params.id! } });
       if (!payment) throw notFound("Payment");
       if (payment.purposeType === "MEMBERSHIP") {
@@ -391,10 +403,11 @@ paymentsRouter.post(
         userId: payment.userId,
         type: "PAYMENT",
         category: "CRITICAL",
-        titleBn: `টাকা ফেরত (${updated.refundRef})`,
-        titleEn: `Refund processed (${updated.refundRef})`,
-        bodyBn: "আপনার পেমেন্ট ফেরত দেওয়া হয়েছে।",
-        bodyEn: "Your payment has been refunded.",
+        // Honest copy: this is a sandbox/wallet adjustment, not a gateway refund.
+        titleBn: "রিফান্ড রেকর্ড (স্যান্ডবক্স)",
+        titleEn: "Refund recorded (sandbox)",
+        bodyBn: "স্যান্ডবক্স রিফান্ড — প্ল্যাটফর্ম ওয়ালেট থেকে সমপরিমাণ অর্থ ডেবিট এন্ট্রি হয়েছে; প্রকৃত গেটওয়ে অর্থ ফেরত নয়।",
+        bodyEn: "Sandbox refund — the amount was recorded as a platform-wallet debit entry; no real gateway money was returned.",
         refType: "PAYMENT",
         refId: payment.id,
       });
@@ -502,12 +515,28 @@ walletRouter.get("/", async (req, res, next) => {
   }
 });
 
+/**
+ * Start of the current calendar month in Asia/Dhaka, as a UTC instant.
+ *
+ * The wallet "this month" boundary is a business-calendar boundary: farmers and
+ * ops read it in Dhaka time. Computing it from the server's local clock (the
+ * previous implementation) moved transactions made between 00:00 and 06:00
+ * Dhaka into the wrong month on a UTC host. The year/month are read with Intl
+ * (never local-time getters) and the instant is built arithmetically: Dhaka is
+ * UTC+6 with no DST (Bangladesh dropped DST in 2009), so 00:00 on the 1st is
+ * exactly 18:00Z on the last day of the previous UTC month.
+ */
+export function dhakaMonthStart(now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).formatToParts(now);
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  return new Date(Date.UTC(year, month - 1, 1) - 6 * 60 * 60 * 1000);
+}
+
 /** Financial month-in/out + pending holds + membership snapshot. */
 walletRouter.get("/summary", async (req, res, next) => {
   try {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonth = dhakaMonthStart();
 
     const [credits, debits, held, membership] = await Promise.all([
       prisma.walletTransaction.aggregate({
