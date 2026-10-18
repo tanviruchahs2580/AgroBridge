@@ -18,9 +18,9 @@ The profile expects a **fresh** database: re-provisioning re-seeds with upserts,
 not restore stock an earlier run decremented, so tests that buy seeded products can fail on a
 used database. Drop and recreate it first.
 
-Current totals (2026-10-18, post audit-remediation): **262 passed + 1 skipped on SQLite,
-263 passed on PostgreSQL 17** (the skip is the PostgreSQL-gated concurrency test; on PG it runs).
-Web unit: 135; web e2e: 27. CI runs the PG profile against postgres:17-alpine.
+Current totals (2026-10-18, post audit-remediation): **341 passed + 1 skipped on SQLite,
+342 passed on PostgreSQL 17** (the skip is the PostgreSQL-gated concurrency test; on PG it runs).
+Web unit: 159; web e2e: 30. CI runs the PG profile against postgres:17-alpine.
 
 Local note: the two profiles generate different Prisma clients. After running the PG profile,
 regenerate the SQLite client (`npx prisma generate` in `apps/api`) before the SQLite suite —

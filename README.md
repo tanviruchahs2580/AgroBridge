@@ -83,8 +83,8 @@ npm run test --workspace apps/web        # web unit tests (vitest)
 npm run test:e2e --workspace apps/web    # Playwright browser suite (needs the local stack + seeded demo farmer)
 ```
 
-The counts move with every round — on 2026-10-18 the API suite ran **262 passed / 1 skipped on
-SQLite and 263 passed on PostgreSQL 17** (web unit: 135, web e2e: 27; take the number from your
+The counts move with every round — on 2026-10-18 the API suite ran **341 passed / 1 skipped on
+SQLite and 342 passed on PostgreSQL 17** (web unit: 159, web e2e: 30; take the number from your
 own run rather than from this file).
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
