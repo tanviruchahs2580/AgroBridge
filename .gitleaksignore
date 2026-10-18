@@ -1,11 +1,15 @@
 # Gitleaks allowlist — exact finding fingerprints (registered in
 # SECURITY_WAIVERS.md, Static-analysis triage; review by 2027-01-31).
 #
-# generic-api-key false positives only: the AI-eval harness compared a local
-# loop variable against metric-name string constants, which the entropy
-# heuristic read as an assigned secret (no credential involved), and an
-# earlier revision of this very comment repeated the same pattern. Every entry
-# is pinned to one commit, so nothing else is exempted now or later.
+# All entries are generic-api-key false positives on non-secret test strings:
+#  - the AI-eval harness compared a local loop variable against metric-name
+#    string constants (no credential involved; the variable was renamed since);
+#  - an earlier revision of this very comment repeated the same pattern;
+#  - the console-health e2e fixture used a password-looking literal as a
+#    deliberately wrong password (any wrong value exercises that path; the
+#    current tree uses a low-entropy placeholder instead).
+# Every entry is pinned to one commit, so nothing else is exempted now or later.
 9c94a25c5cb07bd7892548aec98a25875186d52d:apps/api/tests/ai-eval-metrics.ts:generic-api-key:222
 9c94a25c5cb07bd7892548aec98a25875186d52d:apps/api/tests/ai-eval-metrics.ts:generic-api-key:224
 d6c967dab7a2cc6b67c5ce3cd328228399364602:.gitleaksignore:generic-api-key:5
+85123829e381951e971bf187193375557b9572b9:apps/web/e2e/console-health.spec.ts:generic-api-key:96

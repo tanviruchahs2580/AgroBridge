@@ -91,9 +91,11 @@ test("no console errors, page errors or failed requests on the critical routes +
   await expect(page.locator('p[role="alert"]').first(), "empty submit rendered no inline validation error").toBeVisible();
 
   // Form-error path 2 — server-side rejection: wrong password surfaces the
-  // mapped error banner (a real 401 round-trip through mapError).
+  // mapped error banner (a real 401 round-trip through mapError). The literal
+  // is deliberately a low-entropy word: any wrong value exercises the path,
+  // and a password-looking high-entropy literal trips secret scanners.
   await page.fill("#phone", "01700000002");
-  await page.fill("#password", "DefinitelyWrong1");
+  await page.fill("#password", "wrong");
   await page.click('button[type="submit"]');
   await expect(page.locator("body"), "wrong-password path showed no user-visible error").toContainText(
     /পাসওয়ার্ড|password|সঠিক নয়/i

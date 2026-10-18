@@ -20,16 +20,17 @@ Because the query stays enabled, a future edit that shifts the flagged lines can
 occurrence — dismiss again with this rationale, or replace the signature helper if the gateway
 ever offers a stronger algorithm.
 
-**gitleaks allowlist (`.gitleaksignore`, added 2026-10-18):** three finding fingerprints,
-all rule `generic-api-key`, all commit-pinned — two in `apps/api/tests/ai-eval-metrics.ts`
-(commit `9c94a25`, lines 222/224) and one historical line of the `.gitleaksignore` file
-itself (commit `d6c967d`, whose explanatory comment repeated the same pattern). The test
-file compared metric-name string constants, which the entropy heuristic reads as an
-assigned secret; no credential is involved, and the variable was renamed in the current
-tree. Commit-pinned entries cover only those historical snapshots and exempt nothing else,
-now or later. Re-review by **2027-01-31**. (An initial path-scoped `.gitleaks.toml`
-allowlist was tried first and did not suppress the findings under gitleaks 8.24.3; it was
-replaced by the fingerprint file.)
+**gitleaks allowlist (`.gitleaksignore`, added 2026-10-18):** four finding fingerprints,
+all rule `generic-api-key`, all commit-pinned, all false positives on non-secret test
+strings — two in `apps/api/tests/ai-eval-metrics.ts` (commit `9c94a25`, metric-name string
+comparisons that the entropy heuristic reads as an assigned secret; the variable was
+renamed since), one historical line of the `.gitleaksignore` file itself (commit
+`d6c967d`), and one in `apps/web/e2e/console-health.spec.ts` (commit `8512382`, a
+password-looking literal used as a deliberately wrong password; the current tree uses a
+low-entropy placeholder). No credential is involved in any of them. Commit-pinned entries
+cover only those historical snapshots and exempt nothing else, now or later. Re-review by
+**2027-01-31**. (An initial path-scoped `.gitleaks.toml` allowlist was tried first and did
+not suppress the findings under gitleaks 8.24.3; it was replaced by the fingerprint file.)
 
 | Alert | Location | Severity | Why accepted | Compensating control | Review by |
 |---|---|---|---|---|---|
