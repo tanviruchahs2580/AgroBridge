@@ -1,5 +1,35 @@
 # AgroBridge — Execution Log
 
+## 2026-10-18 — Live verification round (round 16): production walked as a user, one defect fixed
+
+Full evidence: `qa-evidence/receipts/2026-10-18-live-verification.md`. Baseline `6282ca8`,
+clean tree, both Vercel projects already serving it.
+
+- **Is live the reviewed source?** `/health` and `/version.json` both report `6282ca8`, and the
+  live web bundle is **byte-identical** (sha256 `e8264f68…`) to a local build of the same tree —
+  a stronger check than the timestamp the deploy gate compares. `/ready` reports `db:true`.
+- **Production walked as a user**, not just probed: the demo passwords are rotated (CERT-01) and
+  owner-held, so the walkthrough registered a throwaway farmer through the product's own signup,
+  added a farm, and then used every screen. Live sweep **38 passed / 0 failed / 2 skipped**
+  (skips are the script's live-mode policy, printed with reasons). The live buyer journey ran for
+  real: cart → checkout with delivery details → sandbox payment → order history echoing the
+  address back.
+- **Two first-pass live failures were the fixture, not the app**, and are recorded that way: with
+  no farm, `/` correctly shows the add-farm empty state instead of the readiness meter, and
+  `/sell`'s submit is correctly disabled with an explanatory hint. Adding a farm made the same
+  checks pass; the app's behaviour in both states is the right one.
+- **Defect found and fixed** (this PR): the sell-crop quantity field (কেজি) reported
+  `errAmountInvalid` — "…(টাকা)…" / "…in taka." The wallet reuses that key for its taka field,
+  where it is correct; the sell form was borrowing it for kilos. Distinct `errQuantityInvalid`
+  key + both call sites.
+- **Gates:** API 157+1skip (SQLite, coverage thresholds met) · API **158/158 on PostgreSQL 17**
+  (fresh DB) · web lint/i18n/build clean · web unit 126 · e2e **27/27** · local sweep **39/39** ·
+  prod audit 0 · secret scan clean.
+- **Trap recorded for the next reader:** running the PG profile twice against the same database
+  fails the contract probe, because re-provisioning re-seeds with upserts and does not restore
+  stock that the previous run decremented. CI is always fresh; a local re-run must recreate the
+  database first.
+
 ## 2026-10-16 — Maintenance session (CI restored to green; post-re-platform verification)
 
 Evidence-first maintenance engagement at `078e688` → `865c83d`. Full addendum with proofs:
