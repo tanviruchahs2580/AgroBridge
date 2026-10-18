@@ -11,6 +11,12 @@ import { isProd, isTest, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import { logger } from "../../lib/logger.js";
+import { normalizeBdPhone } from "../../shared/utils/phone.js";
+import { verifyPasswordAgainst } from "./password.js";
+import { collectUserData } from "./dataExport.js";
+import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 
 // Multi-instance-safe limiter stores — separate per window to avoid windowMs drift (Phase 5).
 const loginStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
@@ -28,6 +34,7 @@ const loginLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === "development",
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
+  handler: rateLimitHandler,
 });
 
 // OTP request limiter: prevents SMS-pumping abuse
@@ -39,6 +46,7 @@ const otpLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
+  handler: rateLimitHandler,
 });
 
 // OTP verify limiter: caps guesses per user even though each challenge already
@@ -51,6 +59,20 @@ const otpVerifyLimiter = rateLimit({
   keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many verification attempts. Please try again later." } },
+  handler: rateLimitHandler,
+});
+
+// Data-export limiter: an export walks every table for one user, so it is
+// deliberately rarer than login/OTP traffic (per-user key; requireAuth runs
+// before it, like otpVerifyLimiter).
+const exportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many data export requests. Please try again later." } },
+  handler: rateLimitHandler,
 });
 
 // Registration limiter: prevents mass account creation abuse
@@ -62,11 +84,24 @@ const registerLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
   store: registerStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many registration attempts. Please try again later." } },
+  handler: rateLimitHandler,
 });
+
+/**
+ * Canonical Bangladeshi phone or 400 (B-06). The transform normalises Bengali
+ * digits, `+880`/`880` prefixes and spaced/dashed forms to `01[3-9]\d{8}`, so
+ * the stored value and every later lookup (login, OTP) compare one string.
+ */
+const bdPhoneSchema = z
+  .string()
+  .transform((raw) => normalizeBdPhone(raw))
+  .refine((value): value is string => value !== null, {
+    message: "Valid Bangladeshi mobile number required (e.g., 01712345678)",
+  });
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  phone: z.string().regex(/^01[3-9]\d{8}$/, "Valid Bangladeshi mobile number required (e.g., 01712345678)"),
+  phone: bdPhoneSchema,
   email: z.string().email().optional(),
   password: z.string().min(8).max(72),
   langPref: z.enum(["bn", "en"]).default("bn"),
@@ -132,11 +167,16 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
 
 authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (req, res, next) => {
   try {
-    const { phone, password } = req.body as z.infer<typeof loginSchema>;
-    const user = await prisma.user.findUnique({ where: { phone } });
+    const { phone: rawPhone, password } = req.body as z.infer<typeof loginSchema>;
+    // Same canonical form as registration (B-06): every valid spelling of the
+    // number resolves to the one stored account.
+    const phone = normalizeBdPhone(rawPhone);
+    const user = phone ? await prisma.user.findUnique({ where: { phone } }) : null;
 
-    // Uniform error path avoids user enumeration.
-    const valid = user ? await bcrypt.compare(password, user.passwordHash) : false;
+    // Uniform error path avoids user enumeration — and it is uniform in TIME
+    // too (B-05): an unknown phone still pays one bcrypt comparison, against
+    // the module's dummy hash, before the same 401.
+    const valid = await verifyPasswordAgainst(user?.passwordHash ?? null, password);
     if (!user || !valid || user.status !== "ACTIVE") throw unauthorized("Invalid credentials");
 
     await audit({ actorId: user.id, action: "AUTH_LOGIN", entityType: "User", entityId: user.id, ip: req.ip });
@@ -220,6 +260,27 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
   }
 });
 
+/**
+ * Personal-data export (AUD-130) — a JSON attachment containing ONLY the
+ * caller's rows (see dataExport.ts for the scoping/redaction guarantees).
+ * Deliberately not wrapped in the `ok()` envelope: this response IS the file.
+ */
+authRouter.get("/me/export", requireAuth, exportLimiter, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const payload = await collectUserData(userId);
+    await audit({ actorId: userId, action: "USER_DATA_EXPORTED", entityType: "User", entityId: userId, ip: req.ip });
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="agrobridge-export-${userId}.json"`);
+    // A downloaded copy of everything must never sit in an intermediary cache.
+    res.setHeader("Cache-Control", "no-store");
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (e) {
+    next(e);
+  }
+});
+
 const profileSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
   email: z.string().email().optional(),
@@ -275,6 +336,8 @@ authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) 
     const challenge = await prisma.otpChallenge.create({
       data: {
         userId: user.id,
+        // Already canonical `01[3-9]XXXXXXXX` (registration normalises, B-06),
+        // so hashOtp below and the verify lookup compare the same string.
         phone: user.phone,
         codeHash: hashOtp(user.phone, code),
         expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
@@ -331,10 +394,22 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
  * Anonymizes identity fields and disables the account while retaining
  * financial/ledger rows for legal integrity (see docs/data-protection.md).
  * Irreversible; blocks when a withdrawal is still in flight.
+ *
+ * B-24 completion: also clears the location/profile fields the schema has
+ * (User.region, FarmerProfile address/district/upazila/nidLast4), deletes the
+ * OTP challenges for the pre-anonymization phone, and purges the user's
+ * uploaded disease photos from the storage provider (best-effort, logged —
+ * see below).
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true, diseaseCases: { select: { imagePath: true } } },
+    });
+    if (!user) throw unauthorized();
+
     // Checks live INSIDE the transaction with the mutation: a withdrawal
     // requested concurrently on a second session then cannot race past the
     // guard into an anonymized account.
@@ -351,6 +426,14 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
       if (pending) throw unprocessable("Resolve pending withdrawals before deleting your account");
 
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      // OTP challenges are pure auth secrets keyed by the pre-anonymization
+      // phone (and user); nothing about them needs retaining.
+      await tx.otpChallenge.deleteMany({ where: { OR: [{ userId }, { phone: user.phone }] } });
+      // Location/identity-adjacent profile fields the schema actually has.
+      await tx.farmerProfile.updateMany({
+        where: { userId },
+        data: { address: null, district: null, upazila: null, nidLast4: null },
+      });
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -360,10 +443,26 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
           passwordHash: randomBytes(32).toString("hex"),
           status: "DISABLED",
           notificationPrefs: null,
+          region: null,
         },
       });
     }, { timeout: 15000, maxWait: 8000 });
-    await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId });
+
+    // Purge stored disease photos AFTER the commit (B-24). Per-file
+    // best-effort: failures are logged and counted but never block the
+    // deletion — documented in docs/data-protection.md.
+    let purged = 0;
+    let failed = 0;
+    for (const kase of user.diseaseCases) {
+      const removed = await removeStoredUpload(kase.imagePath, `account-deletion:${userId}`);
+      if (removed) purged++;
+      else failed++;
+    }
+    if (failed > 0) {
+      logger.warn({ userId, purged, failed, total: user.diseaseCases.length }, "account deletion: some uploaded photos were not purged");
+    }
+
+    await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId, ip: req.ip });
     ok(res, { deleted: true });
   } catch (e) {
     next(e);

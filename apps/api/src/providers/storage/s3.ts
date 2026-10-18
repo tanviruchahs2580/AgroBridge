@@ -1,9 +1,12 @@
 import { createHash, createHmac } from "node:crypto";
 import { StorageProvider } from "./types.js";
 
+/** SHA-256 of the empty payload — canonical hash for bodyless S3 requests. */
+const EMPTY_PAYLOAD_SHA256 = createHash("sha256").update("").digest("hex");
+
 /**
  * Minimal S3-compatible storage provider (AWS S3 / Cloudflare R2 / MinIO)
- * implementing SigV4 PUT directly on node:crypto — no SDK dependency.
+ * implementing SigV4 PUT/DELETE directly on node:crypto — no SDK dependency.
  * Objects are stored under disease/{fileName} and addressed by the same
  * relative path convention as the local provider ("uploads/disease/x").
  */
@@ -18,8 +21,13 @@ export class S3StorageProvider implements StorageProvider {
     private endpoint = process.env.S3_ENDPOINT ?? ""
   ) {}
 
-  async save(fileName: string, data: Buffer): Promise<string> {
-    const key = `disease/${fileName}`;
+  /** Stored path ("uploads/disease/x") → S3 object key ("disease/x"). */
+  private objectKey(key: string): string {
+    return key.startsWith("uploads/") ? key.slice("uploads/".length) : key;
+  }
+
+  /** SigV4-signed request against the bucket; shared by save and delete. */
+  private async signedRequest(method: "PUT" | "DELETE", key: string, body: Buffer): Promise<Response> {
     const host = this.endpoint
       ? this.endpoint.replace(/^https?:\/\//, "").replace(/\/$/, "")
       : `${this.bucket}.s3.${this.region}.amazonaws.com`;
@@ -29,21 +37,15 @@ export class S3StorageProvider implements StorageProvider {
     const now = new Date();
     const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
     const dateStamp = amzDate.slice(0, 8);
-    const payloadHash = createHash("sha256").update(data).digest("hex");
+    // An empty body still signs as the SHA-256 of zero bytes.
+    const payloadHash = body.length === 0 ? EMPTY_PAYLOAD_SHA256 : createHash("sha256").update(body).digest("hex");
 
     const canonicalHeaders =
       `host:${host}\n` +
       `x-amz-content-sha256:${payloadHash}\n` +
       `x-amz-date:${amzDate}\n`;
     const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
-    const canonicalRequest = [
-      "PUT",
-      canonicalUri,
-      "",
-      canonicalHeaders,
-      signedHeaders,
-      payloadHash,
-    ].join("\n");
+    const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
 
     const scope = `${dateStamp}/${this.region}/s3/aws4_request`;
     const stringToSign = [
@@ -61,22 +63,37 @@ export class S3StorageProvider implements StorageProvider {
       `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${scope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    const res = await fetch(url, {
-      method: "PUT",
+    return fetch(url, {
+      method,
       headers: {
         Authorization: authorization,
         "x-amz-content-sha256": payloadHash,
         "x-amz-date": amzDate,
-        "Content-Type": "application/octet-stream",
+        ...(method === "PUT" ? { "Content-Type": "application/octet-stream" } : {}),
       },
-      body: new Uint8Array(data),
+      body: method === "PUT" ? new Uint8Array(body) : undefined,
       signal: AbortSignal.timeout(30_000),
     });
+  }
+
+  async save(fileName: string, data: Buffer): Promise<string> {
+    const res = await this.signedRequest("PUT", `disease/${fileName}`, data);
     if (!res.ok) throw new Error(`S3 upload failed ${res.status}`);
 
     // Same relative addressing contract as LocalStorageProvider so existing
     // imagePath consumers stay unchanged.
     return `uploads/disease/${fileName}`;
+  }
+
+  /**
+   * Deletes a stored upload via SigV4 DELETE. A 404 is treated as success:
+   * the object is already gone, which is what the caller wants (idempotent
+   * deletion, matching LocalStorageProvider's ENOENT tolerance). Any other
+   * failure throws — the caller logs it; cleanup never pretends.
+   */
+  async delete(key: string): Promise<void> {
+    const res = await this.signedRequest("DELETE", this.objectKey(key), Buffer.alloc(0));
+    if (!res.ok && res.status !== 404) throw new Error(`S3 delete failed ${res.status}`);
   }
 
   async get(_p: string): Promise<Buffer | null> {

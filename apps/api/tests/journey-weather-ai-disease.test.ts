@@ -85,8 +85,12 @@ describe("Journey 4 — AI Agro Agent", () => {
 
 describe("Journey 5 — Disease detection workflow", () => {
   function makeJpeg(): Buffer {
-    // Minimal JPEG magic bytes header + padding
-    return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(1024, 7)]);
+    // Minimal well-formed JPEG: SOI + APP0(JFIF) + SOS + scan + EOI. The upload
+    // route walks segments to strip EXIF (B-17), so the old magic-bytes-plus-
+    // padding buffer (not a parseable JPEG segment stream) is now rejected 400.
+    const app0 = Buffer.from([0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]);
+    const sos = Buffer.from([0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00]);
+    return Buffer.concat([Buffer.from([0xff, 0xd8]), app0, sos, Buffer.alloc(1024, 7), Buffer.from([0xff, 0xd9])]);
   }
 
   function multipartBody(boundary: string, fields: Record<string, string>, file?: { field: string; data: Buffer }) {

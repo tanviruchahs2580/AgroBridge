@@ -9,6 +9,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { audit } from "../../middleware/audit.js";
 import { ok } from "../../middleware/context.js";
 import { getStorageProvider } from "../../providers/storage/index.js";
+import { removeStoredUpload } from "../../providers/storage/cleanup.js";
+import { stripJpegMetadata } from "../../shared/utils/jpeg.js";
 import { notify } from "../../providers/notification/service.js";
 
 export const diseaseRouter = Router();
@@ -62,24 +64,48 @@ diseaseRouter.post(
 
       if (cropGuess && cropGuess.length > 120) throw badRequest("cropGuess too long");
 
+      // B-17: strip EXIF (APP1 — GPS/device/timestamps) from JPEGs before the
+      // bytes are stored. PNG/WebP pass through unchanged this iteration: the
+      // audit-flagged leak is the camera EXIF in JPEGs, and neither format can
+      // carry APP1 segments; their metadata chunks are recorded as a residual.
+      // A JPEG that cannot be parsed is rejected rather than stored unclean.
+      let upload = imagePart.data;
+      if (imagePart.mime === "image/jpeg") {
+        try {
+          upload = stripJpegMetadata(imagePart.data);
+        } catch {
+          throw badRequest("Malformed JPEG image — metadata could not be verified and removed");
+        }
+      }
+
       // Storage abstraction: local disk in dev, S3-compatible in production.
       const ext = imagePart.mime === "image/png" ? ".png" : imagePart.mime === "image/webp" ? ".webp" : ".jpg";
       const fileName = `${randomUUID()}${ext}`;
-      await getStorageProvider().save(fileName, imagePart.data, imagePart.mime);
+      const imagePath = `uploads/disease/${fileName}`;
+      await getStorageProvider().save(fileName, upload, imagePart.mime);
 
-      const kase = await prisma.diseaseCase.create({
-        data: {
-          userId: req.auth!.userId,
-          cropCycleId: cropCycleIdValidated,
-          imagePath: `uploads/disease/${fileName}`,
-          cropGuess,
-          status: "PENDING_REVIEW",
-          confidence: null,
-          diagnosis: null,
-          recommendation:
-            "ছবিটি কৃষি বিশেষজ্ঞের পর্যালোচনার জন্য পাঠানো হয়েছে। ফলাফল পাওয়ার আগে কোনো ওষুধ প্রয়োগ করবেন না। / Your photo has been queued for agronomist review. Do not apply any treatment until results arrive.",
-        },
-      });
+      // B-17 orphan cleanup: if persisting the case fails, the just-stored
+      // bytes have no DB row referencing them — remove them best-effort so a
+      // failed request cannot leak files forever (failure is logged by the
+      // helper; the original error is what the client sees).
+      const kase = await prisma.diseaseCase
+        .create({
+          data: {
+            userId: req.auth!.userId,
+            cropCycleId: cropCycleIdValidated,
+            imagePath,
+            cropGuess,
+            status: "PENDING_REVIEW",
+            confidence: null,
+            diagnosis: null,
+            recommendation:
+              "ছবিটি কৃষি বিশেষজ্ঞের পর্যালোচনার জন্য পাঠানো হয়েছে। ফলাফল পাওয়ার আগে কোনো ওষুধ প্রয়োগ করবেন না। / Your photo has been queued for agronomist review. Do not apply any treatment until results arrive.",
+          },
+        })
+        .catch(async (e: unknown) => {
+          await removeStoredUpload(imagePath, `disease-case-create-failed:${req.auth!.userId}`);
+          throw e;
+        });
 
       await notify({
         userId: req.auth!.userId,
