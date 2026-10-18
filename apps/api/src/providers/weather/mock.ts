@@ -1,4 +1,5 @@
 import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js";
+import { dhakaDate } from "./day.js";
 
 /**
  * Deterministic offline weather provider for development/test/demo.
@@ -31,7 +32,8 @@ export class MockWeatherProvider implements WeatherProvider {
       const d = new Date();
       d.setDate(d.getDate() + i);
       out.push({
-        date: d.toISOString().slice(0, 10),
+        // Grouped on the Dhaka calendar day, like the live adapter (day.ts).
+        date: dhakaDate(d),
         minC: Number((current.tempC - 6).toFixed(1)),
         maxC: Number((current.tempC + 4).toFixed(1)),
         rainMm: i % 3 === 2 ? 18 : i % 3 === 1 ? 6 : 0,
