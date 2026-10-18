@@ -64,9 +64,10 @@ export default defineConfig(async () => {
       },
     },
     // NOTE: VitePWA is intentionally disabled. The plugin's build-time Rollup
-    // resolver cannot follow bare .ts relative imports (Vite 6 limitation).
-    // PWA is managed via manual SW registration in main.tsx and manual
-    // service-worker.js generation.
+    // resolver cannot follow bare .ts relative imports (Vite 6 limitation),
+    // and no service worker is built: public/sw.js is the one-time kill switch
+    // only. main.tsx registers nothing — offline writes queue in
+    // lib/offlineQueue.ts and sync when connectivity returns.
   ],
   resolve: {
     extensions: [".mjs", ".js", ".ts", ".tsx", ".json"],

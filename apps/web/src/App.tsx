@@ -6,7 +6,7 @@ import { useSession } from "./lib/session";
 import { t } from "./lib/i18n";
 import type { DictKey, Lang } from "./lib/i18n";
 import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
-import { flushAll, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
+import { flushAll, onDrop as onQueueDrop, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
 import { track } from "./lib/analytics";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -66,6 +66,13 @@ function useQueuedCount(): number {
   const [count, setCount] = useState(queuedMutations());
   useEffect(() => subscribeQueue(setCount), []);
   return count;
+}
+
+/** What a dropped queued mutation was, in the active UI language (toast copy). */
+function queueItemLabel(url: string, lang: Lang): string {
+  if (url.includes("/events")) return t("queuedItemFarmEvent", lang);
+  if (url.includes("/cart")) return t("cart", lang);
+  return t("orders", lang);
 }
 
 /** Authenticated users never see /login|/register — bounce back to where they came from. */
@@ -260,6 +267,14 @@ export default function App() {
   // raise the toast twice.
   const toast = useToast();
   useEffect(() => onOfflineEnqueue(() => toast.info(t("offlineBanner", lang))), [toast, lang]);
+
+  // Permanent queue drop (AUD-112b): the server refused the queued change for
+  // good and the queue discarded it — the user hears which change was lost
+  // instead of the failure staying in console.warn.
+  useEffect(
+    () => onQueueDrop((entry) => toast.error(t("queuedChangeDropped", lang, { item: queueItemLabel(entry.url, lang) }))),
+    [toast, lang]
+  );
 
   // Route-view analytics + bilingual document.title + move focus to main on navigation.
   useEffect(() => {

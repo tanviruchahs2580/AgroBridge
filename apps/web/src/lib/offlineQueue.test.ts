@@ -17,7 +17,7 @@ vi.mock("./api.js", async () => {
   };
 });
 
-import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue } from "./offlineQueue";
+import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue, onDrop } from "./offlineQueue";
 import { ApiError } from "./api";
 
 const STORAGE_KEY = "agrobridge.mutationQueue";
@@ -307,6 +307,51 @@ describe("lib/offlineQueue — flushAll", () => {
     expect(size()).toBe(0);
     await flushAll();
     expect(mockApi).not.toHaveBeenCalled();
+  });
+
+  // AUD-112b: a permanently refused write used to disappear with only a
+  // console.warn; onDrop is the hook App.tsx uses to raise the bilingual toast.
+  it("notifies onDrop with the discarded entry and status on a permanent 4xx", async () => {
+    const dropped: { url: string; method: string }[] = [];
+    const statuses: number[] = [];
+    const unsub = onDrop((entry, status) => {
+      dropped.push({ url: entry.url, method: entry.method });
+      statuses.push(status);
+    });
+    enqueue({ url: "/cart/items/9", method: "DELETE" });
+    mockApi.mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "bad"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(dropped).toEqual([{ url: "/cart/items/9", method: "DELETE" }]);
+    expect(statuses).toEqual([400]);
+    unsub();
+  });
+
+  it("onDrop stays silent while a 401/403 is re-queued, then fires on the second strike", async () => {
+    const cb = vi.fn();
+    const unsub = onDrop(cb);
+    enqueue({ url: "/farms/1/events", method: "POST" });
+    mockApi.mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "no"));
+    await flushAll();
+    expect(size()).toBe(1); // re-queued once — nothing is lost yet, no toast
+    expect(cb).not.toHaveBeenCalled();
+
+    mockApi.mockRejectedValueOnce(new ApiError(403, "FORBIDDEN", "no"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb.mock.calls[0][1]).toBe(403);
+    unsub();
+  });
+
+  it("onDrop unsubscribe stops delivery", async () => {
+    const cb = vi.fn();
+    onDrop(cb)();
+    enqueue({ url: "/orders/x/status", method: "POST" });
+    mockApi.mockRejectedValueOnce(new ApiError(422, "UNPROCESSABLE", "no"));
+    await flushAll();
+    expect(size()).toBe(0);
+    expect(cb).not.toHaveBeenCalled();
   });
 
   it("flushAll never throws even when api throws non-ApiError", async () => {

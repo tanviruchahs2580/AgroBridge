@@ -38,12 +38,14 @@ export const dict = {
   qualityGrade: { bn: "মানের গ্রেড", en: "Quality grade" },
   moisturePct: { bn: "আর্দ্রতা (%)", en: "Moisture (%)" },
   netPayable: { bn: "নীট পরিশোধযোগ্য", en: "Net payable" },
-  payNow: { bn: "পেমেন্ট করুন (স্যান্ডবক্স)", en: "Pay now (sandbox)" },
+  payNow: { bn: "পেমেন্ট করুন", en: "Pay now" },
   askPlaceholder: { bn: "আপনার প্রশ্ন লিখুন...", en: "Ask your question..." },
   send: { bn: "পাঠান", en: "Send" },
   lowConfidence: { bn: "নিশ্চিত উত্তর নয় — বিশেষজ্ঞের পরামর্শ নিন", en: "Low confidence — verify with an expert" },
   uploadPhoto: { bn: "ছবি আপলোড করুন", en: "Upload photo" },
-  diseaseCheck: { bn: "রোগ নির্ণয়", en: "Disease check" },
+  // Photos are queued for a human agronomist (status PENDING_REVIEW, no
+  // classifier is wired) — the label must not promise a diagnosis.
+  diseaseCheck: { bn: "রোগের ছবি জমা দিন", en: "Submit disease photo" },
   pendingReview: { bn: "বিশেষজ্ঞ পর্যালোচনাধীন", en: "Pending expert review" },
   reviewed: { bn: "পর্যালোচিত", en: "Reviewed" },
   farmers: { bn: "কৃষক", en: "Farmers" },
@@ -75,7 +77,7 @@ export const dict = {
   authWelcomeSub: { bn: "আপনার অ্যাকাউন্টে লগইন করুন", en: "Sign in to your account" },
   authRegisterSub: { bn: "মিনিটেই আপনার ফার্ম অ্যাকাউন্ট খুলুন", en: "Create your farm account in minutes" },
   authHeroHeadline: { bn: "বাংলাদেশের কৃষকের বিশ্বস্ত ডিজিটাল সঙ্গী", en: "The trusted digital companion for Bangladeshi farmers" },
-  authHeroValue1: { bn: "AI দিয়ে ফসলের রোগ নির্ণয় ও পরামর্শ", en: "AI crop disease detection and advice" },
+  authHeroValue1: { bn: "ফসলের রোগের ছবি — কৃষি বিশেষজ্ঞের পর্যালোচনায়", en: "Crop disease photos — reviewed by agronomists" },
   authHeroValue2: { bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যস্বত্বভোগী নেই", en: "Direct marketplace — fair prices, no middlemen" },
   authHeroValue3: { bn: "যন্ত্রপাতি ও কৃষি সেবা এক অ্যাপেই", en: "Machinery and agri services in one app" },
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
@@ -128,9 +130,12 @@ export const dict = {
   networkOffline: { bn: "আপনি অফলাইনে আছেন", en: "You are offline" },
   networkBackOnline: { bn: "ইন্টারনেট ফিরে এসেছে ✓", en: "Back online ✓" },
   sessionExpired: { bn: "সেশনের মেয়াদ শেষ — আবার লগইন করুন।", en: "Session expired — please log in again." },
-  updateReady: { bn: "নতুন সংস্করণ প্রস্তুত — রিলোড হচ্ছে…", en: "New version ready — reloading…" },
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
   offlineBanner: { bn: "অফলাইন — পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — changes will queue" },
+  // A queued write the server refuses permanently (4xx) is discarded — say so
+  // instead of only console.warn (AUD-112b). {item} is one of queuedItem*.
+  queuedChangeDropped: { bn: "অফলাইনে করা {item} পরিবর্তনটি সংরক্ষণ করা যায়নি — বাদ দেওয়া হয়েছে।", en: "Your offline {item} change could not be saved — it was discarded." },
+  queuedItemFarmEvent: { bn: "খামার রেকর্ড", en: "farm record" },
   notFoundTitle: { bn: "পাতাটি পাওয়া যায়নি", en: "Page not found" },
   notFoundBody: { bn: "আপনি যে ঠিকানাটি খুঁজছেন সেটি নেই বা সরানো হয়েছে।", en: "The address you are looking for doesn't exist or was moved." },
   backHome: { bn: "হোমে ফিরে যান", en: "Go back home" },
@@ -289,15 +294,11 @@ export const dict = {
   aiFarmEmptyMeter: { bn: "খামার যোগ করলে প্রস্তুতি দেখা যাবে", en: "Readiness appears once a farm exists" },
   aiAskTitle: { bn: "এগ্রোব্রিজ AI-কে জিজ্ঞাসা করুন", en: "Ask AgroBridge AI" },
   aiAskSubtitle: { bn: "আজ আপনার ফার্মের জন্য কীভাবে সাহায্য করতে পারি?", en: "How can I help your farm today?" },
-  aiActionDiagnose: { bn: "রোগ নির্ণয়", en: "Diagnose disease" },
+  aiActionDiagnose: { bn: "রোগের ছবি পাঠান", en: "Send disease photo" },
   aiActionPlant: { bn: "কী রোপণ করব?", en: "What to plant?" },
   aiActionFertilizer: { bn: "সার পরামর্শ", en: "Fertilizer advice" },
   aiActionWeather: { bn: "আবহাওয়া পরামর্শ", en: "Weather advice" },
   alertsTitle: { bn: "স্মার্ট সতর্কতা", en: "Smart Alerts" },
-  taskMorningIrrigation: { bn: "সকালের সেচ দিন", en: "Morning irrigation" },
-  taskWeedClean: { bn: "ক্ষেতে আগাছা পরিষ্কার করুন", en: "Clear weeds from field" },
-  taskFertilizerCheck: { bn: "সার প্রয়োগের সময় যাচাই করুন", en: "Verify fertilizer schedule" },
-  taskCropMonitor: { bn: "ফসলের অবস্থা পর্যবেক্ষণ করুন", en: "Monitor crop condition" },
   viewAllTasks: { bn: "সব কাজ দেখুন", en: "View all tasks" },
   deleteOrder: { bn: "অর্ডার মুছুন", en: "Delete order" },
   deleteOrderConfirm: { bn: "এই অর্ডারটি আপনার তালিকা থেকে মুছে ফেলা হবে।", en: "This order will be removed from your list." },
@@ -379,7 +380,9 @@ export const dict = {
   transactionsTitle: { bn: "লেনদেন", en: "Transactions" },
   noTransactions: { bn: "কোনো লেনদেন নেই।", en: "No transactions yet." },
   membershipConfirmTitle: { bn: "মেম্বারশিপ কিনবেন?", en: "Buy this membership?" },
-  membershipConfirmBody: { bn: "{tier} প্ল্যানের জন্য {price} পরিশোধ করতে হবে (স্যান্ডবক্স)।", en: "{price} will be charged for the {tier} plan (sandbox)." },
+  // No sandbox wording here: the provider mode is only known after the intent
+  // response (server-reported `providerMode`), not before the confirm dialog.
+  membershipConfirmBody: { bn: "{tier} প্ল্যানের জন্য {price} পরিশোধ করতে হবে।", en: "{price} will be charged for the {tier} plan." },
   membershipActiveToast: { bn: "✅ {tier} মেম্বারশিপ সক্রিয় (স্যান্ডবক্স)।", en: "✅ {tier} membership activated (sandbox)." },
   membershipExpired: { bn: "মেম্বারশিপ মেয়াদ শেষ", en: "Membership expired" },
   noWithdrawalsYet: { bn: "কোনো উত্তোলনের ইতিহাস নেই।", en: "No withdrawal history yet." },
@@ -391,7 +394,7 @@ export const dict = {
   imageTooLarge: { bn: "ছবি ৮MB-এর কম হতে হবে।", en: "Image must be under 8MB." },
   exampleQuestion: { bn: "যেমনঃ “ধানের পাতায় blast রোগ দেখছে, কী করব?”", en: 'Try: "Rice leaves show blast lesions, what should I do?"' },
   groundedAnswer: { bn: "গ্রাউন্ডেড উত্তর", en: "Grounded answer" },
-  myCases: { bn: "আমার রোগ নির্ণয়", en: "My disease checks" },
+  myCases: { bn: "আমার রোগের ছবি", en: "My disease photos" },
   showLess: { bn: "কম দেখুন", en: "Show less" },
   expandDetails: { bn: "বিস্তারিত দেখুন", en: "Expand details" },
   collapseDetails: { bn: "বিস্তারিত লুকান", en: "Collapse details" },
@@ -528,9 +531,9 @@ export const dict = {
 
   // ── Splash (v2: bilingual, respects pre-login language choice) ──
   splashStatusConnect: { bn: "ফার্ম ডেটা সংযুক্ত হচ্ছে...", en: "Connecting farm data..." },
-  splashStatusAi: { bn: "AI বিশ্লেষণ চলছে...", en: "Running AI analysis..." },
+  splashStatusAi: { bn: "আপনার তথ্য প্রস্তুত হচ্ছে...", en: "Preparing your data..." },
   splashStatusReady: { bn: "আপনার ফার্ম প্রস্তুত", en: "Your farm is ready" },
-  splashTagline: { bn: "এআই-চালিত ফার্ম ইন্টেলিজেন্স", en: "AI-powered Farm Intelligence" },
+  splashTagline: { bn: "কৃষি তথ্য ও পরামর্শ", en: "Farm information and advice" },
   splashLoadingLabel: { bn: "এগ্রোব্রিজ লোড হচ্ছে", en: "AgroBridge loading" },
 
   // ── Services discovery (v2: chips/search/sort/count/empty via dictionary) ──

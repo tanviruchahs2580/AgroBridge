@@ -87,6 +87,10 @@ export default function Market() {
   const [deliveryErrs, setDeliveryErrs] = useState<{ address?: string; phone?: string }>({});
   const [order, setOrder] = useState<Order | null>(null);
   const [paid, setPaid] = useState(false);
+  // Server-reported provider mode from POST /payments/intent (`providerMode`).
+  // Until the intent response arrives the mode is unknown, so no sandbox claim
+  // is rendered — the wording appears only when the server says "sandbox".
+  const [intentMode, setIntentMode] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placeOrderError, setPlaceOrderError] = useState<string | null>(null);
@@ -163,6 +167,7 @@ export default function Market() {
     setStep(0);
     setOrder(null);
     setPaid(false);
+    setIntentMode(null);
     setDeliveryErrs({});
     setCriticalFlow(true);  // Guard: prevent session-destroy during checkout
     if (!prefillDone) {
@@ -236,6 +241,8 @@ export default function Market() {
         purposeType: "ORDER",
         purposeId: order.id,
       });
+      // The real mode is whatever the server reports for this deployment.
+      setIntentMode(intent.providerMode);
 
       if (intent.redirectUrl) {
         // A real gateway is configured: the hosted checkout page collects the
@@ -522,7 +529,6 @@ export default function Market() {
                   {t("payNow", lang)}
                 </Button>
               )}
-              <p className="text-xs leading-relaxed text-stone-500">{t("sandboxPaymentNote", lang)}</p>
               <Button variant="ghost" className="w-full" onClick={closeWizard}>{t("close", lang)}</Button>
             </div>
           )}
@@ -536,6 +542,8 @@ export default function Market() {
               </h3>
               <p className="break-all text-sm text-stone-600 [overflow-wrap:anywhere]">{t("checkoutOrderNo", lang, { no: order.orderNo })}</p>
               {!paid && <p className="text-xs text-stone-500">{t("paymentPendingNote", lang)}</p>}
+              {/* Sandbox wording only when the server reported sandbox mode. */}
+              {paid && intentMode === "sandbox" && <p className="text-xs text-stone-500">{t("sandboxPaymentNote", lang)}</p>}
               <p className="text-sm font-bold text-stone-700">{t("netPayable", lang)}: {formatBDT(order.totalPaisa, lang)}</p>
               <Button className="w-full" onClick={closeWizard}>{t("done", lang)}</Button>
             </div>
