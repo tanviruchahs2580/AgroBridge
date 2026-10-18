@@ -1,0 +1,30 @@
+# Line endings are part of the build artifact, not a local preference.
+#
+# `.editorconfig` has asked for `end_of_line = lf` since the beginning, but
+# nothing enforced it on checkout: `core.autocrlf=true` on Windows produced CRLF
+# working trees, so the same commit built different bytes on Windows and on
+# Vercel's Linux builder. That became a correctness problem on 2026-10-18, when
+# the static site's CSP began allowlisting the inline theme-boot script **by
+# SHA-256 hash of its exact bytes** — the CRLF build hashed differently from the
+# LF build, so the hash that passed locally would have blocked the script in
+# production (silently: the app still works, the theme just flashes). ADR-0008.
+#
+# Force LF for every text file so a Windows checkout, CI, and Vercel produce
+# identical bytes. The whole index is already stored as LF, so this changes no
+# committed content — it changes what a checkout writes.
+* text=auto eol=lf
+
+# Binary assets: never touch their bytes.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.apk binary
+*.aab binary
+*.keystore binary
+*.jar binary
