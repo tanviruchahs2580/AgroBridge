@@ -46,6 +46,7 @@ machinery services, procurement, payments and market access.
 
 ```bash
 npm install                      # workspaces install
+cp .env.example .env             # required: the API reads DATABASE_URL + JWT secrets at startup
 npm run db:migrate --workspace apps/api   # or: npx prisma migrate dev (in apps/api)
 npm run db:seed --workspace apps/api      # demo data (public demo credentials)
 npm run dev --workspace apps/api          # API on :4000
@@ -71,8 +72,9 @@ npm run test --workspace apps/web        # web unit tests (vitest)
 npm run test:e2e --workspace apps/web    # Playwright browser suite (needs the local stack + seeded demo farmer)
 ```
 
-The counts move with every round — on 2026-10-18 the API suite ran **157 passed / 1 skipped**
-(take the number from your own run rather than from this file).
+The counts move with every round — on 2026-10-18 the API suite ran **262 passed / 1 skipped on
+SQLite and 263 passed on PostgreSQL 17** (web unit: 135, web e2e: 27; take the number from your
+own run rather than from this file).
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
 real HTTP API end-to-end: registration→login→profile, farm→plot→crop, weather advisories, AI agent

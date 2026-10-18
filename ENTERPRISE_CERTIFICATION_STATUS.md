@@ -1,10 +1,17 @@
 # AgroBridge — ENTERPRISE CERTIFICATION STATUS
 
-**Authoritative certification record.** Single source of truth per the 2026-09-15 enterprise
-certification engagement. Older reports (`ENTERPRISE_MASTER_REPORT.md`,
-`FINAL_ENTERPRISE_VALIDATION_REPORT.md`, `PRODUCTION_CERTIFICATION_REPORT.md`, etc.) are
-historical and superseded by this file where they conflict; they are archived under
-`docs/archive/2026-08-09/` (see the README there for what superseded each).
+> **HISTORICAL RECORD — not current status.** This file documents the 2026-09-15 engagement
+> against commit `524c3a1`. It is *not* a current certification: many commits have landed
+> since, and its score, gate table and open-item list must not be quoted for today's code.
+> For the state as of **2026-10-18** see the enterprise-audit report
+> (`docs/audit/2026-10-18-agrobridge-enterprise-audit.md`; session evidence in
+> `.audit/reports/FINAL.md`). Treat anything below as provenance for that engagement only.
+
+**Was:** the authoritative certification record for the 2026-09-15 engagement. Older reports
+(`ENTERPRISE_MASTER_REPORT.md`, `FINAL_ENTERPRISE_VALIDATION_REPORT.md`,
+`PRODUCTION_CERTIFICATION_REPORT.md`, etc.) are historical and were superseded by this file
+where they conflict; they are archived under `docs/archive/2026-08-09/` (see the README there
+for what superseded each).
 
 - **Date:** 2026-09-15
 - **Auditor:** ZCode agent (independent audit + remediation engagement)
