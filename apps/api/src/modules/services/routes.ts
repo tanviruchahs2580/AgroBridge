@@ -114,7 +114,13 @@ bookingsRouter.post(
         providerId = p.id;
       }
 
-      const estimatedPricePaisa = Math.round(service.basePricePaisa * b.areaBigha);
+      // Pricing rule: only PER_BIGHA is area-scaled. Every other unit
+      // (PER_MAUND / PER_SAMPLE / PER_VISIT / PER_HOUR / ...) describes a flat
+      // job, so it is charged once (×1) regardless of the booked area.
+      const isPerBigha = service.priceUnit.toUpperCase() === "PER_BIGHA";
+      const estimatedPricePaisa = isPerBigha
+        ? Math.round(service.basePricePaisa * b.areaBigha)
+        : service.basePricePaisa;
 
       const booking = await prisma.booking.create({
         data: {
@@ -250,8 +256,10 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
 
     // Write only the fields belonging to the transition — never null out
     // history (completedAt / cancelReason) as a side effect of moving on.
-    const updated = await prisma.booking.update({
-      where: { id: booking.id },
+    // Claim-atomic: the expected current status is part of the WHERE clause, so
+    // two racing transitions cannot both apply — the loser updates 0 rows.
+    const claimed = await prisma.booking.updateMany({
+      where: { id: booking.id, status: booking.status },
       data:
         status === "CANCELLED"
           ? { status, cancelReason: reason ?? null }
@@ -259,6 +267,8 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
             ? { status, completedAt: new Date() }
             : { status },
     });
+    if (claimed.count !== 1) throw conflict("Booking status changed concurrently — reload and retry");
+    const updated = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
 
     await notify({
       userId: booking.userId,
@@ -284,15 +294,24 @@ bookingsRouter.post("/:id/rating", validate({ body: ratingSchema }), async (req:
     if (booking.rating != null) throw conflict("Booking already rated");
 
     const { rating } = req.body as { rating: number };
-    const [updatedBooking] = await prisma.$transaction([
-      prisma.booking.update({ where: { id: booking.id }, data: { rating } }),
-      ...(booking.providerId
-        ? [prisma.serviceProvider.update({
-            where: { id: booking.providerId },
-            data: { ratingSum: { increment: rating }, ratingCount: { increment: 1 } },
-          })]
-        : []),
-    ]);
+    // Claim-atomic: the update predicate includes the unrated state, so exactly
+    // one concurrent (or repeated) submission can apply the rating. Provider
+    // aggregates move only for the winning claim — a double-rating can no
+    // longer inflate ratingCount/ratingSum.
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.booking.updateMany({
+        where: { id: booking.id, status: "COMPLETED", rating: null },
+        data: { rating },
+      });
+      if (claimed.count !== 1) throw conflict("Booking already rated");
+      if (booking.providerId) {
+        await tx.serviceProvider.update({
+          where: { id: booking.providerId },
+          data: { ratingSum: { increment: rating }, ratingCount: { increment: 1 } },
+        });
+      }
+      return tx.booking.findUniqueOrThrow({ where: { id: booking.id } });
+    });
     ok(res, updatedBooking);
   } catch (e) {
     next(e);
