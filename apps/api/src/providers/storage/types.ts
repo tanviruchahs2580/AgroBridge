@@ -9,10 +9,3 @@ export interface StorageProvider {
    */
   delete(key: string): Promise<void>;
 }
-
-export type StorageConfig = {
-  provider: "local" | "s3" | "db";
-  localDir?: string;
-  s3Bucket?: string;
-  s3Region?: string;
-};

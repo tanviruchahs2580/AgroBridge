@@ -36,7 +36,7 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
   }
 
   return {
-    async init(options: Options) {
+    init(options: Options) {
       if (!configuredWindowMs && options.windowMs) configuredWindowMs = options.windowMs;
     },
     async increment(key: string): Promise<ClientRateLimitInfo> {

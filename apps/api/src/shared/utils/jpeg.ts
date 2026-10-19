@@ -48,7 +48,7 @@ export function stripJpegMetadata(input: Buffer): Buffer {
     const markerStart = i;
     while (i < input.length && input[i] === 0xff) i++;
     if (i >= input.length) throw new JpegMetadataStripError("truncated after fill byte");
-    const marker = input[i]!;
+    const marker = input[i];
     i++;
 
     if (marker === 0xd9 || marker === 0xda) {

@@ -34,6 +34,8 @@ const schema = z.object({
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
+  /** pino level (debug|info|warn|error|silent); unset = info, silent in tests. */
+  LOG_LEVEL: z.string().optional(),
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)
   WEATHER_PROVIDER: z.enum(["mock", "openweather"]).default("mock"),
   OPENWEATHER_API_KEY: z.string().optional(),
@@ -71,6 +73,8 @@ const schema = z.object({
   SMS_API_KEY: z.string().optional(),
   SMS_SENDER_ID: z.string().optional(),
   STORAGE_PROVIDER: z.enum(["local", "s3", "db"]).default("local"),
+  /** Base directory for STORAGE_PROVIDER=local uploads; default <api cwd>/uploads. */
+  UPLOAD_BASE_DIR: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(), // for R2/MinIO-compatible stores
@@ -178,6 +182,7 @@ if (parsed.data.NODE_ENV === "production") {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
 export const isTest = env.NODE_ENV === "test";
+export const isDev = env.NODE_ENV === "development";
 
 /** Fallback used when WEB_ORIGIN is empty or unparseable. */
 const LOCAL_WEB_ORIGIN = "http://localhost:5173";

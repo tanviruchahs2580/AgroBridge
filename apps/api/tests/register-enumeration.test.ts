@@ -15,13 +15,13 @@ describe("registration enumeration resistance", () => {
     const phone = uniquePhone();
     const first = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "First Owner", phone, password: "Test@1234", langPref: "bn" });
+      .send({ fullName: "First Owner", phone, password: "Test@1234", langPref: "bn", consent: true });
     expect(first.status).toBe(201);
     expect(first.body.data.accessToken).toBeDefined();
 
     const second = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Second Attempt", phone, password: "Other@1234", langPref: "bn" });
+      .send({ fullName: "Second Attempt", phone, password: "Other@1234", langPref: "bn", consent: true });
     expect(second.status).toBe(200);
     expect(second.body.data.needsLogin).toBe(true);
     expect(second.body.data.accessToken).toBeUndefined();
@@ -37,12 +37,12 @@ describe("registration enumeration resistance", () => {
     const email = `dup-${Date.now()}@example.com`;
     const first = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Email Owner", phone: uniquePhone(), email, password: "Test@1234", langPref: "bn" });
+      .send({ fullName: "Email Owner", phone: uniquePhone(), email, password: "Test@1234", langPref: "bn", consent: true });
     expect(first.status).toBe(201);
 
     const second = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Email Thief", phone: uniquePhone(), email, password: "Test@1234", langPref: "bn" });
+      .send({ fullName: "Email Thief", phone: uniquePhone(), email, password: "Test@1234", langPref: "bn", consent: true });
     expect(second.status).toBe(409);
     expect(second.body.error.code).toBe("CONFLICT");
   });

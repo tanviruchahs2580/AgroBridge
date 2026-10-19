@@ -12,6 +12,7 @@ import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { audit } from "../../middleware/audit.js";
 import { notFound } from "../../shared/errors/index.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
@@ -46,7 +47,7 @@ aiRouter.post(
 
       // Context extraction: farmer + active crop context for grounding.
       const user = await prisma.user.findUnique({
-        where: { id: req.auth!.userId },
+        where: { id: getAuth(req).userId },
         select: {
           fullName: true,
           langPref: true,
@@ -66,7 +67,7 @@ aiRouter.post(
       const activeCrop = farm?.plots?.[0]?.cropCycles?.[0];
 
       const answer = await askAgroAgent(question, {
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
         requestId: req.requestId,
         lang,
         farmerName: user?.fullName,
@@ -110,7 +111,7 @@ export function liveGroundedRefs(stored: string | null): string[] {
 aiRouter.get("/history", async (req, res, next) => {
   try {
     const rows = await prisma.advisoryQuery.findMany({
-      where: { userId: req.auth!.userId },
+      where: { userId: getAuth(req).userId },
       orderBy: { createdAt: "desc" },
       take: 20,
       select: {
@@ -158,7 +159,7 @@ aiRouter.post(
       const { reason } = req.body as { reason: string };
 
       const own = await prisma.advisoryQuery.findFirst({
-        where: { id, userId: req.auth!.userId },
+        where: { id, userId: getAuth(req).userId },
         select: { id: true },
       });
       if (!own) throw notFound("Advisory");
@@ -170,7 +171,7 @@ aiRouter.post(
       });
 
       await audit({
-        actorId: req.auth!.userId,
+        actorId: getAuth(req).userId,
         action: "AI_ADVISORY_FEEDBACK",
         entityType: "AdvisoryQuery",
         entityId: id,

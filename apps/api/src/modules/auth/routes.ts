@@ -7,7 +7,7 @@ import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, 
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
-import { isProd, isTest, env } from "../../config/env.js";
+import { isDev, isProd, isTest, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
@@ -19,6 +19,7 @@ import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 // Multi-instance-safe limiter stores — separate per window to avoid windowMs drift.
 const loginStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
@@ -33,7 +34,7 @@ const loginLimiter = rateLimit({
   limit: env.LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "development",
+  skip: () => isDev,
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
   handler: rateLimitHandler,
@@ -45,7 +46,7 @@ const otpLimiter = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  skip: () => isDev || isTest,
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
   handler: rateLimitHandler,
@@ -83,7 +84,7 @@ const registerLimiter = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  skip: () => isDev || isTest,
   store: registerStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many registration attempts. Please try again later." } },
   handler: rateLimitHandler,
@@ -121,12 +122,25 @@ const bdPhoneSchema = z
     message: "Valid Bangladeshi mobile number required (e.g., 01712345678)",
   });
 
+/**
+ * Version of the published Terms of Service + Privacy Policy a registering
+ * user accepts. Mirrors LEGAL_META.version in
+ * apps/web/src/features/legal/content.ts (the web app owns the documents; the
+ * API records which version the user accepted in the CONSENT_CAPTURED audit
+ * row). Bump both together whenever the documents change.
+ */
+export const POLICY_VERSION = "1.1";
+
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   phone: bdPhoneSchema,
   email: z.string().email().optional(),
   password: z.string().min(8).max(72),
   langPref: z.enum(["bn", "en"]).default("bn"),
+  // Consent capture (PRD-05/AUD-150): strictly true and required. A client
+  // that does not send it gets 400 BAD_REQUEST by design — registration
+  // without a recorded consent is no longer accepted.
+  consent: z.literal(true),
 });
 
 const loginSchema = z.object({
@@ -182,6 +196,16 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
     });
 
     await audit({ actorId: user.id, action: "AUTH_REGISTER", entityType: "User", entityId: user.id, ip: req.ip });
+    // Consent is recorded as its own immutable event: which policy version the
+    // user accepted at the moment the account was created (PRD-05/AUD-150).
+    await audit({
+      actorId: user.id,
+      action: "CONSENT_CAPTURED",
+      entityType: "User",
+      entityId: user.id,
+      ip: req.ip,
+      meta: { policyVersion: POLICY_VERSION, scope: "terms+privacy" },
+    });
 
     ok(
       res,
@@ -273,7 +297,7 @@ authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken
     const refreshToken = (req.body as { refreshToken?: string }).refreshToken;
     if (refreshToken) {
       await prisma.refreshToken.updateMany({
-        where: { tokenHash: sha256(refreshToken), userId: req.auth!.userId },
+        where: { tokenHash: sha256(refreshToken), userId: getAuth(req).userId },
         data: { revokedAt: new Date() },
       });
     }
@@ -286,7 +310,7 @@ authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken
 authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.auth!.userId },
+      where: { id: getAuth(req).userId },
       select: {
         id: true, fullName: true, phone: true, email: true, role: true,
         langPref: true, status: true, phoneVerified: true, region: true, createdAt: true,
@@ -308,7 +332,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
  */
 authRouter.get("/me/export", requireAuth, exportLimiter, async (req, res, next) => {
   try {
-    const userId = req.auth!.userId;
+    const userId = getAuth(req).userId;
     const payload = await collectUserData(userId);
     await audit({ actorId: userId, action: "USER_DATA_EXPORTED", entityType: "User", entityId: userId, ip: req.ip });
 
@@ -335,7 +359,7 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
   try {
     const { district, upazila, address, ...userFields } = req.body as z.infer<typeof profileSchema>;
     const user = await prisma.user.update({
-      where: { id: req.auth!.userId },
+      where: { id: getAuth(req).userId },
       data: {
         ...userFields,
         farmerProfile: district || upazila || address ? { update: { district, upazila, address } } : undefined,
@@ -394,7 +418,7 @@ async function issueOtpChallenge(
  */
 authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
     if (!user) throw unauthorized();
 
     const { code, challenge } = await issueOtpChallenge(user, "PHONE_VERIFY");
@@ -414,13 +438,13 @@ authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) 
 authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }), async (req, res, next) => {
   try {
     const challenge = await prisma.otpChallenge.findFirst({
-      where: { userId: req.auth!.userId, purpose: "PHONE_VERIFY", consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { userId: getAuth(req).userId, purpose: "PHONE_VERIFY", consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw unprocessable("No active verification code. Please request a new one.");
     if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw unprocessable("Too many attempts. Please request a new code.");
 
-    const valid = challenge.codeHash === hashOtp(challenge.phone, req.body.code as string);
+    const valid = challenge.codeHash === hashOtp(challenge.phone, (req.body as { code: string }).code);
     if (!valid) {
       await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
       throw unprocessable("Incorrect verification code");
@@ -428,9 +452,9 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
 
     await prisma.$transaction([
       prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
-      prisma.user.update({ where: { id: req.auth!.userId }, data: { phoneVerified: true } }),
+      prisma.user.update({ where: { id: getAuth(req).userId }, data: { phoneVerified: true } }),
     ]);
-    await audit({ actorId: req.auth!.userId, action: "PHONE_VERIFIED", entityType: "User", entityId: req.auth!.userId });
+    await audit({ actorId: getAuth(req).userId, action: "PHONE_VERIFIED", entityType: "User", entityId: getAuth(req).userId });
     ok(res, { phoneVerified: true });
   } catch (e) {
     next(e);
@@ -519,7 +543,7 @@ authRouter.post(
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
-    const userId = req.auth!.userId;
+    const userId = getAuth(req).userId;
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true, diseaseCases: { select: { imagePath: true } } },

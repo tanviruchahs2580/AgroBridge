@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
+import { UpstreamHttpError, withResilience } from "../resilience.js";
 
 export type SmsResult = { delivered: boolean; provider: string; error?: string };
 
@@ -12,6 +13,8 @@ export function maskPhone(phone: string): string {
 export const otpSmsText = (code: string): string =>
   `AgroBridge verification code: ${code} (valid 5 minutes). Never share this code. | AgroBridge যাচাই কোড: ${code} (৫ মিনিট)। কোডটি কারও সাথে শেয়ার করবেন না।`;
 
+const SMS_TIMEOUT_MS = 8_000;
+
 /**
  * One send over an HTTP SMS gateway. Never throws: an OTP request must not
  * fail because the gateway hiccuped — the challenge is already stored, and the
@@ -19,8 +22,10 @@ export const otpSmsText = (code: string): string =>
  * deliberately uniform, so delivery failure changes nothing visible).
  *
  * Contract: POST {to, text, senderId?} with `Authorization: Bearer <key>`
- * when a key is configured. 5xx/429/network failures get exactly one retry
- * (matching the AI adapter's bounded-retry policy); other 4xx are final.
+ * when a key is configured. The transport policy is shared (see
+ * providers/resilience.ts): a final 4xx is the gateway's answer and is
+ * reported as-is after one attempt; 5xx/429/network failures are retried once
+ * there and surface as "gateway unreachable" when they persist.
  */
 export async function sendViaHttp(
   cfg: { url: string; key?: string; senderId?: string },
@@ -30,25 +35,32 @@ export async function sendViaHttp(
   const body = JSON.stringify({ to, text, ...(cfg.senderId ? { senderId: cfg.senderId } : {}) });
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (cfg.key) headers.authorization = `Bearer ${cfg.key}`;
+  const started = Date.now();
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const started = Date.now();
-    try {
-      const res = await fetch(cfg.url, { method: "POST", headers, body, signal: AbortSignal.timeout(8000) });
-      if (res.ok) {
-        logger.info({ phoneMasked: maskPhone(to), latencyMs: Date.now() - started, attempt }, "sms(http): delivered");
-        return { delivered: true, provider: "http" };
-      }
-      if (res.status < 500 && res.status !== 429) {
-        logger.warn({ status: res.status, phoneMasked: maskPhone(to) }, "sms(http): rejected by gateway");
-        return { delivered: false, provider: "http", error: `HTTP ${res.status}` };
-      }
-      logger.warn({ status: res.status, attempt, phoneMasked: maskPhone(to) }, "sms(http): retryable failure");
-    } catch (e) {
-      logger.warn({ err: (e as Error).message, attempt, phoneMasked: maskPhone(to) }, "sms(http): transport failure");
+  try {
+    const res = await withResilience(
+      "sms-http",
+      async (signal) => {
+        const r = await fetch(cfg.url, { method: "POST", headers, body, signal });
+        // A final 4xx is handed back for a single attempt (never retried);
+        // retryable statuses are thrown so the shared policy repeats them.
+        if (!r.ok && (r.status >= 500 || r.status === 429)) {
+          throw new UpstreamHttpError(`HTTP ${r.status}`, r.status);
+        }
+        return r;
+      },
+      { timeoutMs: SMS_TIMEOUT_MS }
+    );
+    if (res.ok) {
+      logger.info({ phoneMasked: maskPhone(to), latencyMs: Date.now() - started }, "sms(http): delivered");
+      return { delivered: true, provider: "http" };
     }
+    logger.warn({ status: res.status, phoneMasked: maskPhone(to) }, "sms(http): rejected by gateway");
+    return { delivered: false, provider: "http", error: `HTTP ${res.status}` };
+  } catch (e) {
+    logger.warn({ err: (e as Error).message, phoneMasked: maskPhone(to), latencyMs: Date.now() - started }, "sms(http): gateway unreachable");
+    return { delivered: false, provider: "http", error: "gateway unreachable" };
   }
-  return { delivered: false, provider: "http", error: "gateway unreachable" };
 }
 
 /**

@@ -18,6 +18,7 @@ export const MOCK_REFERENCE_NOW = new Date("2026-06-15T00:00:00Z");
 export class MockWeatherProvider implements WeatherProvider {
   readonly name = "mock";
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- async by provider contract; the mock computes synchronously.
   async getCurrent(lat: number): Promise<CurrentWeather> {
     // Deterministic pseudo-climate for dev/tests: hotter toward the equator,
     // with a small reproducible latitudinal band so values are never constant.

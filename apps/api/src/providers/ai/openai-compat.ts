@@ -1,4 +1,5 @@
 import { env } from "../../config/env.js";
+import { withResilience } from "../resilience.js";
 import {
   AiContext,
   AiAnswer,
@@ -29,6 +30,8 @@ export const PROMPT_VERSION = "v1";
  * are typed errors, never confident answers; 429 vs 5xx vs other non-2xx are
  * distinguished; exactly ONE bounded retry runs for retryable failures
  * (429/5xx) — the request is read-only, so a repeat cannot duplicate an effect.
+ * The retry loop itself lives in the shared resilience policy, pinned to this
+ * adapter's taxonomy through `isRetryable` (see providers/resilience.ts).
  */
 const RETRY_DELAY_MS = 300;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -103,15 +106,22 @@ export class OpenAiCompatibleProvider implements AiProvider {
     const { entries } = retrieve(sanitized.toLowerCase(), ctx.cropName);
     const messages = buildChatMessages(sanitized, ctx, entries);
 
-    let res = await this.post(messages);
-    if (!res.ok) {
-      const first = statusError(res.status);
-      if (!first.retryable) throw first;
-      // One bounded retry with a small jittered delay for 429/5xx, then fail.
-      await new Promise((r) => setTimeout(r, this.retryDelayMs + Math.floor(Math.random() * this.retryDelayMs)));
-      res = await this.post(messages);
-      if (!res.ok) throw statusError(res.status);
-    }
+    const res = await withResilience(
+      "openai-compatible",
+      async (signal) => {
+        const r = await this.post(messages, signal);
+        if (!r.ok) throw statusError(r.status);
+        return r;
+      },
+      {
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: this.retryDelayMs,
+        // Strictly this adapter's policy: only the classes typed as retryable
+        // (429/5xx) repeat; a timeout or transport failure stays single-attempt.
+        isRetryable: (err) => err instanceof AiProviderError && err.retryable,
+      }
+    );
 
     let body: ChatCompletionBody;
     try {
@@ -156,11 +166,11 @@ export class OpenAiCompatibleProvider implements AiProvider {
   }
 
   /** Single HTTP attempt; transport errors and timeouts become typed errors. */
-  private async post(messages: ChatMessage[]): Promise<Response> {
+  private async post(messages: ChatMessage[], signal: AbortSignal): Promise<Response> {
     try {
       return await fetch(`${env.OPENAI_BASE_URL}/chat/completions`, {
         method: "POST",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.OPENAI_API_KEY}` },
         body: JSON.stringify({
           model: this.model,
@@ -170,7 +180,11 @@ export class OpenAiCompatibleProvider implements AiProvider {
         }),
       });
     } catch (err) {
-      if ((err as { name?: string })?.name === "AbortError") {
+      // AbortSignal.timeout rejects with TimeoutError in Node; a caller-driven
+      // abort (and the adapter's test double) surfaces as AbortError — both
+      // mean the request ran out of time.
+      const name = (err as { name?: string })?.name;
+      if (name === "AbortError" || name === "TimeoutError") {
         throw new AiProviderError("TIMEOUT", `AI provider request timed out after ${REQUEST_TIMEOUT_MS}ms`);
       }
       throw new AiProviderError("UPSTREAM", `AI provider request failed: ${(err as Error).message}`);

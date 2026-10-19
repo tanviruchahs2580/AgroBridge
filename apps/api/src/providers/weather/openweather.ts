@@ -1,3 +1,4 @@
+import { UpstreamHttpError, withResilience } from "../resilience.js";
 import type { CurrentWeather, DailyForecast, WeatherProvider } from "./types.js";
 import { dhakaDate } from "./day.js";
 
@@ -8,11 +9,26 @@ export class OpenWeatherProvider implements WeatherProvider {
   readonly name = "openweather";
   constructor(private apiKey: string) {}
 
+  /**
+   * One GET under the shared resilience policy (timeout + bounded retry on
+   * 5xx/429/network). The non-2xx branch stays INSIDE the attempt so the
+   * policy classifies the status; when retries are exhausted the original
+   * `openweather ... failed: <status>` error is rethrown unchanged.
+   */
+  private async get(what: "current" | "forecast", path: string): Promise<Response> {
+    return withResilience(
+      "openweather",
+      async (signal) => {
+        const res = await fetch(`${BASE}${path}&appid=${this.apiKey}`, { signal });
+        if (!res.ok) throw new UpstreamHttpError(`openweather ${what} failed: ${res.status}`, res.status);
+        return res;
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS }
+    );
+  }
+
   async getCurrent(lat: number, lng: number): Promise<CurrentWeather> {
-    const res = await fetch(`${BASE}/weather?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`openweather current failed: ${res.status}`);
+    const res = await this.get("current", `/weather?lat=${lat}&lon=${lng}&units=metric`);
     const j = (await res.json()) as {
       main: { temp: number; feels_like: number; humidity: number };
       wind: { speed: number };
@@ -34,10 +50,7 @@ export class OpenWeatherProvider implements WeatherProvider {
   }
 
   async getForecast(lat: number, lng: number, days: number): Promise<DailyForecast[]> {
-    const res = await fetch(`${BASE}/forecast?lat=${lat}&lon=${lng}&units=metric&appid=${this.apiKey}`, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`openweather forecast failed: ${res.status}`);
+    const res = await this.get("forecast", `/forecast?lat=${lat}&lon=${lng}&units=metric`);
     const j = (await res.json()) as {
       list: { dt_txt: string; main: { temp_min: number; temp_max: number; humidity: number }; wind: { speed: number }; rain?: { "3h"?: number } }[];
     };

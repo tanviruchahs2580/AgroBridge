@@ -5,8 +5,20 @@ import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, forbidden, badRequest, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const farmsRouter = Router();
+
+/**
+ * Nesting caps for farm-list responses (ARC-15/API-05). Pagination contract:
+ * these bound ONE response — a farm's nested plots, a plot's crop cycles and
+ * an events page — never the data itself; callers get more by using the
+ * dedicated list endpoints (e.g. `GET /farms/:id/plots`) or, for events,
+ * `?limit=` up to `eventsPerRequest`. Without the caps the nested includes were
+ * unbounded, so a farm with thousands of plots (or a plot with years of
+ * cycles) could return an arbitrarily large body from one request.
+ */
+export const FARM_LIST_CAPS = { plotsPerFarm: 50, cropCyclesPerPlot: 50, eventsPerRequest: 100 } as const;
 
 farmsRouter.use(requireAuth);
 
@@ -36,8 +48,8 @@ async function assertFarmAccess(farmId: string, userId: string, role: string) {
 
 farmsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const userId = req.auth!.userId;
-    const role = req.auth!.role;
+    const userId = getAuth(req).userId;
+    const role = getAuth(req).role;
     // Corporate/cooperative see org farms; farmers see owned; admins see owned (but could see all via admin panel)
     const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
     const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
@@ -54,7 +66,8 @@ farmsRouter.get("/", async (req: import("express").Request, res: import("express
       where,
       include: {
         plots: {
-          include: { cropCycles: { where: { status: "ACTIVE" }, select: { id: true, cropName: true, stage: true, plantedAt: true, status: true } } },
+          take: FARM_LIST_CAPS.plotsPerFarm,
+          include: { cropCycles: { where: { status: "ACTIVE" }, take: FARM_LIST_CAPS.cropCyclesPerPlot, select: { id: true, cropName: true, stage: true, plantedAt: true, status: true } } },
         },
         _count: { select: { plots: true } },
         organization: { select: { id: true, name: true, type: true } },
@@ -69,15 +82,15 @@ farmsRouter.get("/", async (req: import("express").Request, res: import("express
 
 farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const data: z.infer<typeof farmBody> = req.body;
+    const data = req.body as z.infer<typeof farmBody>;
     if (data.organizationId) {
-      const member = await prisma.organizationMember.findFirst({ where: { organizationId: data.organizationId, userId: req.auth!.userId } });
-      const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
+      const member = await prisma.organizationMember.findFirst({ where: { organizationId: data.organizationId, userId: getAuth(req).userId } });
+      const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
       if (!member && !isPrivileged) throw forbidden("Not a member of the target organization");
     }
     const farm = await prisma.farm.create({
       data: {
-        ownerId: req.auth!.userId,
+        ownerId: getAuth(req).userId,
         name: data.name,
         address: data.address,
         district: data.district,
@@ -96,12 +109,12 @@ farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express"
 
 farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
+    await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
     // organizationId is NOT patchable by owners — org linking is an
     // admin/organization flow; otherwise a farmer could attach their farm to
     // an arbitrary org and leak visibility.
     const { organizationId: _blocked, ...data } = req.body as Record<string, unknown>;
-    const farm = await prisma.farm.update({ where: { id: req.params.id! }, data });
+    const farm = await prisma.farm.update({ where: { id: req.params.id }, data });
     ok(res, farm);
   } catch (e) {
     next(e);
@@ -110,8 +123,8 @@ farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req: im
 
 farmsRouter.delete("/:id", async (req, res, next) => {
   try {
-    await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
-    await prisma.farm.delete({ where: { id: req.params.id! } });
+    await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+    await prisma.farm.delete({ where: { id: req.params.id } });
     ok(res, { deleted: true });
   } catch (e) {
     next(e);
@@ -130,8 +143,8 @@ export function plotsRouter() {
   return Router({ mergeParams: true })
     .post("/plots", validate({ body: plotBody }), async (req, res, next) => {
       try {
-        const body: z.infer<typeof plotBody> = req.body;
-        const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
+        const body = req.body as z.infer<typeof plotBody>;
+        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
         // Plots collectively must fit inside the farm's declared total area.
         if (farm.totalAreaBigha != null) {
           const area = body.areaBigha;
@@ -156,10 +169,11 @@ export function plotsRouter() {
     })
     .get("/plots", async (req: import("express").Request<{ id: string }>, res, next) => {
       try {
-        const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
+        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
         const plots = await prisma.plot.findMany({
           where: { farmId: farm.id },
-          include: { cropCycles: { orderBy: { plantedAt: "desc" }, take: 100 } },
+          take: FARM_LIST_CAPS.plotsPerFarm,
+          include: { cropCycles: { orderBy: { plantedAt: "desc" }, take: FARM_LIST_CAPS.cropCyclesPerPlot } },
           orderBy: { createdAt: "asc" },
         });
         ok(res, plots);
@@ -169,11 +183,11 @@ export function plotsRouter() {
     })
     .patch("/plots/:plotId", validate({ body: plotBody.partial() }), async (req, res, next) => {
       try {
-        const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
-        const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId!, farmId: farm.id } });
+        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+        const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId, farmId: farm.id } });
         if (!existing) throw notFound("Plot");
         // Same shape as the validated plotBody.partial — every field optional.
-        const body: Partial<z.infer<typeof plotBody>> = req.body;
+        const body = req.body as Partial<z.infer<typeof plotBody>>;
         if (body.areaBigha !== undefined && farm.totalAreaBigha != null) {
           const others = await prisma.plot.aggregate({ where: { farmId: farm.id, id: { not: existing.id } }, _sum: { areaBigha: true } });
           if ((others._sum.areaBigha ?? 0) + body.areaBigha > farm.totalAreaBigha + 1e-9) {
@@ -269,7 +283,7 @@ export function cropsRouter() {
         const plot = await prisma.plot.findUnique({ where: { id: body.plotId } });
         if (!plot) throw notFound("Plot");
         // Same access rule as plots: owner, privileged, or org member.
-        await assertFarmAccess(plot.farmId, req.auth!.userId, req.auth!.role);
+        await assertFarmAccess(plot.farmId, getAuth(req).userId, getAuth(req).role);
 
         const active = await prisma.cropCycle.count({ where: { plotId: plot.id, status: "ACTIVE" } });
         if (active > 0) throw conflict("This plot already has an active crop cycle");
@@ -284,7 +298,7 @@ export function cropsRouter() {
             stage: cropStageFor(body.plantedAt),
             farmEvents: {
               create: {
-                farmId: plot.farmId, actorId: req.auth!.userId, type: "PLANTING",
+                farmId: plot.farmId, actorId: getAuth(req).userId, type: "PLANTING",
                 title: `Planted ${body.cropName}`, occurredAt: body.plantedAt,
               },
             },
@@ -297,7 +311,7 @@ export function cropsRouter() {
     })
     .get("/crops", async (req, res, next) => {
       try {
-        const userId = req.auth!.userId;
+        const userId = getAuth(req).userId;
         const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
         const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
         const where = orgIds.length
@@ -320,13 +334,13 @@ export function cropsRouter() {
       async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
         try {
           const existing = await prisma.cropCycle.findFirst({
-            where: { id: req.params.cropId! },
+            where: { id: req.params.cropId },
             include: { plot: { select: { farmId: true } } },
           });
           if (!existing) throw notFound("Crop cycle");
           // Same access rule as plots: owner, privileged, or org member.
-          await assertFarmAccess(existing.plot.farmId, req.auth!.userId, req.auth!.role);
-          const body: z.infer<typeof cropUpdateBody> = req.body;
+          await assertFarmAccess(existing.plot.farmId, getAuth(req).userId, getAuth(req).role);
+          const body = req.body as z.infer<typeof cropUpdateBody>;
           const updated = await prisma.cropCycle.update({
             where: { id: existing.id },
             // Omitted fields stay unchanged in the database: only keys the
@@ -358,7 +372,7 @@ const eventBody = z.object({
 });
 
 const eventQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(FARM_LIST_CAPS.eventsPerRequest).optional(),
 });
 
 export function eventsRouter() {
@@ -366,7 +380,7 @@ export function eventsRouter() {
 
   const getEventsHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
-      const userId = req.auth!.userId;
+      const userId = getAuth(req).userId;
       const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
       const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
       const where = orgIds.length
@@ -389,7 +403,7 @@ export function eventsRouter() {
   const postEventHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
       const body = req.body as z.infer<typeof eventBody>;
-      const farm = await prisma.farm.findFirst({ where: { id: req.params.id!, ownerId: req.auth!.userId } });
+      const farm = await prisma.farm.findFirst({ where: { id: req.params.id, ownerId: getAuth(req).userId } });
       if (!farm) throw notFound("Farm");
 
       // Same-farm binding: an event could previously reference any plot or
@@ -413,7 +427,7 @@ export function eventsRouter() {
         // who knew another user's clientUuid read their event row and receive it
         // as the "replay" of their own submission.
         const dupe = await prisma.farmEvent.findFirst({
-          where: { clientUuid: body.clientUuid, farmId: farm.id, actorId: req.auth!.userId },
+          where: { clientUuid: body.clientUuid, farmId: farm.id, actorId: getAuth(req).userId },
         });
         if (dupe) return ok(res, dupe);
       }
@@ -422,7 +436,7 @@ export function eventsRouter() {
         const created = await prisma.farmEvent.create({
           data: {
             farmId: farm.id,
-            actorId: req.auth!.userId,
+            actorId: getAuth(req).userId,
             type: body.type,
             title: body.title,
             notes: body.notes,

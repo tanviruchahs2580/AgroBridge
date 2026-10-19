@@ -1,8 +1,12 @@
 import { createHash, createHmac } from "node:crypto";
+import { env } from "../../config/env.js";
+import { UpstreamHttpError, withResilience } from "../resilience.js";
 import { StorageProvider } from "./types.js";
 
 /** SHA-256 of the empty payload — canonical hash for bodyless S3 requests. */
 const EMPTY_PAYLOAD_SHA256 = createHash("sha256").update("").digest("hex");
+
+const S3_TIMEOUT_MS = 30_000;
 
 /**
  * Minimal S3-compatible storage provider (AWS S3 / Cloudflare R2 / MinIO)
@@ -13,12 +17,14 @@ const EMPTY_PAYLOAD_SHA256 = createHash("sha256").update("").digest("hex");
 export class S3StorageProvider implements StorageProvider {
   readonly name = "s3";
   constructor(
-    private bucket = process.env.S3_BUCKET ?? "",
-    private region = process.env.S3_REGION ?? "auto",
-    private accessKey = process.env.S3_ACCESS_KEY_ID ?? "",
-    private secretKey = process.env.S3_SECRET_ACCESS_KEY ?? "",
+    private bucket = env.S3_BUCKET ?? "",
+    private region = env.S3_REGION ?? "auto",
+    private accessKey = env.S3_ACCESS_KEY_ID ?? "",
+    private secretKey = env.S3_SECRET_ACCESS_KEY ?? "",
     /** Custom endpoint for R2/MinIO; empty = AWS virtual-hosted style. */
-    private endpoint = process.env.S3_ENDPOINT ?? ""
+    private endpoint = env.S3_ENDPOINT ?? "",
+    /** Per-attempt timeout; the production default (30s) unless a caller overrides it (tests inject a tiny one). */
+    private timeoutMs: number = S3_TIMEOUT_MS
   ) {}
 
   /** Stored path ("uploads/disease/x") → S3 object key ("disease/x"). */
@@ -63,17 +69,30 @@ export class S3StorageProvider implements StorageProvider {
       `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${scope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    return fetch(url, {
-      method,
-      headers: {
-        Authorization: authorization,
-        "x-amz-content-sha256": payloadHash,
-        "x-amz-date": amzDate,
-        ...(method === "PUT" ? { "Content-Type": "application/octet-stream" } : {}),
+    // Shared policy: per-attempt timeout, one retry on 5xx/429/network
+    // failures — PUT (same key, same bytes) and DELETE (idempotent) are both
+    // safe to repeat.
+    return withResilience(
+      "s3",
+      async (signal) => {
+        const res = await fetch(url, {
+          method,
+          headers: {
+            Authorization: authorization,
+            "x-amz-content-sha256": payloadHash,
+            "x-amz-date": amzDate,
+            ...(method === "PUT" ? { "Content-Type": "application/octet-stream" } : {}),
+          },
+          body: method === "PUT" ? new Uint8Array(body) : undefined,
+          signal,
+        });
+        if (!res.ok && (res.status >= 500 || res.status === 429)) {
+          throw new UpstreamHttpError(`S3 ${method} request failed ${res.status}`, res.status);
+        }
+        return res;
       },
-      body: method === "PUT" ? new Uint8Array(body) : undefined,
-      signal: AbortSignal.timeout(30_000),
-    });
+      { timeoutMs: this.timeoutMs }
+    );
   }
 
   async save(fileName: string, data: Buffer): Promise<string> {
@@ -96,6 +115,7 @@ export class S3StorageProvider implements StorageProvider {
     if (!res.ok && res.status !== 404) throw new Error(`S3 delete failed ${res.status}`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- async by storage contract; objects are served by the CDN, so there is no I/O here.
   async get(_p: string): Promise<Buffer | null> {
     // Objects are served by the platform CDN/presigner in production; the API
     // never proxies image bytes back (see docs/architecture.md).

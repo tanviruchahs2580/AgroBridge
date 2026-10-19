@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
@@ -12,12 +13,42 @@ import { getStorageProvider } from "../../providers/storage/index.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { stripJpegMetadata } from "../../shared/utils/jpeg.js";
 import { notify } from "../../providers/notification/service.js";
+import { getAuth } from "../../shared/auth-context.js";
+import { env } from "../../config/env.js";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 
 export const diseaseRouter = Router();
 diseaseRouter.use(requireAuth);
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_SIZE_BYTES = 8 * 1024 * 1024;
+
+/** Accepted photo uploads per user per hour (SEC-11). */
+export const DISEASE_UPLOAD_LIMIT_PER_HOUR = 20;
+
+// Shared window store when Redis is configured — same multi-instance-safe
+// pattern as the auth limiters (a per-instance window could be multiplied by
+// the number of pods).
+const uploadStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+
+/**
+ * Per-user upload limiter (SEC-11): each accepted photo writes a file
+ * (disk/S3/db row) plus a disease-case row, so this is the most expensive
+ * per-user write path outside money. Keyed by the authenticated user (like
+ * otpVerifyLimiter — requireAuth runs first) and deliberately NOT skipped in
+ * tests, so the 429 envelope is exercised for real.
+ */
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: DISEASE_UPLOAD_LIMIT_PER_HOUR,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  store: uploadStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many photo uploads. Please try again later." } },
+  handler: rateLimitHandler,
+});
 
 /**
  * Disease detection workflow:
@@ -28,6 +59,7 @@ const MAX_SIZE_BYTES = 8 * 1024 * 1024;
  */
 diseaseRouter.post(
   "/cases",
+  uploadLimiter,
   async (req, res, next) => {
     try {
       const contentType = req.headers["content-type"] ?? "";
@@ -56,7 +88,7 @@ diseaseRouter.post(
       let cropCycleIdValidated: string | undefined;
       if (cropCycleId) {
         const cycle = await prisma.cropCycle.findFirst({
-          where: { id: cropCycleId, plot: { farm: { ownerId: req.auth!.userId } } },
+          where: { id: cropCycleId, plot: { farm: { ownerId: getAuth(req).userId } } },
         });
         if (!cycle) throw forbidden("Invalid cropCycleId for this farmer");
         cropCycleIdValidated = cycle.id;
@@ -91,7 +123,7 @@ diseaseRouter.post(
       const kase = await prisma.diseaseCase
         .create({
           data: {
-            userId: req.auth!.userId,
+            userId: getAuth(req).userId,
             cropCycleId: cropCycleIdValidated,
             imagePath,
             cropGuess,
@@ -103,12 +135,12 @@ diseaseRouter.post(
           },
         })
         .catch(async (e: unknown) => {
-          await removeStoredUpload(imagePath, `disease-case-create-failed:${req.auth!.userId}`);
+          await removeStoredUpload(imagePath, `disease-case-create-failed:${getAuth(req).userId}`);
           throw e;
         });
 
       await notify({
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
         type: "AI",
         titleBn: "রোগ নির্ণয়ের অনুরোধ গৃহীত",
         titleEn: "Disease review request received",
@@ -128,7 +160,7 @@ diseaseRouter.post(
 diseaseRouter.get("/cases", async (req, res, next) => {
   try {
     const cases = await prisma.diseaseCase.findMany({
-      where: { userId: req.auth!.userId },
+      where: { userId: getAuth(req).userId },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -141,9 +173,9 @@ diseaseRouter.get("/cases", async (req, res, next) => {
 diseaseRouter.get("/cases/:id", async (req, res, next) => {
   try {
     const where =
-      req.auth!.role === "ADMIN" || req.auth!.role === "SUPER_ADMIN"
-        ? { id: req.params.id! }
-        : { id: req.params.id!, userId: req.auth!.userId };
+      getAuth(req).role === "ADMIN" || getAuth(req).role === "SUPER_ADMIN"
+        ? { id: req.params.id }
+        : { id: req.params.id, userId: getAuth(req).userId };
     const kase = await prisma.diseaseCase.findFirst({ where });
     if (!kase) throw notFound("Disease case");
     ok(res, kase);
@@ -165,13 +197,13 @@ diseaseRouter.post(
   validate({ body: reviewSchema }),
   async (req, res, next) => {
     try {
-      const kase = await prisma.diseaseCase.findUnique({ where: { id: req.params.id! } });
+      const kase = await prisma.diseaseCase.findUnique({ where: { id: req.params.id } });
       if (!kase) throw notFound("Disease case");
       // Reviewing is final: a second submission would silently overwrite the
       // recorded agronomist diagnosis (the app's highest-stakes content).
       if (kase.status !== "PENDING_REVIEW") throw conflict(`Case already ${kase.status}`);
 
-      const review: z.infer<typeof reviewSchema> = req.body;
+      const review = req.body as z.infer<typeof reviewSchema>;
       const updated = await prisma.diseaseCase.update({
         where: { id: kase.id },
         data: {
@@ -180,14 +212,14 @@ diseaseRouter.post(
           severity: review.severity,
           recommendation: review.recommendation,
           status: "REVIEWED",
-          reviewedBy: req.auth!.userId,
+          reviewedBy: getAuth(req).userId,
           reviewedAt: new Date(),
         },
       });
 
       // The diagnosis decision itself is the auditable event.
       await audit({
-        actorId: req.auth!.userId,
+        actorId: getAuth(req).userId,
         action: "DISEASE_REVIEWED",
         entityType: "DiseaseCase",
         entityId: kase.id,

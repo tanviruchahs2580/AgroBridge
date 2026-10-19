@@ -1,6 +1,6 @@
 {
   "name": "@agrobridge/api",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -17,6 +17,7 @@
     "pg:rehearse-backup": "node scripts/backup-restore-rehearsal.mjs",
     "loadtest": "node scripts/loadtest.mjs",
     "purge:uploads": "tsx scripts/purge-uploads.ts",
+    "retention": "node scripts/retention.mjs",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
@@ -51,6 +52,7 @@
     "autocannon": "^7.15.0",
     "dotenv": "^16.4.7",
     "eslint": "^9.39.5",
+    "fast-check": "^4.10.2",
     "prisma": "^6.5.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",

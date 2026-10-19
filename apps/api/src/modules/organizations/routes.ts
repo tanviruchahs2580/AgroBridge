@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { forbidden, notFound } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const organizationsRouter = Router();
 organizationsRouter.use(requireAuth);
@@ -18,7 +19,7 @@ const createOrgSchema = z.object({
 organizationsRouter.post("/", validate({ body: createOrgSchema }), async (req, res, next) => {
   try {
     // Only ADMIN/SUPER_ADMIN or CORPORATE/COOPERATIVE can create orgs; farmers can be invited but not create
-    if (!["SUPER_ADMIN", "ADMIN", "CORPORATE", "COOPERATIVE"].includes(req.auth!.role)) {
+    if (!["SUPER_ADMIN", "ADMIN", "CORPORATE", "COOPERATIVE"].includes(getAuth(req).role)) {
       throw forbidden("Only admins or corporate/cooperative users may create organizations");
     }
     const body = req.body as z.infer<typeof createOrgSchema>;
@@ -27,7 +28,7 @@ organizationsRouter.post("/", validate({ body: createOrgSchema }), async (req, r
         name: body.name,
         type: body.type,
         district: body.district,
-        members: { create: { userId: req.auth!.userId, role: "ADMIN" } },
+        members: { create: { userId: getAuth(req).userId, role: "ADMIN" } },
       },
     });
     ok(res, org, 201);
@@ -38,9 +39,9 @@ organizationsRouter.post("/", validate({ body: createOrgSchema }), async (req, r
 
 organizationsRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
+    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
     const orgs = await prisma.organization.findMany({
-      where: isPrivileged ? {} : { members: { some: { userId: req.auth!.userId } } },
+      where: isPrivileged ? {} : { members: { some: { userId: getAuth(req).userId } } },
       include: { members: { include: { user: { select: { id: true, fullName: true, role: true } } } }, _count: { select: { farms: true } } },
       orderBy: { createdAt: "desc" },
     });
@@ -53,12 +54,12 @@ organizationsRouter.get("/", async (req, res, next) => {
 organizationsRouter.get("/:id", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const org = await prisma.organization.findUnique({
-      where: { id: req.params.id! },
+      where: { id: req.params.id },
       include: { members: { include: { user: { select: { id: true, fullName: true, role: true } } } } },
     });
     if (!org) throw notFound("Organization");
-    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
-    const isMember = org.members.some((m) => m.userId === req.auth!.userId);
+    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
+    const isMember = org.members.some((m) => m.userId === getAuth(req).userId);
     if (!isPrivileged && !isMember) throw forbidden("Not a member of this organization");
     ok(res, org);
   } catch (e) {
@@ -73,11 +74,11 @@ const addMemberSchema = z.object({
 
 organizationsRouter.post("/:id/members", validate({ body: addMemberSchema }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const orgId = req.params.id!;
+    const orgId = req.params.id;
     const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { members: true } });
     if (!org) throw notFound("Organization");
-    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
-    const isOrgAdmin = org.members.some((m) => m.userId === req.auth!.userId && m.role === "ADMIN");
+    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
+    const isOrgAdmin = org.members.some((m) => m.userId === getAuth(req).userId && m.role === "ADMIN");
     if (!isPrivileged && !isOrgAdmin) throw forbidden("Only org admins may add members");
     const { userId, role } = req.body as z.infer<typeof addMemberSchema>;
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -91,13 +92,13 @@ organizationsRouter.post("/:id/members", validate({ body: addMemberSchema }), as
 
 organizationsRouter.delete("/:id/members/:userId", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const orgId = req.params.id!;
+    const orgId = req.params.id;
     const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { members: true } });
     if (!org) throw notFound("Organization");
-    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
-    const isOrgAdmin = org.members.some((m) => m.userId === req.auth!.userId && m.role === "ADMIN");
+    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
+    const isOrgAdmin = org.members.some((m) => m.userId === getAuth(req).userId && m.role === "ADMIN");
     if (!isPrivileged && !isOrgAdmin) throw forbidden("Only org admins may remove members");
-    await prisma.organizationMember.deleteMany({ where: { organizationId: orgId, userId: req.params.userId! } });
+    await prisma.organizationMember.deleteMany({ where: { organizationId: orgId, userId: req.params.userId } });
     ok(res, { removed: true });
   } catch (e) {
     next(e);
@@ -106,11 +107,11 @@ organizationsRouter.delete("/:id/members/:userId", async (req: import("express")
 
 organizationsRouter.get("/:id/farms", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const orgId = req.params.id!;
+    const orgId = req.params.id;
     const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { members: true } });
     if (!org) throw notFound("Organization");
-    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(req.auth!.role);
-    const isMember = org.members.some((m) => m.userId === req.auth!.userId);
+    const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
+    const isMember = org.members.some((m) => m.userId === getAuth(req).userId);
     if (!isPrivileged && !isMember) throw forbidden("Not a member");
     const farms = await prisma.farm.findMany({ where: { organizationId: orgId }, include: { plots: true }, orderBy: { createdAt: "desc" } });
     ok(res, farms);

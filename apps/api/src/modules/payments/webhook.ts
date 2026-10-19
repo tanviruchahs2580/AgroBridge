@@ -129,7 +129,10 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
     const requested = req.params.outcome ?? "fail";
     const outcome = ["success", "fail", "cancel"].includes(requested) ? requested : "fail";
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const refFromRequest = String(body.tran_id ?? req.query.tran_id ?? req.query.ref ?? "");
+    // Only the string forms count: a non-string body parameter must not
+    // stringify to "[object Object]" and be treated as a transaction reference.
+    const rawRef = body.tran_id ?? req.query.tran_id ?? req.query.ref;
+    const refFromRequest = typeof rawRef === "string" ? rawRef : "";
     const payment = refFromRequest ? await prisma.payment.findFirst({ where: { refNo: refFromRequest } }) : null;
 
     if (payment && payment.status === "PENDING" && outcome === "success") {

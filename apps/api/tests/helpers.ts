@@ -16,6 +16,9 @@ export async function registerFarmer(overrides: Partial<{ fullName: string; pass
     phone: uniquePhone(),
     password: overrides.password ?? "Test@1234",
     langPref: overrides.langPref ?? "bn",
+    // Registration requires the consent capture (PRD-05/AUD-150); the helper
+    // always sends it so every suite exercises the real contract.
+    consent: true as const,
   };
   const res = await request(app).post("/api/v1/auth/register").send(body);
   if (res.status !== 201) throw new Error(`register failed: ${JSON.stringify(res.body)}`);

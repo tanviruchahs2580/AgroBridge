@@ -7,7 +7,7 @@ describe("Journey 1 — Auth & profile", () => {
   it("registers a farmer with valid BD phone", async () => {
     const res = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "করিম মিয়া", phone: `018${Date.now().toString().slice(-8)}`, password: "Karim@1234" });
+      .send({ fullName: "করিম মিয়া", phone: `018${Date.now().toString().slice(-8)}`, password: "Karim@1234", consent: true });
     expect(res.status).toBe(201);
     expect(res.body.ok).toBe(true);
     expect(res.body.data.accessToken).toBeTruthy();
@@ -17,12 +17,12 @@ describe("Journey 1 — Auth & profile", () => {
   it("rejects invalid phone and weak password", async () => {
     const badPhone = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "X Y", phone: "12345", password: "LongEnough@123" });
+      .send({ fullName: "X Y", phone: "12345", password: "LongEnough@123", consent: true });
     expect(badPhone.status).toBe(400);
 
     const weak = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "X Y", phone: `019${Date.now().toString().slice(-8)}`, password: "short" });
+      .send({ fullName: "X Y", phone: `019${Date.now().toString().slice(-8)}`, password: "short", consent: true });
     expect(weak.status).toBe(400);
   });
 
@@ -30,7 +30,7 @@ describe("Journey 1 — Auth & profile", () => {
     const f = await registerFarmer();
     const again = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Another Name", phone: f.phone, password: "Whatever@123" });
+      .send({ fullName: "Another Name", phone: f.phone, password: "Whatever@123", consent: true });
     // Same 200 shape as a fresh registration's guidance step — the caller
     // cannot distinguish "already registered" from other neutral outcomes.
     expect(again.status).toBe(200);

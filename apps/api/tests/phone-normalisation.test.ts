@@ -61,7 +61,7 @@ describe("phone normalisation is wired end-to-end (B-06)", () => {
     const local = uniqueLocal("8");
     const register = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Nirmol Kumar", phone: toBengali(local), password: "Nirmol@1234" });
+      .send({ fullName: "Nirmol Kumar", phone: toBengali(local), password: "Nirmol@1234", consent: true });
     expect(register.status).toBe(201);
 
     // Stored canonically, not as typed.
@@ -87,7 +87,7 @@ describe("phone normalisation is wired end-to-end (B-06)", () => {
     const f = await registerFarmer();
     const again = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Duplicate Attempt", phone: `+880${f.phone.slice(1)}`, password: "Duplicate@123" });
+      .send({ fullName: "Duplicate Attempt", phone: `+880${f.phone.slice(1)}`, password: "Duplicate@123", consent: true });
     // Enumeration-safe duplicate handling: a differently-spelled duplicate of a
     // registered number resolves to the SAME account (normalisation) and gets
     // the neutral guidance response — not a 409 that would confirm existence.
@@ -102,7 +102,7 @@ describe("phone normalisation is wired end-to-end (B-06)", () => {
     for (const bad of ["+919876543210", "1712345678", "12345", "02712345678", "০২৭১২৩৪৫৬৭৮", "01712abc678"]) {
       const res = await request(app)
         .post("/api/v1/auth/register")
-        .send({ fullName: "Bad Phone", phone: bad, password: "BadPhone@123" });
+        .send({ fullName: "Bad Phone", phone: bad, password: "BadPhone@123", consent: true });
       expect(res.status, `expected 400 for ${bad}`).toBe(400);
     }
   });
@@ -111,7 +111,7 @@ describe("phone normalisation is wired end-to-end (B-06)", () => {
     const local = uniqueLocal("9");
     const register = await request(app)
       .post("/api/v1/auth/register")
-      .send({ fullName: "Otp Canon", phone: toBengali(local), password: "OtpCanon@123" });
+      .send({ fullName: "Otp Canon", phone: toBengali(local), password: "OtpCanon@123", consent: true });
     expect(register.status).toBe(201);
 
     const otp = await request(app)

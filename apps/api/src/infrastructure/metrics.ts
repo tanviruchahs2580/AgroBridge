@@ -48,7 +48,8 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
     // URL: unmatched requests (404s, scanner traffic — they bypass the /api
     // rate limiter) previously minted one label per attacker-chosen path,
     // growing the registry without bound.
-    const route = req.route?.path ? `${req.baseUrl}${req.route.path as string}` : "unmatched";
+    const routePath = (req.route as { path?: unknown } | undefined)?.path;
+    const route = typeof routePath === "string" && routePath ? `${req.baseUrl}${routePath}` : "unmatched";
     const labels = { method: req.method, route, status: String(res.statusCode) };
     httpRequestsTotal.inc(labels);
     const duration = Number(process.hrtime.bigint() - start) / 1e9;

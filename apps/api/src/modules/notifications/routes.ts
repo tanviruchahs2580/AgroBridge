@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const notificationsRouter = Router();
 notificationsRouter.use(requireAuth);
@@ -12,14 +13,14 @@ notificationsRouter.get("/", async (req, res, next) => {
   try {
     const category = typeof req.query.category === "string" ? req.query.category.toUpperCase() : undefined;
     const where = {
-      userId: req.auth!.userId,
+      userId: getAuth(req).userId,
       ...(category && ["CRITICAL", "ACTION", "INFO"].includes(category) ? { category } : {}),
     };
     const [notifications, unreadCritical, unreadAction, unreadInfo] = await Promise.all([
       prisma.notification.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 }),
-      prisma.notification.count({ where: { userId: req.auth!.userId, readAt: null, category: "CRITICAL" } }),
-      prisma.notification.count({ where: { userId: req.auth!.userId, readAt: null, category: "ACTION" } }),
-      prisma.notification.count({ where: { userId: req.auth!.userId, readAt: null, category: "INFO" } }),
+      prisma.notification.count({ where: { userId: getAuth(req).userId, readAt: null, category: "CRITICAL" } }),
+      prisma.notification.count({ where: { userId: getAuth(req).userId, readAt: null, category: "ACTION" } }),
+      prisma.notification.count({ where: { userId: getAuth(req).userId, readAt: null, category: "INFO" } }),
     ]);
     ok(res, {
       items: notifications,
@@ -41,7 +42,7 @@ const prefsSchema = z.object({
 
 notificationsRouter.get("/preferences", async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: { notificationPrefs: true } });
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId }, select: { notificationPrefs: true } });
     let prefs = { critical: true, action: true, info: true };
     if (user?.notificationPrefs) {
       try {
@@ -59,7 +60,7 @@ notificationsRouter.get("/preferences", async (req, res, next) => {
 notificationsRouter.patch("/preferences", validate({ body: prefsSchema }), async (req, res, next) => {
   try {
     await prisma.user.update({
-      where: { id: req.auth!.userId },
+      where: { id: getAuth(req).userId },
       data: { notificationPrefs: JSON.stringify(req.body) },
     });
     ok(res, req.body);
@@ -75,9 +76,9 @@ notificationsRouter.post(
     try {
       const { ids, all } = req.body as { ids?: string[]; all?: boolean };
       if (all) {
-        await prisma.notification.updateMany({ where: { userId: req.auth!.userId, readAt: null }, data: { readAt: new Date() } });
+        await prisma.notification.updateMany({ where: { userId: getAuth(req).userId, readAt: null }, data: { readAt: new Date() } });
       } else if (ids?.length) {
-        await prisma.notification.updateMany({ where: { userId: req.auth!.userId, id: { in: ids } }, data: { readAt: new Date() } });
+        await prisma.notification.updateMany({ where: { userId: getAuth(req).userId, id: { in: ids } }, data: { readAt: new Date() } });
       }
       ok(res, { updated: true });
     } catch (e) {

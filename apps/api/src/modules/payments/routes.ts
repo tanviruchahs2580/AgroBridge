@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Prisma } from "@prisma/client";
+import type { Payment, Prisma } from "@prisma/client";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { createHash } from "node:crypto";
@@ -8,7 +8,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, unprocessable, badRequest, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
-import { ok } from "../../middleware/context.js";
+import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { notify } from "../../providers/notification/service.js";
@@ -19,6 +19,7 @@ import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
 export const walletRouter = Router();
@@ -46,6 +47,68 @@ const financialLimiter = rateLimit({
 /** Mask a payout destination for storage/display (never store full account). */
 function maskDestination(phone: string): string {
   return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
+}
+
+/** metaStr parsed defensively — absent/malformed JSON degrades to "no metadata". */
+function parsedMeta(metaStr: string | null): Record<string, unknown> {
+  if (!metaStr) return {};
+  try {
+    const parsed = JSON.parse(metaStr) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Client idempotency key as stored in a payment's metaStr JSON (null when absent). */
+function idempotencyKeyOfMeta(metaStr: string | null): string | null {
+  const key = parsedMeta(metaStr).idempotencyKey;
+  return typeof key === "string" ? key : null;
+}
+
+/** Checkout URL stored at creation time, so a keyed replay resumes the same session. */
+function metaRedirectUrl(metaStr: string | null): string | undefined {
+  const url = parsedMeta(metaStr).redirectUrl;
+  return typeof url === "string" ? url : undefined;
+}
+
+/** The prisma surface the keyed lookup needs — satisfied by the client and a tx client alike. */
+type PaymentFinder = Pick<typeof prisma, "payment">;
+
+/**
+ * Keyed replay lookup: one `Idempotency-Key` = one payment for its lifetime
+ * (the payments analogue of checkout's one key = one order). metaStr is the
+ * key's only column, so a containment prefilter narrows the rows and the
+ * parsed value confirms the exact match — a JSON substring can never be
+ * mistaken for the key itself.
+ */
+async function findPaymentByClientKey(db: PaymentFinder, userId: string, key: string): Promise<Payment | null> {
+  const fragment = `"idempotencyKey":${JSON.stringify(key)}`;
+  const candidates = await db.payment.findMany({
+    where: { userId, metaStr: { contains: fragment } },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+  return candidates.find((p) => idempotencyKeyOfMeta(p.metaStr) === key) ?? null;
+}
+
+/**
+ * Response envelope for a CREATED or REPLAYED intent — a replay must look
+ * exactly like the response the original creation returned (same paymentId,
+ * refNo, amount), so a retrying client cannot tell it apart from the first
+ * success. `redirectUrl` comes from the stored metadata when present.
+ */
+function paymentIntentEnvelope(payment: Payment, redirectUrl?: string) {
+  const provider = getPaymentProvider();
+  return {
+    paymentId: payment.id,
+    refNo: payment.refNo,
+    amountPaisa: payment.amountPaisa,
+    providerMode: env.PAYMENT_PROVIDER,
+    ...(redirectUrl ? { redirectUrl } : {}),
+    messageBn: provider.mode === "sandbox" ? "স্যান্ডবক্স মোড — কোনো প্রকৃত অর্থ লেনদেন হবে না।" : undefined,
+    messageEn: provider.mode === "sandbox" ? "Sandbox mode — no real money will move." : undefined,
+  };
 }
 
 /**
@@ -114,12 +177,28 @@ paymentsRouter.post(
   async (req, res, next) => {
     try {
       const { purposeType, purposeId } = req.body as { purposeType: string; purposeId: string };
+      const userId = getAuth(req).userId;
+      const clientKey = idempotencyKeyOf(req);
+
+      // Keyed replay fast path: this key already produced a payment (retry
+      // after a lost response, duplicate submit) — return the ORIGINAL intent
+      // with 200 before any supersede/creation side effect, mirroring
+      // checkout's keyed order replay. Replay answers even when the deployment
+      // would refuse a NEW intent: nothing is fabricated by returning a row
+      // that already exists.
+      if (clientKey) {
+        const replay = await findPaymentByClientKey(prisma, userId, clientKey);
+        if (replay) {
+          ok(res, paymentIntentEnvelope(replay, metaRedirectUrl(replay.metaStr)), 200);
+          return;
+        }
+      }
+
       if (isProd && env.PAYMENT_PROVIDER === "sandbox" && env.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION !== "1") {
         throw paymentGatewayUnconfigured();
       }
 
       let amountPaisa: number;
-      const userId = req.auth!.userId;
       if (purposeType === "ORDER") {
         const order = await prisma.order.findFirst({ where: { id: purposeId, userId, status: { in: ["CONFIRMED", "PENDING"] }, paymentStatus: "UNPAID" } });
         if (!order) throw notFound("Payable order");
@@ -163,22 +242,35 @@ paymentsRouter.post(
         if (!intent.redirectUrl) throw paymentGatewayUnavailable({ reason: "gateway returned no checkout URL" });
         gatewayRef = intent.providerRef;
         gatewayRedirectUrl = intent.redirectUrl;
-        gatewayMeta = { ...gatewayMeta, ...(intent.meta ?? {}) };
+        // The checkout URL is stored alongside the gateway metadata so a
+        // keyed replay can hand the client back the SAME session.
+        gatewayMeta = { ...gatewayMeta, ...(intent.meta ?? {}), redirectUrl: intent.redirectUrl };
       } else {
         gatewayRef = `SBX-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       }
 
-      // Cancel any stale PENDING intents for the same purpose so exactly one
-      // live intent exists at a time (prevents double-confirm double-spend).
-      // Scoped to THIS user: purposeId is a shared business key (e.g. the
-      // membership tier), so an unscoped supersede would cancel other users'
-      // in-flight checkouts.
-      const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const { payment, replayed } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Re-check inside the transaction: two same-key requests that both
+        // passed the fast path must still produce exactly ONE payment — the
+        // loser replays the winner's row instead of superseding it. (In a
+        // live-gateway race the loser's just-created gateway session is
+        // orphaned; it holds no payment row, so a webhook for it can never
+        // settle anything.)
+        if (clientKey) {
+          const existing = await findPaymentByClientKey(tx, userId, clientKey);
+          if (existing) return { payment: existing, replayed: true };
+        }
+
+        // Cancel any stale PENDING intents for the same purpose so exactly one
+        // live intent exists at a time (prevents double-confirm double-spend).
+        // Scoped to THIS user: purposeId is a shared business key (e.g. the
+        // membership tier), so an unscoped supersede would cancel other users'
+        // in-flight checkouts.
         await tx.payment.updateMany({
           where: { purposeType, purposeId, userId, status: "PENDING" },
           data: { status: "FAILED", metaStr: JSON.stringify({ cancelledReason: "superseded_by_new_intent" }) },
         });
-        return tx.payment.create({
+        const created = await tx.payment.create({
           data: {
             refNo: paymentRefNo,
             userId,
@@ -187,23 +279,16 @@ paymentsRouter.post(
             amountPaisa,
             method: "MOBILE_WALLET",
             providerRef: gatewayRef,
-            metaStr: JSON.stringify(gatewayMeta),
+            metaStr: JSON.stringify(clientKey ? { ...gatewayMeta, idempotencyKey: clientKey } : gatewayMeta),
             // Correlation for support/audit joins (X-Request-Id of this request).
             requestId: req.requestId,
           },
         });
+        return { payment: created, replayed: false };
       });
-      paymentIntentsTotal.inc({ purpose_type: purposeType, status: "created" });
+      if (!replayed) paymentIntentsTotal.inc({ purpose_type: purposeType, status: "created" });
 
-      ok(res, {
-        paymentId: payment.id,
-        refNo: payment.refNo,
-        amountPaisa: payment.amountPaisa,
-        providerMode: env.PAYMENT_PROVIDER,
-        ...(gatewayRedirectUrl ? { redirectUrl: gatewayRedirectUrl } : {}),
-        messageBn: provider.mode === "sandbox" ? "স্যান্ডবক্স মোড — কোনো প্রকৃত অর্থ লেনদেন হবে না।" : undefined,
-        messageEn: provider.mode === "sandbox" ? "Sandbox mode — no real money will move." : undefined,
-      }, 201);
+      ok(res, paymentIntentEnvelope(payment, metaRedirectUrl(payment.metaStr) ?? gatewayRedirectUrl), replayed ? 200 : 201);
     } catch (e) {
       next(e);
     }
@@ -222,9 +307,15 @@ export async function claimAndApplyPayment(
 ): Promise<boolean> {
   let claimed = false;
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // A client idempotency key (when one was supplied) rides in metaStr and
+    // must survive confirmation: a client retrying intent creation after a
+    // lost response still has to find THIS payment once it is no longer
+    // PENDING, and metaStr is the key's only column.
+    const before = await tx.payment.findUnique({ where: { id: payment.id }, select: { metaStr: true } });
+    const clientKey = idempotencyKeyOfMeta(before?.metaStr ?? null);
     const res = await tx.payment.updateMany({
       where: { id: payment.id, status: "PENDING" },
-      data: { status: "SUCCEEDED", metaStr: JSON.stringify(meta) },
+      data: { status: "SUCCEEDED", metaStr: JSON.stringify(clientKey ? { ...meta, idempotencyKey: clientKey } : meta) },
     });
     if (res.count !== 1) return;
     claimed = true;
@@ -264,7 +355,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
     if (isProd && env.ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION !== "1") {
       throw paymentGatewayUnconfigured();
     }
-    const payment = await prisma.payment.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
+    const payment = await prisma.payment.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!payment) throw notFound("Payment");
     if (payment.status !== "PENDING") throw conflict(`Payment already ${payment.status}`);
 
@@ -285,7 +376,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
  */
 paymentsRouter.get("/:id/status", async (req, res, next) => {
   try {
-    const payment = await prisma.payment.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
+    const payment = await prisma.payment.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!payment) throw notFound("Payment");
     if (payment.status !== "PENDING") {
       ok(res, { status: payment.status, reconciled: false });
@@ -320,11 +411,11 @@ paymentsRouter.get("/:id/status", async (req, res, next) => {
 
 paymentsRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
+    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
     // X-Total-Count: admin/finance see ALL payments while a user
     // sees their own; either way the body is a capped slice (100) and the
     // header carries the scope's true total so truncation is visible.
-    const where = isPrivileged ? {} : { userId: req.auth!.userId };
+    const where = isPrivileged ? {} : { userId: getAuth(req).userId };
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
         where,
@@ -378,7 +469,7 @@ paymentsRouter.post(
         throw paymentGatewayUnconfigured();
       }
 
-      const payment = await prisma.payment.findUnique({ where: { id: req.params.id! } });
+      const payment = await prisma.payment.findUnique({ where: { id: req.params.id } });
       if (!payment) throw notFound("Payment");
       if (payment.purposeType === "MEMBERSHIP") {
         throw unprocessable("Membership purchases are non-refundable while active (see Terms)");
@@ -387,13 +478,17 @@ paymentsRouter.post(
         throw unprocessable(`Refunds for ${payment.purposeType} are not supported yet`);
       }
 
+      // Narrowed here, outside the transaction closure: TypeScript does not
+      // carry the `!gatewayRef` guard above into the callback.
+      const liveRefundRef: string | undefined = liveGateway ? gatewayRef : undefined;
+
       await prisma.$transaction(async (tx) => {
         // Atomic claim: only one refund can transition SUCCEEDED -> REFUNDED.
         // Live mode stores the operator-supplied gateway reference verbatim;
         // sandbox generates its own RFND- ref (unchanged).
         const claimed = await tx.payment.updateMany({
           where: { id: payment.id, status: "SUCCEEDED" },
-          data: { status: "REFUNDED", refundedAt: new Date(), refundRef: liveGateway ? gatewayRef! : refNo("RFND") },
+          data: { status: "REFUNDED", refundedAt: new Date(), refundRef: liveRefundRef ?? refNo("RFND") },
         });
         if (claimed.count !== 1) throw conflict(`Payment already ${payment.status}`);
 
@@ -424,7 +519,7 @@ paymentsRouter.post(
 
       const updated = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
       await audit({
-        actorId: req.auth!.userId,
+        actorId: getAuth(req).userId,
         action: "PAYMENT_REFUNDED",
         entityType: "Payment",
         entityId: payment.id,
@@ -469,12 +564,12 @@ paymentsRouter.post(
   validate({ body: payoutSchema }),
   async (req, res, next) => {
     try {
-      const po = await prisma.procurementOrder.findUnique({ where: { id: req.body.poId as string }, include: { user: { select: { phoneVerified: true } } } });
+      const po = await prisma.procurementOrder.findUnique({ where: { id: (req.body as { poId: string }).poId }, include: { user: { select: { phoneVerified: true } } } });
       if (!po) throw notFound("Procurement order");
       // Payouts are money leaving the platform: a territory-scoped procurement
       // manager may only pay farmers in their own region.
       await assertSubjectInRegion(
-        await actorRegionLimit(req.auth!.userId, req.auth!.role),
+        await actorRegionLimit(getAuth(req).userId, getAuth(req).role),
         po.userId,
         "This procurement order"
       );
@@ -551,9 +646,9 @@ walletRouter.get("/", async (req, res, next) => {
     // X-Total-Count: the ledger body is a capped slice (50); the
     // header is the same user scope's true count so the UI can say "showing
     // 50 of N" without a second query shape.
-    const txWhere = { userId: req.auth!.userId };
+    const txWhere = { userId: getAuth(req).userId };
     const [wallet, transactions, txTotal] = await Promise.all([
-      prisma.wallet.upsert({ where: { userId: req.auth!.userId }, update: {}, create: { userId: req.auth!.userId } }),
+      prisma.wallet.upsert({ where: { userId: getAuth(req).userId }, update: {}, create: { userId: getAuth(req).userId } }),
       prisma.walletTransaction.findMany({ where: txWhere, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.walletTransaction.count({ where: txWhere }),
     ]);
@@ -589,19 +684,19 @@ walletRouter.get("/summary", async (req, res, next) => {
 
     const [credits, debits, held, membership] = await Promise.all([
       prisma.walletTransaction.aggregate({
-        where: { userId: req.auth!.userId, direction: "CREDIT", createdAt: { gte: startOfMonth } },
+        where: { userId: getAuth(req).userId, direction: "CREDIT", createdAt: { gte: startOfMonth } },
         _sum: { amountPaisa: true },
       }),
       prisma.walletTransaction.aggregate({
-        where: { userId: req.auth!.userId, direction: "DEBIT", createdAt: { gte: startOfMonth } },
+        where: { userId: getAuth(req).userId, direction: "DEBIT", createdAt: { gte: startOfMonth } },
         _sum: { amountPaisa: true },
       }),
       // heldPaisa is maintained transactionally under the wallet row lock at
       // request/approve/reject time; it is the source of truth for in-flight
       // withdrawal holds (a cross-check against the Withdrawal table lives in
       // scripts/reconcile-wallet.mjs).
-      prisma.wallet.findUnique({ where: { userId: req.auth!.userId }, select: { heldPaisa: true } }),
-      getActiveMembership(req.auth!.userId),
+      prisma.wallet.findUnique({ where: { userId: getAuth(req).userId }, select: { heldPaisa: true } }),
+      getActiveMembership(getAuth(req).userId),
     ]);
 
     ok(res, {
@@ -626,7 +721,7 @@ const withdrawalSchema = z.object({
 
 walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalSchema }), async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
     if (!user) throw notFound("User");
     if (!user.phoneVerified && isProd) throw phoneNotVerified();
 
@@ -639,23 +734,23 @@ walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalS
       // what closes the previous race where two parallel requests both passed
       // the aggregate availability check with the same pre-lock snapshot.
       await tx.wallet.upsert({
-        where: { userId: req.auth!.userId },
+        where: { userId: getAuth(req).userId },
         update: { heldPaisa: { increment: 0 } },
-        create: { userId: req.auth!.userId },
+        create: { userId: getAuth(req).userId },
       });
-      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: req.auth!.userId } });
+      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: getAuth(req).userId } });
       const available = wallet.balancePaisa - wallet.heldPaisa;
       if (amountPaisa > available) {
         throw unprocessable("Insufficient available balance (pending withdrawals are held)");
       }
       await tx.wallet.update({
-        where: { userId: req.auth!.userId },
+        where: { userId: getAuth(req).userId },
         data: { heldPaisa: { increment: amountPaisa } },
       });
       return tx.withdrawal.create({
         data: {
           refNo: refNo("WDL"),
-          userId: req.auth!.userId,
+          userId: getAuth(req).userId,
           amountPaisa,
           channel,
           destination: maskDestination(user.phone),
@@ -663,7 +758,7 @@ walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalS
       });
     }, { timeout: 15000, maxWait: 8000 });
 
-    await audit({ actorId: req.auth!.userId, action: "WITHDRAWAL_REQUESTED", entityType: "Withdrawal", entityId: withdrawal.id, meta: { amountPaisa } });
+    await audit({ actorId: getAuth(req).userId, action: "WITHDRAWAL_REQUESTED", entityType: "Withdrawal", entityId: withdrawal.id, meta: { amountPaisa } });
     ok(res, withdrawal, 201);
   } catch (e) {
     next(e);
@@ -673,7 +768,7 @@ walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalS
 walletRouter.get("/withdrawals", async (req, res, next) => {
   try {
     const withdrawals = await prisma.withdrawal.findMany({
-      where: { userId: req.auth!.userId },
+      where: { userId: getAuth(req).userId },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -689,7 +784,7 @@ membershipRouter.get("/plans", async (_req, res, next) => {
     const plans = await prisma.membershipPlan.findMany({ where: { isActive: true }, orderBy: { pricePaisa: "asc" } });
     ok(
       res,
-      plans.map((p) => ({ ...p, benefits: JSON.parse(p.benefitsStr ?? "[]") }))
+      plans.map((p) => ({ ...p, benefits: JSON.parse(p.benefitsStr ?? "[]") as string[] }))
     );
   } catch (e) {
     next(e);

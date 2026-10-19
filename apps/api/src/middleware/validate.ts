@@ -8,7 +8,11 @@ export function validate(schemas: Partial<Record<Part, ZodSchema>>) {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
       for (const part of Object.keys(schemas) as Part[]) {
-        const result = schemas[part]!.safeParse(req[part]);
+        const schema = schemas[part];
+        // Object.keys only yields keys the caller supplied; the guard states that
+        // for the compiler without a non-null assertion.
+        if (!schema) continue;
+        const result = schema.safeParse(req[part]);
         if (!result.success) {
           return next(
             badRequest(

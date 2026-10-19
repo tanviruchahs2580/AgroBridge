@@ -1,4 +1,6 @@
 import { pino } from "pino";
+import { env, isTest } from "../../config/env.js";
+import { currentTraceFields } from "../../middleware/context.js";
 
 /**
  * Fields that must never reach the log stream: credentials,
@@ -36,7 +38,13 @@ export const LOG_REDACT_PATHS = [
 ];
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "test" ? "silent" : "info"),
+  // Reads through config/env.ts so LOG_LEVEL is validated in one place; the
+  // default keeps test output quiet unless a test opts into a level.
+  level: env.LOG_LEVEL ?? (isTest ? "silent" : "info"),
   redact: LOG_REDACT_PATHS,
   base: { service: "agrobridge-api" },
+  // Every line emitted while a request is in flight carries its requestId and
+  // W3C traceId without each call site re-passing them (middleware/context.ts
+  // keeps the per-request store).
+  mixin: currentTraceFields,
 });
