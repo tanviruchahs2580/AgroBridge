@@ -116,3 +116,25 @@ lead's run; the workstation ran everything below.
 | i18n | `npm run i18n:check --workspace apps/web` | 431 referenced / 647 declared / 0 missing |
 | build | `npm run build --workspace apps/web` | clean; entry 130.6 kB gz |
 | preflight | `npm run preflight --workspace apps/web` | pass with entry budget 132 kB |
+
+## Lighthouse follow-up (same day): LCP budget miss and the fix
+
+First CI run of the new Lighthouse gate failed on `largest-contentful-paint` (>4 s). Root cause, measured locally with the same config (`.lighthouseci/lhr-*.json`):
+three collections at mobile emulation gave LCP 6.8 / 5.6 / 5.5 s; the LCP element is the login hero `<h2>` (font-dependent paint). Two causes were visible:
+
+1. **The preload list did not match the first paint.** The hero heading is `font-extrabold`
+   (800); the only Hind Siliguri Bengali faces are 400/500/600/700, so 800 resolves to the
+   **700** file — which was *not* preloaded (600 was). The body's 400 was also not preloaded.
+2. **The Noto Sans Bengali preload was 107 kB of fallback.** That family appears only as the
+   fallback in the font stack; preloading it pulled a font most sessions never render.
+
+Fix (performance-only, no visual change): preload `hind-siliguri-bengali-400`,
+`hind-siliguri-bengali-700` and `hind-siliguri-latin-400`; drop the Noto preload (it still
+downloads on demand for a glyph only it covers). The gate itself now runs three collections and
+the caller (CI) owns the preview server — Vite's readiness line is ANSI-coloured, which defeated
+LHCI's stdout pattern and left the first collection measuring a cold server.
+
+Status: **local re-measurement was inconclusive** (the third collection wedged on this Windows
+host mid-run — the same host-graphics flakiness recorded in the flake register). CI on Linux is
+the authoritative measurement; the budget stays at LCP ≤ 4 s error until CI shows the post-fix
+number, at which point the receipt records it.

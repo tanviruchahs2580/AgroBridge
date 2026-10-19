@@ -239,14 +239,28 @@ jobs:
         working-directory: apps/web
         run: npm run preflight
 
-      # Real measurements for the built bundle (WEB-01). apps/web/lighthouserc.json
-      # owns the run: it starts `vite preview` itself (startServerCommand,
-      # strictPort: 4173), runs twice and asserts the accessibility floor as an
-      # error and the performance/best-practices budgets as warnings. The step is skipped until
-      # that config exists, so a missing config degrades the gate instead of
-      # failing the build. The version is pinned here rather than carried in the
-      # lockfile: @lhci/cli has not shipped a release in over a year, so the pin
-      # is what keeps the budget from changing under a floating `npx`.
+      # Real measurements for the built bundle (WEB-01). The caller owns the
+      # server: vite's own readiness line is ANSI-coloured, which defeats
+      # LHCI's stdout pattern, so this step starts the preview build and waits
+      # on HTTP instead — deterministic in CI. lighthouserc.json then runs
+      # three collections and asserts the accessibility floor as an error and
+      # the performance/best-practices budgets as warnings. The step is skipped
+      # until that config exists, so a missing config degrades the gate instead
+      # of failing the build. The @lhci/cli version is pinned here rather than
+      # carried in the lockfile: it has not shipped a release in over a year,
+      # so the pin is what keeps the budget from changing under a floating npx.
+      - name: Start preview server for Lighthouse
+        if: hashFiles('apps/web/lighthouserc.json') != ''
+        working-directory: apps/web
+        run: |
+          nohup npx vite preview --port 4173 --strictPort --host 127.0.0.1 > /tmp/agro-lhci-preview.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4173/ || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 1
+          done
+          echo "::error::preview server never answered on 127.0.0.1:4173"; cat /tmp/agro-lhci-preview.log; exit 1
+
       - name: Lighthouse CI (budgets for the built bundle)
         if: hashFiles('apps/web/lighthouserc.json') != ''
         working-directory: apps/web
