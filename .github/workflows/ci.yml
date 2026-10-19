@@ -199,6 +199,11 @@ jobs:
       - name: Docs link check (README + docs/)
         run: node scripts/qa/link-check.mjs
 
+      # Prose claims drift the same way links do: a documented npm script that
+      # was renamed, a version that forked, a test count pasted into the README.
+      - name: Docs claims check (scripts, version source, count claims)
+        run: node scripts/qa/claims-check.mjs
+
       - name: Lint (eslint + jsx-a11y)
         working-directory: apps/web
         run: npm run lint

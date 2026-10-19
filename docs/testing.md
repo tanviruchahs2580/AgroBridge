@@ -62,7 +62,7 @@ exercised by the API suites.
 12. `ai-eval-harness.test.ts` + `ai-eval-degradation.test.ts` — the frozen 109-item held-out
     set with pre-registered thresholds (hit-rate, containment, abstention, clarify, language,
     safety referral, p95); the degradation test proves the gate fails on a broken corpus.
-    `npm run eval:ai` writes `apps/api/eval-artifacts/ai-eval-latest.json`.
+    `npm run eval:ai --workspace apps/api` writes `apps/api/eval-artifacts/ai-eval-latest.json`.
 13. `ai-prompt-injection.test.ts` — 51 table-driven injection cases across ten categories.
 14. `ai-provider-adapter.test.ts` — the OpenAI-compatible adapter's full failure taxonomy
     (empty/filtered/truncated/429/5xx/timeout, one bounded retry) with stubbed fetch.
