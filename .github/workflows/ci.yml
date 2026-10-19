@@ -160,16 +160,17 @@ jobs:
         working-directory: apps/api
         run: npx prisma migrate status --schema prisma/postgres/schema.prisma
 
-      # --exit-code: 0 when the diff is empty, 1 on error, 2 when the schema and
-      # the chain produce different databases. The service user is the cluster
-      # superuser, so Prisma can create and drop the shadow database itself.
+      # --exit-code: 0 when the diff is empty, 1 on error, 2 when the database
+      # and the schema datamodel differ. The comparison is against the database
+      # the chain just produced on this runner (--from-url), not a shadow
+      # replay: that is exactly the production shape, and it needs no shadow
+      # database (which does not exist on a fresh service container — P1003).
       - name: Schema and migration chain must not diverge
         working-directory: apps/api
         run: |
           npx prisma migrate diff \
-            --from-migrations prisma/postgres/migrations \
+            --from-url "$DATABASE_URL" \
             --to-schema-datamodel prisma/postgres/schema.prisma \
-            --shadow-database-url postgresql://agrobridge:ci-password@localhost:5432/agrobridge_shadow \
             --exit-code
 
   web-quality:
