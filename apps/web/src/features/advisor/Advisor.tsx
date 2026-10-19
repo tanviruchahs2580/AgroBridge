@@ -120,6 +120,10 @@ export default function Advisor() {
           kbVersion: res.kbVersion,
         },
       ]);
+      // The server just stored this advisory; the collapsed history panel holds
+      // an earlier fetch, so without this it shows a stale (pre-question) list
+      // until a reload (found live 2026-10-19).
+      invalidate("advisor-history");
     } catch (err) {
       setChat((c) => [...c, { role: "ai", text: mapError(err, lang) }]);
     } finally {
