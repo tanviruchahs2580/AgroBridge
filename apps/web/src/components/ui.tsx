@@ -123,7 +123,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
   },
   ref
 ) {
-  const base = "inline-flex items-center justify-center gap-2 rounded-button font-semibold transition-[transform,background-color,box-shadow,filter] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100";
+  // Disabled buttons keep WCAG AA contrast. The old treatment was
+  // `disabled:opacity-50`, which blends BOTH the variant background and its
+  // white label toward the page — measured 2.1–2.4:1, and axe caught it on the
+  // out-of-stock "Add to cart" state of the market list (data-dependent, so it
+  // only failed some runs; the state itself is always a violation). The
+  // token-based muted surface keeps the intent — clearly unavailable — at a
+  // measured 6.8:1 (stone-600 on surface-subdued; stone-500 sits at 4.3:1 and
+  // would still miss the 4.5 floor for this label size), and the shadow drops
+  // so a disabled control does not float above the card.
+  const base = "inline-flex items-center justify-center gap-2 rounded-button font-semibold transition-[transform,background-color,box-shadow,filter] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:cursor-not-allowed disabled:bg-surface-subdued disabled:text-stone-600 disabled:shadow-none disabled:hover:brightness-100 motion-reduce:transition-none motion-reduce:active:scale-100";
   const sizes: Record<ButtonSize, string> = {
     sm: "min-h-[36px] px-3 py-1.5 text-xs",
     md: "min-h-[44px] px-4 py-2.5 text-sm",
