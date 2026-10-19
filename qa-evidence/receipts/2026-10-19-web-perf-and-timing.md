@@ -138,3 +138,12 @@ Status: **local re-measurement was inconclusive** (the third collection wedged o
 host mid-run — the same host-graphics flakiness recorded in the flake register). CI on Linux is
 the authoritative measurement; the budget stays at LCP ≤ 4 s error until CI shows the post-fix
 number, at which point the receipt records it.
+
+### Round 2: CI-measured LCP and the splash clock
+
+CI on the preload fix measured the median: **LCP 4865 ms** (FCP 2854 ms, TBT 173 ms; report in
+`.audit/evidence/E-V2-W2-lhci-ci-report.html`). The LCP−FCP gap was the branded splash, which held
+the screen **2.68 s on a fixed clock** — by far the largest paint on a cold visit. Fix: the same
+phase sequence with a compressed clock (total ~1.5 s; reduced-motion path unchanged), a
+perceived-performance change within the UI-freeze rules, no visual altered. Splash e2e (3 tests)
+and web unit (176) stay green; the next CI collection records the new median here.

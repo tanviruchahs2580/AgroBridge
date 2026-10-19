@@ -49,16 +49,22 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   useEffect(() => {
     if (shouldReduce || staticOnly) return;
     let cancelled = false;
-    // Phase timing: seed 0-1.1s, brand 0.9-1.6s (overlap), loading 1.1-2.6s, exit 2.6-2.8s
-    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 900);
-    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 1100);
-    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 2600);
+    // Phase timing, compressed to ~1.4s total. The splash used to hold the
+    // screen for 2.7s on a fixed clock, which made it the largest-contentful
+    // paint on every cold visit — a self-inflicted LCP above 4s for users and
+    // for the Lighthouse budget. The sequence (seed -> brand -> loading ->
+    // exit) and every visual are unchanged; only the clock is tighter:
+    // seed 0-0.45s, brand 0.35-0.75s (overlap), loading 0.45-1.25s, exit
+    // 1.25-1.45s.
+    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 350);
+    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 450);
+    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 1250);
 
-    // Progress animation 0→100 across 1.1-2.6s (1.5s) with meaningful status
+    // Progress animation 0→100 across 0.45-1.25s (0.8s) with meaningful status
     let raf = 0;
     const start = performance.now();
-    const duration = 1500;
-    const startDelay = 1100;
+    const duration = 800;
+    const startDelay = 450;
     function tick(now: number) {
       if (cancelled) return;
       const elapsed = now - start - startDelay;
@@ -76,8 +82,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     const tDone = setTimeout(() => {
       if (cancelled) return;
       setExiting(true);
-      setTimeout(() => onDone?.(), 280);
-    }, 2680);
+      setTimeout(() => onDone?.(), 200);
+    }, 1300);
 
     return () => {
       cancelled = true;
