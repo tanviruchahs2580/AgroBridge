@@ -93,3 +93,6 @@ qa-evidence/*
 
 # Quality-tool outputs (knip/jscpd)
 jscpd-report/
+
+# Local Lighthouse CI output
+apps/web/.lighthouseci/
