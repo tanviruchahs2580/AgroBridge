@@ -16,10 +16,13 @@ export class DbStorageProvider implements StorageProvider {
 
   async save(fileName: string, data: Buffer, mime: string): Promise<string> {
     const key = `${UPLOAD_PREFIX}${fileName}`;
+    // Copy into a plain ArrayBuffer-backed view: Prisma's Bytes field is typed
+    // Uint8Array<ArrayBuffer>, while Buffer may be backed by SharedArrayBuffer.
+    const bytes = new Uint8Array(data);
     await prisma.storedObject.upsert({
       where: { key },
-      create: { key, mime, sizeBytes: data.length, data },
-      update: { mime, sizeBytes: data.length, data },
+      create: { key, mime, sizeBytes: bytes.length, data: bytes },
+      update: { mime, sizeBytes: bytes.length, data: bytes },
     });
     return key;
   }

@@ -64,7 +64,7 @@ diseaseRouter.post(
 
       if (cropGuess && cropGuess.length > 120) throw badRequest("cropGuess too long");
 
-      // B-17: strip EXIF (APP1 — GPS/device/timestamps) from JPEGs before the
+      // strip EXIF (APP1 — GPS/device/timestamps) from JPEGs before the
       // bytes are stored. PNG/WebP pass through unchanged this iteration: the
       // audit-flagged leak is the camera EXIF in JPEGs, and neither format can
       // carry APP1 segments; their metadata chunks are recorded as a residual.
@@ -84,7 +84,7 @@ diseaseRouter.post(
       const imagePath = `uploads/disease/${fileName}`;
       await getStorageProvider().save(fileName, upload, imagePart.mime);
 
-      // B-17 orphan cleanup: if persisting the case fails, the just-stored
+      // orphan cleanup: if persisting the case fails, the just-stored
       // bytes have no DB row referencing them — remove them best-effort so a
       // failed request cannot leak files forever (failure is logged by the
       // helper; the original error is what the client sees).
