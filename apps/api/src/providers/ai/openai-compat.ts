@@ -11,7 +11,7 @@ import { retrieve, sanitizeQuestion, KbEntry, KB_VERSION } from "./knowledge.js"
 
 /**
  * Version of the prompt template in this file (system prompt + reference-data
- * framing). Bump whenever the prompt changes materially (A2-04 / A3-07 / A4-06):
+ * framing). Bump whenever the prompt changes materially:
  * answers are only comparable — for evals, for incident review — when the
  * prompt that produced them is identifiable. Reported in the response as
  * `promptVersion` and in gateway log context; the offline engine has no prompt
@@ -25,7 +25,7 @@ export const PROMPT_VERSION = "v1";
  * are injected as clearly-delimited reference data and the model is instructed
  * to refuse when context is insufficient (hallucination mitigation).
  *
- * Failure taxonomy (AUD-107 / A4-03): empty or blocked/truncated generations
+ * Failure taxonomy: empty or blocked/truncated generations
  * are typed errors, never confident answers; 429 vs 5xx vs other non-2xx are
  * distinguished; exactly ONE bounded retry runs for retryable failures
  * (429/5xx) — the request is read-only, so a repeat cannot duplicate an effect.

@@ -39,7 +39,7 @@ const schema = z.object({
   OPENWEATHER_API_KEY: z.string().optional(),
   /**
    * How long a successful weather fetch is reused, keyed by rounded location
-   * (A5-05). 0 disables caching. Provider failures are never served from
+   *. 0 disables caching. Provider failures are never served from
    * cache as "current" — a failure is an honest error, not stale data.
    */
   WEATHER_CACHE_TTL_SECONDS: z.coerce.number().int().nonnegative().default(600),
@@ -121,7 +121,7 @@ export function placeholderManifest(cfg: {
 /**
  * The monthly AI spend breaker multiplies usage by
  * AI_COST_PER_1K_TOKENS_PAISA; with the default 0 it can never trip, so a
- * hosted provider in production would run unbounded (A7-05). Fail closed
+ * hosted provider in production would run unbounded. Fail closed
  * rather than shipping an inert money guard. Returns the error text or null.
  * Extracted for unit testing, like placeholderManifest.
  */
@@ -138,7 +138,7 @@ if (parsed.data.NODE_ENV === "production") {
     parsed.data.JWT_REFRESH_SECRET.includes("change-me") ||
     parsed.data.JWT_ACCESS_SECRET.startsWith("dev-");
   if (weak) throw new Error("Refusing to start production with default JWT secrets");
-  // Phase 4: fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
+  //fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
   // startup unless the operator explicitly acknowledges them via ALLOW_PLACEHOLDER_PROVIDERS=1.
   // No silent degradation either way: without the flag the process refuses to boot; with it,
   // every placeholder is listed as a startup warning.
@@ -188,7 +188,7 @@ const LOCAL_WEB_ORIGIN = "http://localhost:5173";
  * WEB_ORIGIN is an allow-list (comma-separated) because a deployment serves the
  * site *and* the Capacitor app, whose WebView origin is `https://localhost`.
  * CORS wants the whole list; a redirect needs exactly one entry — passing the
- * list straight into `new URL()` silently produced a malformed location such as
+ * list straight into `new URL` silently produced a malformed location such as
  * `https://site.example,https/orders`.
  */
 export function primaryOriginOf(webOrigin: string): string {
@@ -207,7 +207,7 @@ export function primaryOriginOf(webOrigin: string): string {
 export const primaryWebOrigin = primaryOriginOf(env.WEB_ORIGIN);
 
 /**
- * Browser origins allowed to call this API (AUD-106 / B-18).
+ * Browser origins allowed to call this API.
  *
  * In production, plain-HTTP localhost origins are dropped from the allow-list:
  * they are developer origins, and the live list once still contained

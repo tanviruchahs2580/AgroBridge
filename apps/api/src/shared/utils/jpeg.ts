@@ -1,5 +1,5 @@
 /**
- * Dependency-free JPEG metadata stripping (B-17).
+ * Dependency-free JPEG metadata stripping.
  *
  * Photos taken on phones carry an APP1 segment holding EXIF: GPS coordinates,
  * device model/serial and timestamps. The disease-upload route validated magic

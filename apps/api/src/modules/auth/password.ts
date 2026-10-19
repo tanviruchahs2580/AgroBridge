@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { isTest } from "../../config/env.js";
 
 /**
- * Login timing equalisation (B-05).
+ * Login timing equalisation.
  *
  * The login handler must not reveal whether a phone number exists. Before this
  * helper an unknown phone skipped bcrypt entirely and returned 401 in

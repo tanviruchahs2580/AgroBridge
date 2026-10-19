@@ -156,7 +156,7 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
 adminRouter.get("/audit-logs", requirePermission("audit:read"), async (req, res, next) => {
   try {
     // Non-numeric query values previously flowed into skip/take as NaN
-    // (Prisma error → 500); clamp to sane integers instead (AUD-116).
+    // (Prisma error → 500); clamp to sane integers instead.
     const page = Math.max(1, Math.floor(Number(req.query.page ?? 1)) || 1);
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.query.pageSize ?? 50)) || 50));
     const [items, total] = await Promise.all([
@@ -193,7 +193,7 @@ adminRouter.get("/withdrawals", requirePermission("finance:withdrawals"), async 
   try {
     const status = typeof req.query.status === "string" ? req.query.status.toUpperCase() : "PENDING";
     const where = ["PENDING", "APPROVED", "REJECTED", "PAID"].includes(status) ? { status } : {};
-    // X-Total-Count (C-06/C-22): the queue body stays a capped slice (100); the
+    // X-Total-Count: the queue body stays a capped slice (100); the
     // header is the selected status' true count so finance can see truncation.
     const [items, total] = await Promise.all([
       prisma.withdrawal.findMany({

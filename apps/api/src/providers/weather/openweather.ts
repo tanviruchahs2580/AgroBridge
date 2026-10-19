@@ -18,7 +18,7 @@ export class OpenWeatherProvider implements WeatherProvider {
       wind: { speed: number };
       weather: { description: string }[];
       rain?: { "1h"?: number };
-      dt?: number; // observation time, unix seconds (AUD-126 / A5-01)
+      dt?: number; // observation time, unix seconds 
     };
     return {
       tempC: j.main.temp,

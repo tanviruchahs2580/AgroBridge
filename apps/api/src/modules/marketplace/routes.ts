@@ -32,7 +32,7 @@ const checkoutLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: byUserOrIp,
   store: checkoutStore,
-  // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
+  // Standardized 429 envelope: requestId + ok:false/error shape, with
   // this limiter's own message preserved.
   handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many checkout attempts. Please slow down." } },
@@ -182,7 +182,7 @@ ordersRouter.use(requireAuth);
 ordersRouter.get("/", async (req, res, next) => {
   try {
     const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
-    // X-Total-Count (C-06/C-22): the body stays a capped slice (100) but the
+    // X-Total-Count: the body stays a capped slice (100) but the
     // caller can tell a full list from a truncated one. Count runs over the
     // exact same scope as the slice, so a window cannot disagree with its total.
     const where = isPrivileged ? {} : { userId: req.auth!.userId };
@@ -313,7 +313,7 @@ ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), asyn
 /**
  * Delivery details captured by the checkout wizard. All three fields are
  * optional together (an order can still be placed without them), but a field
- * that IS sent must be valid — the previous safeParse().data silently dropped
+ * that IS sent must be valid — the previous safeParse.data silently dropped
  * a malformed phone or address, so the buyer's details vanished with a 201.
  */
 const shippingSchema = z.object({
@@ -322,7 +322,7 @@ const shippingSchema = z.object({
   shippingAddress: z.string().trim().min(5).max(400).optional(),
 });
 
-// AUD-125: optional checkout idempotency key. Opaque client token, bounded
+// optional checkout idempotency key. Opaque client token, bounded
 // (8..100 chars) so a hostile client cannot stuff unbounded keys into the
 // unique index. The composite unique is (userId, clientRequestId).
 const checkoutSchema = shippingSchema.extend({
@@ -346,7 +346,7 @@ async function findOrderByClientKey(userId: string, clientRequestId: string) {
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
  *
- * Idempotency (AUD-125): when `clientRequestId` is supplied, the first request
+ * Idempotency: when `clientRequestId` is supplied, the first request
  * that creates an order with that key owns it. Later requests — sequentially,
  * after a network failure, or racing in parallel — replay that SAME order with
  * 200 and cause no stock or ledger side effects. Contract: one key = one order

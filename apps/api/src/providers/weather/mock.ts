@@ -5,7 +5,7 @@ import { dhakaDate } from "./day.js";
  * Fixed reference instant for the fixture provider. The whole mock payload is
  * a function of latitude and this constant only — no wall clock — so identical
  * requests produce byte-identical responses and tests can assert exact
- * timestamps/dates. It is explicitly NOT current weather (AUD-126 / A5-01).
+ * timestamps/dates. It is explicitly NOT current weather.
  * 2026-06-15T00:00:00Z == 06:00 on 2026-06-15 in Dhaka.
  */
 export const MOCK_REFERENCE_NOW = new Date("2026-06-15T00:00:00Z");

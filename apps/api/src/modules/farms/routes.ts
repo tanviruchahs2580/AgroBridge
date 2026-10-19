@@ -172,7 +172,7 @@ export function plotsRouter() {
         const farm = await assertFarmAccess(req.params.id!, req.auth!.userId, req.auth!.role);
         const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId!, farmId: farm.id } });
         if (!existing) throw notFound("Plot");
-        // Same shape as the validated plotBody.partial() — every field optional.
+        // Same shape as the validated plotBody.partial — every field optional.
         const body: Partial<z.infer<typeof plotBody>> = req.body;
         if (body.areaBigha !== undefined && farm.totalAreaBigha != null) {
           const others = await prisma.plot.aggregate({ where: { farmId: farm.id, id: { not: existing.id } }, _sum: { areaBigha: true } });
@@ -394,7 +394,7 @@ export function eventsRouter() {
 
       // Same-farm binding: an event could previously reference any plot or
       // crop-cycle id, letting a caller attach (and later read back) another
-      // user's plot name/crop through their own farm's event list (AUD-101b).
+      // user's plot name/crop through their own farm's event list.
       if (body.plotId) {
         const plot = await prisma.plot.findFirst({ where: { id: body.plotId, farmId: farm.id }, select: { id: true } });
         if (!plot) throw badRequest("plotId does not belong to this farm");
@@ -411,7 +411,7 @@ export function eventsRouter() {
         // Idempotent replay: return the event THIS farm+actor already stored for
         // this clientUuid. Owner-scoped on purpose — a global lookup let anyone
         // who knew another user's clientUuid read their event row and receive it
-        // as the "replay" of their own submission (AUD-101 / B-09).
+        // as the "replay" of their own submission.
         const dupe = await prisma.farmEvent.findFirst({
           where: { clientUuid: body.clientUuid, farmId: farm.id, actorId: req.auth!.userId },
         });
@@ -455,7 +455,7 @@ export function eventsRouter() {
   return router;
 }
 
-// Mount farm-scoped sub-resources (mergeParams propagates :id into nested routers)
+// Mount farm-scoped sub-resources (mergeParams propagates:id into nested routers)
 farmsRouter.use("/:id", plotsRouter());
 farmsRouter.use("/:id", eventsRouter());
 farmsRouter.use("/", cropsRouter());

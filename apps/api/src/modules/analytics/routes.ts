@@ -7,7 +7,7 @@ import { validate } from "../../middleware/validate.js";
 /**
  * First-party product analytics. Lightweight, privacy-respecting (no PII in
  * props), self-hosted — feeds the activation/funnel KPIs defined in the
- * Phase 1 product audit without shipping user data to third parties.
+ *product audit without shipping user data to third parties.
  */
 export const analyticsRouter = Router();
 

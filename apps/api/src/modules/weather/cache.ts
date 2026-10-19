@@ -2,13 +2,13 @@ import { env } from "../../config/env.js";
 import type { CurrentWeather, DailyForecast } from "../../providers/weather/types.js";
 
 /**
- * Small in-memory TTL cache for successful weather payloads (A5-05).
+ * Small in-memory TTL cache for successful weather payloads.
  *
  * Keyed by the location rounded to 2 decimals (`${lat.toFixed(2)},${lng.toFixed(2)}`):
  * nearby farms inside ~1 km share one provider call. `fetchedAt` is stamped
  * ONCE at fetch time and is never rewritten on reuse, so a cached response
  * keeps the ORIGINAL provenance time and clients can see the data's real age
- * (AUD-126 / A5-01) instead of a cache-reuse timestamp.
+ * instead of a cache-reuse timestamp.
  *
  * Only successful provider payloads are ever stored. A provider failure is
  * never cached and cache entries are never served as a fallback for a failed

@@ -1,7 +1,7 @@
 import { pino } from "pino";
 
 /**
- * Fields that must never reach the log stream (AUD-113 / I-02): credentials,
+ * Fields that must never reach the log stream: credentials,
  * headers, and — defence-in-depth beyond what any call site logs today —
  * farmer PII (phone) and location (lat/lng/latitude/longitude). `refreshToken`
  * was previously missed by the generic `*.token` pattern, and phone/coords had

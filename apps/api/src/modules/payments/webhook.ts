@@ -30,7 +30,7 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     if (!storePassword) throw badRequest("Payment gateway not configured");
 
     // Constant-time comparison (both sides are 32-char MD5 hex; a plain !==
-    // would leak a timing oracle over the digest, B-19).
+    // would leak a timing oracle over the digest,).
     const expected = sslcommerzSignature(params, storePassword);
     const provided = (params.verify_sign ?? "").toUpperCase();
     const expectedBuf = Buffer.from(expected, "utf8");
@@ -149,7 +149,7 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
     }
 
     // Send the buyer back to exactly one origin: WEB_ORIGIN is an allow-list
-    // (site + Capacitor origin), and feeding the whole list to URL() builds a
+    // (site + Capacitor origin), and feeding the whole list to URL builds a
     // malformed location.
     const target = new URL("/orders", primaryWebOrigin);
     target.searchParams.set("payment", outcome);

@@ -12,7 +12,7 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
     maxRetriesPerRequest: 2,
   });
   client.on("error", () => {
-    // Never crash the app over limiter connectivity — increment() fails open.
+    // Never crash the app over limiter connectivity — increment fails open.
   });
 
   let configuredWindowMs = windowMs;

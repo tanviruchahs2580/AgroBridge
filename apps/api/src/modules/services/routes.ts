@@ -115,7 +115,7 @@ bookingsRouter.post(
       }
 
       // Pricing rule: only PER_BIGHA is area-scaled. Every other unit
-      // (PER_MAUND / PER_SAMPLE / PER_VISIT / PER_HOUR / ...) describes a flat
+      // (PER_MAUND / PER_SAMPLE / PER_VISIT / PER_HOUR /...) describes a flat
       // job, so it is charged once (×1) regardless of the booked area.
       const isPerBigha = service.priceUnit.toUpperCase() === "PER_BIGHA";
       const estimatedPricePaisa = isPerBigha
