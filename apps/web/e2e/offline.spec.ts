@@ -159,7 +159,11 @@ test.describe("Offline queue replay (ARC-17/WEB-05)", () => {
 
     // ── 4. the server's clientUuid idempotency path (farm events) ──────────
     // POSTing the same event twice with one clientUuid must return the stored
-    // row both times and leave a single event behind (farms/routes.ts).
+    // row both times — the API's idempotent contract. The duplicate-ROW check
+    // (exactly one event, owner-scoped) lives in the API suite
+    // (`farm-event-sync-scoping.test.ts`, `journey-farm.test.ts`): with the
+    // nested-list caps shipped this wave, a `/events?limit=` page scan here
+    // reads the first page of a shared database, not the row just written.
     const farms = await apiCall(page, "GET", "/farms");
     const farmId = (farms.data as { id?: string }[] | undefined)?.[0]?.id;
     expect(farmId, "the seeded farmer has no farm — the idempotency probe cannot run").toBeTruthy();
@@ -170,10 +174,9 @@ test.describe("Offline queue replay (ARC-17/WEB-05)", () => {
     expect([200, 201]).toContain(first.status);
     expect([200, 201]).toContain(second.status);
     const firstId = (first.data as { id?: string } | undefined)?.id;
+    expect(firstId, "the event POST returned no id").toBeTruthy();
     expect((second.data as { id?: string } | undefined)?.id, "the clientUuid replay created a second event").toBe(firstId);
-    const events = await apiCall(page, "GET", `/farms/${farmId}/events?limit=200`);
-    const matching = ((events.data as { clientUuid?: string }[] | undefined) ?? []).filter((e) => e.clientUuid === eventUuid);
-    expect(matching, "the clientUuid idempotency path stored the same submission twice").toHaveLength(1);
+    expect((second.data as { clientUuid?: string } | undefined)?.clientUuid).toBe(eventUuid);
 
     // ── cleanup: remove the probe cart line (shared e2e DB) ────────────────
     await apiCall(page, "DELETE", `/cart/items/${productId}`);
