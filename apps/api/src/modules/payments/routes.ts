@@ -37,7 +37,7 @@ const financialLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
   store: financialStore,
-  // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
+  // Standardized 429 envelope: requestId + ok:false/error shape, with
   // this limiter's own message preserved.
   handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many financial operations. Please slow down." } },
@@ -188,6 +188,8 @@ paymentsRouter.post(
             method: "MOBILE_WALLET",
             providerRef: gatewayRef,
             metaStr: JSON.stringify(gatewayMeta),
+            // Correlation for support/audit joins (X-Request-Id of this request).
+            requestId: req.requestId,
           },
         });
       });
@@ -319,7 +321,7 @@ paymentsRouter.get("/:id/status", async (req, res, next) => {
 paymentsRouter.get("/", async (req, res, next) => {
   try {
     const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
-    // X-Total-Count (C-06/C-22): admin/finance see ALL payments while a user
+    // X-Total-Count: admin/finance see ALL payments while a user
     // sees their own; either way the body is a capped slice (100) and the
     // header carries the scope's true total so truncation is visible.
     const where = isPrivileged ? {} : { userId: req.auth!.userId };
@@ -498,6 +500,7 @@ paymentsRouter.post(
             amountPaisa: po.netPayablePaisa,
             method: "WALLET_CREDIT",
             status: "SUCCEEDED",
+            requestId: req.requestId,
           },
         });
 
@@ -545,7 +548,7 @@ walletRouter.use(requireAuth);
 
 walletRouter.get("/", async (req, res, next) => {
   try {
-    // X-Total-Count (C-06/C-22): the ledger body is a capped slice (50); the
+    // X-Total-Count: the ledger body is a capped slice (50); the
     // header is the same user scope's true count so the UI can say "showing
     // 50 of N" without a second query shape.
     const txWhere = { userId: req.auth!.userId };
@@ -696,7 +699,7 @@ membershipRouter.get("/plans", async (_req, res, next) => {
 /**
  * SSLCommerz IPN signature validation (documented algorithm):
  * sort all params except verify_sign/verify_key alphabetically, concatenate
- * STORE_PASSWORD + k1=v1 + k2=v2 ... with no separators, MD5 uppercase.
+ * STORE_PASSWORD + k1=v1 + k2=v2... with no separators, MD5 uppercase.
  */
 export function sslcommerzSignature(params: Record<string, string>, storePassword: string): string {
   const concat = Object.keys(params)

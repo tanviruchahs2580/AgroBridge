@@ -83,12 +83,19 @@ describe("phone normalisation is wired end-to-end (B-06)", () => {
     }
   });
 
-  it("treats a differently-formatted duplicate as the same account (409)", async () => {
+  it("treats a differently-formatted duplicate as the same account (neutral 200, nothing created)", async () => {
     const f = await registerFarmer();
     const again = await request(app)
       .post("/api/v1/auth/register")
       .send({ fullName: "Duplicate Attempt", phone: `+880${f.phone.slice(1)}`, password: "Duplicate@123" });
-    expect(again.status).toBe(409);
+    // Enumeration-safe duplicate handling: a differently-spelled duplicate of a
+    // registered number resolves to the SAME account (normalisation) and gets
+    // the neutral guidance response — not a 409 that would confirm existence.
+    expect(again.status).toBe(200);
+    expect(again.body.data.needsLogin).toBe(true);
+    // The original credentials still work and remain the only account.
+    const login = await request(app).post("/api/v1/auth/login").send({ phone: f.phone, password: f.plainPassword });
+    expect(login.status).toBe(200);
   });
 
   it("rejects non-normalisable phone numbers with 400", async () => {

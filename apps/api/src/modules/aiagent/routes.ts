@@ -18,7 +18,7 @@ aiRouter.use(requireAuth);
 
 // AI endpoints are expensive -> stricter limit than global. The custom handler
 // keeps this limiter's message but wraps it in the standard error envelope with
-// the request id (H-07), so a throttled caller is still correlatable.
+// the request id, so a throttled caller is still correlatable.
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -67,6 +67,7 @@ aiRouter.post(
 
       const answer = await askAgroAgent(question, {
         userId: req.auth!.userId,
+        requestId: req.requestId,
         lang,
         farmerName: user?.fullName,
         cropName: cropName ?? activeCrop?.cropName,
@@ -84,7 +85,7 @@ aiRouter.post(
 
 /**
  * Stored `groundedRefs` may point at KB entries removed after the answer was
- * persisted (AUD-110b / A2-04). Resolve them against the current KB at read
+ * persisted. Resolve them against the current KB at read
  * time and return only refs that still exist, preserving stored order. The
  * field is additive, so existing clients keep working; a removed entry simply
  * disappears from a history row instead of being served as a live citation.
@@ -122,6 +123,12 @@ aiRouter.get("/history", async (req, res, next) => {
         feedbackReason: true,
         feedbackAt: true,
         createdAt: true,
+        // Provenance of the stored answer (added 2026-10-19): which KB corpus
+        // and prompt template produced it, and the request that carried it.
+        // Older rows predate the columns and are null.
+        kbVersion: true,
+        promptVersion: true,
+        requestId: true,
       },
     });
     const history = rows.map(({ groundedRefs, ...row }) => ({ ...row, groundedRefs: liveGroundedRefs(groundedRefs) }));
@@ -132,7 +139,7 @@ aiRouter.get("/history", async (req, res, next) => {
 });
 
 /**
- * Advisory feedback (A7-07): the farmer says why an answer was not useful.
+ * Advisory feedback: the farmer says why an answer was not useful.
  * Ownership is part of the lookup — another user's row is indistinguishable
  * from a missing one (404, no existence oracle). A second report OVERWRITES
  * the first: a farmer refining "not clear" into the concrete crop problem must

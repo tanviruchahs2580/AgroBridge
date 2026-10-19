@@ -16,6 +16,7 @@
     "pg:provision": "node scripts/provision-postgres.mjs",
     "pg:rehearse-backup": "node scripts/backup-restore-rehearsal.mjs",
     "loadtest": "node scripts/loadtest.mjs",
+    "purge:uploads": "tsx scripts/purge-uploads.ts",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",

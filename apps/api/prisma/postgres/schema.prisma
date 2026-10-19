@@ -575,3 +575,10 @@ model PendingUploadPurge {
 
   @@index([createdAt])
 }
+
+model LoginAttempt {
+  phoneKey    String    @id // salted sha256 of the normalized phone — no PII at rest
+  count       Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}

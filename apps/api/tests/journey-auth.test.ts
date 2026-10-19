@@ -26,12 +26,16 @@ describe("Journey 1 — Auth & profile", () => {
     expect(weak.status).toBe(400);
   });
 
-  it("rejects duplicate registration", async () => {
+  it("duplicate registration answers neutrally (no existence oracle) and creates nothing", async () => {
     const f = await registerFarmer();
     const again = await request(app)
       .post("/api/v1/auth/register")
       .send({ fullName: "Another Name", phone: f.phone, password: "Whatever@123" });
-    expect(again.status).toBe(409);
+    // Same 200 shape as a fresh registration's guidance step — the caller
+    // cannot distinguish "already registered" from other neutral outcomes.
+    expect(again.status).toBe(200);
+    expect(again.body.data.needsLogin).toBe(true);
+    expect(again.body.data.accessToken).toBeUndefined();
   });
 
   it("logs in and returns tokens + user", async () => {
