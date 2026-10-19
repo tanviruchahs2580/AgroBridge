@@ -240,6 +240,25 @@ describe("lib/session — logout", () => {
     unmount();
   });
 
+  it("endSession clears tokens and the session WITHOUT calling the server (post-deletion)", async () => {
+    localStorage.setItem("ab_at", "at");
+    localStorage.setItem("ab_rt", "rt");
+    mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" }); // initial refresh only
+    const { getCtx, unmount } = await renderSession("/wallet");
+    expect(getCtx().session).not.toBeNull();
+    mockApi.mockClear();
+    await act(async () => {
+      getCtx().endSession();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    // The deleted account must not be asked to log itself out — that request
+    // could only 401 and paint a misleading "session expired" toast.
+    expect(mockApi).not.toHaveBeenCalled();
+    expect(mockClearTokens).toHaveBeenCalled();
+    expect(getCtx().session).toBeNull();
+    unmount();
+  });
+
   it("logout clears tokens even when POST /auth/logout network fails", async () => {
     localStorage.setItem("ab_at", "at");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });

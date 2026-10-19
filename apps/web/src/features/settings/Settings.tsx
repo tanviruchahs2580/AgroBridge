@@ -20,7 +20,7 @@ import {
  * the app, so this screen is the entry point for it.
  */
 export default function Settings() {
-  const { session, setLang, logout } = useSession();
+  const { session, setLang, endSession } = useSession();
   const lang = session?.lang ?? "bn";
   const navigate = useNavigate();
   const toast = useToast();
@@ -184,7 +184,10 @@ export default function Settings() {
       // this very navigation back into the app and the deleted account kept
       // rendering until a final-401 happened to fire (found by CI: the trace
       // showed DELETE 200 followed by 401s on the still-mounted Home).
-      logout();
+      // endSession, not logout: the account no longer exists, so the extra
+      // /auth/logout round-trip could only 401 and paint a misleading
+      // "session expired" toast over the deletion confirmation.
+      endSession();
       toast.success(t("accountDeletedToast", lang));
       navigate("/login", { replace: true });
     } catch (err) {

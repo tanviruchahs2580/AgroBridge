@@ -23,11 +23,20 @@ interface Ctx {
   dark: boolean;
   refresh: () => Promise<void>;
   logout: () => void;
+  /**
+   * Ends the local session WITHOUT calling the server (no /auth/logout).
+   * Used after self-deletion: the account is gone, its tokens are already
+   * revoked server-side, and asking the deleted credential to log itself out
+   * produced a 401 that the transport reported as "session expired" — a
+   * misleading toast on the very screen where the user just deleted the
+   * account (found by the live acceptance run 2026-10-19).
+   */
+  endSession: () => void;
   setLang: (l: "bn" | "en") => void;
   toggleDark: () => void;
 }
 
-const SessionCtx = createContext<Ctx>({ session: null, loading: true, dark: false, refresh: async () => {}, logout: () => {}, setLang: () => {}, toggleDark: () => {} });
+const SessionCtx = createContext<Ctx>({ session: null, loading: true, dark: false, refresh: async () => {}, logout: () => {}, endSession: () => {}, setLang: () => {}, toggleDark: () => {} });
 
 /** Apply the theme to <html> + browser chrome colors. Single source of truth
  *  for the DOM side-effects so React and the index.html boot script agree. */
@@ -124,6 +133,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }
 
+  function endSession() {
+    smClearTokens();
+    setSession(null);
+  }
+
   async function setLang(l: "bn" | "en") {
     setSession((s) => (s ? { ...s, lang: l } : s));
     document.documentElement.lang = l;
@@ -151,7 +165,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  return <SessionCtx.Provider value={{ session, loading, dark, refresh, logout, setLang, toggleDark }}>{children}</SessionCtx.Provider>;
+  return <SessionCtx.Provider value={{ session, loading, dark, refresh, logout, endSession, setLang, toggleDark }}>{children}</SessionCtx.Provider>;
 }
 
 export function useSession() {
