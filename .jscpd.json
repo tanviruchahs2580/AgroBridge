@@ -1,0 +1,21 @@
+{
+  "minTokens": 50,
+  "minLines": 8,
+  "threshold": 3,
+  "reporters": ["console", "json"],
+  "output": "jscpd-report",
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.audit/**",
+    "**/coverage/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/prisma/**",
+    "**/*.md",
+    "**/package-lock.json",
+    "**/qa-evidence/**",
+    "**/qa-screenshots/**",
+    "apps/web/android/**"
+  ]
+}

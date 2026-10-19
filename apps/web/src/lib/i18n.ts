@@ -90,6 +90,11 @@ export const dict = {
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
+  // ── Consent capture (registration, PRD-05/AUD-150) ──
+  consentLabel: { bn: "আমি ব্যবহারের শর্তাবলি ও গোপনীয়তা নীতিতে সম্মত আছি", en: "I agree to the Terms of Service and Privacy Policy" },
+  consentLead: { bn: "আমি সম্মত আছি", en: "I agree to the" },
+  consentJoin: { bn: "এবং", en: "and" },
+  errConsentRequired: { bn: "চালিয়ে যেতে ব্যবহারের শর্তাবলি ও গোপনীয়তা নীতিতে সম্মতি দিন।", en: "Please accept the Terms of Service and Privacy Policy to continue." },
   // ── Password reset (features/auth/Reset.tsx) ──
   forgotPasswordLink: { bn: "পাসওয়ার্ড ভুলে গেছেন?", en: "Forgot password?" },
   resetTitle: { bn: "পাসওয়ার্ড রিসেট", en: "Reset password" },

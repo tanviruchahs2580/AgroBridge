@@ -17,7 +17,8 @@ vi.mock("framer-motion", async () => {
     return ReactMod.createElement(tag, rest as never, children as never);
   };
   const motion = new Proxy({}, { get: (_t, key: string) => passthrough(key) });
-  return { motion, AnimatePresence: Pass, MotionConfig: Pass, useReducedMotion: () => false };
+  // `m` is what ui.tsx renders (the app root provides features via LazyMotion).
+  return { motion, m: motion, LazyMotion: Pass, domAnimation: {}, AnimatePresence: Pass, MotionConfig: Pass, useReducedMotion: () => false };
 });
 
 const { apiMock, invalidateMock } = vi.hoisted(() => ({ apiMock: vi.fn(), invalidateMock: vi.fn() }));

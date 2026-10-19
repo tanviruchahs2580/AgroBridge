@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -95,7 +95,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -146,7 +146,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -176,7 +176,9 @@ jobs:
   web-quality:
     name: Web — Lint · Unit · Build
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    timeout-minutes: 20
+    # 25 (not 20): the Lighthouse run after the build starts a preview server
+    # and measures the built bundle three times.
+    timeout-minutes: 25
     env:
       VITE_API_BASE_URL: https://agro-bridge-api-vantiq-systems.vercel.app/api/v1
     steps:
@@ -184,7 +186,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -204,6 +206,14 @@ jobs:
       # was renamed, a version that forked, a test count pasted into the README.
       - name: Docs claims check (scripts, version source, count claims)
         run: node scripts/qa/claims-check.mjs
+
+      # Alert rules get the same treatment as code: synthetic series prove both
+      # the firing path and the quiet path (the audit's "test alert fired once").
+      - name: Alert rules unit test (promtool)
+        run: |
+          docker run --rm -v "$PWD/monitoring:/m:ro" --entrypoint promtool \
+            prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e \
+            test rules /m/alert_rules.test.yml
 
       - name: Lint (eslint + jsx-a11y)
         working-directory: apps/web
@@ -229,6 +239,19 @@ jobs:
         working-directory: apps/web
         run: npm run preflight
 
+      # Real measurements for the built bundle (WEB-01). apps/web/lighthouserc.json
+      # owns the run: it starts `vite preview` itself (startServerCommand,
+      # strictPort: 4173), runs twice and asserts the accessibility floor as an
+      # error and the performance/best-practices budgets as warnings. The step is skipped until
+      # that config exists, so a missing config degrades the gate instead of
+      # failing the build. The version is pinned here rather than carried in the
+      # lockfile: @lhci/cli has not shipped a release in over a year, so the pin
+      # is what keeps the budget from changing under a floating `npx`.
+      - name: Lighthouse CI (budgets for the built bundle)
+        if: hashFiles('apps/web/lighthouserc.json') != ''
+        working-directory: apps/web
+        run: npx --yes @lhci/cli@0.15.1 autorun
+
   web-e2e:
     name: Web — E2E (Playwright)
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
@@ -252,7 +275,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies (all workspaces)
@@ -338,6 +361,53 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Repo-wide quality gates that are cheap to run and expensive to skip: dead
+  # code and unused dependencies (knip), copy-paste duplication (jscpd), licence
+  # drift in the production tree (scripts/qa/check-licenses.mjs) and — on pull
+  # requests — the commit-message contract that feeds the changelog.
+  quality-tools:
+    name: Quality — Dead code · Duplication · Licences · Commits
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+        with:
+          # commitlint needs both ends of the pull-request range as real commits.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # --ignore-scripts: these tools read source and node_modules manifests, and
+      # the prisma postinstall (engine download) is the slowest part of every
+      # other job — nothing here needs a generated client.
+      - name: Install dependencies (all workspaces, no postinstall)
+        run: npm ci --include-workspace-root --ignore-scripts --no-audit --no-fund
+
+      # knip.jsonc declares the entry points a workspace layout does not make
+      # obvious, so the report is findings, not noise. A red run is either dead
+      # code to remove or an entry point to declare — never a threshold to raise.
+      - name: Dead code & unused dependencies (knip)
+        run: npm run qa:knip
+
+      # 3% at 8 lines (.jscpd.json): the failure mode is a copy-pasted block that
+      # then diverges, and jscpd exits non-zero once the threshold is passed.
+      - name: Copy-paste duplication (jscpd)
+        run: npm run qa:jscpd
+
+      # A dependency licence is a legal fact no test can see; the allowlist lives
+      # in license-allowlist.json and covers the production tree only.
+      - name: Production licence gate
+        run: npm run qa:licenses
+
+      # The changelog and release notes are generated from commit subjects, so
+      # the PR range must read as Conventional Commits (commitlint.config.cjs).
+      - name: Conventional commits (pull request range)
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
   android-build:
     name: Android — Build debug APK artifact
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
@@ -349,7 +419,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # pin v6.1.0
@@ -400,6 +470,14 @@ jobs:
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
     timeout-minutes: 20
     needs: [api-quality, api-postgres]
+    # id-token + attestations sign the provenance below; contents is the
+    # checkout; packages: write is what the push-to-registry form of that
+    # attestation would need (and what the release workflow uses against GHCR).
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
@@ -414,6 +492,11 @@ jobs:
           tags: agrobridge-api:ci
           # loaded into the local daemon so the SBOM step below can scan it
           load: true
+          # Layer cache in GitHub Actions storage: the two images and the trivy
+          # job share scopes keyed by content, so a warm cache turns a cold npm
+          # ci + prisma generate layer into a download.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # Release-artifact evidence (F-06): a CycloneDX SBOM of the image we ship,
       # so "what is in the release?" is answerable by a file rather than a rebuild.
@@ -435,6 +518,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # Provenance (SEC-07): the SBOM file is the release artifact that leaves
+      # this job, so it is what carries a signed attestation — the images are
+      # built with push:false and never exist in a registry, so there is no
+      # image digest a consumer could verify. `gh attestation verify
+      # agrobridge-api.sbom.cdx.json --repo <owner>/<repo>` checks it later.
+      - name: Attest SBOM provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # pin v4.2.2
+        with:
+          subject-path: agrobridge-api.sbom.cdx.json
+
       - name: Build Web image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # pin v7.4.0
         with:
@@ -442,6 +535,8 @@ jobs:
           file: docker/web.Dockerfile
           push: false
           tags: agrobridge-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # The unit and image gates above prove parts; this proves the composition:
   # docker-compose.yml is what operators run, and its ports, healthcheck and
@@ -502,6 +597,10 @@ jobs:
           push: false
           tags: agrobridge-api:scan
           load: true
+          # Same content-keyed cache scope as docker-build; without it this job
+          # rebuilds the image the previous job just built from scratch.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # Fail the build on HIGH/CRITICAL findings; accepted risks live in
       # /.trivyignore and must cross-reference SECURITY_WAIVERS.md.
@@ -551,7 +650,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: npm audit — production deps must be clean (fail on moderate+)

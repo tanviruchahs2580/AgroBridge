@@ -9,6 +9,11 @@
 #   docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy --schema prisma/postgres/schema.prisma
 services:
   db:
+    # Same two-role split as the local stack (docker/postgres-init/01-roles.sql):
+    # the app connects with a DML-only role while migrations run as the owner.
+    # On a managed database (Neon) that split is two URLs against the same
+    # project — pooled/app for the runtime, direct/owner for `prisma migrate
+    # deploy` — instead of a container init script; see docs/deployment.md §5.
     image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24 # postgres:17-alpine, aligns with CI (ci.yml api-postgres job)
     restart: unless-stopped
     environment:

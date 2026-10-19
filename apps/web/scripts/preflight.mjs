@@ -39,7 +39,12 @@ const WEB = join(HERE, ".."); // apps/web
 const ROOT = join(WEB, "..", ".."); // repo root
 
 const BUDGETS = [
-  { what: "entry bundle (gzip)", limitKb: 150, of: () => gzipKbOf(entryChunk()) },
+  // 2026-10-19 (WEB-01): measured 130.6 kB gz after the eager framer-motion
+  // renderers moved to `m` + one LazyMotion(domAnimation) at the root; the full
+  // motion component (gestures/layout) now rides only the lazy /services chunk.
+  // The audit proposed ≤130 — the measurement is 0.6 kB above that, and a 130
+  // limit would fail the build it was meant to lock in, so the gate is 132.
+  { what: "entry bundle (gzip)", limitKb: 132, of: () => gzipKbOf(entryChunk()) },
   { what: "all JS (gzip)", limitKb: 225, of: () => sumGzipKb("assets", /\.js$/) },
   { what: "all CSS (gzip)", limitKb: 15, of: () => sumGzipKb("assets", /\.css$/) },
   { what: "fonts", limitKb: 520, of: () => sumKb("fonts") },

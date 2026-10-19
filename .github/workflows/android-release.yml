@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+        with:
+          # The versionCode preflight below compares against the newest v* tag.
+          fetch-depth: 0
 
       - name: Fail fast if signing secrets are absent
         env:
@@ -48,6 +51,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # Play rejects a versionCode that was ever used, and version.json is
+      # hand-bumped next to the version string (docs/play/release-runbook.md).
+      # Fail here, before 45 minutes of build, rather than at upload time.
+      - name: versionCode preflight (must exceed the newest release tag)
+        run: node scripts/qa/check-versioncode.mjs
 
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund

@@ -15,7 +15,8 @@ export default function Register() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [langPref, setLangPref] = useState<"bn" | "en">("bn");
-  const [fieldErrs, setFieldErrs] = useState<{ fullName?: string; phone?: string; password?: string }>({});
+  const [consent, setConsent] = useState(false);
+  const [fieldErrs, setFieldErrs] = useState<{ fullName?: string; phone?: string; password?: string; consent?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
@@ -35,6 +36,10 @@ export default function Register() {
     else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
     if (!password) errs.password = t("errFieldRequired", lang);
     else if (password.length < 8) errs.password = t("errWeakPassword", lang);
+    // Consent capture (PRD-05/AUD-150): the API requires consent:true, so the
+    // form refuses to submit without it (guard is belt-and-braces — the button
+    // is disabled too).
+    if (!consent) errs.consent = t("errConsentRequired", lang);
     setFieldErrs(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -42,7 +47,7 @@ export default function Register() {
     setError("");
     try {
       const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/register", {
-        fullName: fullName.trim(), phone: phone.trim(), password, langPref,
+        fullName: fullName.trim(), phone: phone.trim(), password, langPref, consent: true,
       });
       setTokens(data.accessToken, data.refreshToken);
       track("register_success");
@@ -143,6 +148,41 @@ export default function Register() {
           </div>
         </Field>
 
+        {/* Consent capture (PRD-05/AUD-150): recorded server-side as a
+            CONSENT_CAPTURED audit row with the policy version. */}
+        <div className="flex items-start gap-2.5">
+          <input
+            id="consent"
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => {
+              setConsent(e.target.checked);
+              setFieldErrs((prev) => ({ ...prev, consent: undefined }));
+            }}
+            aria-required="true"
+            aria-invalid={Boolean(fieldErrs.consent)}
+            aria-describedby={fieldErrs.consent ? "consent-err" : undefined}
+            className="mt-0.5 h-5 w-5 shrink-0 rounded border-surface-border-strong accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+          />
+          <div className="min-w-0">
+            <label htmlFor="consent" className="text-sm leading-5 text-stone-600">
+              {t("consentLead", lang)}{" "}
+              <Link to="/terms" className="font-semibold text-link hover:underline">
+                {t("termsOfService", lang)}
+              </Link>{" "}
+              {t("consentJoin", lang)}{" "}
+              <Link to="/privacy" className="font-semibold text-link hover:underline">
+                {t("privacyPolicy", lang)}
+              </Link>
+            </label>
+            {fieldErrs.consent && (
+              <p id="consent-err" role="alert" className="mt-1 text-xs font-medium text-danger-text">
+                {fieldErrs.consent}
+              </p>
+            )}
+          </div>
+        </div>
+
         {error && (
           <ErrorBanner
             message={error}
@@ -151,12 +191,12 @@ export default function Register() {
           />
         )}
 
-        <Button type="submit" variant="cta" size="lg" className="w-full" loading={busy} disabled={busy || inputInvalid}>
+        <Button type="submit" variant="cta" size="lg" className="w-full" loading={busy} disabled={busy || inputInvalid || !consent}>
           {t("signUp", lang)}
         </Button>
 
-        {inputInvalid && !busy && (
-          <p className="text-center text-xs text-stone-500">{t("fixErrorsNote", lang)}</p>
+        {(inputInvalid || !consent) && !busy && (
+          <p className="text-center text-xs text-stone-500">{inputInvalid ? t("fixErrorsNote", lang) : t("errConsentRequired", lang)}</p>
         )}
       </form>
     </AuthShell>

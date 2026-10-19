@@ -17,6 +17,12 @@
 /.github/workflows/            @tanviruchahs2580
 /.github/CODEOWNERS            @tanviruchahs2580
 
+# QA automation, the container/DB contract and the licence allowlist: these are
+# the files a release decision rests on, so they follow the same owner as CI.
+/scripts/qa/                   @tanviruchahs2580
+/docker/                       @tanviruchahs2580
+/license-allowlist.json        @tanviruchahs2580
+
 # Money paths and their schema.
 /apps/api/prisma/              @tanviruchahs2580
 /apps/api/src/modules/payments/    @tanviruchahs2580

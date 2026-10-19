@@ -1,0 +1,78 @@
+// Dead-code, unused-dependency and duplication gate (knip).
+//
+// The audit could not see files nothing imports, exports nothing consumes, or
+// dependencies nothing requires; this config gives knip the entry points a
+// workspace layout does not make obvious, so a run reports real findings.
+//
+// The `ignoreIssues` blocks suppress exported symbols that ARE intentional
+// surface, each for a stated reason. They are deliberately per-path (not a
+// blanket `includeEntryExports: false`) so a genuinely unused new export still
+// fails the gate unless someone adds it here with a reason:
+//   metrics.ts / schemaState.ts / resilience.ts — exported for prom-client
+//     registration and for tests' state resets; static analysis sees no reader.
+//   shared/errors — factory surface consumed by tests and future modules.
+//   middleware/rbac PERMISSIONS — the permission catalogue is asserted by the
+//     security-matrix tests; routes call requirePermission with literals.
+//   providers/ai/knowledge CROP_ALIASES — Bengali crop-name aliasing table,
+//     consumed through normalizeQuery's map, exported for retrieval tests.
+//   tests/ai-eval-metrics, tests/upload-helper — helpers imported by sibling
+//     test files (knip does not follow test-to-test imports in all layouts).
+//   apps/web api-types/labels/resourceKeys — the typed API contract surface:
+//     every response shape is declared here once and consumed by features
+//     through narrower picks; the response-contract test keeps it honest.
+//   apps/web sessionManager/session/useResource/icons/AuthShell/ui — public
+//     component and hook surface plus cross-tab primitives (broadcastLogout)
+//     and the icon set, consumed by feature code and tests at runtime.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Config hints are advisory notes about this file (glob style), not code
+  // findings; `qa:knip` runs with --no-config-hints so the gate fails on code,
+  // and running `npx knip` by hand still shows them.
+  "ignoreBinaries": [
+    // global-setup.ts embeds the word SELECT inside template SQL; knip reads it
+    // as a binary name.
+    "SELECT"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/qa/*.mjs"],
+      "project": ["scripts/**/*.mjs"],
+      "ignoreDependencies": ["@prisma/client", "prisma", "playwright"],
+      // Operator-run store tooling (screenshot capture, reviewer account),
+      // invoked by hand per docs/play/launch-checklist.md, never imported.
+      "ignoreFiles": ["scripts/play/*.mjs"]
+    },
+    "apps/api": {
+      "entry": ["scripts/*", "tests/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.{ts,mjs}", "tests/**/*.ts"],
+      "ignoreIssues": {
+        "src/infrastructure/metrics.ts": ["exports"],
+        "src/infrastructure/schemaState.ts": ["exports"],
+        "src/providers/resilience.ts": ["exports"],
+        "src/shared/errors/index.ts": ["exports"],
+        "src/middleware/rbac.ts": ["exports"],
+        "src/providers/ai/knowledge.ts": ["exports"],
+        "src/modules/organizations/**": ["exports", "types"],
+        "src/lib/*.ts": ["exports", "types"],
+        "src/providers/health.ts": ["exports", "types"],
+        "tests/ai-eval-metrics.ts": ["exports", "types"],
+        "tests/upload-helper.ts": ["exports"]
+      }
+    },
+    "apps/web": {
+      "entry": ["e2e/*.ts", "scripts/*", "e2e-verify.mjs"],
+      "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts", "scripts/**/*.{ts,mjs}"],
+      "ignoreIssues": {
+        "src/lib/api-types.ts": ["exports", "types"],
+        "src/lib/labels.ts": ["types"],
+        "src/lib/resourceKeys.ts": ["types"],
+        "src/lib/sessionManager.ts": ["exports", "types"],
+        "src/lib/session.tsx": ["exports"],
+        "src/lib/useResource.ts": ["exports"],
+        "src/components/icons/AgriIcons.tsx": ["exports"],
+        "src/features/auth/AuthShell.tsx": ["exports"],
+        "src/components/ui.tsx": ["types"]
+      }
+    }
+  }
+}

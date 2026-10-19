@@ -14,7 +14,11 @@ import { PageTransition } from "./components/PageTransition";
 import { TopBar } from "./components/TopBar";
 import { Splash } from "./components/Splash";
 import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue";
-import { motion } from "framer-motion";
+// `m` (not `motion`): the animation features are provided once at the root via
+// LazyMotion in main.tsx, which keeps the full motion component — gestures,
+// drag, layout projection — out of the initial bundle. Same component, same
+// animations; see the bundle note in main.tsx.
+import { m } from "framer-motion";
 // Login is eager (critical path); all other pages are code-split via lazy + Suspense.
 import Login from "./features/auth/Login";
 
@@ -212,7 +216,7 @@ function Shell({ children }: { children: ReactNode }) {
       </header>
       <TopBar />
       {!online && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
@@ -222,7 +226,7 @@ function Shell({ children }: { children: ReactNode }) {
         >
           <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("offlineBanner", lang)}
           {queued > 0 && <span aria-live="polite" aria-atomic="true" className="ml-1">({queued})</span>}
-        </motion.div>
+        </m.div>
       )}
       <div className="mx-auto flex max-w-6xl">
         <Sidebar items={sidebarItems} />

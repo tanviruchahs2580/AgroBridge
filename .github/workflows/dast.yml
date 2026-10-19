@@ -1,0 +1,93 @@
+# Dynamic application security testing (DAST): a live baseline scan of the API
+# the way the other gates cannot see it. Trivy reads packages, CodeQL reads
+# code, and neither notices that a response header is missing or that an error
+# page echoes a stack trace — a running process does. The stack is the same
+# docker-compose.yml operators run, so what is scanned is what ships.
+#
+# The scan is a baseline: it crawls and attacks the unauthenticated surface
+# only, and `-I` means WARN-level alerts (missing headers and similar) are
+# reported but do not fail the job. A FAIL-level alert fails it.
+name: Security — DAST baseline (ZAP)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+# Supersede outdated runs on the same ref to save runner minutes.
+concurrency:
+  group: dast-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    name: ZAP baseline against the composed API
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    # Target <12 min: image build + ZAP crawl. The timeout is 20 so a hung
+    # crawl cannot hold the runner, without masking a slow-but-working run.
+    timeout-minutes: 20
+    env:
+      # docker-compose.yml refuses to start without these (`:?` guards); the
+      # values are the same throwaway ones the other CI jobs use.
+      POSTGRES_PASSWORD: ci-password
+      API_DATABASE_URL: postgresql://agrobridge:ci-password@db:5432/agrobridge?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+
+      - name: Build and start db + api
+        run: docker compose -f docker-compose.yml up -d --build db api
+
+      - name: API must answer /health on the published port
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4000/health > /dev/null; then
+              echo "API answered /health on :4000"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.yml logs --no-color api db || true
+          echo "::error::the composed API never answered /health on :4000 — refusing to scan a dead target"
+          exit 1
+
+      # ZAP runs in its own container (host network on Linux runners, so
+      # localhost is the runner's own port 4000). `stable` inside the action is
+      # a moving tag; the action itself is pinned by SHA, which is what keeps
+      # this gate reproducible at the workflow level.
+      - name: ZAP baseline scan (FAIL-level alerts fail; warnings report only)
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # pin v0.15.0
+        with:
+          target: http://localhost:4000
+          cmd_options: "-I"
+          # Default is false, which would make the whole gate advisory.
+          fail_action: true
+          # No GitHub issue per finding: the report artifact is the record, and
+          # issue writing would need issues: write for a token that has none.
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report
+
+      # The action uploads its own copy; this one is explicit so a scan failure
+      # still leaves the report behind, with the same 14-day retention as the
+      # other diagnostic artifacts.
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin v7.0.1
+        with:
+          name: zap-baseline-report-files
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: warn
+          retention-days: 14
+
+      # always(): a failed scan above must not leave containers and the volume
+      # behind on the runner.
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

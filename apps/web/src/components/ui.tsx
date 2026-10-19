@@ -3,7 +3,10 @@ import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo,
 import { createPortal } from "react-dom";
 import { Check, Inbox, Info, TriangleAlert, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+// `m` (not `motion`): features come from the root LazyMotion in main.tsx, so the
+// full motion component stays out of the initial bundle. Same component, same
+// animations — see the bundle note in main.tsx.
+import { m, AnimatePresence } from "framer-motion";
 import { motionTokens } from "../lib/motion";
 
 // ── Design System v2 — Enterprise Tokens (single source of truth: tokens.css) ──
@@ -531,7 +534,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         <AnimatePresence>
           {items.map((tst) => (
-            <motion.div
+            <m.div
               key={tst.id}
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -562,7 +565,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               <span aria-hidden>{tst.kind === "success" ? <Check className="h-5 w-5" aria-hidden /> : tst.kind === "error" ? <TriangleAlert className="h-5 w-5" aria-hidden /> : <Info className="h-5 w-5" aria-hidden />}</span>
               <span className="flex-1">{tst.msg}</span>
-            </motion.div>
+            </m.div>
           ))}
         </AnimatePresence>
       </div>
@@ -595,7 +598,7 @@ export function Modal({
 }) {
   const dialogRef = useDialogA11y(Boolean(onClose), onClose);
   return createPortal(
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -605,7 +608,7 @@ export function Modal({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <motion.div
+      <m.div
         ref={dialogRef as unknown as React.RefObject<HTMLDivElement>}
         role="dialog"
         aria-modal="true"
@@ -627,8 +630,8 @@ export function Modal({
         </div>
         <div className="overflow-y-auto p-4">{children}</div>
         {footer && <div className="border-t border-surface-border px-4 py-3">{footer}</div>}
-      </motion.div>
-    </motion.div>,
+      </m.div>
+    </m.div>,
     document.body
   );
 }
@@ -675,7 +678,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <>
       <ConfirmCtx.Provider value={confirm}>{children}</ConfirmCtx.Provider>
       {pending && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -685,7 +688,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             if (e.target === e.currentTarget) settle(false);
           }}
         >
-          <motion.div
+          <m.div
             ref={dialogRef as unknown as React.RefObject<HTMLDivElement>}
             role="dialog"
             aria-modal="true"
@@ -711,8 +714,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 {pending.opts.confirmLabel ?? "OK"}
               </Button>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </>
   );

@@ -1,6 +1,6 @@
 {
   "name": "agrobridge",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "AgroBridge — Integrated Digital Agriculture Platform (Green Soil. Smart Farm. Secure Future.)",
   "license": "MIT",
@@ -17,7 +17,11 @@
     "test": "npm run test --workspace apps/api",
     "typecheck": "npm run typecheck --workspace apps/api && npm run typecheck --workspace apps/web",
     "db:migrate": "npm run db:migrate --workspace apps/api",
-    "db:seed": "npm run db:seed --workspace apps/api"
+    "db:seed": "npm run db:seed --workspace apps/api",
+    "qa:knip": "knip --no-progress --no-config-hints",
+    "qa:jscpd": "jscpd",
+    "qa:licenses": "node scripts/qa/check-licenses.mjs",
+    "qa:versioncode": "node scripts/qa/check-versioncode.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0"
@@ -28,6 +32,10 @@
     "source-map-js": "^1.2.2"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "jscpd": "^5.4.1",
+    "knip": "^6.42.0",
     "prisma": "^6.5.0"
   },
   "allowScripts": {

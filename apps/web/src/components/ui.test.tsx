@@ -53,7 +53,9 @@ vi.mock("framer-motion", async () => {
   };
   const motion = new Proxy({}, { get: (_target, key: string) => passthrough(key) });
   const Pass = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);
-  return { motion, AnimatePresence: Pass, MotionConfig: Pass, useReducedMotion: () => false };
+  // `m` is what ui.tsx renders (the app root provides features via LazyMotion);
+  // the mock must expose it or every modal/toast would render nothing here.
+  return { motion, m: motion, LazyMotion: Pass, domAnimation: {}, AnimatePresence: Pass, MotionConfig: Pass, useReducedMotion: () => false };
 });
 
 vi.mock("./session", () => ({ useSession: () => null }));
