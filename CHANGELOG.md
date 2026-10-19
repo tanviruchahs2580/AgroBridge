@@ -4,6 +4,29 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-19 audit-remediation pass — durability, recovery, gates)
+- **Uploads survive redeploys.** Production stored disease photos on the serverless instance disk
+  (lost on every deploy). A `db` storage provider keeps bytes in `StoredObject`, `/ready` reports
+  `storage { provider, durable }`, and the release gate fails until production reports a durable
+  provider (ADR-0012). Operator action: set `STORAGE_PROVIDER=db` (or `s3`).
+- **Password recovery exists.** `POST /auth/password/forgot` + `/reset` (SMS code via the new HTTP
+  SMS gateway, `SMS_PROVIDER=http`), enumeration-safe, purpose-separated OTP challenges, all
+  refresh tokens revoked on success; a matching `/reset` screen in the web app.
+- **Login is throttled per account** (hashed phone key, unknown numbers treated identically) on top
+  of the per-IP limiter; duplicate registration answers neutrally instead of confirming an account.
+- **The offline queue is session-scoped and expires after 72 h** — a shared device can no longer
+  replay one user's queued writes under the next user's session; storage failures surface in the UI.
+- **Failed upload purges are retried** (`PendingUploadPurge` + `npm run purge:uploads --workspace
+  apps/api`), and account deletion reports pending purges instead of claiming full success.
+- **Advisory answers are auditable**: persisted history and the usage log carry `kbVersion`,
+  `promptVersion` and the request id; money rows carry the request id.
+- Notification category preferences are honoured by the delivery path.
+- **Honesty fixes**: stale test counts removed from README/CONTRIBUTING (a claims checker now guards
+  them), `/metrics` doc claim corrected, duplicated bcrypt figures de-duplicated, the root endpoint
+  no longer reports a literal `1.0`, the lockfile's root version matches `version.json`.
+- Session diaries and the self-issued "certification status" summary are archived under
+  `docs/archive/2026-10-19/` behind a banner; `docs/STATUS.md` is the honest current-state page.
+
 ### Added (2026-10-18 enterprise architecture pass — web edge & delivery)
 - **The static site now carries its own edge security policy (ADR-0008).** It shipped only HSTS
   before: no CSP, `nosniff`, frame or referrer policy on the origin that runs the app's JavaScript
