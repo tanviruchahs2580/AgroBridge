@@ -43,6 +43,10 @@ describe("login timing equalisation (B-05)", () => {
     expect(unknownPhone.body.error.code).toBe(wrongPassword.body.error.code);
     expect(unknownPhone.body.error.message).toBe(wrongPassword.body.error.message);
     expect(unknownPhone.body.error.message).toBe("Invalid credentials");
+    // The client renders INVALID_CREDENTIALS as "wrong number or password" and
+    // UNAUTHORIZED as "session expired"; login failures must carry the former
+    // (the latter told users their session had expired — live-found 2026-10-19).
+    expect(wrongPassword.body.error.code).toBe("INVALID_CREDENTIALS");
     expect(unknownPhone.body.error.details).toBeUndefined();
     expect(wrongPassword.body.error.details).toBeUndefined();
   });

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { unauthorized, conflict, unprocessable } from "../../shared/errors/index.js";
+import { unauthorized, invalidCredentials, conflict, unprocessable } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
@@ -177,7 +177,7 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
     // too (B-05): an unknown phone still pays one bcrypt comparison, against
     // the module's dummy hash, before the same 401.
     const valid = await verifyPasswordAgainst(user?.passwordHash ?? null, password);
-    if (!user || !valid || user.status !== "ACTIVE") throw unauthorized("Invalid credentials");
+    if (!user || !valid || user.status !== "ACTIVE") throw invalidCredentials();
 
     await audit({ actorId: user.id, action: "AUTH_LOGIN", entityType: "User", entityId: user.id, ip: req.ip });
 
