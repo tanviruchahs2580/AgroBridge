@@ -38,6 +38,15 @@ describe("Observability & security baseline", () => {
     // "memory" is the honest answer in tests (no REDIS_URL); production is
     // allowed to report either, and says which.
     expect(["redis", "memory"]).toContain(res.body.limiterStore);
+
+    // Storage durability is a release property (AUD-165): uploads on the
+    // instance disk are lost on redeploy, so /ready must say which provider is
+    // active and whether it is durable — and deploy-verify fails production
+    // when the answer is `local` (ADR-0012).
+    expect(res.body.storage).toBeTypeOf("object");
+    expect(["local", "db", "s3", "unconfigured"]).toContain(res.body.storage.provider);
+    expect(typeof res.body.storage.durable).toBe("boolean");
+    expect(res.body.storage.durable).toBe(res.body.storage.provider !== "local" && res.body.storage.provider !== "unconfigured");
   });
 
   it("reports a migration that is genuinely in the chain, not a placeholder", async () => {

@@ -191,3 +191,23 @@ jobs:
           done
           echo "::error::production schema is behind the reviewed migrations (expected $REQUIRED) — run apps/api/scripts/deploy-migrations.mjs (docs/runbooks/live-deployment.md), then re-run this workflow"
           exit 1
+
+      # Uploads must outlive the instance that received them.
+      #
+      # The 2026-10-19 audit found production storing disease photos on the
+      # serverless instance's disk (STORAGE_PROVIDER=local over /tmp): every
+      # redeploy silently deleted user content while every gate stayed green.
+      # `/ready` now reports the active storage provider and whether it is
+      # durable; production must not report `local`. Fix by setting
+      # STORAGE_PROVIDER=db (durable, no external service — ADR-0012) or `s3`
+      # with bucket credentials, then re-running this workflow.
+      - name: Production storage is durable (uploads survive redeploys)
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS -m 20 "$API_URL/ready")
+          read -r provider durable <<<"$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(j.storage?.provider||'')+' '+String(j.storage?.durable ?? ''))}catch{process.stdout.write(' unknown ')}}")
+          if [ "$durable" != "true" ]; then
+            echo "::error::production storage provider is '${provider:-unknown}' — uploads stored on the instance disk are lost on redeploy. Set STORAGE_PROVIDER=db (durable, no external service) or s3 with bucket credentials per docs/runbooks/live-deployment.md, then re-run this workflow."
+            exit 1
+          fi
+          echo "storage: $provider (durable)"

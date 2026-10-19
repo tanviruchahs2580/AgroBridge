@@ -60,8 +60,17 @@ const schema = z.object({
    * modules/payments/routes.ts.
    */
   ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION: z.enum(["0", "1"]).optional(),
-  SMS_PROVIDER: z.enum(["sandbox", "none"]).default("sandbox"),
-  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  SMS_PROVIDER: z.enum(["sandbox", "none", "http"]).default("sandbox"),
+  /**
+   * Generic HTTP SMS gateway (SMS_PROVIDER=http): a POST endpoint that
+   * receives `{ to, text }` with an optional bearer token and sender id.
+   * Keeping it provider-agnostic means activating real OTP delivery is an
+   * operator env change, not a code change (OD-15).
+   */
+  SMS_API_URL: z.string().url().optional(),
+  SMS_API_KEY: z.string().optional(),
+  SMS_SENDER_ID: z.string().optional(),
+  STORAGE_PROVIDER: z.enum(["local", "s3", "db"]).default("local"),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(), // for R2/MinIO-compatible stores
@@ -103,7 +112,9 @@ export function placeholderManifest(cfg: {
       "ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1 (buyers can COMPLETE simulated payments on this deployment — demo/pilot only, must be removed before store submission)",
     );
   if (cfg.STORAGE_PROVIDER === "local")
-    placeholders.push("STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy)");
+    placeholders.push(
+      "STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy — use db for durable uploads, or s3)",
+    );
   return placeholders;
 }
 
@@ -156,6 +167,9 @@ if (parsed.data.NODE_ENV === "production") {
     if (!parsed.data.SSLCOMMERZ_STORE_ID || !parsed.data.SSLCOMMERZ_STORE_PASSWORD) {
       throw new Error("SSLCOMMERZ_STORE_ID/PASSWORD missing for PAYMENT_PROVIDER=sslcommerz in production — startup aborted");
     }
+  }
+  if (parsed.data.SMS_PROVIDER === "http" && (!parsed.data.SMS_API_URL || !parsed.data.SMS_API_KEY)) {
+    throw new Error("SMS_API_URL/SMS_API_KEY missing for SMS_PROVIDER=http in production — startup aborted");
   }
   const aiCostProblem = hostedAiCostProblem(parsed.data);
   if (aiCostProblem) throw new Error(`${aiCostProblem} — startup aborted`);

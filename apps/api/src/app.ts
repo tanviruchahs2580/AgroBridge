@@ -14,6 +14,7 @@ import { logger } from "./lib/logger.js";
 import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 import { readSchemaState } from "./infrastructure/schemaState.js";
+import { storageReadiness } from "./providers/storage/index.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
 const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
@@ -111,7 +112,9 @@ export function createApp() {
       // deploy gate compares `schema.latest` with the repository's newest
       // migration (ADR-0007).
       const schema = await readSchemaState();
-      res.json({ ok: true, ready: true, db: true, schema, limiterStore });
+      // Storage durability is release-blocking, like the schema: production
+      // must outlive its instances (deploy-verify.yml enforces it).
+      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness() });
     } catch {
       dbUp.set(0);
       res.status(503).json({ ok: false, ready: false, db: false });
