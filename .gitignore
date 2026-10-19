@@ -90,3 +90,6 @@ qa-evidence/*
 # …except the committed verification receipts (see CONTRIBUTING.md)
 !qa-evidence/receipts/
 !qa-evidence/receipts/**
+
+# Quality-tool outputs (knip/jscpd)
+jscpd-report/

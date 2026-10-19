@@ -125,3 +125,23 @@ Ordered by how little it takes to hit the limit, with the failure the user sees:
 - Decide the Neon plan and connection strategy, and record the ceiling in this file.
 - Decide whether uploads above the platform 4.5 MB cap should be rejected client-side and re-label
   the 8 MB copy.
+
+## Vendor lock-in and exit notes
+
+The stack deliberately keeps exit paths open; this is the map the operations audit asks for.
+
+| Layer | Provider today | Lock-in shape | Exit path (tested?) |
+|---|---|---|---|
+| API runtime | Vercel serverless functions | `apps/api/api/index.js` is a plain Express handler; `vercel.json` only rewrites | The same handler runs in the docker stack (`docker-compose*.yml`, compose-smoke job) — container path smoke-tested in CI, so a move to any container host is a deploy-config change, not a rewrite |
+| Web hosting | Vercel static | Build output is a static directory (`vite build` → `dist/`) plus `vercel.json` headers | nginx image in `docker/web.Dockerfile` already serves the same bundle; CSP/preflight logic is build-time |
+| Database | Neon PostgreSQL | Standard PostgreSQL wire protocol; Prisma client generated for the serverless engine target | Any PostgreSQL 16/17 (the migration chain + provision script are provider-agnostic; verified against a local docker instance) |
+| Object storage | `db` provider (StorableObject) or s3-compatible | Provider interface `StorageProvider`; s3 adapter speaks the S3 API | Any S3-compatible store (R2/MinIO via `S3_ENDPOINT`); switching is an env change (ADR-0012) |
+| Rate-limit store | in-process memory (Redis when `REDIS_URL` set) | `express-rate-limit` store interface | Any Redis-compatible endpoint; documented fail-open semantics |
+| Payments | sandbox now; SSLCommerz adapter present | Adapter behind `PaymentProvider`; amounts and claims are provider-neutral | Another BD gateway is a new adapter plus a webhook route (ADR-0016) |
+| SMS | `sandbox`/`none`; generic HTTP gateway adapter | One POST contract (`{to, text, senderId?}` + bearer key) | Any gateway speaking that shape, or a thin adapter |
+| AI | offline KB engine now; OpenAI-compatible adapter | Adapter behind `AiProvider`; answers carry kb/prompt versions | Any OpenAI-compatible endpoint via `OPENAI_BASE_URL`; offline engine is the fallback and the eval baseline |
+| CI/CD | GitHub Actions | Workflows are plain YAML with SHA pins | Any runner able to execute the npm scripts; the gates live in `package.json` scripts, not in workflow-only shell |
+
+Evidence for "container path smoke-tested": the `Docker — Compose smoke (db + api)` CI job boots
+the compose stack and asserts `/health` on every push, so the container path cannot rot silently
+while Vercel is the production home.

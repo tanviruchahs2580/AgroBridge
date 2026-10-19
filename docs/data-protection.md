@@ -117,3 +117,41 @@ Source of truth: `apps/api/prisma/schema.prisma` + this document.
 
 All network traffic is TLS via the nginx edge (`docker/web.nginx.prod.conf`). No ads SDKs,
 no third-party analytics — crash/analytics are self-hosted.
+
+## Retention enforcement job (2026-10-19, SEC-06 / ADR-0011)
+
+`npm run retention --workspace apps/api` (cron: `0 5 * * *`) hard-deletes only rows past
+their documented window and is safe to re-run. Implementation: `apps/api/scripts/retention.mjs`,
+covered by `apps/api/tests/retention-job.test.ts` (old rows go, window rows survive).
+
+| Data | Window after expiry/consumption/creation | Rationale |
+|---|---|---|
+| Auth refresh tokens (expired or revoked) | **30 days** | session-archaeology value ends with the token; rotation already revokes |
+| OTP challenges (consumed or expired) | **24 hours** | dead auth secrets, stored hashed — no retention value |
+| `AuditLog` rows | **180 days** | security-trail window (security events only; no message bodies) |
+| `PendingUploadPurge` rows | **30 days, after one final drain attempt** | the queue is retried through the existing purge job before the row is dropped, so the last failure reason is not discarded without trying |
+
+The job runs an idempotent purge-queue drain first, then deletes the aged queue rows; a failed
+drain is logged and exits non-zero (the deletion still proceeds by policy).
+
+## Consent capture at registration (2026-10-19, PRD-05 / AUD-150)
+
+Registering requires accepting the published Terms of Service and Privacy Policy:
+`POST /api/v1/auth/register` refuses a body without `consent: true` (400 `BAD_REQUEST`,
+older clients included — intended), and on success writes an append-only `CONSENT_CAPTURED`
+audit row against the new user whose `meta.policyVersion` records the accepted document
+version (mirrored by `POLICY_VERSION` in the auth module and `LEGAL_META.version` in
+`apps/web/src/features/legal/content.ts`; a parity test pins the two together). The audit
+row's `createdAt` is the consent timestamp. The web Register form shows the checkbox with
+links to `/terms` and `/privacy` and blocks submit until it is checked.
+
+## Demo seed separation (2026-10-19, API-06)
+
+`prisma db seed` is split into **reference data** (membership plans, product and service
+catalogue — always seeded, every environment; the code splits it as `seedReferenceData`)
+and **demo data** (demo users with the public password `Demo@1234`, wallets, farm, demo
+service providers — `seedDemoData`). In production the demo layer is refused unless BOTH
+`ALLOW_DEMO_SEED=1` AND `ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION=1` are set; with both set it
+logs a loud warning listing every demo phone before writing. Both flags are seed-time only
+(read by `apps/api/prisma/seed.ts`, never by the API at runtime), which is why they do not
+appear in the API's `.env.example` (whose parity gate covers variables the API reads).

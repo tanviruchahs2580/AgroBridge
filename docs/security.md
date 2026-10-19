@@ -1,5 +1,8 @@
 # Security
 
+> **Owner:** engineering · **Purpose:** security controls, limits and accepted risks · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 See also: `docs/threat-model.md` (STRIDE abuse cases with control locations and the tests that pin
 them) and `docs/slo.md` (alert mapping). This page remains the control inventory.
 
@@ -53,6 +56,24 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
 scans history for committed secrets, Trivy fails the image build on HIGH/CRITICAL (accepted risks in
 `.trivyignore`, each cross-referenced to `SECURITY_WAIVERS.md` with an expiry), and CodeQL runs on
 every push and PR. Action pins are full SHAs with the version in a trailing comment.
+
+## Status notes (2026-10-19): DAST, attestation, headers
+
+Code facts only — status statements, not claims of coverage:
+
+- **DAST:** no dynamic application security testing runs in CI. `.github/workflows/` has CodeQL
+  (SAST, `codeql.yml`), Trivy image and config scanning plus CycloneDX SBOM generation
+  (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline test suites, and the
+  deploy gate's live-header assertions — but no ZAP/Nuclei/equivalent DAST job or config exists in
+  the repository.
+- **Build attestation:** no provenance attestation is produced (no `attest-build-provenance`/SLSA
+  step in any workflow). Release integrity rests on SHA-pinned actions, the SBOM artifact, the
+  apksigner/jarsigner signature checks (`android-release.yml:115-144`), and the deploy gate that
+  compares the running commit and applied schema with the repository (ADR-0007).
+- **Headers:** the API helmet policy and the static-site edge policy are described above; the live
+  assertions run in `deploy-verify.yml`, and the web build fails if the two Vercel configs'
+  policies diverge or if the CSP hash drifts from the built HTML
+  (`docs/deployment.md` §7). No scanner asserts header *values* today other than that gate.
 
 ## Reporting
 See [SECURITY.md](../SECURITY.md) for responsible disclosure instructions.

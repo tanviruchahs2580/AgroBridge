@@ -1,5 +1,8 @@
 # Operations
 
+> **Owner:** engineering · **Purpose:** operational procedures, metrics and alerting pointers · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 ## Health & readiness
 - `GET /health` — liveness (no DB). Use for restart probes.
 - `GET /ready` — checks DB round-trip; returns 503 when the database is unreachable.

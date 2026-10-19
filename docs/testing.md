@@ -1,5 +1,8 @@
 # Testing
 
+> **Owner:** engineering · **Purpose:** test layers, how to run them, and what each gate covers · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 Framework: **Vitest + Supertest** against the real Express app. Two database profiles:
 
 | Profile | Config | DB | Command |

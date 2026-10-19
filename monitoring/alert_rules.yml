@@ -20,33 +20,33 @@ groups:
           histogram_quantile(0.95,
             sum(rate(agrobridge_http_request_duration_seconds_bucket[5m])) by (le)
           ) > 0.5
-          runbook: docs/runbooks/provider-outage.md
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: "API p95 latency above 500ms for 10 minutes"
           description: "p95 latency is {{ $value | humanizeDuration }}. Inspect slow routes in the dashboard and DB query timings."
+          runbook: docs/runbooks/provider-outage.md
 
       - alert: DbDown
         expr: agrobridge_db_up == 0
-          runbook: docs/runbooks/failed-transaction-recovery.md
         for: 2m
         labels:
           severity: critical
         annotations:
           summary: "Database unreachable (/ready failing)"
           description: "agrobridge_db_up has been 0 for 2m. See docs/runbooks/chaos-drills.md and disaster-recovery restore procedure."
+          runbook: docs/runbooks/failed-transaction-recovery.md
 
       - alert: PaymentFailures
         expr: increase(agrobridge_payment_intents_total{status="failed"}[10m]) > 5
-          runbook: docs/runbooks/failed-transaction-recovery.md
         for: 5m
         labels:
           severity: critical
         annotations:
           summary: "More than 5 failed payment intents in 10 minutes"
           description: "Check SSLCommerz gateway status and PAYMENT_PROVIDER sandbox/live labelling before user complaints arrive."
+          runbook: docs/runbooks/failed-transaction-recovery.md
 
       - alert: AiFallbackSpike
         expr: increase(agrobridge_ai_requests_total{status="fallback_success"}[15m]) > 10
@@ -55,14 +55,15 @@ groups:
         annotations:
           summary: "AI provider falling back to offline engine (>10 in 15m)"
           description: "Advisories still answer via the grounded offline KB engine, but check provider quota/keys."
+          runbook: docs/runbooks/provider-outage.md
 
       - alert: InstanceDown
         expr: up == 0
-          runbook: docs/runbooks/provider-outage.md
-          runbook: docs/runbooks/live-deployment.md
         for: 3m
         labels:
           severity: critical
         annotations:
           summary: "Scrape target down"
           description: "Prometheus cannot reach {{ $labels.instance }} for 3m. Container may be crashed or network partitioned."
+          runbook: docs/runbooks/live-deployment.md
+

@@ -4,6 +4,8 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-19
+
 ### Fixed (2026-10-19 audit-remediation pass — durability, recovery, gates)
 - **Uploads survive redeploys.** Production stored disease photos on the serverless instance disk
   (lost on every deploy). A `db` storage provider keeps bytes in `StoredObject`, `/ready` reports

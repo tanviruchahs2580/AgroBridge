@@ -105,10 +105,12 @@ metrics/RBAC/suspension, notifications, offline-sync idempotency and security ba
 
 ## Shipping to Google Play
 
-The whole submission package is in the repository: `docs/play/release-runbook.md` (domain →
-AAB → Console, step by step), `docs/play/listing-copy.md` (paste-ready bn/en copy),
-`docs/play/data-safety.md` (Console answers traced to the code), `docs/play/reviewer-access.md`
-(+ `scripts/play/create-reviewer-account.mjs`), and the artwork in `play/`. The in-app account
+The whole submission package is in the repository: `docs/play/launch-checklist.md` (the
+credential/secret inventory and go-live order, from "nothing set" to submitted),
+`docs/play/release-runbook.md` (domain → AAB → Console, step by step), `docs/play/listing-copy.md`
+(paste-ready bn/en copy), `docs/play/data-safety.md` (Console answers traced to the code),
+`docs/play/reviewer-access.md` (+ `scripts/play/create-reviewer-account.mjs`), and the artwork in
+`play/`. The in-app account
 deletion Google Play requires lives at **Settings → Account**, and the public pages it points
 at are served by the SPA at `/privacy`, `/terms` and `/account-deletion`.
 
@@ -121,6 +123,7 @@ See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [data
 · [runbooks](docs/runbooks/) · [Play release runbook](docs/play/release-runbook.md)
 · [code-quality review 2026-10-17](docs/archive/2026-10-19/CODE_QUALITY_REVIEW_2026-10-17.md)
 · [dependency backlog](docs/DEPENDENCY_BACKLOG.md) · [ADRs](docs/adr/)
+· [code of conduct](docs/CODE_OF_CONDUCT.md)
 
 ## License
 

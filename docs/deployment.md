@@ -1,5 +1,8 @@
 # Deployment Runbook
 
+> **Owner:** engineering · **Purpose:** deployment topology, environments and release steps · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 ## Environments
 | Env | DB | Notes |
 |---|---|---|

@@ -1,5 +1,8 @@
 # AI Agro Agent
 
+> **Owner:** engineering · **Purpose:** AI provider contract, grounding and evaluation · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 See also: the request flow is drawn in `docs/architecture.md` ("AI advisory" sequence diagram);
 prompt-injection controls and their tests are catalogued in `docs/threat-model.md` (AC-15).
 

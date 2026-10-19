@@ -3,7 +3,8 @@
 One page, current as of **2026-10-19 (+06:00)**. What is actually live, what is pilot-grade
 simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
 roadmap and no marketing: if a line here disagrees with the running system, the system is right and
-this page is a bug.
+this page is a bug. Production is `main`; the remediation work described in its own section below
+lives on branch `audit/v2-remediation` and is **not deployed** until it is merged and released.
 
 ## Live in production
 
@@ -27,6 +28,21 @@ Known production properties that are not defects but are easy to misread:
 - `/metrics` is private-network or token guarded in production
   (`apps/api/src/middleware/metricsGuard.ts`).
 
+## On the remediation branch — verified, not yet deployed (2026-10-19)
+
+Branch `audit/v2-remediation` (PR #40). The live/pilot rows above keep describing production until
+this is merged and released; these changes land with it:
+
+| Change | What it does | Evidence |
+|---|---|---|
+| Durable uploads gate | `STORAGE_PROVIDER=db` keeps uploaded photos in the database, and deploy verification now fails any production that reports a non-durable storage provider | ADR-0012 (`docs/adr/0012-durable-uploads-in-database.md`); gate `.github/workflows/deploy-verify.yml:198-213` |
+| Self-service password reset | forgot/reset endpoints with an SMS code; uniform responses, per-phone throttling; a successful reset rotates the password and revokes every refresh token | `apps/api/src/modules/auth/routes.ts:440-506`; web screen `apps/web/src/features/auth/Reset.tsx` |
+| Real SMS delivery path | provider-agnostic HTTP gateway (`SMS_PROVIDER=http` + `SMS_API_URL`/`SMS_API_KEY`); production boot aborts if `http` is selected without credentials. Still `sandbox` (codes only logged) until the owner supplies them | `apps/api/src/config/env.ts:63-72`, `:171-173` |
+| Offline write-queue policy | Allow-listed mutations queue and replay with `clientUuid` idempotency; the queue is session-scoped, so a shared phone cannot replay one account's writes under the next account | ADR-0009 (`docs/adr/0009-offline-sync-policy.md`); `apps/web/src/lib/offlineQueue.ts:5-13,212-248` |
+
+The go-live cutover for these (which environment values flip, in what order) is
+`docs/play/launch-checklist.md`.
+
 ## Pilot-grade simulation (works, but not the real thing)
 
 | Surface | Current mode | What a user sees |
@@ -35,7 +51,7 @@ Known production properties that are not defects but are easy to misread:
 | Payment gateway webhook | Implemented and signature-verified, but the live SSLCommerz adapter is not activated | `docs/runbooks/live-deployment.md`; decision OD-07 |
 | Weather | Placeholder provider accepted in production (`ALLOW_PLACEHOLDER_PROVIDERS=1`) | Weather cards render provider data with provenance fields; live OpenWeather requires credentials (`docs/runbooks/live-deployment.md` env table) |
 | AI advisory | Offline grounded engine; hosted OpenAI-compatible provider requires credentials | Answers are grounded in the in-repo knowledge base with a KB version and disclaimer (`docs/ai.md`) |
-| SMS / OTP delivery | `SMS_PROVIDER=sandbox`: codes are logged, not delivered | Phone verification cannot complete for real users (OD-15) |
+| SMS / OTP delivery | `SMS_PROVIDER=sandbox`: codes are logged, not delivered (a real HTTP gateway path is wired on the remediation branch; it needs owner credentials — see that section) | Phone verification cannot complete for real users (OD-15) |
 | Disease photo review | Uploads are stored durably in the database and queued as `PENDING_REVIEW`; there is no classifier and no agronomist queue UI for reviewers | `apps/api/src/modules/disease/routes.ts`; `docs/play/data-safety.md` |
 | Storage | `STORAGE_PROVIDER=db` — uploads survive redeploys; `local` disk is rejected for production | `apps/api/src/providers/storage/index.ts`; ADR-0012 |
 
@@ -71,13 +87,16 @@ The in-repo tasks that accompany these are the native-Bangla and agronomy review
 
 | Location | What it holds |
 |---|---|
-| `qa-evidence/receipts/` | Dated receipts: round results, live verification, schema-drift and release-contract checks, web edge/delivery measurements |
+| `qa-evidence/receipts/` | Dated receipts (index: `qa-evidence/receipts/README.md`): round results, live verification, schema-drift and release-contract checks, web edge/delivery measurements |
 | `qa-evidence/` (top level) | Gate logs from earlier rounds (API/web suites, e2e runs, load test, live probes) and probe scripts |
 | `.audit/v2/BASELINE.md` | The current identity/toolchain/topology record and gate results for commit `0ce54b5` |
 | `.audit/v2/FINAL_AUDIT_REPORT.md`, `FINDINGS.md`, `RISK_REGISTER.md`, `CLAIMS_LEDGER.md`, `SCORECARD.md` | Detailed findings, claim-by-claim verification and the risk register |
 | `.audit/v2/DECISIONS.md` | The decision register summarized above |
 | `.audit/evidence/` | Raw probe outputs (live headers, health payloads) |
 | `docs/qa/test-traceability.md` | Capability → test file → CI job mapping |
+| `docs/qa/score-deductions.md` | Every remaining parameter below 3, what closes it, and which rows the documentation wave moved |
+| `docs/play/launch-checklist.md` | The credential/secret inventory and go-live order of operations for Play |
+| `docs/retention-and-logs.md` | Log fields/redaction, retention defaults, and how to configure platform log retention |
 | `docs/slo.md` | Proposed objectives, metric backing, alert mapping |
 | `docs/threat-model.md` | Controls with code locations and the tests that pin them |
 

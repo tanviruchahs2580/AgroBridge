@@ -1,5 +1,8 @@
 # Architecture
 
+> **Owner:** engineering · **Purpose:** as-built system design and the ADR index · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 See also: [threat-model.md](threat-model.md) · [slo.md](slo.md) · [runtime-contract.md](runtime-contract.md)
 · [business-rules.md](business-rules.md) · [STATUS.md](STATUS.md).
 
@@ -361,3 +364,7 @@ production at 70-88).
 - [0010 — Job durability](adr/0010-job-durability.md) (no server-side queue; Redis is rate-limit-only and fails open)
 - [0011 — Data retention](adr/0011-data-retention.md) (financial rows retained; deletion anonymizes identity)
 - [0012 — Durable uploads in the database](adr/0012-durable-uploads-in-database.md) (`STORAGE_PROVIDER=db`; the release gate rejects instance-disk uploads)
+- [0013 — Admin/payout step-up decision](adr/0013-admin-payout-step-up-decision.md) (risk accepted with compensating controls; re-decide at the named triggers)
+- [0014 — OpenAPI contract strategy](adr/0014-openapi-contract-strategy.md) (docs/api.md + the response-contract fixture are the gate; generated OpenAPI deferred with triggers)
+- [0015 — Tenancy / RLS decision](adr/0015-tenancy-rls-decision.md) (application scoping now; RLS prototype plan with `SET LOCAL app.user_id`)
+- [0016 — Payment provider selection](adr/0016-payment-provider-selection.md) (SSLCommerz; hosted checkout keeps PCI scope out; activation is an owner gate)
