@@ -175,6 +175,9 @@ model AdvisoryQuery {
   feedbackReason    String? // farmer feedback: why the answer was not useful (A7-07)
   feedbackAt        DateTime? // when the feedback was submitted (A7-07)
   createdAt         DateTime @default(now())
+  kbVersion         String? // KB corpus version(s) that grounded this answer
+  promptVersion     String? // hosted prompt-template version, when applicable
+  requestId         String? // request correlation id (X-Request-Id)
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -380,6 +383,7 @@ model Payment {
   refundRef   String?
   metaStr     String?
   createdAt   DateTime @default(now())
+  requestId   String? // request correlation id (X-Request-Id) for support/audit joins
   updatedAt   DateTime @updatedAt
   user        User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
@@ -516,6 +520,8 @@ model AiUsageLog {
   success    Boolean
   createdAt  DateTime @default(now())
   user       User? @relation(fields: [userId], references: [id])
+  requestId  String?
+  kbVersion  String?
 
   @@index([createdAt])
 }
@@ -543,4 +549,24 @@ model OrganizationMember {
   @@unique([organizationId, userId])
   @@index([userId])
   @@index([organizationId])
+}
+
+model StoredObject {
+  id        String   @id @default(cuid())
+  key       String   @unique // storage key returned by save(), e.g. uploads/disease/<file>
+  mime      String
+  sizeBytes Int
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
+model PendingUploadPurge {
+  id        String   @id @default(cuid())
+  key       String
+  context   String
+  attempts  Int      @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
