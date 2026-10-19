@@ -11,7 +11,7 @@ tokens are redacted. Ship stdout to your log platform (e.g., Loki/CloudWatch).
 
 ## Metrics
 
-Prometheus-compatible endpoint: `GET /metrics` (no auth, scraped by monitoring).
+Prometheus-compatible endpoint: `GET /metrics` — open on loopback/private networks and in non-production; in production it requires a private source address or a `METRICS_TOKEN` bearer (middleware/metricsGuard.ts). A scraper is not wired into docker-compose by default; enable the `monitoring` compose profile.
 
 Exposed:
 

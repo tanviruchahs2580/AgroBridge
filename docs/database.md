@@ -14,6 +14,10 @@
   **Any schema change must update every copy and both chains** — `tests/schema-parity.test.ts`
   fails on drift. Full rationale and failure history: `docs/adr/0004-dual-dialect-prisma.md`.
   Schemas use only portable constructs (no native enums, no JSON columns) to keep dialects aligned.
+  Connection behaviour in production is whatever the platform-injected `DATABASE_URL` provides: the
+  API constructs `new PrismaClient({ log })` with no datasource overrides or pool settings
+  (`apps/api/src/infrastructure/database/prisma.ts`), so pooling is a Neon/operator configuration
+  rather than a code decision — `docs/runtime-contract.md` records what is and is not known about it.
 
 ## Entity map (30 models)
 ```

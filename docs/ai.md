@@ -1,5 +1,8 @@
 # AI Agro Agent
 
+See also: the request flow is drawn in `docs/architecture.md` ("AI advisory" sequence diagram);
+prompt-injection controls and their tests are catalogued in `docs/threat-model.md` (AC-15).
+
 ## Pipeline (per request)
 ```
 Question → sanitize (strip code fences, role prefixes, [INST]-style markers, angle brackets; ≤1000 chars)
@@ -38,6 +41,11 @@ on them.
    in production requires a real `AI_COST_PER_1K_TOKENS_PAISA > 0` (guard `hostedAiCostProblem` in
    `src/config/env.ts`, documented here — the API refuses to boot instead of running the hosted
    provider with an inert money guard).
+   When the budget is crossed anyway: in production the gateway refuses the hosted provider with
+   `429 AI_BUDGET_EXCEEDED`; outside production it logs a warning, serves from the offline engine
+   and increments `agrobridge_ai_requests_total{status="budget_fallback"}`
+   (`apps/api/src/providers/ai/gateway.ts:25-47`). The window is the calendar month and the sum
+   covers hosted-provider rows only.
 5. **Injection resistance.** Code fences, role prefixes, `[INST]/[SYS]` markers and angle brackets
    are stripped from user text; the LLM prompt keeps the user turn in the user role and fences all
    retrieved KB text as untrusted reference data the model must not follow as instructions.

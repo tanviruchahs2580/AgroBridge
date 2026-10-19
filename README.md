@@ -119,7 +119,7 @@ See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [data
 · [deployment](docs/deployment.md) · [operations](docs/operations.md) · [performance](docs/performance.md)
 · [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md)
 · [runbooks](docs/runbooks/) · [Play release runbook](docs/play/release-runbook.md)
-· [code-quality review 2026-10-17](docs/CODE_QUALITY_REVIEW_2026-10-17.md)
+· [code-quality review 2026-10-17](docs/archive/2026-10-19/CODE_QUALITY_REVIEW_2026-10-17.md)
 · [dependency backlog](docs/DEPENDENCY_BACKLOG.md) · [ADRs](docs/adr/)
 
 ## License

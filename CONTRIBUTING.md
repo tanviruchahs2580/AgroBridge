@@ -18,7 +18,7 @@ branch — with one active contributor it adds ceremony without adding safety; a
 parallel feature work exists.
 
 **Break-glass:** the repository owner may temporarily disable protection in the GitHub UI for a
-production incident. Doing so requires a note in `EXECUTION_LOG.md` recording what was pushed
+production incident. Doing so requires a note in `CHANGELOG.md` (historical log archived under `docs/archive/2026-10-19/`) recording what was pushed
 directly and why, and re-enabling protection afterwards.
 
 ## Commits
@@ -96,8 +96,8 @@ not evidence.
 
 ```bash
 npm run typecheck                                   # api + web
-npm run test --workspace apps/api                   # 150 tests (1 PG-gated skip by design)
-npm run test:unit --workspace apps/web              # 108 unit tests
+npm run test --workspace apps/api                   # API suite (1 PG-gated skip by design; counts move — trust the run, not this file)
+npm run test:unit --workspace apps/web              # web unit suite (same rule)
 npm run lint --workspace apps/web
 npm run build --workspace apps/web                  # includes typecheck
 cd apps/api && npx eslint src tests

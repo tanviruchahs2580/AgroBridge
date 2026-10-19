@@ -10,7 +10,7 @@
 
 The previous API host (Render `agrobridge-vfbz.onrender.com`) is **retired**: its free
 PostgreSQL instance expired (~30-day free-tier limit) and took login down (see
-`ENTERPRISE_CERTIFICATION_STATUS.md` addendum 2026-10-15). The Render dashboard service is
+archived `ENTERPRISE_CERTIFICATION_STATUS.md` addendum 2026-10-15 (docs/archive/2026-10-19/)). The Render dashboard service is
 not part of the live path anymore.
 
 ## API deploy pipeline (Vercel, prebuilt)

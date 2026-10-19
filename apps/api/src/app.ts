@@ -61,7 +61,7 @@ export function createApp() {
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE"],
       // Custom response headers the web client reads: the correlation id and
-      // the list totals that make truncation visible (C-06/C-22). Without
+      // the list totals that make truncation visible. Without
       // this, cross-origin callers see neither.
       exposedHeaders: ["X-Request-Id", "X-Total-Count"],
     })
@@ -154,7 +154,7 @@ export function createApp() {
   logger.info("AgroBridge API routes mounted");
 
   app.get("/", (_req, res) => {
-    res.json({ ok: true, service: "agrobridge-api", message: "AgroBridge API is running", docs: "/health", version: "1.0" });
+    res.json({ ok: true, service: "agrobridge-api", message: "AgroBridge API is running", docs: "/health", commit: deployedCommit });
   });
 
   app.use(notFoundHandler);

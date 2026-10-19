@@ -9,7 +9,7 @@
 >   covered here;
 > - §6's pixel snapshots under `e2e/__screenshots__` were retired — the current check is the
 >   structural `apps/web/e2e/visual-contract.spec.ts` (see WEB-12 in
->   `docs/CODE_QUALITY_REVIEW_2026-10-17.md`).
+>   `docs/archive/2026-10-19/CODE_QUALITY_REVIEW_2026-10-17.md`).
 >
 > Current token contract: `docs/design-tokens.md`. Kept only for provenance of the lock.
 

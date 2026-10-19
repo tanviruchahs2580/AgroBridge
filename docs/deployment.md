@@ -8,7 +8,7 @@
 | staging/production | PostgreSQL | schema provider switch + migrations below |
 
 ## 1. Prerequisites
-- Node ≥ 20 (CI uses 22), npm 10+
+- Node 22+ (`engines` in package.json; CI uses 22), npm 10+
 - PostgreSQL 14+ for staging/production
 - Strong secrets: `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (64-char random)
 

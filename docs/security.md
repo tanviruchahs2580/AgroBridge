@@ -1,5 +1,8 @@
 # Security
 
+See also: `docs/threat-model.md` (STRIDE abuse cases with control locations and the tests that pin
+them) and `docs/slo.md` (alert mapping). This page remains the control inventory.
+
 ## Implemented controls
 - **Passwords:** bcrypt (cost 12; 4 in tests only). Uniform login errors prevent user enumeration.
 - **Sessions:** JWT access tokens (15 min, issuer-checked) + opaque refresh tokens stored as SHA-256
@@ -33,6 +36,11 @@
   code actually reads (`API_PUBLIC_URL`, not the `API_BASE_URL` that never existed in code); the API
   **refuses to boot** in production with default/dev JWT secrets; logs redact auth
   headers/passwords, and provider/datasource errors are never logged with their connection details.
+- **Observability endpoints:** `/health` and `/ready` are public and intentionally minimal;
+  `/metrics` is restricted in production to private source addresses or a `METRICS_TOKEN` bearer
+  (`apps/api/src/middleware/metricsGuard.ts`), and request metrics label the matched route pattern
+  rather than the raw URL (`apps/api/src/infrastructure/metrics.ts`), so unmatched scanner traffic
+  cannot mint unbounded label sets.
 - **Audit trail:** registration, login, checkout, payments, withdrawals, disease reviews and admin
   user/role changes recorded in `audit_logs` with actor/IP/entity metadata.
 - **Release integrity:** production is only considered current when its **commit and its schema**

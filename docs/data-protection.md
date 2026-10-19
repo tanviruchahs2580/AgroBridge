@@ -3,6 +3,14 @@
 Operational companion to `PRIVACY_POLICY.md` (user-facing). Scope: production PostgreSQL
 + local uploads + backups on the single-VM deployment.
 
+Current production reality (2026-10-19): the API runs as Vercel Functions and writes to PostgreSQL
+on Neon, and uploads use `STORAGE_PROVIDER=db` (durable rows in the database), not instance-local
+disk (`docs/runbooks/live-deployment.md`; `docs/runtime-contract.md`). The "backups on the
+single-VM deployment" scope below describes the docker-compose deployment path; where it differs
+from the Vercel+Neon path (notably backup ownership), the platform configuration is authoritative
+and the gap is tracked in `.audit/v2/DECISIONS.md`. Related: `docs/threat-model.md` (AC-09, AC-14)
+for upload and log-exposure controls.
+
 ## Retention schedule
 
 | Data | Where | Retention | Mechanism |
