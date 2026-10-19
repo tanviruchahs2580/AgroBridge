@@ -13,16 +13,25 @@ import { reconcileWallets } from "../scripts/reconcile-wallet.mjs";
  * find a freshly seeded database clean, and must report a corrupted balance
  * exactly once, keyed by the wallet's user id.
  *
- * The test runs against its own scratch SQLite database (migrated + seeded via
- * the real seed functions) instead of the shared suite DB: other test files
+ * The test runs against its own scratch database (migrated + seeded via the
+ * real seed functions) instead of the shared suite DB: other test files
  * deliberately seed bare wallet balances as fixtures, so the shared DB is not a
  * "seeded-clean state". Here the seeded state is exactly what a deploy creates,
  * and the test exercises the real script's exported core.
+ *
+ * The scratch database follows the profile's dialect — SQLite for the default
+ * suite, a throwaway PostgreSQL database when the PG profile runs (a hardcoded
+ * `file:` URL cannot work there: the generated client is the PG one).
  */
 const apiRoot = fileURLToPath(new URL("..", import.meta.url));
+const isPg = (process.env.DATABASE_URL ?? "").startsWith("postgres");
 const scratchDbName = `recon-scratch-${process.pid}.db`;
 const scratchDbPath = fileURLToPath(new URL(`../prisma/${scratchDbName}`, import.meta.url));
-const scratchUrl = `file:./${scratchDbName}`; // relative to prisma/, like prisma/test.db
+const scratchPgName = `agrobridge_recon_${process.pid}`;
+const scratchUrl = isPg
+  ? (process.env.DATABASE_URL ?? "").replace(/\/[^/]+$/, `/${scratchPgName}`)
+  : `file:./${scratchDbName}`; // relative to prisma/, like prisma/test.db
+const adminUrl = isPg ? (process.env.DATABASE_URL ?? "").replace(/\/[^/]+$/, "/postgres") : "";
 
 interface Mismatch {
   userId: string;
@@ -43,19 +52,37 @@ async function reconcile(): Promise<ReconcileResult> {
 }
 
 beforeAll(async () => {
-  execSync("npx prisma migrate deploy", {
-    cwd: apiRoot,
-    env: { ...process.env, DATABASE_URL: scratchUrl },
-    stdio: "pipe",
-  });
+  if (isPg) {
+    const admin = new PrismaClient({ datasourceUrl: adminUrl });
+    await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${scratchPgName}"`);
+    await admin.$executeRawUnsafe(`CREATE DATABASE "${scratchPgName}"`);
+    await admin.$disconnect();
+    execSync("npx prisma migrate deploy --schema prisma/postgres/schema.prisma", {
+      cwd: apiRoot,
+      env: { ...process.env, DATABASE_URL: scratchUrl },
+      stdio: "pipe",
+    });
+  } else {
+    execSync("npx prisma migrate deploy", {
+      cwd: apiRoot,
+      env: { ...process.env, DATABASE_URL: scratchUrl },
+      stdio: "pipe",
+    });
+  }
   client = new PrismaClient({ datasourceUrl: scratchUrl });
   await runSeed(client, { NODE_ENV: "test" }, () => {}, () => {});
 }, 120_000);
 
 afterAll(async () => {
   await client?.$disconnect();
-  for (const p of [scratchDbPath, `${scratchDbPath}-journal`]) {
-    if (existsSync(p)) rmSync(p);
+  if (isPg) {
+    const admin = new PrismaClient({ datasourceUrl: adminUrl });
+    await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${scratchPgName}" WITH (FORCE)`);
+    await admin.$disconnect();
+  } else {
+    for (const p of [scratchDbPath, `${scratchDbPath}-journal`]) {
+      if (existsSync(p)) rmSync(p);
+    }
   }
 });
 

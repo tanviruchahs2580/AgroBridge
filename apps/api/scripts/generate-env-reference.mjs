@@ -177,7 +177,15 @@ export function buildEnvReference() {
     byName.get(e.name).push(e);
   }
 
-  const esc = (s) => String(s).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  // Markdown-table cell escaping is order-sensitive: backslashes first, then
+  // every character that would break a table row. Escaping only `|` left a
+  // literal `\|` sequence in the input able to smuggle a column separator past
+  // the table (CodeQL js/incomplete-sanitization), so the escape set is now
+  // explicit and complete for this context.
+  const esc = (s) =>
+    String(s)
+      .replace(/\\/g, "\\\\")
+      .replace(/[|\r\n]/g, (c) => (c === "|" ? "\\|" : " "));
   const lines = [];
   lines.push("# Environment reference");
   lines.push("");
