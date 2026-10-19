@@ -122,7 +122,7 @@ export default function Services() {
       toast.success(t("bookingReceivedToast", lang));
       setSelected(null);
       // The new booking moves the bookings list and the provider assignment that
-      // comes with it; the old page-wide `load()` refreshed all three resources,
+      // comes with it; the old page-wide `load` refreshed all three resources,
       // so all three families are invalidated — no more, no less.
       invalidate("services");
       invalidate("services-bookings");
@@ -147,7 +147,7 @@ export default function Services() {
     try {
       await api("POST", `/bookings/${b.id}/status`, { status: "CANCELLED" });
       toast.success(t("bookingCancelledToast", lang));
-      // Same refetch set as the old page-wide `load()`.
+      // Same refetch set as the old page-wide `load`.
       invalidate("services");
       invalidate("services-bookings");
       invalidate("services-farms");

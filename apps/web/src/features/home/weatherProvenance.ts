@@ -1,4 +1,4 @@
-// Weather provenance line (A5-01 / AUD-126).
+// Weather provenance line.
 //
 // One small, honest line under the current conditions: WHEN the payload was
 // fetched from the provider (local clock) and from WHICH source. On a cache hit

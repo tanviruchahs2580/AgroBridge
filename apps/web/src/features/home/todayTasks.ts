@@ -1,7 +1,7 @@
 // "Today's tasks" on Home are REAL suggestions derived from the user's active
 // crop cycles (stage + planting date), using the same care logic MyFarm shows.
 // Nothing here is persisted, pre-seeded or checked off — the API has no task
-// completion write (see G-02), so the UI must not pretend one exists. With no
+// completion write (see), so the UI must not pretend one exists. With no
 // active crop the list is empty and Home renders an honest empty state.
 import type { FarmListItem } from "../../lib/api-types";
 import type { Lang } from "../../lib/i18n";

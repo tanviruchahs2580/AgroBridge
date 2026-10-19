@@ -78,7 +78,7 @@ export default function MyOrders() {
     try {
       await api("DELETE", `/orders/${order.id}`);
       toast.success(t("orderDeletedToast", lang));
-      // The deleted row leaves the list: the old code awaited `load()`, which
+      // The deleted row leaves the list: the old code awaited `load`, which
       // refetched exactly this one resource.
       invalidate("orders");
     } catch (err) {

@@ -61,3 +61,44 @@ entry must not become a way to read or clobber another user's row.
   it is added to the allow-list; the allow-list is the gate, not an invitation.
 - The `queueable` surface is intentionally tiny: farm events, cart mutations, order-sync
   endpoints. Broadening it is a design decision (this ADR), not a config change.
+
+## Amendment — 2026-10-19
+
+The original decision treated the queue as device-scoped state. In practice the device is
+often shared — a family or a shop phone in the markets this app targets — and the queue
+outlived the session that filled it: a mutation queued by one account replayed under the
+next account that signed in, and an entry could sit in localStorage indefinitely. Four
+changes, all in `apps/web/src/lib/offlineQueue.ts`, close that gap.
+
+1. **Session-scoped entries.** Every entry carries `queuedAt` (epoch ms) and `ownerId`
+   (the queueing user's `userId`, `""` when no session was known). Enqueue stamps both
+   from `sessionManager.getSession()`; the dependency is one-way (the queue reads the
+   manager, never the reverse). Entries persisted before this change are stamped on
+   first load and the upgrade is written back — their age cannot be reconstructed, so
+   they start their window then rather than being dropped by the migration.
+2. **The queue does not outlive its session.** A subscription purges the queue
+   (`purgeQueue(reason)`) when the signed-in identity changes or the session ends. Losing
+   queued work on logout is the deliberate trade: replaying it under whoever signs in
+   next is worse than dropping it. "Session ends" is read as *tokens cleared first*, which
+   is how every real logout/expiry path in `session.tsx` is written — a boot that merely
+   could not confirm the session offline keeps its tokens (so the user is not logged out)
+   and therefore keeps its queue, which is the case the queue exists for. The flush
+   screens entries again before any request leaves the device — an entry owned by another
+   account is dropped (status 0, outcome `discarded`) — as a backstop for the paths where
+   the purge could not fire (e.g. a cold boot straight into a different session).
+3. **A 72 h replay window, visible to the user.** Entries older than 72 h are dropped at
+   flush time with the new `DropOutcome` `"expired"` and their own bilingual toast copy.
+   A days-old write applied blind (crop stage, stock, prices have moved) is stale data
+   winning over what the user sees now.
+4. **Persistence failures are reported, not swallowed.** `save()` no longer discards the
+   queue silently when localStorage rejects the write (quota/private mode): the list is
+   kept in memory for the tab, `onStorageError` fires with `{ keptInMemory: true }`,
+   `storageDegraded()` reports the state, and App.tsx raises an error toast. A later
+   successful write retires the fallback.
+
+Behavior is locked by the added cases in `offlineQueue.test.ts` (legacy stamping, purge
+on switch, purge on logout, TTL expiry, foreign-owner skip, storage-error notification);
+the 38 pre-existing cases are unchanged. The consequences in the main section still
+hold — the queue remains client-local and is still lost on reinstall or site-data clear —
+but it is no longer lost *silently*, and it can no longer leak across accounts on the
+same device.

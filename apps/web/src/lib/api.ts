@@ -135,7 +135,7 @@ export function onOnlineStatusChange(cb: OnlineCb): () => void {
 
 // ── Transport ──
 // Serverless/cold infrastructure can take tens of seconds for the first call;
-// wakeBackend() pre-warms the function, but keep the ceiling above worst case.
+// wakeBackend pre-warms the function, but keep the ceiling above worst case.
 const REQUEST_TIMEOUT_MS = 45_000;
 const GET_RETRY_DELAYS_MS = [300, 900];
 
@@ -146,14 +146,14 @@ class NetworkError extends Error {
   }
 }
 
-// ── Request correlation id (I-01) ──
+// ── Request correlation id ──
 // Every API request carries one, so a client-side failure report can be tied to
 // the server's log line for the same call. One id per *logical* request: the
-// GET/5xx retry loop and the post-refresh replay of the same `api()` call reuse
+// GET/5xx retry loop and the post-refresh replay of the same `api` call reuse
 // the id of their first attempt, while a new request (including each offline
-// queue replay) gets a fresh one. crypto.randomUUID() is required; the
+// queue replay) gets a fresh one. crypto.randomUUID is required; the
 // getRandomValues fallback covers non-secure contexts (plain-HTTP dev hosts),
-// matching offlineQueue's uuid() posture — Math.random never generates these.
+// matching offlineQueue's uuid posture — Math.random never generates these.
 let requestIdFallback = 0;
 function newRequestId(): string {
   const c = globalThis.crypto as Crypto | undefined;
@@ -240,7 +240,7 @@ let refreshing: Promise<boolean> | null = null;
 
 /**
  * Refreshes the access token once, sharing the same in-flight promise as the
- * `api()` 401 handler. Exposed for best-effort callers that bypass `api()`
+ * `api` 401 handler. Exposed for best-effort callers that bypass `api`
  * (analytics) so they reuse one refresh instead of stampeding the endpoint.
  */
 export async function refreshAccessToken(): Promise<boolean> {
@@ -278,7 +278,7 @@ async function tryRefresh(): Promise<boolean> {
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const wasAuthed = Boolean(getTokens().accessToken);
   // One correlation id for this logical request: retries (5xx/network) and the
-  // post-refresh replay below all reuse it (I-01).
+  // post-refresh replay below all reuse it.
   const requestId = newRequestId();
 
   // Prime offlineQueue lazy import for later sync enqueue (non-blocking)

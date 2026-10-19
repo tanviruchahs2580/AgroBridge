@@ -6,7 +6,7 @@ import { useSession } from "./lib/session";
 import { otherLang, t } from "./lib/i18n";
 import type { DictKey, Lang } from "./lib/i18n";
 import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
-import { flushAll, onDrop as onQueueDrop, onSync as onQueueSync, dropToastMessage, syncToastMessage, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
+import { flushAll, onDrop as onQueueDrop, onSync as onQueueSync, onStorageError as onQueueStorageError, dropToastMessage, syncToastMessage, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
 import { track } from "./lib/analytics";
 import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -20,6 +20,7 @@ import Login from "./features/auth/Login";
 
 // All non-auth pages are code-split via lazy + Suspense.
 const Register = lazy(() => import("./features/auth/Register"));
+const Reset = lazy(() => import("./features/auth/Reset"));
 const Home = lazy(() => import("./features/home/Home"));
 const MyFarm = lazy(() => import("./features/farms/MyFarm"));
 const Market = lazy(() => import("./features/marketplace/Market"));
@@ -48,6 +49,7 @@ const ROUTE_TITLES: Record<string, DictKey> = {
   "/onboarding": "onboarding",
   "/login": "login",
   "/register": "register",
+  "/reset": "resetTitle",
   "/settings": "settings",
   "/privacy": "privacyPolicy",
   "/terms": "termsOfService",
@@ -93,6 +95,8 @@ function NotFound() {
   return (
     <main id="main" className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center gap-3 rounded-xl border border-surface-border bg-surface-card p-4 py-10 text-center shadow-sm">
+        {/* Decorative: it repeats the "page not found" heading below it and is
+ aria-hidden, so it is exempt from non-text contrast.*/}
         <Compass className="h-10 w-10 text-stone-400" aria-hidden />
         <h1 className="text-lg font-bold text-stone-800">{t("notFoundTitle", lang)}</h1>
         <p className="max-w-sm text-sm text-stone-600">{t("notFoundBody", lang)}</p>
@@ -159,7 +163,7 @@ function Shell({ children }: { children: ReactNode }) {
             <div className="min-w-0">
               <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
               {/* The tagline only fits once the action row stops competing for
-                  space; at 360px it wrapped to three lines and squeezed the brand. */}
+ space; at 360px it wrapped to three lines and squeezed the brand.*/}
               <div className="mt-0.5 hidden text-[10px] font-medium tracking-wide text-white/70 sm:block">
                 {t("tagline", lang)}
               </div>
@@ -167,7 +171,7 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Account & settings: profile edit, phone verification, policies,
-                and the in-app account-deletion path Google Play requires. */}
+ and the in-app account-deletion path Google Play requires.*/}
             <NavLink
               to="/settings"
               aria-label={t("settings", lang)}
@@ -176,7 +180,7 @@ function Shell({ children }: { children: ReactNode }) {
             >
               <SettingsIcon className="h-4 w-4" aria-hidden />
             </NavLink>
-            {/* Dark/Light Mode Toggle — driven by session context (reactive) */}
+            {/* Dark/Light Mode Toggle — driven by session context (reactive)*/}
             <button
               type="button"
               aria-label={t("themeToggleAria", lang)}
@@ -224,7 +228,7 @@ function Shell({ children }: { children: ReactNode }) {
         <Sidebar items={sidebarItems} />
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-24 outline-none md:pb-5">{children}</main>
       </div>
-      <BottomNav items={bottomItems} />
+      <BottomNav items={bottomItems} ariaLabel={t("primaryNavAria", lang)} />
     </div>
   );
 }
@@ -254,7 +258,7 @@ export default function App() {
     });
   }, []);
 
-  // Queued-change outcomes (G-07). A flush that saved work says so, once, with
+  // Queued-change outcomes. A flush that saved work says so, once, with
   // the count; a dropped write still names which change was lost, and a
   // conflict-ish drop (409/422) reads as "needs your review" instead.
   // Enqueue stays one subscription only: the queue notifies through this
@@ -264,11 +268,19 @@ export default function App() {
   useEffect(() => onOfflineEnqueue(() => toast.info(t("offlineBanner", lang))), [toast, lang]);
   useEffect(() => onQueueSync((count) => toast.success(syncToastMessage(count, lang))), [toast, lang]);
 
-  // Permanent queue drop (AUD-112b): the server refused the queued change for
+  // Permanent queue drop: the server refused the queued change for
   // good and the queue discarded it — the user hears which change was lost
   // instead of the failure staying in console.warn.
   useEffect(
     () => onQueueDrop((entry, _status, outcome) => toast.error(dropToastMessage(entry, outcome, lang))),
+    [toast, lang]
+  );
+
+  // Queue persistence failure: private-mode/quota storage rejects the write and
+  // the queued change survives only in this tab's memory. Say so at once —
+  // finding out after the reload that closed the app is how work is lost twice.
+  useEffect(
+    () => onQueueStorageError(() => toast.error(t("queueStorageFailed", lang))),
     [toast, lang]
   );
 
@@ -309,6 +321,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<ReverseGuard><PageTransition><Login /></PageTransition></ReverseGuard>} />
         <Route path="/register" element={<ReverseGuard><Suspense fallback={<PageFallback />}><PageTransition><Register /></PageTransition></Suspense></ReverseGuard>} />
+        <Route path="/reset" element={<ReverseGuard><Suspense fallback={<PageFallback />}><PageTransition><Reset /></PageTransition></Suspense></ReverseGuard>} />
         <Route path="/" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Home /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/farm" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><MyFarm /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/advisor" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Advisor /></PageTransition></Suspense></ErrorBoundary></Shell>} />
@@ -322,7 +335,7 @@ export default function App() {
         <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Onboarding /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/settings" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><SettingsPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         {/* Public legal pages: must be reachable without an account (Play requires a
-            public privacy-policy URL and a public data-deletion URL). */}
+ public privacy-policy URL and a public data-deletion URL).*/}
         <Route path="/privacy" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="privacy" /></Suspense>} />
         <Route path="/terms" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="terms" /></Suspense>} />
         <Route path="/account-deletion" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="deletion" /></Suspense>} />

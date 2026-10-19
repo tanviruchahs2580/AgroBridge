@@ -1,4 +1,4 @@
-// Provider/mode disclosure for an advisory answer (A4-04 / A2-04).
+// Provider/mode disclosure for an advisory answer.
 //
 // The gateway returns one of two engines:
 //   - offline deterministic KB engine: provider "offline-agro-engine", model "kb-retrieval-v1"

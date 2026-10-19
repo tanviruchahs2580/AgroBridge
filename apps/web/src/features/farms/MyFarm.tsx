@@ -105,7 +105,7 @@ export default function MyFarm() {
     try {
       await api("POST", "/farms", { name, district: String(fd.get("district") ?? "").trim() || undefined, totalAreaBigha: Number(fd.get("area")) || undefined });
       track("farm_created"); toast.success(t("farmCreatedToast", lang)); setShowFarmForm(false); (e.target as HTMLFormElement).reset();
-      // The old `load()` refetched the farm list and the district weather after
+      // The old `load` refetched the farm list and the district weather after
       // every mutation — both families are invalidated, no more and no less.
       invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
@@ -120,7 +120,7 @@ export default function MyFarm() {
     try {
       await api("POST", `/farms/${farmId}/plots`, { name: fd.get("name"), areaBigha: area, soilType: String(fd.get("soil") ?? "").trim() || undefined });
       toast.success(t("plotCreatedToast", lang)); setPlotFor(null); (e.target as HTMLFormElement).reset();
-      // Same refetch set as the old `load()`.
+      // Same refetch set as the old `load`.
       invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
@@ -133,7 +133,7 @@ export default function MyFarm() {
     try {
       await api("POST", "/farms/crops", { plotId: cropPlotId, cropName: fd.get("crop"), plantedAt: new Date(fd.get("date") as string).toISOString() });
       toast.success(t("cropCreatedToast", lang)); setCropPlotId(null); (e.target as HTMLFormElement).reset();
-      // Same refetch set as the old `load()`.
+      // Same refetch set as the old `load`.
       invalidate(RESOURCE_KEYS.farms);
       invalidate("weather");
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }

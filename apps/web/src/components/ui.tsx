@@ -14,7 +14,7 @@ import { motionTokens } from "../lib/motion";
 type ButtonVariant = "primary" | "cta" | "soft" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
-/** Accessible spinner used for loading states (replaces bare "…" text). */
+/** Accessible spinner used for loading states (replaces bare "…" text).*/
 export function Spinner({ className = "" }: { className?: string }) {
   return (
     <svg className={`animate-spin ${className}`} width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -24,7 +24,7 @@ export function Spinner({ className = "" }: { className?: string }) {
   );
 }
 
-/** Focusable-query helper for modal focus trapping. */
+/** Focusable-query helper for modal focus trapping.*/
 function getFocusable(container: HTMLElement): HTMLElement[] {
   return Array.from(
     container.querySelectorAll<HTMLElement>(
@@ -141,7 +141,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
   );
 });
 
-/** Square icon-only button with a guaranteed 44px touch target. */
+/** Square icon-only button with a guaranteed 44px touch target.*/
 export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "ghost" | "outline" | "soft"; label: string }>(function IconButton(
   { variant = "ghost", label, className = "", children, ...props },
   ref
@@ -196,7 +196,10 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
   const isInvalid = props["aria-invalid"] === true || props["aria-invalid"] === "true";
   return (
     <input
-      className={`w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm transition-[border-color,box-shadow,transform] placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:bg-stone-100 motion-reduce:transition-none ${isInvalid ? "animate-shake border-danger-border" : ""} ${className}`}
+      // Placeholder text is real text to WCAG: stone-400 on white sits at 2.4:1,
+      // so the shared input uses stone-500 (4.7:1) even though axe cannot see
+      //:placeholder and would never flag it.
+      className={`w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm transition-[border-color,box-shadow,transform] placeholder:text-stone-500 focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:bg-stone-100 motion-reduce:transition-none ${isInvalid ? "animate-shake border-danger-border" : ""} ${className}`}
       {...props}
     />
   );
@@ -214,7 +217,7 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
   );
 }
 
-/** Label + control + hint/error composite — the house form pattern. */
+/** Label + control + hint/error composite — the house form pattern.*/
 export function Field({
   label,
   htmlFor,
@@ -334,11 +337,13 @@ export function ErrorBanner({
 }
 
 // ── Navigation shells — Enterprise Refinement ──
-export function BottomNav({ items }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[] }) {
+/** `ariaLabel` is passed in rather than hardcoded: the shell must not announce
+ * an English landmark name on a Bengali screen (App.tsx supplies the copy).*/
+export function BottomNav({ items, ariaLabel }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[]; ariaLabel: string }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
     <nav
-      aria-label="Primary navigation"
+      aria-label={ariaLabel}
       className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-surface-border bg-[var(--glass-nav)] p-1 shadow-float backdrop-blur-md md:hidden"
       style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}
     >
@@ -393,7 +398,7 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: R
 }
 
 // ── Page furniture ──
-/** Consistent page header: title + optional subtitle + trailing action slot. */
+/** Consistent page header: title + optional subtitle + trailing action slot.*/
 export function PageHeader({
   title,
   subtitle,
@@ -425,7 +430,7 @@ export function PageHeader({
   );
 }
 
-/** Small section heading with optional trailing action (e.g. "See all ›"). */
+/** Small section heading with optional trailing action (e.g. "See all ›").*/
 export function SectionHeader({ title, action, className = "" }: { title: string; action?: ReactNode; className?: string }) {
   return (
     <div className={`mb-2.5 flex items-center justify-between gap-2 ${className}`}>
@@ -435,7 +440,7 @@ export function SectionHeader({ title, action, className = "" }: { title: string
   );
 }
 
-/** Compact metric tile: icon + value + label, tinted by tone. */
+/** Compact metric tile: icon + value + label, tinted by tone.*/
 export function StatTile({
   icon,
   value,
@@ -522,7 +527,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware). */}
+      {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware).*/}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         <AnimatePresence>
           {items.map((tst) => (
@@ -574,7 +579,7 @@ export function useToast(): ToastApi {
  *  Rendered through a portal to document.body: pages are free to use transform-bearing
  *  entrance animations (which create stacking contexts) and `useDialogA11y` marks `#main`
  *  inert while open — an inline modal inside `#main` would trap itself (unclickable)
- *  and paint below the fixed nav layers. */
+ * and paint below the fixed nav layers.*/
 export function Modal({
   title,
   onClose,
@@ -713,7 +718,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** useConfirm() → async confirm(opts) resolving true/false; renders an accessible dialog at the app root. */
+/** useConfirm → async confirm(opts) resolving true/false; renders an accessible dialog at the app root.*/
 export function useConfirm(): ConfirmFn {
   return useContext(ConfirmCtx);
 }
@@ -724,7 +729,7 @@ export interface StepItem {
   state: "done" | "current" | "todo";
 }
 
-/** Horizontal stepper; wraps on mobile. done=check filled, current=ringed, todo=muted. */
+/** Horizontal stepper; wraps on mobile. done=check filled, current=ringed, todo=muted.*/
 export function Stepper({ steps }: { steps: StepItem[] }) {
   return (
     <ol className="flex flex-wrap items-start gap-x-1 gap-y-3">
@@ -737,12 +742,14 @@ export function Stepper({ steps }: { steps: StepItem[] }) {
                 ? "border-action bg-action text-white"
                 : step.state === "current"
                   ? "border-brand-500 bg-surface-card text-accent ring-[3px] ring-brand-100"
-                  : "border-surface-border-strong bg-surface-card text-stone-400"
+                  : "border-surface-border-strong bg-surface-card text-stone-500"
             }`}
           >
             {step.state === "done" ? <Check className="h-4 w-4" aria-hidden /> : i + 1}
           </span>
-          <span className={`text-center text-xs font-medium leading-tight ${step.state === "todo" ? "text-stone-400" : step.state === "done" ? "text-success-text" : "text-stone-700"}`}>
+          {/* Todo labels are step names, not decoration — stone-500 keeps them
+ legible on white (stone-400 was 2.4:1 and failed AA).*/}
+          <span className={`text-center text-xs font-medium leading-tight ${step.state === "todo" ? "text-stone-500" : step.state === "done" ? "text-success-text" : "text-stone-700"}`}>
             {step.label}
           </span>
         </li>

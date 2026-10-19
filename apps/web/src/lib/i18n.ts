@@ -90,6 +90,17 @@ export const dict = {
   authTagline: { bn: "AI কৃষকের হাতে", en: "AI in every farmer's hand" },
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
+  // ── Password reset (features/auth/Reset.tsx) ──
+  forgotPasswordLink: { bn: "পাসওয়ার্ড ভুলে গেছেন?", en: "Forgot password?" },
+  resetTitle: { bn: "পাসওয়ার্ড রিসেট", en: "Reset password" },
+  resetSubtitle: { bn: "নম্বর দিন, কোড নিন, নতুন পাসওয়ার্ড ঠিক করুন।", en: "Enter your number, take the code, set a new password." },
+  newPassword: { bn: "নতুন পাসওয়ার্ড", en: "New password" },
+  resetSubmit: { bn: "নতুন পাসওয়ার্ড দিন", en: "Set new password" },
+  resetCodeSent: { bn: "কোড পাঠানো হয়েছে — এসএমএস দেখুন।", en: "Code sent — check your SMS." },
+  resetSuccess: { bn: "পাসওয়ার্ড পরিবর্তন হয়েছে — নতুন পাসওয়ার্ড দিয়ে লগইন করুন।", en: "Password changed — sign in with your new password." },
+  resetChangeNumber: { bn: "অন্য নম্বর দিন", en: "Use a different number" },
+  errOtpInvalid: { bn: "কোডটি সঠিক নয়।", en: "That code is not correct." },
+  errOtpExpired: { bn: "কোডের মেয়াদ শেষ — নতুন কোড নিন।", en: "The code has expired — request a new one." },
   // Language toggle labels name the *target* language, so the bn value is the
   // English label and the en value is the Bengali one.
   langToggleButton: { bn: "EN", en: "বাং" },
@@ -144,13 +155,15 @@ export const dict = {
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
   offlineBanner: { bn: "অফলাইন — পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — changes will queue" },
   // A queued write the server refuses permanently (4xx) is discarded — say so
-  // instead of only console.warn (AUD-112b). {item} is one of queuedItem*.
+  // instead of only console.warn. {item} is one of queuedItem*.
   queuedChangeDropped: { bn: "অফলাইনে করা {item} পরিবর্তনটি সংরক্ষণ করা যায়নি — বাদ দেওয়া হয়েছে।", en: "Your offline {item} change could not be saved — it was discarded." },
   queuedItemFarmEvent: { bn: "খামার রেকর্ড", en: "farm record" },
   notFoundTitle: { bn: "পাতাটি পাওয়া যায়নি", en: "Page not found" },
   notFoundBody: { bn: "আপনি যে ঠিকানাটি খুঁজছেন সেটি নেই বা সরানো হয়েছে।", en: "The address you are looking for doesn't exist or was moved." },
   backHome: { bn: "হোমে ফিরে যান", en: "Go back home" },
   skipToContent: { bn: "স্কিপ করুন", en: "Skip to content" },
+  // Screen-reader name for the shell's primary nav (components/ui.tsx BottomNav).
+  primaryNavAria: { bn: "প্রধান নেভিগেশন", en: "Primary navigation" },
 
   // ── Procurement status enums ──
   statusPENDING: { bn: "অপেক্ষমাণ", en: "Pending" },
@@ -355,7 +368,7 @@ export const dict = {
   weatherRiskIRRIGATION_ADVICE: { bn: "→ ফসলের পানির চাহিদা অনুযায়ী সেচ দিন", en: "→ irrigate per crop water demand" },
   weatherRiskDISEASE_RISK: { bn: "→ প্রতিরোধমূলক ছত্রাকনাশক বিবেচনা করুন", en: "→ consider preventive fungicide" },
   weatherRiskINFO: { bn: "→ নিয়মিত ফার্ম পরিদর্শন করুন", en: "→ keep up regular farm visits" },
-  // ── Weather provenance (A5-01 / AUD-126) — when the data was fetched, from
+  // ── Weather provenance) — when the data was fetched, from
   // which source, and whether it is a cached copy. The time shown is the
   // ORIGINAL fetch time even on a cache hit; the cached copy is labelled.
   weatherAsOf: { bn: "আবহাওয়া তথ্য: {time}", en: "Weather as of {time}" },
@@ -431,12 +444,12 @@ export const dict = {
   collapseDetails: { bn: "বিস্তারিত লুকান", en: "Collapse details" },
   compressingImage: { bn: "ছবি প্রস্তুত করা হচ্ছে...", en: "Preparing image..." },
   questionInputLabel: { bn: "আপনার প্রশ্ন", en: "Your question" },
-  // Which provider/mode answered (A4-04 / A2-04) and the KB content version it
+  // Which provider/mode answered and the KB content version it
   // was grounded in. Never a score/percentage — see supportLabel.ts.
   advisorModeKb: { bn: "নলেজ বেস (KB)", en: "Knowledge base (KB)" },
   advisorModeAi: { bn: "AI মডেল", en: "AI model" },
   advisorKbVersion: { bn: "KB সংস্করণ {v}", en: "KB version {v}" },
-  // Advisory history + report-a-problem (A7-07). Feedback rows come from
+  // Advisory history + report-a-problem. Feedback rows come from
   // GET /ai/history (the only surface that carries row ids).
   advisorHistory: { bn: "আগের পরামর্শের ইতিহাস", en: "Past advisory history" },
   advisorNoHistory: { bn: "কোনো আগের পরামর্শ নেই।", en: "No previous advisories yet." },
@@ -562,6 +575,7 @@ export const dict = {
   metricAiQueries: { bn: "এআই পরামর্শ", en: "AI queries" },
   searchPh: { bn: "নাম/ফোন", en: "name/phone" },
   searchUsersAria: { bn: "ব্যবহারকারী খুঁজুন", en: "Search users" },
+  breadcrumbNavAria: { bn: "ব্রেডক্রাম্ব", en: "Breadcrumb" },
   thName: { bn: "নাম", en: "Name" },
   thPhone: { bn: "ফোন", en: "Phone" },
   thRole: { bn: "ভূমিকা", en: "Role" },
@@ -731,7 +745,7 @@ export const dict = {
   },
   deleteAccountConfirm: { bn: "হ্যাঁ, মুছে ফেলুন", en: "Yes, delete" },
   accountDeletedToast: { bn: "অ্যাকাউন্ট মুছে ফেলা হয়েছে", en: "Account deleted" },
-  // ── Personal data export (AUD-130) ──
+  // ── Personal data export ──
   dataExportTitle: { bn: "আমার ডেটা", en: "My data" },
   dataExportHint: {
     bn: "আপনার অ্যাকাউন্টের সব তথ্য (প্রোফাইল, ফার্ম, অর্ডার, ওয়ালেট — পাসওয়ার্ড ছাড়া) JSON ফাইল হিসেবে ডাউনলোড করুন।",
@@ -752,11 +766,17 @@ export const dict = {
   walletExpiresIn: { bn: "মেয়াদ শেষ {days} দিনে", en: "Expires in {days}d" },
 
   // ── Offline queue outcomes (lib/offlineQueue.ts → App.tsx toasts) ──
-  // A flush that saved at least one queued change reports the count (G-07).
+  // A flush that saved at least one queued change reports the count.
   queueSyncedToastOne: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued change saved." },
   queueSyncedToastMany: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued changes saved." },
   // 409/422 conflicts are the user's to resolve — distinct from a plain discard.
   queuedChangeConflict: { bn: "অফলাইনে করা {item} পরিবর্তনটি সার্ভারের তথ্যের সাথে মিলছে না — আপনার পর্যালোচনা দরকার।", en: "Your offline {item} change conflicts with server data — it needs your review." },
+  // A queued change is only replayed for 72 h (offlineQueue.ts): past that it is
+  // dropped, and the copy says why instead of the change vanishing without word.
+  queuedChangeExpired: { bn: "অফলাইনে করা {item} পরিবর্তনটি ৩ দিনের মধ্যে পাঠানো যায়নি — বাদ দেওয়া হয়েছে।", en: "Your offline {item} change could not be sent within 3 days — it was discarded." },
+  // Persisting the queue failed (quota/private mode): the change is held in
+  // memory for this tab only and is gone at the next reload — say so at once.
+  queueStorageFailed: { bn: "অফলাইনে করা পরিবর্তন ডিভাইসে সংরক্ষণ করা যায়নি — অ্যাপ বন্ধ হলে হারিয়ে যেতে পারে।", en: "Offline changes could not be saved on this device — they may be lost if the app closes." },
 } as const;
 
 export type DictKey = keyof typeof dict;

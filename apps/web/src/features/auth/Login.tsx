@@ -73,6 +73,9 @@ export default function Login() {
       <form onSubmit={submit} noValidate className="space-y-4">
         <Field label={t("phone", lang)} htmlFor="phone" error={fieldErrs.phone}>
           <div className="relative">
+            {/* Decorative field icon — the visible <label> carries the meaning, so
+ it is exempt from text contrast; on the mobile photo card
+ index.css repoints.text-stone-400 to white/60.*/}
             <Phone aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" style={{ width: 18, height: 18 }} />
             <Input
               id="phone"
@@ -125,6 +128,17 @@ export default function Login() {
         <Button type="submit" variant="cta" size="lg" className="w-full" loading={busy} disabled={busy || inputInvalid}>
           {t("signIn", lang)} <span aria-hidden>→</span>
         </Button>
+
+        {/* Recovery entry point: without it a farmer who forgot the password
+ has no way back into the account they already own.*/}
+        <p className="text-center">
+          <Link
+            to="/reset"
+            className="inline-flex items-center rounded font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+          >
+            {t("forgotPasswordLink", lang)}
+          </Link>
+        </p>
 
         {inputInvalid && !busy && <p className="text-center text-xs text-stone-500">{t("fixErrorsNote", lang)}</p>}
       </form>

@@ -3,7 +3,7 @@
  * Web release preflight — the checks that must hold for what we actually serve.
  *
  * Runs after `npm run build` (CI: the web-quality job's build step; locally the
- * same commands). Three families, each one a trap that fails *silently* in
+ * same commands). Four families, each one a trap that fails *silently* in
  * production if nothing checks it:
  *
  * 1. **CSP ↔ inline script.** `index.html` carries a deliberately inline
@@ -22,11 +22,16 @@
  *    The repo's Lighthouse config is `workflow_dispatch`-only, so nothing else
  *    would notice a bundle or font regression like the four duplicate Noto files
  *    this pass removed.
+ * 4. **Raw hex in the token layer.** Colors must come from `tokens.css` /
+ *    `dark.css` so the dark theme and the AA contrast work stay enforceable in
+ *    one place. A literal that slips into a component renders fine in light mode
+ *    and is invisible to every other check (and to axe) — see the allowlist
+ *    below for the one site the browser itself forces.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // apps/web/scripts
@@ -176,6 +181,56 @@ for (const b of BUDGETS) {
   if (actual > b.limitKb) fail(`${line} — over budget`);
   else pass(line);
 }
+
+// ── 5. every color in the app comes from the token layer ───────────────────
+// Hex belongs in tokens.css / dark.css only: the dark theme re-points those
+// variables, so a literal in a component silently opts out of dark mode and
+// out of the AA contrast work. CSS files are out of scope here (they *are* the
+// token layer) — but `.ts(x)` cannot ship a raw #rrggbb without being named
+// below with a reason.
+//
+// Allowlist — browser-forced literals only, each with its justification comment
+// in the source. Keep it empty by preferring a token; adding an entry is a
+// design decision, not a quick fix.
+const HEX_ALLOWLIST = [
+  // <meta name="theme-color"> is read before any stylesheet resolves, so the
+  // only correct value is a literal (session.tsx applyTheme).
+  { file: "src/lib/session.tsx", reason: "meta theme-color literal — var() is not resolved for it" },
+];
+const HEX_RE = /#[0-9a-fA-F]{6}\b/;
+function tsFiles(dir, out = []) {
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) out = tsFiles(p, out);
+    else if (/\.tsx?$/.test(p)) out.push(p);
+  }
+  return out;
+}
+const srcDir = join(WEB, "src");
+const hexOffenders = [];
+const hexAllowed = [];
+for (const file of tsFiles(srcDir)) {
+  const rel = relative(WEB, file).split(sep).join("/");
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  const allowed = HEX_ALLOWLIST.find((a) => a.file === rel);
+  lines.forEach((text, i) => {
+    if (!HEX_RE.test(text)) return;
+    const hit = `${rel}:${i + 1} ${text.trim().slice(0, 100)}`;
+    if (allowed) hexAllowed.push(`${hit} — allowed: ${allowed.reason}`);
+    else hexOffenders.push(hit);
+  });
+}
+if (hexOffenders.length) {
+  fail(
+    `raw hex color(s) outside the token layer (${hexOffenders.length}):\n     ` +
+      hexOffenders.join("\n     ") +
+      `\n     use a token from src/tokens.css (add one there if it does not exist) ` +
+      `or add the file to HEX_ALLOWLIST in this script with a reason`
+  );
+} else {
+  pass(`no raw hex colors in src/**/*.ts(x) outside the token layer (${hexAllowed.length} allowlisted)`);
+}
+for (const a of hexAllowed) console.log(`  ↳ ${a}`);
 
 if (failures.length) {
   console.error(`\n✗ web preflight FAILED (${failures.length} problem${failures.length === 1 ? "" : "s"})`);

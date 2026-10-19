@@ -13,7 +13,7 @@ import "./dark.css"; // designed dark token layer — after index.css so it casc
 // public/sw.js, a kill switch that unregisters old registrations and deletes
 // their caches; no build emits service-worker.js. The previous probe-and-
 // register path plus its update announcer could therefore never fire and has
-// been removed (AUD-118b). Offline behaviour is the durable write queue
+// been removed. Offline behaviour is the durable write queue
 // (lib/offlineQueue.ts): writes queue and sync when connectivity returns.
 // There is no offline page shell, and no copy claims one.
 
