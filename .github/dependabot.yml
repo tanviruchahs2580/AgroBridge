@@ -5,8 +5,36 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Routine bumps arrive as one PR; majors stay individual so a breaking
+    # change is reviewed on its own.
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    # Every `uses:` is pinned to a full SHA; this is what rotates them. Grouped
+    # so the churn is one reviewable PR instead of one per action.
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Dockerfiles live in docker/, compose files at the root. Base images are
+  # digest-pinned, so Dependabot is the only automated path that moves them.
+  - package-ecosystem: docker
+    directory: "/docker"
+    schedule:
+      interval: weekly
+    groups:
+      docker-images:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      compose-images:
+        patterns: ["*"]

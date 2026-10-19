@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 # Supersede outdated runs on the same ref to save runner minutes.
 concurrency:
@@ -72,7 +72,9 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17-alpine
+        # digest pinned: the tag is mutable and a retag would silently change
+        # what every PostgreSQL gate runs against. postgres:17-alpine
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
         env:
           POSTGRES_USER: agrobridge
           POSTGRES_PASSWORD: ci-password
@@ -107,6 +109,69 @@ jobs:
         working-directory: apps/api
         run: npx vitest run --config vitest.config.pg.ts
 
+  # The shipping schema and its migration chain cannot diverge, and every
+  # migration must apply to an empty database. `provision-postgres.mjs` applies
+  # the chain (deploy is idempotent and on this fresh container the database is
+  # empty), `migrate status` proves nothing is pending or failed, and
+  # `migrate diff --from-migrations` proves the schema file and the chain that
+  # ships beside it produce the same database. Without this a migration could
+  # land uncommitted, edited after the fact, or missing from the chain, and the
+  # first symptom would be a production database that does not match its schema.
+  api-migration-drift:
+    name: API — Migration chain vs schema (PostgreSQL 17)
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 30
+    services:
+      postgres:
+        # digest pinned: the tag is mutable and a retag would silently change
+        # what every PostgreSQL gate runs against. postgres:17-alpine
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: agrobridge
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: agrobridge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agrobridge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://agrobridge:ci-password@localhost:5432/agrobridge
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
+
+      - name: Apply the migration chain to the empty database
+        working-directory: apps/api
+        run: node scripts/provision-postgres.mjs
+
+      - name: Migration status (no pending or failed migrations)
+        working-directory: apps/api
+        run: npx prisma migrate status --schema prisma/postgres/schema.prisma
+
+      # --exit-code: 0 when the diff is empty, 1 on error, 2 when the schema and
+      # the chain produce different databases. The service user is the cluster
+      # superuser, so Prisma can create and drop the shadow database itself.
+      - name: Schema and migration chain must not diverge
+        working-directory: apps/api
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/postgres/migrations \
+            --to-schema-datamodel prisma/postgres/schema.prisma \
+            --shadow-database-url postgresql://agrobridge:ci-password@localhost:5432/agrobridge_shadow \
+            --exit-code
+
   web-quality:
     name: Web — Lint · Unit · Build
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
@@ -127,6 +192,12 @@ jobs:
       # K-08: version.json is canonical; a release bump must touch every manifest.
       - name: Version consistency
         run: node scripts/check-versions.mjs
+
+      # Docs drift silently: a moved file or a renamed page leaves links that
+      # only break for the reader. Relative targets only — external URLs would
+      # make this gate depend on other sites answering.
+      - name: Docs link check (README + docs/)
+        run: node scripts/qa/link-check.mjs
 
       - name: Lint (eslint + jsx-a11y)
         working-directory: apps/web
@@ -155,7 +226,9 @@ jobs:
   web-e2e:
     name: Web — E2E (Playwright)
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    timeout-minutes: 30
+    # 45 (not 30): the job now runs the suite twice — dev server and production
+    # build — plus the Firefox/WebKit smoke specs.
+    timeout-minutes: 45
     env:
       DATABASE_URL: "file:./test.db"
       JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
@@ -184,9 +257,11 @@ jobs:
           npm config set ignore-scripts false || true
           npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true
 
+      # WebKit and Firefox run only the two smoke specs (see the projects in
+      # apps/web/playwright.config.ts); chromium owns the full suite.
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Provision seeded SQLite database + API client
         working-directory: apps/api
@@ -215,6 +290,33 @@ jobs:
 
       - name: Run E2E tests (real browser journey)
         working-directory: apps/web
+        run: npx playwright test
+
+      # Second pass, production build: the dev-server run above exercises source
+      # files; only the built bundle carries the minified output, the built CSS
+      # and the version.json stamp, and those are what a user actually loads.
+      # VITE_API_BASE_URL is overridden because apps/web/.env.production points
+      # at the deployed API; /api/v1 stays relative and `vite preview` inherits
+      # server.proxy (Vite's documented preview.proxy default), so requests take
+      # the same path as in the dev run.
+      - name: Build web bundle (production) for the preview pass
+        env:
+          VITE_API_BASE_URL: /api/v1
+        run: npm run build --workspace apps/web
+
+      - name: Start Web preview server (built bundle, :4173)
+        working-directory: apps/web
+        run: |
+          nohup npx vite preview --port 4173 --strictPort > /tmp/agro-web-preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:4173/ | grep -q "<div id=\"root\">"
+
+      # PLAYWRIGHT_BASE_URL also tells playwright.config.ts that this pass owns
+      # its server, so it does not fall back to starting the dev server.
+      - name: Run E2E tests against the production build
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
         run: npx playwright test
 
       # A failing browser run must leave evidence behind (AUD-119): traces,
@@ -335,6 +437,47 @@ jobs:
           push: false
           tags: agrobridge-web:ci
 
+  # The unit and image gates above prove parts; this proves the composition:
+  # docker-compose.yml is what operators run, and its ports, healthcheck and
+  # required-variable contract can break without any test noticing. Builds the
+  # real images via compose (not build-push-action), waits for the API the way
+  # an operator would, then tears the stack down including the database volume.
+  compose-smoke:
+    name: Docker — Compose smoke (db + api)
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 20
+    env:
+      # docker-compose.yml refuses to start without these (`:?` guards); the
+      # values are the same throwaway ones the other CI jobs use.
+      POSTGRES_PASSWORD: ci-password
+      API_DATABASE_URL: postgresql://agrobridge:ci-password@db:5432/agrobridge?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+
+      - name: Build and start db + api
+        run: docker compose -f docker-compose.yml up -d --build db api
+
+      - name: API must answer /health on the published port
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4000/health > /dev/null; then
+              echo "API answered /health on :4000"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.yml logs --no-color api db || true
+          echo "::error::the composed API never answered /health on :4000"
+          exit 1
+
+      # always(): a failed wait above must not leave containers and the volume
+      # behind on the runner.
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
   trivy-scan:
     name: Security — Trivy container scan (HIGH/CRITICAL)
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
@@ -423,3 +566,33 @@ jobs:
             echo "::error::Hard-coded database credential pattern found"; exit 1
           fi
           echo "Secret scan clean"
+
+      # A committed dump, database file or build output is invisible in review
+      # and irreversible in history. One command, whole-index: git ls-tree -l
+      # reports sizes, so no per-file subprocess is needed. Keep the allowlist
+      # minimal — .gitignore already excludes build output (APKs, dist, *.db).
+      - name: Repository hygiene — oversized and stray files
+        shell: bash
+        run: |
+          set -uo pipefail
+          LIMIT=$((1024 * 1024))
+          # Docs screenshots and static web assets are the only legitimate
+          # binaries; everything else over the limit is a mistake.
+          ALLOW='^(docs/.*\.(png|jpg|jpeg|gif|webp|mp4)|apps/web/public/.*\.(png|jpg|jpeg|svg|webp|ico|woff2?))$'
+          fail=0
+          while IFS=$'\t' read -r meta path; do
+            size=${meta##* }
+            case "$size" in ''|*[!0-9]*) continue ;; esac
+            if [ "$size" -gt "$LIMIT" ] && ! printf '%s' "$path" | grep -Eq "$ALLOW"; then
+              echo "::error file=$path::tracked file is $((size / 1024)) KiB (> 1 MiB) and not on the asset allowlist"
+              fail=1
+            fi
+          done < <(git ls-tree -rl HEAD)
+          stray=$(git ls-files | grep -E '\.(log|bak|tmp)$' || true)
+          if [ -n "$stray" ]; then
+            printf '%s\n' "$stray"
+            echo "::error::stray log/backup/temp file is tracked"
+            fail=1
+          fi
+          [ "$fail" -eq 0 ] && echo "Repository hygiene clean"
+          exit $fail

@@ -1,5 +1,8 @@
 # ---- build stage: full toolchain (dev deps) for compile + prisma client ----
-FROM node:22-alpine AS build
+# Base images are digest-pinned (tag kept in the reference for humans): a
+# retagged `node:22-alpine` would otherwise change what we build and ship with
+# no commit in between. node:22-alpine
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/package.json
@@ -14,7 +17,8 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---- runtime stage: production deps only, freshest patches ----
-FROM node:22-alpine
+# node:22-alpine (same digest as the build stage)
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 WORKDIR /app
 RUN apk upgrade --no-cache
 COPY package.json package-lock.json ./

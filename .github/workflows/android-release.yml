@@ -1,3 +1,5 @@
+name: Android — Release (signed AAB)
+
 # Signed Android release build (Capacitor).
 # Keystore and key.properties are NEVER committed — .gitignore already excludes them.
 # Required GitHub repo secrets (see docs/android-release.md):
@@ -130,11 +132,15 @@ jobs:
             exit 1
           fi
 
-          echo "--- AAB signature entries ---"
-          unzip -l "$AAB" | grep -E "META-INF/.*\.(RSA|DSA|EC)" || {
-            echo "::error::the AAB has no signature block"
+          echo "--- AAB signature ---"
+          # The bundle is JAR-signed (v1), so jarsigner reads it — apksigner does
+          # not. -strict fails on any unsigned entry, which the old META-INF
+          # listing could not see: a partially-signed bundle passed that check.
+          jarsigner -verify -strict -certs "$AAB" | tee aab-certs.txt
+          if grep -qi "CN=Android Debug" aab-certs.txt; then
+            echo "::error::the release AAB is debug-signed; Play will reject it"
             exit 1
-          }
+          fi
           echo "Signature verification passed"
 
       - name: Upload AAB artifact (Play Store)

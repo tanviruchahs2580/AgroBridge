@@ -5,8 +5,13 @@
 # (payments) had no owner at all. Paths below verified with:
 #   ls apps/api/src/modules/payments apps/api/prisma .github/workflows
 #
-# The review requirement itself is enforced by branch protection on `main`
-# (see docs/generated/governance-branch-protection.md).
+# The review requirement itself is NOT enforced today: the `main — protected`
+# ruleset runs with `required_approving_review_count: 0` and
+# `require_code_owner_review: false`, because GitHub does not let a single
+# maintainer approve their own pull request and enforcing either would deadlock
+# every change. The paths below are therefore a written record of who owns the
+# risky surfaces (and the switch to flip once a second maintainer exists) — not
+# a gate. See docs/generated/governance-branch-protection.md.
 
 # CI/CD: a workflow change can weaken every other gate.
 /.github/workflows/            @tanviruchahs2580

@@ -1,0 +1,7 @@
+# Public issues are for product and tooling problems. Security reports must not
+# be opened here — the link below goes to GitHub private vulnerability
+# reporting, the channel SECURITY.md asks for.
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/tanviruchahs2580/AgroBridge/security/advisories/new
+    about: Do not open a public issue for a vulnerability — this reaches the maintainer privately, as SECURITY.md describes.

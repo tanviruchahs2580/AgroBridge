@@ -2,7 +2,11 @@
 # PostgreSQL instance and set secrets via your platform's secret manager.
 services:
   db:
-    image: postgres:16-alpine
+    # Digest-pinned (tag kept for humans): "postgres:16-alpine" is mutable and a
+    # retag would change the local stack silently. Still 16 while CI/prod run 17
+    # — a pgdata volume written by 16 cannot be opened by 17, so the bump needs
+    # a volume migration, not a tag edit.
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_DB: agrobridge
       POSTGRES_USER: ${POSTGRES_USER:-agrobridge}
@@ -62,5 +66,36 @@ services:
     ports:
       - "8080:80"
 
+  # Observability is opt-in: `docker compose --profile monitoring up -d`.
+  # The default stack stays db + api + web, so a laptop does not pay for two
+  # more containers unless asked. prometheus.yml scrapes `api:4000/metrics` on
+  # this compose network and loads alert_rules.yml from the same mount; the
+  # Grafana dashboard JSON is imported from ./monitoring by hand until
+  # provisioning files exist.
+  prometheus:
+    # prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring:/etc/prometheus:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    # grafana/grafana:13.2.4 — local login stays at the image defaults, so this
+    # profile is for a developer machine, never a deployment.
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring:/monitoring:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
+  grafanadata:

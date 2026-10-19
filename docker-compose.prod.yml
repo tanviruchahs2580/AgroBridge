@@ -9,7 +9,7 @@
 #   docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy --schema prisma/postgres/schema.prisma
 services:
   db:
-    image: postgres:17-alpine # aligns with CI (ci.yml api-postgres job)
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24 # postgres:17-alpine, aligns with CI (ci.yml api-postgres job)
     restart: unless-stopped
     environment:
       POSTGRES_DB: agrobridge
