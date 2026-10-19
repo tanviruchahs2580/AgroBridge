@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
-import { existsSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -13,27 +14,47 @@ import { fileURLToPath } from "node:url";
  *
  * Behaviour:
  *  - client missing                     → generate (failure is fatal — the suite cannot run)
+ *  - client generated for another        → generate (mtime alone cannot see the
+ *    dialect (PG client, SQLite run)          dialect; the 2026-10-19 audit
+ *                                              reproduced this trap — AUD-166)
  *  - schema newer than the client       → generate (failure is fatal and says why)
- *  - client at least as new as schema   → skip generation entirely
+ *  - client current and same dialect    → skip generation entirely
  */
-function ensurePrismaClient(schemaPath: string, clientDir: string) {
+function clientDialect(clientDir: string): string | null {
+  try {
+    // `prisma generate` copies the source schema into the client output dir;
+    // its datasource provider is the ground truth for what this client speaks.
+    const copied = readFileSync(join(clientDir, "schema.prisma"), "utf8");
+    const match = /provider\s*=\s*"([a-z]+)"/.exec(copied);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function ensurePrismaClient(schemaPath: string, clientDir: string, neededDialect: string) {
   const generated = existsSync(clientDir);
   if (!generated) {
     execSync("npx prisma generate --schema prisma/schema.prisma", { stdio: "inherit" });
     return;
   }
 
-  const schemaIsNewer = statSync(schemaPath).mtimeMs > statSync(clientDir).mtimeMs;
-  if (!schemaIsNewer) {
-    console.log("[global-setup] Prisma client is current for this schema — skipping generate");
-    return;
+  const dialect = clientDialect(clientDir);
+  if (dialect && dialect !== neededDialect) {
+    console.log(`[global-setup] Prisma client was generated for ${dialect} but this run needs ${neededDialect} — regenerating`);
+  } else {
+    const schemaIsNewer = statSync(schemaPath).mtimeMs > statSync(clientDir).mtimeMs;
+    if (!schemaIsNewer) {
+      console.log("[global-setup] Prisma client is current for this schema — skipping generate");
+      return;
+    }
   }
 
   try {
     execSync("npx prisma generate --schema prisma/schema.prisma", { stdio: "inherit" });
   } catch (e) {
     throw new Error(
-      `prisma generate failed while the schema is newer than the generated client.\n` +
+      `prisma generate failed while the generated client does not match this run's dialect/schema.\n` +
         `On Windows this usually means a dev server is running and holding the query engine DLL:\n` +
         `stop \`npm run dev --workspace apps/api\` and run the suite again.\n` +
         `Original error: ${e instanceof Error ? e.message : String(e)}`,
@@ -61,7 +82,7 @@ export default function globalSetup() {
   }
 
   // SQLite path — ensure client matches the SQLite schema (host may have PG client from prior provision)
-  ensurePrismaClient(schemaPath, clientDir);
+  ensurePrismaClient(schemaPath, clientDir, "sqlite");
   const dbPath = fileURLToPath(new URL("../prisma/test.db", import.meta.url));
   for (const p of [dbPath, dbPath + "-journal"]) {
     if (existsSync(p)) rmSync(p);
