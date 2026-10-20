@@ -105,7 +105,9 @@ describe("Security deep-dive", () => {
 
   it("rate limiting: AI advisory enforces hourly quota", async () => {
     const f = await registerFarmer();
-    // Default test env limit is 30/hour. Fire until limited (max 35 tries).
+    // Default test env limit is 30/hour per authenticated account (keyed by user
+    // since F-03; this spec's own fresh registration supplies the budget). Fire
+    // until limited (max 35 tries).
     let gotLimited = false;
     for (let i = 0; i < 35; i++) {
       const r = await request(app)

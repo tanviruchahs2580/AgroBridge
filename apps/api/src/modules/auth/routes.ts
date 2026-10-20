@@ -1,5 +1,4 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
@@ -7,7 +6,7 @@ import { unauthorized, invalidCredentials, conflict, unprocessable } from "../..
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
-import { isProd, isTest, env } from "../../config/env.js";
+import { isProd, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
@@ -15,6 +14,8 @@ import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { logger } from "../../lib/logger.js";
 import { normalizeBdPhone } from "../../shared/utils/phone.js";
 import { verifyPasswordAgainst } from "./password.js";
+import { bcryptHash } from "./bcryptPool.js";
+import { accountOrIpKey, userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 
@@ -25,24 +26,36 @@ const registerStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 
 
 export const authRouter = Router();
 
-// Brute-force protection: stricter than global limiter for auth endpoints
+// Brute-force protection: stricter than global limiter for auth endpoints.
+// Keyed by the ACCOUNT the attempt names, not by address (F-04): an IP-keyed
+// login budget of 20/15min is spent by whoever gets there first, so one
+// neighbour behind the same carrier NAT can lock every other user out of their
+// own account. Per-account keying keeps the brute-force guarantee where it
+// belongs; the address-level control for unauthenticated floods remains on the
+// global limiter and on registration.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: env.LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: accountOrIpKey,
   skip: () => process.env.NODE_ENV === "development",
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
   handler: rateLimitHandler,
 });
 
-// OTP request limiter: prevents SMS-pumping abuse
+// OTP request limiter: prevents SMS-pumping abuse. Keyed per authenticated user
+// (F-04) — the route is authenticated, so the budget belongs to the account
+// requesting codes rather than to everyone sharing its address. Mass abuse still
+// meets the per-address registration limit before it can create the accounts
+// this endpoint would drain.
 const otpLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
@@ -56,7 +69,7 @@ const otpVerifyLimiter = rateLimit({
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  keyGenerator: userOrIpKey,
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many verification attempts. Please try again later." } },
   handler: rateLimitHandler,
@@ -70,15 +83,20 @@ const exportLimiter = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  keyGenerator: userOrIpKey,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many data export requests. Please try again later." } },
   handler: rateLimitHandler,
 });
 
-// Registration limiter: prevents mass account creation abuse
+// Registration limiter: prevents mass account creation abuse. Deliberately
+// ADDRESS-keyed even after F-04 — this is the control that stops one actor
+// minting accounts in bulk, and an account-naming key here would be supplied by
+// the attacker. The NAT cost is real and accepted: the default allows a
+// household, and an operator serving a genuinely large shared address can raise
+// REGISTER_RATE_LIMIT_MAX rather than remove the limit.
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10,
+  limit: env.REGISTER_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
@@ -132,7 +150,9 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
     const existing = await prisma.user.findFirst({ where: { OR: [{ phone }, ...(email ? [{ email }] : [])] } });
     if (existing) throw conflict("An account with this phone/email already exists");
 
-    const passwordHash = await bcrypt.hash(password, isTest ? 4 : 12);
+    // Cost 12 in production, 4 under test; hashed in the worker pool so
+    // registration cannot stall the event loop either (F-02).
+    const passwordHash = await bcryptHash(password);
     // Phone is auto-verified outside production (sandbox/dev/test) so demo and
     // E2E journeys keep working; production requires the OTP flow below.
     const user = await prisma.user.create({
@@ -321,8 +341,12 @@ function hashOtp(phone: string, code: string): string {
  * Request an OTP for the authenticated user's own phone. The code is stored
  * hashed; delivery goes through the SMS provider abstraction (sandbox logs
  * it). Outside production the code is echoed back for testability.
+ *
+ * requireAuth precedes the limiter so the budget can be charged to the account
+ * (F-04); a request that has no valid session is rejected as 401 without
+ * consuming anyone's window.
  */
-authRouter.post("/otp/request", otpLimiter, requireAuth, async (req, res, next) => {
+authRouter.post("/otp/request", requireAuth, otpLimiter, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
     if (!user) throw unauthorized();

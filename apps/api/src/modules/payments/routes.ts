@@ -17,6 +17,7 @@ import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 
@@ -35,7 +36,7 @@ const financialLimiter = rateLimit({
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.auth?.userId ?? req.ip ?? "unknown",
+  keyGenerator: userOrIpKey,
   store: financialStore,
   // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
   // this limiter's own message preserved.

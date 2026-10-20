@@ -45,6 +45,24 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     );
   }
 
+  // Pool exhaustion. Prisma stops waiting for a free connection after
+  // `pool_timeout` and raises P2024; that is a capacity condition, not a defect
+  // in the request. It must be an honest, retryable 503 rather than a bare 500
+  // that reads as "the server is broken" (F-06). Retry-After is short because a
+  // pool frees up as soon as the in-flight queries drain.
+  if (anyErr?.code === "P2024") {
+    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma pool timeout — shedding");
+    res.setHeader("Retry-After", "2");
+    return fail(
+      res,
+      503,
+      "DB_POOL_EXHAUSTED",
+      "The service is busy right now. Please retry in a moment.",
+      undefined,
+      reference
+    );
+  }
+
   // JSON body parse/limit errors
   const errType = (err as { type?: string })?.type;
   if (errType === "entity.parse.failed") {

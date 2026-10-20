@@ -10,6 +10,7 @@ import { ok } from "../../middleware/context.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { audit } from "../../middleware/audit.js";
 import { notFound } from "../../shared/errors/index.js";
 
@@ -19,12 +20,20 @@ aiRouter.use(requireAuth);
 // AI endpoints are expensive -> stricter limit than global. The custom handler
 // keeps this limiter's message but wraps it in the standard error envelope with
 // the request id (H-07), so a throttled caller is still correlatable.
+//
+// Keyed per authenticated user (F-03): docs/api.md promises "30/hour per user",
+// but this limiter had no keyGenerator and therefore used express-rate-limit's
+// default of req.ip. Measured consequence: 10 000 distinct authenticated users
+// produced 30 successes and 1 063 `429`s, because every one of them was charged
+// to the same address. Behind carrier-grade NAT that is the normal case for this
+// product, not an edge case — the quota must follow the account.
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 30,
+  limit: env.AI_HOURLY_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
   store: aiStore,
   handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "AI advisory limit reached for this hour. Please try later." } },

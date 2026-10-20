@@ -68,7 +68,73 @@ export function setCachedWeather(
   entries.set(weatherCacheKey(lat, lng), payload);
 }
 
-/** Test helper: drop every entry so tests start from a known state. */
+/** Test helper: drop every entry (and any in-flight load) so tests start clean. */
 export function clearWeatherCache(): void {
   entries.clear();
+  inFlight.clear();
+}
+
+/**
+ * Single-flight (F-07 from the 10k-concurrency audit).
+ *
+ * A TTL cache stops *repeat* traffic from reaching the provider but does nothing
+ * about simultaneous traffic on a key that is not cached yet: every concurrent
+ * caller missed, fetched, and stored the same entry. Measured cost of that
+ * stampede: 1 000 concurrent requests for one cold location burned 12.66 CPU-s
+ * against 7.35 CPU-s for the same 1 000 on a warm key — 5.3 CPU-seconds of
+ * duplicated provider work, one call per caller. With the documented production
+ * provider (`openweather`) each of those is an outbound HTTPS request against an
+ * 8 s timeout, so a cold key after a deploy — or at 6 a.m., the hour this feature
+ * exists for — turns into a burst of provider calls and provider-side rate limits.
+ *
+ * So the first caller loads and the rest await the same promise. Everything else
+ * is unchanged: the TTL, the rule that only successful payloads are ever stored,
+ * and `fetchedAt` stamped once at fetch time. A coalesced request is served the
+ * same fresh payload the first caller received — never a stored entry — which is
+ * why it reports `cached: false`.
+ *
+ * A failing load rejects every waiter: they would each have failed on their own,
+ * and an outage must stay an honest error rather than be masked by a neighbour
+ * having succeeded.
+ */
+const inFlight = new Map<string, Promise<CachedWeatherPayload>>();
+
+export interface WeatherLoadResult {
+  payload: CachedWeatherPayload;
+  /** True only when a stored entry was reused; a coalesced await is a fresh fetch. */
+  cached: boolean;
+}
+
+export async function getOrLoadWeather(
+  lat: number,
+  lng: number,
+  loader: () => Promise<CachedWeatherPayload>,
+  now: number = Date.now(),
+  ttlSeconds: number = env.WEATHER_CACHE_TTL_SECONDS,
+): Promise<WeatherLoadResult> {
+  const hit = getCachedWeather(lat, lng, now, ttlSeconds);
+  if (hit) return { payload: hit, cached: true };
+
+  // TTL=0 means caching is disabled, not "coalesce anyway": each request is
+  // explicitly asking for its own fresh fetch.
+  if (ttlSeconds <= 0) return { payload: await loader(), cached: false };
+
+  const key = weatherCacheKey(lat, lng);
+  const existing = inFlight.get(key);
+  if (existing) return { payload: await existing, cached: false };
+
+  const load = (async () => {
+    try {
+      const payload = await loader();
+      setCachedWeather(lat, lng, payload, ttlSeconds);
+      return payload;
+    } finally {
+      // Cleared before awaiters resume, so a request arriving after a failure
+      // starts a fresh attempt instead of joining an already-settled rejection.
+      inFlight.delete(key);
+    }
+  })();
+
+  inFlight.set(key, load);
+  return { payload: await load, cached: false };
 }

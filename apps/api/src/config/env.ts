@@ -19,6 +19,20 @@ const schema = z.object({
    */
   API_PUBLIC_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1),
+  /**
+   * Prisma pool size for this instance (F-06). Unset keeps Prisma's default
+   * (`cpus * 2 + 1`), which was 9 connections on the audited box — the fleet's
+   * total must stay inside the database's own `max_connections`, so the right
+   * value depends on how many instances run, not on a constant. Applied to
+   * PostgreSQL URLs only; the SQLite dev/test profile is untouched.
+   */
+  DATABASE_CONNECTION_LIMIT: z.coerce.number().int().positive().optional(),
+  /**
+   * Seconds a request may wait for a free pool connection before failing
+   * (Prisma default: 10). On expiry the API answers 503 + Retry-After rather
+   * than a bare 500 (see errorHandler's P2024 mapping).
+   */
+  DATABASE_POOL_TIMEOUT_SECONDS: z.coerce.number().int().positive().optional(),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
   ACCESS_TOKEN_TTL: z.string().default("15m"),
@@ -26,12 +40,64 @@ const schema = z.object({
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().positive().default(15),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
   /**
-   * Login attempts per window per IP. The default is the production policy; CI's
-   * e2e job raises it for its throwaway instance because a browser suite signs in
-   * far more often than a person, and exhausting the limit makes unrelated
-   * assertions fail (observed 2026-10-17).
+   * Login attempts per window per ACCOUNT (F-04 from the 10k audit). Keyed by the
+   * account an attempt names, not by address, so one neighbour behind a carrier
+   * NAT cannot spend a user's budget — see middleware/rateLimitKeys.ts. CI's e2e
+   * job raises it for its throwaway instance because a browser suite signs in far
+   * more often than a person (observed 2026-10-17).
    */
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  /**
+   * Account creations per window per ADDRESS. Deliberately still address-keyed:
+   * this is the mass-registration control and the key would otherwise be
+   * attacker-supplied. Raise it on deployments that legitimately serve a large
+   * shared address (a village kiosk or a campus NAT).
+   */
+  REGISTER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /**
+   * Worker threads used for bcrypt hashing (F-02). Unset selects
+   * `min(4, cores - 1)`. `0` disables the pool and hashes on the event loop —
+   * the pre-fix behaviour, kept as an operational escape hatch.
+   */
+  BCRYPT_POOL_SIZE: z.coerce.number().int().min(0).max(16).optional(),
+  /**
+   * Largest number of requests this instance will work on at once. Beyond it the
+   * API answers 503 + Retry-After instead of queueing without bound (F-05).
+   *
+   * Measured on the audited box (one instance, ~150 req/s sustainable for a
+   * mixed authenticated read load), under a deliberately unbounded 1 000-user
+   * burst of the same query mix:
+   *
+   *   ceiling 256  → 11 438 req served, 143 req/s, p50 1 142 ms, 14.6 % over 30 s, 0 shed
+   *   ceiling  24  → 27 267 req handled, 341 req/s, p50   385 ms,  6.1 % over 30 s, 21 807 shed
+   *   guard off    → 12 203 req served, 153 req/s, p50   954 ms, 13.1 % over 30 s
+   *
+   * Too high a ceiling protects nothing: the excess waits in the socket accept
+   * backlog, where no middleware runs, so it is neither admitted nor refused and
+   * the caller still waits ~50 s. Sized near what the instance actually sustains,
+   * the guard turns that wait into an immediate retryable refusal — three times
+   * better p50 and 2.4x fewer timeouts, while serving more requests overall.
+   * Tune it to the instance; see docs/operations.md. `0` disables the guard.
+   */
+  MAX_CONCURRENT_REQUESTS: z.coerce.number().int().nonnegative().default(128),
+  /**
+   * Socket-level timeouts, in milliseconds (F-09). Node's defaults are 300 s for
+   * a whole request and 60 s for headers, so a stalled or queued request could be
+   * held for minutes — longer than any client waits. Both are shortened to fail
+   * before the web client's own 45 s timeout expires.
+   */
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  HEADERS_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+  /**
+   * Idle keep-alive socket lifetime. Unset keeps Node's 5 s default, which is the
+   * safe ordering in front of a typical 60 s load-balancer idle timeout: the
+   * server closes an idle connection before the balancer tries to reuse it. Only
+   * set this when the balancer in front closes idle connections first, and then
+   * set it above that idle timeout — and raise HEADERS_TIMEOUT_MS above this value
+   * too, or a connection can be closed while its next request's headers are still
+   * arriving.
+   */
+  KEEPALIVE_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)
@@ -48,6 +114,13 @@ const schema = z.object({
   OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
   AI_MONTHLY_BUDGET_PAISA: z.coerce.number().int().positive().default(500_00), // soft spend cap (৳500 default)
+  /**
+   * Advisory requests per hour PER USER (F-03). The quota is now charged to the
+   * account rather than to the caller's address, so the fleet-wide ceiling is
+   * (active users x this) — the monthly budget breaker above guards spend, and
+   * this is the per-user fairness knob.
+   */
+  AI_HOURLY_LIMIT: z.coerce.number().int().positive().default(30),
   AI_COST_PER_1K_TOKENS_PAISA: z.coerce.number().nonnegative().default(0),
   PAYMENT_PROVIDER: z.enum(["sandbox", "sslcommerz"]).default("sandbox"),
   SSLCOMMERZ_STORE_ID: z.string().optional(),

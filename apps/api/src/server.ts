@@ -9,6 +9,21 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, "AgroBridge API started");
 });
 
+// Bound the socket lifecycle (F-09). Node's defaults hold a request for up to
+// 300 s and headers for 60 s — longer than any client waits, which is how a
+// queued request turns into a user staring at a spinner while the instance keeps
+// the work alive. These values fail first, so the client's own timeout is not the
+// thing that ends the request.
+server.requestTimeout = env.REQUEST_TIMEOUT_MS;
+server.headersTimeout = env.HEADERS_TIMEOUT_MS;
+// Applied only when configured: the default (Node's 5 s) is the safe ordering in
+// front of a 60 s load-balancer idle timeout. See config/env.ts.
+if (env.KEEPALIVE_TIMEOUT_MS !== undefined) server.keepAliveTimeout = env.KEEPALIVE_TIMEOUT_MS;
+logger.info(
+  { requestTimeoutMs: server.requestTimeout, headersTimeoutMs: server.headersTimeout, keepAliveTimeoutMs: server.keepAliveTimeout },
+  "http timeouts configured",
+);
+
 // A crash beats a corrupted state: log loudly, drain, exit non-zero.
 process.on("unhandledRejection", (reason) => {
   // Same policy as uncaughtException below: a missed await must never leave a
