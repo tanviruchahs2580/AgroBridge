@@ -84,12 +84,52 @@ Runbook: triage → mitigate (rollback `git checkout <prev-tag> && docker compos
 | Log/PII spot check | quarterly | confirm redaction still effective |
 
 ## Scaling path
-1. Vertical first (API is stateless — scale horizontally behind a load balancer).
-2. Move rate-limit store to Redis when running >1 replica (express-rate-limit store swap).
-3. PostgreSQL with connection pooling (pgBouncer) once concurrency grows.
-4. Extract heavy domains (AI gateway, notifications fan-out) behind queues when volume justifies.
+1. Scale horizontally behind a load balancer (the API is stateless). Size from measurement before
+   promising capacity: the 10k-concurrency audit saw a single instance collapse well below
+   10 000 concurrent sessions (`docs/qa/2026-10-21-load-10k-and-condition-report.md`).
+2. Move the rate-limit store to Redis when running >1 replica (express-rate-limit store swap).
+   Without it each instance enforces its own window, so the effective quota is *(instances × limit)*
+   — visible as `limiterStore: memory` on `/ready`.
+3. Size the database pool across the whole fleet, not per instance: `DATABASE_CONNECTION_LIMIT` ×
+   instances must stay inside the database's `max_connections` (and Neon's pooler ceiling). Unset,
+   Prisma uses `cpus × 2 + 1` per instance, which was 9 connections on the audited box.
+4. Give password hashing enough capacity before a launch spike. bcrypt runs in `BCRYPT_POOL_SIZE`
+   worker threads (default `min(4, cores - 1)`); login throughput is roughly *pool size ÷ cost-12
+   hash time*, so a burst larger than that queues no matter how many instances exist — unless the
+   pool or the fleet grows.
+5. PostgreSQL with connection pooling (pgBouncer) once concurrency grows — under the Prisma pool,
+   not instead of it.
+6. Extract heavy domains (AI gateway, notifications fan-out) behind queues when volume justifies.
+
+### Tuning the overload guard
+`MAX_CONCURRENT_REQUESTS` (default 128) is the point past which an instance answers
+`503 OVERLOADED` + `Retry-After` rather than accepting more work. **Size it from measurement,
+and size it low.** Measured on the audited box (~150 req/s sustainable for a mixed authenticated
+read load) under an unbounded 1 000-user burst of that mix:
+
+| Setting | Requests handled | p50 | Over 30 s | Shed |
+|---|---|---|---|---|
+| guard off | 12 203 | 954 ms | 13.1 % | 0 |
+| ceiling 256 | 11 438 | 1 142 ms | 14.6 % | 0 |
+| ceiling 24 | 27 267 | **385 ms** | **6.1 %** | 21 807 `503`s |
+
+The counter-intuitive result is the important one: **too high a ceiling protects nothing.** Once the
+event loop is saturated, arriving requests wait in the socket accept backlog, where no middleware
+runs — so they are neither admitted nor refused, and the caller still hangs for tens of seconds.
+Only a ceiling near (or below) what the instance actually sustains leaves the event loop enough
+headroom to *emit* the refusal, and that is what converts a 50-second hang into an immediate retry.
+
+No in-process guard can refuse a request it never gets to run: for a true flood, keep
+connection-level limiting at the edge (load balancer / CDN) as well. Watch the `503` rate in
+`agrobridge_http_requests_total` after a change — a guard that trips constantly is misconfigured,
+not protective. `MAX_CONCURRENT_REQUESTS=0` disables it (the pre-audit behaviour: unbounded
+queueing).
 
 ## Incident quick reference
+- **Requests waiting 30 s+, p95 in the tens of seconds** → the instance is saturated. Check whether
+  `503 OVERLOADED` is being returned; if it is not, `MAX_CONCURRENT_REQUESTS` is unset or too high.
+- **`503 DB_POOL_EXHAUSTED`** → pool starvation: raise `DATABASE_CONNECTION_LIMIT`, reduce the
+  instance count, or find the query holding connections (`docs/database.md`).
 - **API up but /ready failing** → database connectivity/credentials; see troubleshooting doc.
 - **Spike of 401s after deploy** → JWT secret rotation invalidates old tokens (expected; users re-login).
 - **AI provider outage** → gateway automatically falls back to the offline grounded engine.

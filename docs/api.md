@@ -9,7 +9,24 @@ Base URL: `/api/v1` · JSON envelope:
 
 Auth: `Authorization: Bearer <accessToken>` unless noted. Errors use proper HTTP status codes
 (400 validation, 401 unauthenticated, 403 RBAC, 404 scoped-not-found, 409 conflict, 422 business
-rule, 429 rate-limited).
+rule, 429 rate-limited, 503 temporarily overloaded).
+
+**Rate-limit keys.** Quotas are charged to the caller, not to the address they happen to share.
+The global limiter keys on the presented credential — a truncated SHA-256 of the bearer token, so a
+forged header cannot mint buckets — and falls back to the address for anonymous requests;
+`POST /auth/login` and `POST /auth/refresh` key on the *account* named in the body (normalised, so
+`+880…`, `880…` and `01…` spellings of one number share one budget); endpoints behind `requireAuth`
+key on the authenticated user. This matters because carrier-grade NAT puts thousands of this
+product's users behind one address — the 10k audit measured 10 000 distinct users sharing a single,
+exhausted quota. Registration is the deliberate exception: it stays address-keyed as the
+mass-account-creation control (`REGISTER_RATE_LIMIT_MAX`).
+
+**Overload responses.** A request that arrives while the instance is already working on
+`MAX_CONCURRENT_REQUESTS` requests is answered immediately with `503` `OVERLOADED` and
+`Retry-After: 1`, instead of joining a queue that could hold it for minutes. A request that cannot
+obtain a database connection within the pool timeout is answered `503` `DB_POOL_EXHAUSTED` with
+`Retry-After: 2`. Clients should honour `Retry-After`; the web client does and jitters its own
+retries.
 
 **Capped money lists and `X-Total-Count`** — the money lists documented below return a capped
 slice and always carry an `X-Total-Count` response header whose value is the true number of rows
@@ -62,7 +79,9 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
 
 ## AI (`/ai`)
 - `POST /ai/advisory` `{question, lang, cropName?}` → `{answer, confidence, provider, model,
-  kbVersion, promptVersion?, lowConfidenceFlag, groundedRefs}`. Rate limited to 30/hour/user.
+  kbVersion, promptVersion?, lowConfidenceFlag, groundedRefs}`. Rate limited to `AI_HOURLY_LIMIT`
+  (default 30) per hour **per authenticated account** — keyed by user, not by address; the earlier
+  address-keyed behaviour meant one carrier-NAT address shared a single hourly budget.
   `kbVersion` identifies the knowledge-base revision that answered; `promptVersion` exists only
   for the hosted provider. `confidence` is a retrieval-support heuristic — clients must not
   present it as a probability (`docs/ai.md`).

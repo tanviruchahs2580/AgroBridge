@@ -4,6 +4,72 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-21 10k-concurrency audit remediation — F-01…F-11)
+Full report: `docs/qa/2026-10-21-load-10k-and-condition-report.md` (findings, evidence, method and
+its limits). Every number below came from a command in that report; the load figures are one
+production-mode instance of this repository's own image against PostgreSQL 17.
+
+- **The production image shipped 23 development databases (F-01).** `apps/api/prisma` holds
+  `dev.db`, `test.db`, `e2e.db` and twenty `audit-*.db` on a working copy, `.dockerignore` named no
+  database pattern, and the runtime stage copied the whole directory: 20.3 MB of bcrypt password
+  hashes, refresh-token hashes, payments and audit rows inside the shipped artifact. Now excluded by
+  `.dockerignore`, copied as named paths instead of a directory, and **asserted in CI** — the
+  `docker-build` job fails if the built image contains any `*.db`/`*.sqlite`. Verified: 23 files
+  before, 0 after.
+- **A few hundred simultaneous logins took the instance down (F-02).** bcryptjs is pure JavaScript,
+  so every comparison ran on the event loop: 100 concurrent logins pinned exactly one core for 77 s
+  and an unrelated `GET /health` waited 74 s. Hashing now runs in a worker pool
+  (`BCRYPT_POOL_SIZE`, default `min(4, cores - 1)`) loading the same library — hash format is a data
+  contract, so no second implementation — with an automatic in-thread fallback, so the worst case is
+  the behaviour that shipped before. Same test after: 24.6 s wall, p50 46 416 → **24 227 ms**,
+  1.3 → **4.1 logins/s**, event-loop lag 5 792 → **21 ms**, and the unrelated probe went from
+  **74 000 ms to p99 35 ms**. The `bcrypt.hashSync(…, 12)` that blocked every cold start is gone
+  (F-11): the dummy hash is computed inside a worker, and the B-05 timing-equalisation guarantee is
+  preserved and asserted at the new boundary rather than weakened.
+- **The AI advisory quota was keyed by IP, contradicting its own documentation (F-03).** Documented
+  as 30/hour *per user*; the limiter had no `keyGenerator` and used express-rate-limit's default of
+  `req.ip`. Measured with 10 000 distinct authenticated users: **30 successes, 1 063 `429`s** —
+  behind carrier-grade NAT every user shared one hourly budget, so the feature was broken for
+  exactly the users it exists for. Now keyed per authenticated account (`AI_HOURLY_LIMIT`, default
+  30); verified at runtime, two accounts on one address each report `RateLimit-Remaining: 29`.
+- **The other coarse limiters were IP-keyed as well (F-04).** The global limiter now keys on a
+  truncated SHA-256 of the presented credential (address for anonymous callers — a forged header
+  cannot mint buckets), login/refresh on the **normalised account** named in the body (so `+880…`,
+  `880…` and `01…` share one budget, and a NAT neighbour cannot spend a user's brute-force budget),
+  and OTP request on the authenticated user. Registration stays address-keyed deliberately, as the
+  mass-account-creation control. Four copies of the same "user or IP" expression were collapsed into
+  `middleware/rateLimitKeys.ts`.
+- **Overload collapsed the instance instead of degrading it (F-05).** At 10 000 concurrent sessions
+  it queued without bound: 44 % of requests waited longer than 30 s, p95 reached 56 s, and it never
+  recovered. A bounded-concurrency guard now answers `503 OVERLOADED` + `Retry-After` past
+  `MAX_CONCURRENT_REQUESTS`, mounted on `/api/` only so `/health`, `/ready` and `/metrics` stay
+  answerable while the instance is drowning. Measured under an unbounded 1 000-user burst: a ceiling
+  sized to the instance (24) gave p50 **385 ms** against 954 ms unguarded and 2.4x fewer timeouts
+  while handling 2.4x more requests; a too-high ceiling (256) changed nothing, because the excess
+  waits in the socket accept backlog where no middleware runs. The default is set from that
+  measurement and the table lives in `docs/operations.md`.
+- **A saturated database pool surfaced as a bare 500 (F-06).** `P2024` is now `503
+  DB_POOL_EXHAUSTED` + `Retry-After`, and the pool is configurable (`DATABASE_CONNECTION_LIMIT`,
+  `DATABASE_POOL_TIMEOUT_SECONDS`) — the fleet total is *(instances × limit)* and nothing in the
+  repository said so. Unconfigured, construction is byte-identical to before.
+- **The weather cache had no single-flight (F-07).** N concurrent requests for a location that was
+  not cached yet each called the provider: measured at 1 000 concurrent requests, 12.66 CPU-s cold
+  against 7.35 CPU-s warm — 5.3 CPU-seconds of duplicated provider work, one outbound call per
+  caller with the real provider. Concurrent misses now share one load; the TTL, `fetchedAt`
+  provenance and "a failure is never served from cache" rules are unchanged, and 25 simultaneous
+  route requests are asserted to make exactly one provider call.
+- **Client retries had no jitter (F-08).** Fixed 300 ms / 900 ms delays made every client that
+  failed together retry together, so a degrading dependency received three synchronised waves. Now
+  jittered over [0.5x, 1.5x], with `Retry-After` honoured (capped) so the new `503`s are respected.
+- **Node's default socket timeouts applied (F-09).** A request could be held for 300 s and headers
+  for 60 s — longer than any client waits. `REQUEST_TIMEOUT_MS` (30 s) and `HEADERS_TIMEOUT_MS`
+  (20 s) now fail first; `KEEPALIVE_TIMEOUT_MS` is opt-in, because raising it interacts with a load
+  balancer's idle timeout and Node's 5 s default is the safe ordering in front of a 60 s one.
+- **The image built its Prisma client from a `sed`-modified copy of the SQLite schema (F-10)**
+  instead of `prisma/postgres/schema.prisma`, the schema the migration chain applies. Equivalent
+  when audited (only `binaryTargets` and one index's position differed) but two files nothing
+  compared; it now generates from the real one.
+
 ### Added (2026-10-18 enterprise architecture pass — web edge & delivery)
 - **The static site now carries its own edge security policy (ADR-0008).** It shipped only HSTS
   before: no CSP, `nosniff`, frame or referrer policy on the origin that runs the app's JavaScript

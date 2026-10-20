@@ -53,9 +53,29 @@ network, SQLite file DB, no container overhead, no concurrent traffic), with aut
 same CPU as the server. It says nothing about production: the deployed topology is a Vercel
 serverless function in front of Neon PostgreSQL (`docs/runbooks/live-deployment.md`), which adds
 network, TLS, cold starts and a real database. The one conclusion that survives the caveat is
-structural: **bcrypt login is CPU-bound at ~11 verifications/s per core**, three orders of
-magnitude below the read paths — expected for bcrypt at its configured cost factor, and the
-reason login is rate-limited separately (`LOGIN_RATE_LIMIT_MAX`).
+structural: **bcrypt login is CPU-bound**, three orders of magnitude below the read paths —
+expected for bcrypt at its configured cost factor, and the reason login is rate-limited
+separately (`LOGIN_RATE_LIMIT_MAX`).
+
+**Login throughput changed on 2026-10-21 (F-02).** The table above was measured while every
+comparison ran on the event loop, where login throughput was capped by the latency of a single
+cost-12 hash no matter how many cores the machine had. Hashes now run in the `BCRYPT_POOL_SIZE`
+worker threads, so throughput scales with the pool rather than with one core — and, the reason for
+the change, a login burst no longer starves every other request in the process. Measured on the
+10k-audit sandbox (100 simultaneous logins at cost 12, one production-mode instance):
+
+| | on the event loop | worker pool |
+|---|---|---|
+| wall time | 77.2 s | **24.6 s** |
+| p50 | 46 416 ms | **24 227 ms** |
+| throughput | 1.3 logins/s | **4.1 logins/s** |
+| server CPU | 106 % (one core) | **395 % (four cores)** |
+| event-loop lag p99 | 5 792 ms | **21 ms** |
+| unrelated `/health` during the burst | 74 000 ms | **p99 35 ms, max 665 ms** |
+
+A single-instance login ceiling remains: the pool multiplies capacity, it does not remove the cost.
+Size the pool, and shape login bursts, before promising capacity — see
+`docs/qa/2026-10-21-load-10k-and-condition-report.md` §5.2.
 
 ## No capacity claims
 
