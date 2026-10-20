@@ -307,6 +307,24 @@ jobs:
           # loaded into the local daemon so the SBOM step below can scan it
           load: true
 
+      # F-01: the runtime image must not carry development databases. A working
+      # copy of apps/api/prisma holds dev.db / test.db / e2e.db / audit-*.db, and
+      # a whole-directory COPY put 23 of them (~21 MB) — bcrypt password hashes,
+      # refresh-token hashes, payments and audit rows — inside the shipped
+      # production artifact. `.dockerignore` and the targeted COPY in
+      # docker/api.Dockerfile stop it; this step is the assertion, so the
+      # guarantee lives in CI rather than in two files somebody must remember.
+      - name: Assert no development databases in the runtime image
+        run: |
+          found=$(docker run --rm --entrypoint sh agrobridge-api:ci \
+            -c "find /app \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db-journal' \) -print")
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::development database file(s) shipped inside the runtime image"
+            exit 1
+          fi
+          echo "runtime image carries no local databases"
+
       # Release-artifact evidence (F-06): a CycloneDX SBOM of the image we ship,
       # so "what is in the release?" is answerable by a file rather than a rebuild.
       - name: Generate CycloneDX SBOM (API image)

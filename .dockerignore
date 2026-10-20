@@ -17,3 +17,14 @@ monitoring
 .env
 .env.*
 !.env.example
+
+# Local development/test databases. docker/api.Dockerfile copies
+# apps/api/prisma, so without these lines the shipped runtime image carried 23
+# SQLite files (dev.db, test.db, e2e.db and twenty audit-*.db, ~21 MB) holding
+# bcrypt password hashes, refresh-token hashes, payments and audit trails — found
+# by the 10k-concurrency audit (F-01). The runtime stage now copies named paths
+# instead of the whole directory; this is the outer of the two guards.
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
