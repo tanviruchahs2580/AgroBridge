@@ -68,6 +68,16 @@ curl -f http://localhost:4000/health && curl -f http://localhost:8080/
 7. Sandbox payment marks an order PAID.
 8. Procurement offer → QC → PO → collect → payout credits wallet.
 9. Admin metrics load; audit log shows the actions above.
+10. Confirm the operational knobs were set deliberately rather than left at defaults:
+    `MAX_CONCURRENT_REQUESTS` (size it to the instance — `docs/operations.md`),
+    `DATABASE_CONNECTION_LIMIT` (the fleet total must fit the database's `max_connections`),
+    `BCRYPT_POOL_SIZE`, and `REDIS_URL` if more than one instance runs.
+
+**Note on `/metrics`:** unauthenticated outside production, and in production it answers any source
+in a private range or anyone holding `METRICS_TOKEN`. That is deliberate — it is the scrape
+endpoint — but it exposes route inventory, status distributions and traffic shape, so on a
+deployment whose network is not fully trusted, set `METRICS_TOKEN` and reach it over the private
+network instead of relying on the address check alone.
 
 ## 7. Static-site edge policy (headers, CSP, caching)
 

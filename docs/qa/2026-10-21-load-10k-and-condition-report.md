@@ -550,3 +550,31 @@ rule that `qa-evidence/*` is working material):
 are the pre-existing `apps/web/.lighthouseci/` and `jscpd-report/`, this round's gitignored
 `qa-evidence/load10k/`, the new receipt, and `apps/web/dist/` produced by the standard
 `npm run build --workspace apps/web` gate (gitignored build output).
+
+---
+
+## 11. Remediation status (2026-10-21, branch `fix/audit-10k-hardening`)
+
+All twelve findings in §5 are addressed. What each fix was verified by is in `CHANGELOG.md`
+under the 2026-10-21 entry; the headline before/after, re-measured on the rebuilt production
+image:
+
+| Finding | Before | After |
+|---|---|---|
+| F-01 image databases | 23 files · 20.3 MB | **0** (asserted in CI) |
+| F-02 100 simultaneous logins | 77.2 s · p50 46 416 ms · 1.3/s · one core · probe waited **74 000 ms** | **23.8 s · p50 23 293 ms · 4.2/s · four cores · probe p95 13 ms** |
+| F-03 AI quota, 2 accounts on one address | second account throttled | **`RateLimit-Remaining: 29` for both** |
+| F-05 1 000-user unbounded burst | p50 954 ms · 13.1 % over 30 s | **p50 385 ms · 6.1 % over 30 s** (ceiling sized to the instance) |
+| F-07 cold weather key | 12.66 CPU-s per 1 000 requests | 7.35 CPU-s (one shared load) |
+
+### One recommendation deliberately not implemented
+
+§5's F-05 fix list included caching the per-request `requireAuth` user lookup. That was **not**
+done, for a reason worth recording rather than rediscovering: the lookup is what makes suspension
+and deletion take effect immediately, `journey-admin.test.ts` asserts that property, and a cache —
+which is necessarily per process — would widen the guarantee to "within the TTL, per instance"
+across the fleet. The measured prize is small: the lookup is roughly 2 ms of a 13–18 ms
+authenticated request (~12 %). A security guarantee that the repository tests and documents is
+worth more than 12 % of one instance's throughput; the structural answer to F-05 is the
+backpressure guard (added) plus horizontal scaling (documented in `docs/operations.md`). If the
+trade is ever taken deliberately, it needs a Redis-backed revocation set, not a bare TTL cache.
