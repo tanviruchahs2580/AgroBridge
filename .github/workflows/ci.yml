@@ -413,52 +413,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Repo-wide quality gates that are cheap to run and expensive to skip: dead
-  # code and unused dependencies (knip), copy-paste duplication (jscpd), licence
-  # drift in the production tree (scripts/qa/check-licenses.mjs) and — on pull
-  # requests — the commit-message contract that feeds the changelog.
-  quality-tools:
-    name: Quality — Dead code · Duplication · Licences · Commits
-    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
-        with:
-          # commitlint needs both ends of the pull-request range as real commits.
-          fetch-depth: 0
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # --ignore-scripts: these tools read source and node_modules manifests, and
-      # the prisma postinstall (engine download) is the slowest part of every
-      # other job — nothing here needs a generated client.
-      - name: Install dependencies (all workspaces, no postinstall)
-        run: npm ci --include-workspace-root --ignore-scripts --no-audit --no-fund
-
-      # knip.jsonc declares the entry points a workspace layout does not make
-      # obvious, so the report is findings, not noise. A red run is either dead
-      # code to remove or an entry point to declare — never a threshold to raise.
-      - name: Dead code & unused dependencies (knip)
-        run: npm run qa:knip
-
-      # 3% at 8 lines (.jscpd.json): the failure mode is a copy-pasted block that
-      # then diverges, and jscpd exits non-zero once the threshold is passed.
-      - name: Copy-paste duplication (jscpd)
-        run: npm run qa:jscpd
-
-      # A dependency licence is a legal fact no test can see; the allowlist lives
-      # in license-allowlist.json and covers the production tree only.
-      - name: Production licence gate
-        run: npm run qa:licenses
-
-      # The changelog and release notes are generated from commit subjects, so
-      # the PR range must read as Conventional Commits (commitlint.config.cjs).
-      - name: Conventional commits (pull request range)
-        if: github.event_name == 'pull_request'
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+  # The `quality-gates` job below (knip with the reviewed baseline, jscpd over
+  # the shipped source, licences, commitlint, migration drift, TODO gate and
+  # generated-docs freshness) is the single quality-gates job of this pipeline:
+  # it strictly covers what a second, config-driven job (raw knip / repo-wide
+  # jscpd incl. workflow YAML) used to check, minus the duplicate runner
+  # minutes and the findings classes that job's review never calibrated.
 
   android-build:
     name: Android — Build debug APK artifact
