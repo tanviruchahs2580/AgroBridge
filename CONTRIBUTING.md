@@ -96,8 +96,8 @@ not evidence.
 
 ```bash
 npm run typecheck                                   # api + web
-npm run test --workspace apps/api                   # 150 tests (1 PG-gated skip by design)
-npm run test:unit --workspace apps/web              # 108 unit tests
+npm run test --workspace apps/api                   # API suite (counts move every round — see docs/testing.md)
+npm run test:unit --workspace apps/web              # web unit tests (ibid.)
 npm run lint --workspace apps/web
 npm run build --workspace apps/web                  # includes typecheck
 cd apps/api && npx eslint src tests

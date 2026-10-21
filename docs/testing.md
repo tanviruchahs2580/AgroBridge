@@ -77,7 +77,7 @@ exercised by the API suites.
 | GET /health | ~6200 | 1ms | 2ms | 5ms |
 | GET /products?pageSize=12 (auth+DB) | ~400 | 23ms | 32ms | 45ms |
 | GET /weather (mock provider) | ~620 | 14ms | 20ms | 39ms |
-| POST /auth/login (bcrypt cost 12) | ~7–8 | ~1.2s | 1.5s | 1.9s |
+| POST /auth/login (bcrypt cost 12) | ~7–8 | ~1.2s | 1.5s | 1.9s | *(superseded 2026-10-21: hashing moved to the worker pool — see docs/performance.md)*|
 | POST /ai/advisory | quota-bound by design (30/h/user) |
 
 Login throughput is intentionally bcrypt-bound (~130–250ms/hash on this hardware class);

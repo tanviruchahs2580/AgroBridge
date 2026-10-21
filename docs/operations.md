@@ -11,7 +11,9 @@ tokens are redacted. Ship stdout to your log platform (e.g., Loki/CloudWatch).
 
 ## Metrics
 
-Prometheus-compatible endpoint: `GET /metrics` (no auth, scraped by monitoring).
+Prometheus-compatible endpoint: `GET /metrics` — unauthenticated outside production; in
+production it requires a private-range source or `METRICS_TOKEN`, and it exposes route
+inventory and traffic shape (docs/deployment.md §6).
 
 Exposed:
 
