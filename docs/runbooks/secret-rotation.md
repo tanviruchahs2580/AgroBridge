@@ -10,7 +10,7 @@ time), so an environment change without a restart changes nothing and is the mos
 - Credential is suspected or confirmed exposed (leak, laptop loss, ex-employee, paste into a log).
 - A provider requires rotation (gateway/SMS vendor policy).
 - Scheduled hygiene for `JWT_*` secrets (suggest 180 days) — record the rotation in
-  `EXECUTION_LOG.md`; secrets themselves never enter the repo or this runbook.
+  `CHANGELOG.md` (historical log archived under `docs/archive/2026-10-19/`); secrets themselves never enter the repo or this runbook.
 - `SECURITY_WAIVERS.md` row has expired and the remediation is a rotation.
 
 ## Where each class lives
@@ -94,7 +94,7 @@ Rotate in the provider dashboard, then update the env var and redeploy as in Rot
 - [ ] `/ready` returns `db:true` and `schema: { known: true, latest: "<expected migration>" }`
 - [ ] One real login + one authenticated read succeed (not just an unauthenticated probe)
 - [ ] The old credential is rejected (test it, do not assume)
-- [ ] Rotation recorded in `EXECUTION_LOG.md` (class, date, operator — never the value)
+- [ ] Rotation recorded in `CHANGELOG.md` (historical log archived under `docs/archive/2026-10-19/`) (class, date, operator — never the value)
 
 If a secret **leaked**, also follow `docs/data-protection.md` §"Breach notification runbook"
 (T+0…T+72), and file the incident per `docs/operations.md` §"Incident quick reference".

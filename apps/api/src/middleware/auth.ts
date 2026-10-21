@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { unauthorized } from "../shared/errors/index.js";
 import { prisma } from "../lib/prisma.js";
 
-export interface AccessPayload {
+interface AccessPayload {
   sub: string;
   role: string;
 }

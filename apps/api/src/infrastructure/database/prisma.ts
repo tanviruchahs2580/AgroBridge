@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { env } from "../../config/env.js";
+import { env, isProd } from "../../config/env.js";
 
 declare global {
    
@@ -7,7 +7,7 @@ declare global {
 }
 
 /**
- * Applies the configured pool size to a PostgreSQL connection string (F-06).
+ * Applies the configured pool size to a PostgreSQL connection string (ARC-06).
  *
  * Prisma's only pool knob is the datasource URL — `PrismaClient` has no
  * `poolSize` option — and its default (`cpus * 2 + 1`) was 9 connections on the
@@ -46,10 +46,10 @@ const poolUrl = withPoolParams(env.DATABASE_URL, env.DATABASE_CONNECTION_LIMIT, 
 export const prisma =
   global.__prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    log: env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
     // Passed only when a pool parameter was actually configured, so an
     // unconfigured deployment keeps the exact construction it had before.
     ...(poolUrl === env.DATABASE_URL ? {} : { datasources: { db: { url: poolUrl } } }),
   });
 
-if (process.env.NODE_ENV !== "production") global.__prisma = prisma;
+if (!isProd) global.__prisma = prisma;

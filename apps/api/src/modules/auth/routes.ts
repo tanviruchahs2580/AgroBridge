@@ -2,11 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { unauthorized, invalidCredentials, conflict, unprocessable } from "../../shared/errors/index.js";
+import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, otpExpired } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
-import { isProd, env } from "../../config/env.js";
+import { isDev, isProd, isTest, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
@@ -18,8 +18,11 @@ import { bcryptCost, bcryptHash } from "./bcryptPool.js";
 import { accountOrIpKey, userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
+import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
+import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
+import { getAuth } from "../../shared/auth-context.js";
 
-// Multi-instance-safe limiter stores — separate per window to avoid windowMs drift (Phase 5).
+// Multi-instance-safe limiter stores — separate per window to avoid windowMs drift.
 const loginStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
 const otpStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const registerStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
@@ -39,7 +42,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: accountOrIpKey,
-  skip: () => process.env.NODE_ENV === "development",
+  skip: () => isDev,
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
   handler: rateLimitHandler,
@@ -56,7 +59,7 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
-  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  skip: () => isDev || isTest,
   store: otpStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
   handler: rateLimitHandler,
@@ -99,14 +102,34 @@ const registerLimiter = rateLimit({
   limit: env.REGISTER_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test",
+  skip: () => isDev || isTest,
   store: registerStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many registration attempts. Please try again later." } },
   handler: rateLimitHandler,
 });
 
+// Password-reset limiters: keyed by IP + the submitted phone so neither a
+// single source nor a single account can pump reset SMS or grind codes. The
+// phone in the key is the RAW body value — normalisation happens after the
+// limiter, and keying on the raw string is what a caller controls.
+function phoneKeyedLimiter(limit: number, message: string) {
+  return rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `${req.ip ?? "unknown"}:${typeof (req.body as { phone?: unknown })?.phone === "string" ? (req.body as { phone: string }).phone : ""}`,
+    store: otpStore,
+    message: { ok: false, error: { code: "RATE_LIMITED", message } },
+    handler: rateLimitHandler,
+  });
+}
+
+const forgotLimiter = phoneKeyedLimiter(5, "Too many reset requests. Please try again later.");
+const resetLimiter = phoneKeyedLimiter(10, "Too many reset attempts. Please try again later.");
+
 /**
- * Canonical Bangladeshi phone or 400 (B-06). The transform normalises Bengali
+ * Canonical Bangladeshi phone or 400. The transform normalises Bengali
  * digits, `+880`/`880` prefixes and spaced/dashed forms to `01[3-9]\d{8}`, so
  * the stored value and every later lookup (login, OTP) compare one string.
  */
@@ -117,12 +140,25 @@ const bdPhoneSchema = z
     message: "Valid Bangladeshi mobile number required (e.g., 01712345678)",
   });
 
+/**
+ * Version of the published Terms of Service + Privacy Policy a registering
+ * user accepts. Mirrors LEGAL_META.version in
+ * apps/web/src/features/legal/content.ts (the web app owns the documents; the
+ * API records which version the user accepted in the CONSENT_CAPTURED audit
+ * row). Bump both together whenever the documents change.
+ */
+export const POLICY_VERSION = "1.1";
+
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   phone: bdPhoneSchema,
   email: z.string().email().optional(),
   password: z.string().min(8).max(72),
   langPref: z.enum(["bn", "en"]).default("bn"),
+  // Consent capture (PRD-05/AUD-150): strictly true and required. A client
+  // that does not send it gets 400 BAD_REQUEST by design — registration
+  // without a recorded consent is no longer accepted.
+  consent: z.literal(true),
 });
 
 const loginSchema = z.object({
@@ -147,8 +183,18 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
   try {
     const { fullName, phone, email, password, langPref } = req.body as z.infer<typeof registerSchema>;
 
-    const existing = await prisma.user.findFirst({ where: { OR: [{ phone }, ...(email ? [{ email }] : [])] } });
-    if (existing) throw conflict("An account with this phone/email already exists");
+    // Enumeration-safe duplicate handling: when the phone is already
+    // registered the response is a plain success with guidance, so an attacker
+    // cannot use registration as an existence oracle — nothing is created.
+    // Email collisions keep the explicit 409: an email oracle is a different
+    // (and rarer) disclosure surface, and a silent no-op there would strand a
+    // user whose email belongs to another account.
+    const existingPhone = await prisma.user.findUnique({ where: { phone } });
+    if (existingPhone) {
+      logger.info({ phoneMasked: `${phone.slice(0, 3)}***${phone.slice(-4)}` }, "register: number already registered — neutral response");
+      return ok(res, { needsLogin: true });
+    }
+    if (email && (await prisma.user.findUnique({ where: { email } }))) throw conflict("An account with this email already exists");
 
     // Cost 12 in production, 4 under test; hashed in the worker pool so
     // registration cannot stall the event loop either (F-02).
@@ -170,6 +216,16 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
     });
 
     await audit({ actorId: user.id, action: "AUTH_REGISTER", entityType: "User", entityId: user.id, ip: req.ip });
+    // Consent is recorded as its own immutable event: which policy version the
+    // user accepted at the moment the account was created (PRD-05/AUD-150).
+    await audit({
+      actorId: user.id,
+      action: "CONSENT_CAPTURED",
+      entityType: "User",
+      entityId: user.id,
+      ip: req.ip,
+      meta: { policyVersion: POLICY_VERSION, scope: "terms+privacy" },
+    });
 
     ok(
       res,
@@ -188,19 +244,25 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
 authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (req, res, next) => {
   try {
     const { phone: rawPhone, password } = req.body as z.infer<typeof loginSchema>;
-    // Same canonical form as registration (B-06): every valid spelling of the
+    // Same canonical form as registration: every valid spelling of the
     // number resolves to the one stored account.
     const phone = normalizeBdPhone(rawPhone);
+    // Per-account throttle: keyed by the normalized phone — or the raw input
+    // when it is not a valid number — so credential stuffing distributed
+    // across addresses is bounded even when the per-IP limiter is bypassed.
+    const throttleKey = phone ?? rawPhone;
+    await assertLoginAllowed(throttleKey);
     const user = phone ? await prisma.user.findUnique({ where: { phone } }) : null;
 
     // Uniform error path avoids user enumeration — and it is uniform in TIME
-    // too (B-05): an unknown phone still pays one bcrypt comparison, against
+    // too: an unknown phone still pays one bcrypt comparison, against
     // the module's dummy hash, before the same 401.
     const valid = await verifyPasswordAgainst(user?.passwordHash ?? null, password);
     if (!user || !valid || user.status !== "ACTIVE") {
       // Failure event for the security trail (SEC-12: failed-login audit events).
       // Write-amplification is bounded by the same limiters that bound the attempts
-      // themselves: per-account login limiter plus the global per-credential cap.
+      // themselves: per-account login limiter plus the throttle bookkeeping plus
+      // the global per-credential cap.
       await audit({
         action: "AUTH_LOGIN_FAILED",
         entityType: "User",
@@ -208,8 +270,10 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
         ip: req.ip,
         meta: { phone, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
       }).catch(() => undefined);
+      await recordLoginFailure(throttleKey);
       throw invalidCredentials();
     }
+    await clearLoginFailures(throttleKey);
 
     // Transparent cost upgrade (F-02 option c): a hash stored at a cheaper
     // factor than this environment uses is re-hashed at the current one, so an
@@ -282,7 +346,7 @@ authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken
     const refreshToken = (req.body as { refreshToken?: string }).refreshToken;
     if (refreshToken) {
       await prisma.refreshToken.updateMany({
-        where: { tokenHash: sha256(refreshToken), userId: req.auth!.userId },
+        where: { tokenHash: sha256(refreshToken), userId: getAuth(req).userId },
         data: { revokedAt: new Date() },
       });
     }
@@ -295,7 +359,7 @@ authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken
 authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.auth!.userId },
+      where: { id: getAuth(req).userId },
       select: {
         id: true, fullName: true, phone: true, email: true, role: true,
         langPref: true, status: true, phoneVerified: true, region: true, createdAt: true,
@@ -311,13 +375,13 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
 });
 
 /**
- * Personal-data export (AUD-130) — a JSON attachment containing ONLY the
+ * Personal-data export — a JSON attachment containing ONLY the
  * caller's rows (see dataExport.ts for the scoping/redaction guarantees).
- * Deliberately not wrapped in the `ok()` envelope: this response IS the file.
+ * Deliberately not wrapped in the `ok` envelope: this response IS the file.
  */
 authRouter.get("/me/export", requireAuth, exportLimiter, async (req, res, next) => {
   try {
-    const userId = req.auth!.userId;
+    const userId = getAuth(req).userId;
     const payload = await collectUserData(userId);
     await audit({ actorId: userId, action: "USER_DATA_EXPORTED", entityType: "User", entityId: userId, ip: req.ip });
 
@@ -344,7 +408,7 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
   try {
     const { district, upazila, address, ...userFields } = req.body as z.infer<typeof profileSchema>;
     const user = await prisma.user.update({
-      where: { id: req.auth!.userId },
+      where: { id: getAuth(req).userId },
       data: {
         ...userFields,
         farmerProfile: district || upazila || address ? { update: { district, upazila, address } } : undefined,
@@ -368,9 +432,38 @@ function hashOtp(phone: string, code: string): string {
 }
 
 /**
+ * Create a fresh challenge for one purpose, invalidating the user's earlier
+ * unconsumed challenges OF THAT PURPOSE (a new code always retires the old).
+ * Purposes stay separate so a phone-verification challenge can never be
+ * consumed by the password-reset flow or vice versa.
+ */
+async function issueOtpChallenge(
+  user: { id: string; phone: string },
+  purpose: "PHONE_VERIFY" | "PASSWORD_RESET",
+): Promise<{ code: string; challenge: { expiresAt: Date } }> {
+  await prisma.otpChallenge.updateMany({
+    where: { userId: user.id, purpose, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+  const code = String(randomInt(100000, 999999));
+  const challenge = await prisma.otpChallenge.create({
+    data: {
+      userId: user.id,
+      // Already canonical `01[3-9]XXXXXXXX` (registration normalises, ),
+      // so hashOtp and every verify lookup compare the same string.
+      phone: user.phone,
+      codeHash: hashOtp(user.phone, code),
+      purpose,
+      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
+    },
+  });
+  return { code, challenge };
+}
+
+/**
  * Request an OTP for the authenticated user's own phone. The code is stored
- * hashed; delivery goes through the SMS provider abstraction (sandbox logs
- * it). Outside production the code is echoed back for testability.
+ * hashed and delivered through the SMS provider (sandbox/none log only).
+ * Outside production the code is echoed back for testability.
  *
  * requireAuth precedes the limiter so the budget can be charged to the account
  * (F-04); a request that has no valid session is rejected as 401 without
@@ -378,33 +471,11 @@ function hashOtp(phone: string, code: string): string {
  */
 authRouter.post("/otp/request", requireAuth, otpLimiter, async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
     if (!user) throw unauthorized();
 
-    await prisma.otpChallenge.updateMany({
-      where: { userId: user.id, consumedAt: null },
-      data: { consumedAt: new Date() },
-    });
-
-    const code = String(randomInt(100000, 999999));
-    const challenge = await prisma.otpChallenge.create({
-      data: {
-        userId: user.id,
-        // Already canonical `01[3-9]XXXXXXXX` (registration normalises, B-06),
-        // so hashOtp below and the verify lookup compare the same string.
-        phone: user.phone,
-        codeHash: hashOtp(user.phone, code),
-        expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
-      },
-    });
-
-    // SMS provider adapter point: sandbox/none log only. A real gateway
-    // (SSL Wireless / Alpha SMS) plugs in here behind the same call.
-    if (env.SMS_PROVIDER === "sandbox") {
-      const masked = `${user.phone.slice(0, 3)}***${user.phone.slice(-4)}`;
-      const { logger } = await import("../../lib/logger.js");
-      logger.info({ phoneMasked: masked, ttlMinutes: OTP_TTL_MINUTES }, "sms(sandbox) OTP issued");
-    }
+    const { code, challenge } = await issueOtpChallenge(user, "PHONE_VERIFY");
+    await sendSms(user.phone, otpSmsText(code));
 
     await audit({ actorId: user.id, action: "OTP_REQUESTED", entityType: "User", entityId: user.id });
     ok(res, {
@@ -420,13 +491,13 @@ authRouter.post("/otp/request", requireAuth, otpLimiter, async (req, res, next) 
 authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }), async (req, res, next) => {
   try {
     const challenge = await prisma.otpChallenge.findFirst({
-      where: { userId: req.auth!.userId, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { userId: getAuth(req).userId, purpose: "PHONE_VERIFY", consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw unprocessable("No active verification code. Please request a new one.");
     if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw unprocessable("Too many attempts. Please request a new code.");
 
-    const valid = challenge.codeHash === hashOtp(challenge.phone, req.body.code as string);
+    const valid = challenge.codeHash === hashOtp(challenge.phone, (req.body as { code: string }).code);
     if (!valid) {
       await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
       throw unprocessable("Incorrect verification code");
@@ -434,14 +505,82 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
 
     await prisma.$transaction([
       prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
-      prisma.user.update({ where: { id: req.auth!.userId }, data: { phoneVerified: true } }),
+      prisma.user.update({ where: { id: getAuth(req).userId }, data: { phoneVerified: true } }),
     ]);
-    await audit({ actorId: req.auth!.userId, action: "PHONE_VERIFIED", entityType: "User", entityId: req.auth!.userId });
+    await audit({ actorId: getAuth(req).userId, action: "PHONE_VERIFIED", entityType: "User", entityId: getAuth(req).userId });
     ok(res, { phoneVerified: true });
   } catch (e) {
     next(e);
   }
 });
+
+// ---------------- Password reset (self-service recovery) ----------------
+/**
+ * Start a reset: always 200 with the same shape. When the number belongs to
+ * an active account a PASSWORD_RESET challenge is created and delivered over
+ * the SMS provider; otherwise nothing happens — but the response cannot be
+ * used to tell those cases apart. Outside production the code is echoed for
+ * tests (that echo is the only deliberate difference, and it does not exist in
+ * production).
+ */
+authRouter.post("/password/forgot", forgotLimiter, validate({ body: z.object({ phone: bdPhoneSchema }) }), async (req, res, next) => {
+  try {
+    const { phone } = req.body as { phone: string };
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (user && user.status === "ACTIVE") {
+      const { code } = await issueOtpChallenge(user, "PASSWORD_RESET");
+      await sendSms(user.phone, otpSmsText(code));
+      await audit({ actorId: user.id, action: "PASSWORD_RESET_REQUESTED", entityType: "User", entityId: user.id, ip: req.ip });
+      return void ok(res, { sent: true, expiresInMinutes: OTP_TTL_MINUTES, ...(isProd ? {} : { devCode: code }) });
+    }
+    ok(res, { sent: true, expiresInMinutes: OTP_TTL_MINUTES });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * Complete a reset with the SMS code. Success rotates the password AND revokes
+ * every refresh token — a reset is also the answer to "my account is
+ * compromised", so it must end other sessions. The per-account login counter is
+ * cleared so the reset also lifts a lockout caused by failed guesses.
+ */
+authRouter.post(
+  "/password/reset",
+  resetLimiter,
+  validate({ body: z.object({ phone: bdPhoneSchema, otp: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(72) }) }),
+  async (req, res, next) => {
+    try {
+      const { phone, otp, newPassword } = req.body as { phone: string; otp: string; newPassword: string };
+      const user = await prisma.user.findUnique({ where: { phone } });
+      const challenge = user
+        ? await prisma.otpChallenge.findFirst({
+            where: { userId: user.id, purpose: "PASSWORD_RESET", consumedAt: null, expiresAt: { gt: new Date() } },
+            orderBy: { createdAt: "desc" },
+          })
+        : null;
+      if (!user || user.status !== "ACTIVE" || !challenge) throw otpExpired();
+      if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw otpExpired("Too many attempts. Request a new code.");
+
+      if (challenge.codeHash !== hashOtp(challenge.phone, otp)) {
+        await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+        throw otpInvalid();
+      }
+
+      const passwordHash = await bcryptHash(newPassword);
+      await prisma.$transaction([
+        prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
+        prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+        prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+      ]);
+      await clearLoginFailures(phone);
+      await audit({ actorId: user.id, action: "PASSWORD_RESET", entityType: "User", entityId: user.id, ip: req.ip });
+      ok(res, { reset: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 // ---------------- Account deletion (self-service) ----------------
 /**
@@ -449,7 +588,7 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
  * financial/ledger rows for legal integrity (see docs/data-protection.md).
  * Irreversible; blocks when a withdrawal is still in flight.
  *
- * B-24 completion: also clears the location/profile fields the schema has
+ * completion: also clears the location/profile fields the schema has
  * (User.region, FarmerProfile address/district/upazila/nidLast4), deletes the
  * OTP challenges for the pre-anonymization phone, and purges the user's
  * uploaded disease photos from the storage provider (best-effort, logged —
@@ -457,7 +596,7 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
-    const userId = req.auth!.userId;
+    const userId = getAuth(req).userId;
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true, diseaseCases: { select: { imagePath: true } } },
@@ -502,7 +641,7 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
       });
     }, { timeout: 15000, maxWait: 8000 });
 
-    // Purge stored disease photos AFTER the commit (B-24). Per-file
+    // Purge stored disease photos AFTER the commit. Per-file
     // best-effort: failures are logged and counted but never block the
     // deletion — documented in docs/data-protection.md.
     let purged = 0;
@@ -517,7 +656,10 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     }
 
     await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId, ip: req.ip });
-    ok(res, { deleted: true });
+    // Honest completion: any upload whose purge failed is queued for retry
+    // (scripts/purge-uploads.ts) and reported here instead of being presented
+    // as fully deleted.
+    ok(res, { deleted: true, uploads: { purged, pendingPurge: failed } });
   } catch (e) {
     next(e);
   }

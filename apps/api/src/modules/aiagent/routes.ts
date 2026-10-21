@@ -13,28 +13,24 @@ import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { audit } from "../../middleware/audit.js";
 import { notFound } from "../../shared/errors/index.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
 // AI endpoints are expensive -> stricter limit than global. The custom handler
 // keeps this limiter's message but wraps it in the standard error envelope with
-// the request id (H-07), so a throttled caller is still correlatable.
-//
-// Keyed per authenticated user (F-03): docs/api.md promises "30/hour per user",
-// but this limiter had no keyGenerator and therefore used express-rate-limit's
-// default of req.ip. Measured consequence: 10 000 distinct authenticated users
-// produced 30 successes and 1 063 `429`s, because every one of them was charged
-// to the same address. Behind carrier-grade NAT that is the normal case for this
-// product, not an edge case — the quota must follow the account.
+// the request id, so a throttled caller is still correlatable.
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: env.AI_HOURLY_LIMIT,
+  limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: userOrIpKey,
   store: aiStore,
+  // The quota is per account (F-03): under carrier-grade NAT an IP key would
+  // charge every customer for one shared budget. requireAuth runs first.
+  keyGenerator: userOrIpKey,
   handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "AI advisory limit reached for this hour. Please try later." } },
 });
@@ -55,7 +51,7 @@ aiRouter.post(
 
       // Context extraction: farmer + active crop context for grounding.
       const user = await prisma.user.findUnique({
-        where: { id: req.auth!.userId },
+        where: { id: getAuth(req).userId },
         select: {
           fullName: true,
           langPref: true,
@@ -75,7 +71,8 @@ aiRouter.post(
       const activeCrop = farm?.plots?.[0]?.cropCycles?.[0];
 
       const answer = await askAgroAgent(question, {
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
+        requestId: req.requestId,
         lang,
         farmerName: user?.fullName,
         cropName: cropName ?? activeCrop?.cropName,
@@ -93,7 +90,7 @@ aiRouter.post(
 
 /**
  * Stored `groundedRefs` may point at KB entries removed after the answer was
- * persisted (AUD-110b / A2-04). Resolve them against the current KB at read
+ * persisted. Resolve them against the current KB at read
  * time and return only refs that still exist, preserving stored order. The
  * field is additive, so existing clients keep working; a removed entry simply
  * disappears from a history row instead of being served as a live citation.
@@ -118,7 +115,7 @@ export function liveGroundedRefs(stored: string | null): string[] {
 aiRouter.get("/history", async (req, res, next) => {
   try {
     const rows = await prisma.advisoryQuery.findMany({
-      where: { userId: req.auth!.userId },
+      where: { userId: getAuth(req).userId },
       orderBy: { createdAt: "desc" },
       take: 20,
       select: {
@@ -131,6 +128,12 @@ aiRouter.get("/history", async (req, res, next) => {
         feedbackReason: true,
         feedbackAt: true,
         createdAt: true,
+        // Provenance of the stored answer (added 2026-10-19): which KB corpus
+        // and prompt template produced it, and the request that carried it.
+        // Older rows predate the columns and are null.
+        kbVersion: true,
+        promptVersion: true,
+        requestId: true,
       },
     });
     const history = rows.map(({ groundedRefs, ...row }) => ({ ...row, groundedRefs: liveGroundedRefs(groundedRefs) }));
@@ -141,7 +144,7 @@ aiRouter.get("/history", async (req, res, next) => {
 });
 
 /**
- * Advisory feedback (A7-07): the farmer says why an answer was not useful.
+ * Advisory feedback: the farmer says why an answer was not useful.
  * Ownership is part of the lookup — another user's row is indistinguishable
  * from a missing one (404, no existence oracle). A second report OVERWRITES
  * the first: a farmer refining "not clear" into the concrete crop problem must
@@ -160,7 +163,7 @@ aiRouter.post(
       const { reason } = req.body as { reason: string };
 
       const own = await prisma.advisoryQuery.findFirst({
-        where: { id, userId: req.auth!.userId },
+        where: { id, userId: getAuth(req).userId },
         select: { id: true },
       });
       if (!own) throw notFound("Advisory");
@@ -172,7 +175,7 @@ aiRouter.post(
       });
 
       await audit({
-        actorId: req.auth!.userId,
+        actorId: getAuth(req).userId,
         action: "AI_ADVISORY_FEEDBACK",
         entityType: "AdvisoryQuery",
         entityId: id,

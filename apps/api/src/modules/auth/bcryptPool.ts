@@ -250,7 +250,7 @@ function submit(job: Omit<Job, "id" | "worker" | "resolve" | "reject">): Promise
       return;
     }
 
-    const worker = workers[next++ % workers.length]!;
+    const worker = workers[next++ % workers.length];
     full.worker = worker;
     pending.set(id, full);
     worker.postMessage(

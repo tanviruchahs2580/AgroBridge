@@ -1,4 +1,4 @@
-// SessionManager — Single Auth Session Manager (Phase 8)
+// SessionManager — Single Auth Session Manager
 // Consolidates dual token truth:
 //   - lib/api.ts:31  module vars `let accessToken = localStorage.getItem("ab_at")`
 //                    + `let refreshToken = localStorage.getItem("ab_rt")` (in-memory copy)
@@ -172,7 +172,7 @@ function ensureStorageListener(): void {
         /* ignore malformed */
       }
     }
-    // e.key === null means clear() was called — treat as full logout
+    // e.key === null means clear was called — treat as full logout
     if (e.key === null && !readStorage(AT_KEY) && !_at) {
       _session = null;
       emit();
@@ -232,7 +232,7 @@ export function setTokens(at: string, rt: string): void {
 
 /**
  * Clear tokens + session from all stores and notify.
- * Does NOT broadcast — use broadcastLogout() when the intent is to log out
+ * Does NOT broadcast — use broadcastLogout when the intent is to log out
  * every tab. This keeps token-clear for 401 handling separate from
  * cross-tab logout semantics.
  */
@@ -319,9 +319,9 @@ export function broadcastLogout(): void {
 // existing source"):
 //   lib/api.ts — replace `let accessToken = localStorage.getItem("ab_at")`
 //                with `import { getTokens, setTokens, clearTokens } from "./sessionManager"`
-//                and read `getTokens().accessToken` inside rawRequest/tryRefresh.
+//                and read `getTokens.accessToken` inside rawRequest/tryRefresh.
 //   lib/session.tsx — replace `if (!localStorage.getItem("ab_at"))` (line 33)
-//                    with `if (!getTokens().accessToken)` and subscribe via
+//                    with `if (!getTokens.accessToken)` and subscribe via
 //                    `onChange` to keep React state in sync with cross-tab logout.
 //   This eliminates the dual-truth bug where api.ts holds a stale module var
 //   while session.tsx reads storage directly, and where one tab logout leaves

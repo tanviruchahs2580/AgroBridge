@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { motionTokens } from "../lib/motion";
 
 export function TopBar() {
@@ -17,7 +17,7 @@ export function TopBar() {
     <div className="pointer-events-none fixed top-0 inset-x-0 z-[100] h-[2px]">
       <AnimatePresence>
         {visible && (
-          <motion.div
+          <m.div
             initial={{ scaleX: 0, opacity: 1 }}
             animate={{ scaleX: 1, opacity: 1 }}
             exit={{ opacity: 0 }}

@@ -2,6 +2,9 @@
 
 # Database
 
+> **Owner:** engineering · **Purpose:** schema conventions, migrations and roles · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 ## Engine strategy
 - **Development/test:** SQLite via `DATABASE_URL="file:./dev.db"` — zero external dependencies,
   reproducible CI. Model definition: `apps/api/prisma/schema.prisma`; migration chain:
@@ -16,6 +19,10 @@
   **Any schema change must update every copy and both chains** — `tests/schema-parity.test.ts`
   fails on drift. Full rationale and failure history: `docs/adr/0004-dual-dialect-prisma.md`.
   Schemas use only portable constructs (no native enums, no JSON columns) to keep dialects aligned.
+  Connection behaviour in production is whatever the platform-injected `DATABASE_URL` provides: the
+  API constructs `new PrismaClient({ log })` with no datasource overrides or pool settings
+  (`apps/api/src/infrastructure/database/prisma.ts`), so pooling is a Neon/operator configuration
+  rather than a code decision — `docs/runtime-contract.md` records what is and is not known about it.
 
 ## Entity map (30 models)
 ```
@@ -53,3 +60,21 @@ npm run db:migrate:pg --workspace apps/api # apply PostgreSQL chain (idempotent,
 ```
 Never edit applied migrations; never hand-edit production schemas. Remember the PG chain lives in
 `prisma/postgres/migrations/` and needs its own migration for every schema change.
+
+## Roles and least privilege (note, 2026-10-19)
+
+- The API and the migration tooling use **one database role**. `DATABASE_URL` is passed straight
+  to `new PrismaClient(...)` with no datasource overrides
+  (`apps/api/src/infrastructure/database/prisma.ts:6-12`), and the migration chain runs with the
+  same URL (`apps/api/scripts/deploy-migrations.mjs:20`); the deploy runbook points the DDL step
+  at the unpooled connection (`docs/runbooks/live-deployment.md:66-71`).
+- Consequence: because migrations execute with the application's own connection string, that role
+  must be able to run DDL — the runtime credentials are schema-owner credentials. No read/write
+  split or separate migrator role exists in the repository
+  (`apps/api/scripts/provision-postgres.mjs` creates no additional roles; it applies the
+  production schema and chain to whatever `DATABASE_URL` points at).
+- Operator task before user volume grows: create a restricted runtime role (no DDL; only the
+  SELECT/INSERT/UPDATE/DELETE the app uses) after migrations, point the deployment's
+  `DATABASE_URL` at it, and keep the owner credentials for `deploy-migrations.mjs` runs only.
+  Verify the exact grant set against the tables the app touches, and re-run the smoke checks in
+  `docs/runbooks/live-deployment.md` after switching.

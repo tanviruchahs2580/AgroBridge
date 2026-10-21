@@ -36,6 +36,10 @@ const AUTH_CODE_KEYS: Record<string, DictKey> = {
   WEAK_PASSWORD: "errWeakPassword",
   PHONE_INVALID: "errPhoneInvalid",
   PHONE_NOT_VERIFIED: "errPhoneNotVerified",
+  // Password recovery: the reset endpoint answers with these two codes, and the
+  // server's own English message would otherwise reach a Bengali screen.
+  OTP_INVALID: "errOtpInvalid",
+  OTP_EXPIRED: "errOtpExpired",
 };
 
 /**

@@ -2,23 +2,103 @@
  * Development/demo seed data ONLY (Section 38).
  * Never use real personal information. Passwords here are public demo values.
  *
- * Production guard: render.yaml runs `prisma db seed` on every deploy, so
- * without this guard every production database gains a SUPER_ADMIN/ADMIN pair
- * with the public password Demo@1234 (P0 exposure found in QA 2026-09-15).
- * Seeding demo identities in production now requires the explicit opt-in
- * ALLOW_DEMO_SEED=1 (staging/demo instances only).
+ * Two separated layers (API-06):
+ *  - REFERENCE data (membership plans, product catalogue, service catalogue)
+ *    is environment-neutral and seeds unconditionally — production deploy
+ *    pipelines run `prisma db seed`, and a missing plan/catalogue row breaks
+ *    real flows.
+ *  - DEMO data (users with public passwords, wallets, farm, demo providers)
+ *    refuses production unless BOTH ALLOW_DEMO_SEED=1 AND
+ *    ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION=1 are set (staging/demo instances
+ *    only); with both set, a loud warning lists every demo phone. Before this
+ *    guard, render.yaml's deploy seed gave every production database a
+ *    SUPER_ADMIN/ADMIN pair with the public password Demo@1234 (P0 exposure
+ *    found in QA 2026-09-15).
+ *
+ * `seedPlan(env)` is the pure policy decision (tests drive it directly); the
+ * seed functions receive the Prisma client so tests can run them without the
+ * CLI entry.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { pathToFileURL } from "node:url";
 
-if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "1") {
-  console.log("Seed skipped: NODE_ENV=production and ALLOW_DEMO_SEED not set (demo accounts must never be seeded into production).");
-  process.exit(0);
+export interface SeedEnv {
+  NODE_ENV?: string;
+  ALLOW_DEMO_SEED?: string;
+  ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION?: string;
 }
 
-const prisma = new PrismaClient();
+export interface SeedPlan {
+  reference: true;
+  demo: boolean;
+}
 
-async function main() {
+/** Phones of the demo identities created by `seedDemoData` — listed in the forced-production warning. */
+export const DEMO_PHONES: readonly string[] = ["01700000000", "01700000001", "01700000002", "01700000003", "01700000004"];
+
+type Log = (message: string) => void;
+
+/**
+ * Pure seeding policy: reference data is always allowed; demo data is allowed
+ * everywhere except production, where it needs BOTH explicit opt-ins (the
+ * second one exists so a staging ALLOW_DEMO_SEED flag cannot leak public
+ * credentials into a real launch by itself).
+ */
+export function seedPlan(env: SeedEnv): SeedPlan {
+  const isProduction = env.NODE_ENV === "production";
+  const demo =
+    !isProduction || (env.ALLOW_DEMO_SEED === "1" && env.ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION === "1");
+  return { reference: true, demo };
+}
+
+/** Environment-neutral catalogue: membership plans, products, services. Idempotent upserts. */
+export async function seedReferenceData(prisma: PrismaClient, log: Log = console.log): Promise<void> {
+  // Products
+  const products = [
+    { sku: "SEED-RICE-BRI89", name: "ব্রি ধান৮৯ বীজ (৫কেজি)", category: "SEED", unit: "PACK", pricePaisa: 45_000, stockQty: 200, supplier: "BADC (demo)", cropRelevance: "RICE" },
+    { sku: "SEED-WHEAT-BARI26", name: "বারি গম ২৬ বীজ (১০কেজি)", category: "SEED", unit: "PACK", pricePaisa: 52_000, stockQty: 150, supplier: "BADC (demo)", cropRelevance: "WHEAT" },
+    { sku: "FERT-UREA-50KG", name: "ইউরিয়া সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 42_000, stockQty: 500, supplier: "BCIC (demo)", batchNo: "U-2026-A" },
+    { sku: "FERT-DAP-50KG", name: "ডিএপি সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 95_000, stockQty: 300, supplier: "demo supplier", batchNo: "DAP-88" },
+    { sku: "FERT-MOP-50KG", name: "এমওপি সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 110_000, stockQty: 220, batchNo: "MOP-12" },
+    { sku: "CP-RICE-BLAST-100ML", name: "ট্রাইসাইক্লাজল ছত্রাকনাশক ১০০মিলি", category: "CROP_PROTECTION", unit: "BOTTLE", pricePaisa: 48_000, stockQty: 80, cropRelevance: "RICE" },
+    { sku: "BIO-TRICHODERMA-1KG", name: "ট্রাইকোডার্মা জৈব ছত্রাক (১কেজি)", category: "BIO_INPUT", unit: "KG", pricePaisa: 18_000, stockQty: 120 },
+    { sku: "EQ-KNAPSACK-16L", name: "ন্যাপস্যাক স্প্রেয়ার ১৬লিটার", category: "EQUIPMENT", unit: "PCS", pricePaisa: 185_000, stockQty: 40 },
+  ];
+  for (const p of products) {
+    await prisma.product.upsert({ where: { sku: p.sku }, update: {}, create: p });
+  }
+
+  // Services — service-specific descriptions (honest, no generic placeholder)
+  const servicesData = [
+    { code: "DRONE_SPRAY", name: "ড্রোন স্প্রেয়িং", category: "DRONE", basePricePaisa: 35_000, priceUnit: "PER_BIGHA", description: "১০ গুণ দ্রুত স্প্রে — জমি না মাড়িয়ে সমান কভারেজ, ৯০% পানি সাশ্রয়" },
+    { code: "TRACTOR_PLOUGH", name: "ট্রাক্টর চাষ", category: "TRACTOR", basePricePaisa: 22_000, priceUnit: "PER_BIGHA", description: "গভীর চাষ ও জমি প্রস্তুত — চালকসহ, প্রতি বিঘা হিসাব" },
+    { code: "COMBINE_HARVEST", name: "কম্বাইন হারভেস্টার", category: "COMBINE_HARVESTER", basePricePaisa: 65_000, priceUnit: "PER_BIGHA", description: "ধান/গম কাটা ও মাড়াই একসাথে — ১ বিঘা প্রায় ৪০ মিনিটে" },
+    { code: "POWER_TILLER", name: "পাওয়ার টিলার", category: "POWER_TILLER", basePricePaisa: 15_000, priceUnit: "PER_BIGHA", description: "ছোট জমিতে নিখুঁত চাষ — আগাছা দমন সহ, সারি প্রস্তুত" },
+    { code: "LAND_LEVELLER", name: "ল্যান্ড লেভেলার", category: "LAND_LEVELLER", basePricePaisa: 28_000, priceUnit: "PER_BIGHA", description: "লেজার সমতলকরণ — সেচে ২৫% পানি সাশ্রয়, সমান অঙ্কুরোদগম" },
+    { code: "THRESHER", name: "থ্রেশার", category: "THRESHER", basePricePaisa: 12_000, priceUnit: "PER_MAUND", description: "ধান/গম/ভুট্টা মাড়াই — ৯৯% পরিষ্কার দানা, প্রতি মণ হিসাব" },
+    { code: "SOIL_TEST", name: "মাটি পরীক্ষা", category: "SOIL_TESTING", basePricePaisa: 50_000, priceUnit: "PER_SAMPLE", description: "২৪ ঘণ্টায় ল্যাব রিপোর্ট — pH, N-P-K, জৈব পদার্থ + সার সুপারিশ" },
+    { code: "AGRONOMIST_VISIT", name: "কৃষিবিদ ভিজিট", category: "AGRONOMIST", basePricePaisa: 80_000, priceUnit: "PER_VISIT", description: "মাঠ পরিদর্শন ও রোগ/পোকা নির্ণয় — লিখিত প্রেসক্রিপশন সহ" },
+  ];
+  for (const s of servicesData) {
+    await prisma.service.upsert({ where: { code: s.code }, update: { description: s.description, name: s.name, basePricePaisa: s.basePricePaisa, priceUnit: s.priceUnit }, create: s });
+  }
+
+  // Membership plans (admin-configurable, Section 25)
+  const plans = [
+    { tier: "BRONZE", pricePaisa: 0, benefitsStr: JSON.stringify(["Basic AI advisory", "Weekly weather digest"]) },
+    { tier: "SILVER", pricePaisa: 50_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "3% marketplace discount", "Priority soil testing"]) },
+    { tier: "GOLD", pricePaisa: 120_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "5% marketplace discount", "Free drone spraying per season", "Dedicated agronomist hotline"]) },
+  ];
+  for (const p of plans) {
+    await prisma.membershipPlan.upsert({ where: { tier: p.tier }, update: {}, create: p });
+  }
+
+  log(`Seed (reference): ${products.length} products, ${servicesData.length} services, ${plans.length} membership plans`);
+}
+
+/** Demo identities/records. Never runs in production without both explicit opt-ins. */
+export async function seedDemoData(prisma: PrismaClient, log: Log = console.log): Promise<readonly string[]> {
   const password = await bcrypt.hash("Demo@1234", 10);
 
   const admin = await prisma.user.upsert({
@@ -69,24 +149,14 @@ async function main() {
   });
   await prisma.farmerProfile.update({ where: { userId: farmer.id }, data: { userId: farmer.id } }).catch(() => undefined);
 
-  // Opening balance needs a matching CREDIT ledger row, or the wallet invariant
-  // (SUM(CREDIT) - SUM(DEBIT) == balancePaisa, enforced by
-  // scripts/reconcile-wallet.mjs and now by a committed test) fails for the demo
-  // seed out of the box.
-  const seededFarmer = await prisma.user.findUnique({ where: { phone: "01700000002" }, select: { id: true } });
-  if (seededFarmer) {
-    const seededWallet = await prisma.wallet.findUnique({ where: { userId: seededFarmer.id } });
-    if (seededWallet && seededWallet.balancePaisa > 0) {
-      await prisma.walletTransaction.create({
-        data: {
-          userId: seededFarmer.id,
-          direction: "CREDIT",
-          amountPaisa: seededWallet.balancePaisa,
-          balanceAfterPaisa: seededWallet.balancePaisa,
-          reason: "Opening balance (demo seed)",
-        },
-      });
-    }
+  // The demo wallet carries a balance, so it must carry the matching ledger row:
+  // a balance without a CREDIT entry is exactly the discrepancy the daily
+  // reconciliation job (scripts/reconcile-wallet.mjs) alerts on.
+  const grant = await prisma.walletTransaction.findFirst({ where: { userId: farmer.id, reason: "DEMO_SEED_GRANT" } });
+  if (!grant) {
+    await prisma.walletTransaction.create({
+      data: { userId: farmer.id, direction: "CREDIT", amountPaisa: 250_000, reason: "DEMO_SEED_GRANT", balanceAfterPaisa: 250_000 },
+    });
   }
 
   const dealer = await prisma.user.upsert({
@@ -148,33 +218,9 @@ async function main() {
     });
   }
 
-  // Products
-  const products = [
-    { sku: "SEED-RICE-BRI89", name: "ব্রি ধান৮৯ বীজ (৫কেজি)", category: "SEED", unit: "PACK", pricePaisa: 45_000, stockQty: 200, supplier: "BADC (demo)", cropRelevance: "RICE" },
-    { sku: "SEED-WHEAT-BARI26", name: "বারি গম ২৬ বীজ (১০কেজি)", category: "SEED", unit: "PACK", pricePaisa: 52_000, stockQty: 150, supplier: "BADC (demo)", cropRelevance: "WHEAT" },
-    { sku: "FERT-UREA-50KG", name: "ইউরিয়া সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 42_000, stockQty: 500, supplier: "BCIC (demo)", batchNo: "U-2026-A" },
-    { sku: "FERT-DAP-50KG", name: "ডিএপি সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 95_000, stockQty: 300, supplier: "demo supplier", batchNo: "DAP-88" },
-    { sku: "FERT-MOP-50KG", name: "এমওপি সার (৫০কেজি)", category: "FERTILIZER", unit: "BAG", pricePaisa: 110_000, stockQty: 220, batchNo: "MOP-12" },
-    { sku: "CP-RICE-BLAST-100ML", name: "ট্রাইসাইক্লাজল ছত্রাকনাশক ১০০মিলি", category: "CROP_PROTECTION", unit: "BOTTLE", pricePaisa: 48_000, stockQty: 80, cropRelevance: "RICE" },
-    { sku: "BIO-TRICHODERMA-1KG", name: "ট্রাইকোডার্মা জৈব ছত্রাক (১কেজি)", category: "BIO_INPUT", unit: "KG", pricePaisa: 18_000, stockQty: 120 },
-    { sku: "EQ-KNAPSACK-16L", name: "ন্যাপস্যাক স্প্রেয়ার ১৬লিটার", category: "EQUIPMENT", unit: "PCS", pricePaisa: 185_000, stockQty: 40 },
-  ];
-  for (const p of products) {
-    await prisma.product.upsert({ where: { sku: p.sku }, update: {}, create: p });
-  }
-
-  // Services + providers — service-specific descriptions (honest, no generic placeholder)
-  const servicesData = [
-    { code: "DRONE_SPRAY", name: "ড্রোন স্প্রেয়িং", category: "DRONE", basePricePaisa: 35_000, priceUnit: "PER_BIGHA", description: "১০ গুণ দ্রুত স্প্রে — জমি না মাড়িয়ে সমান কভারেজ, ৯০% পানি সাশ্রয়" },
-    { code: "TRACTOR_PLOUGH", name: "ট্রাক্টর চাষ", category: "TRACTOR", basePricePaisa: 22_000, priceUnit: "PER_BIGHA", description: "গভীর চাষ ও জমি প্রস্তুত — চালকসহ, প্রতি বিঘা হিসাব" },
-    { code: "COMBINE_HARVEST", name: "কম্বাইন হারভেস্টার", category: "COMBINE_HARVESTER", basePricePaisa: 65_000, priceUnit: "PER_BIGHA", description: "ধান/গম কাটা ও মাড়াই একসাথে — ১ বিঘা প্রায় ৪০ মিনিটে" },
-    { code: "POWER_TILLER", name: "পাওয়ার টিলার", category: "POWER_TILLER", basePricePaisa: 15_000, priceUnit: "PER_BIGHA", description: "ছোট জমিতে নিখুঁত চাষ — আগাছা দমন সহ, সারি প্রস্তুত" },
-    { code: "LAND_LEVELLER", name: "ল্যান্ড লেভেলার", category: "LAND_LEVELLER", basePricePaisa: 28_000, priceUnit: "PER_BIGHA", description: "লেজার সমতলকরণ — সেচে ২৫% পানি সাশ্রয়, সমান অঙ্কুরোদগম" },
-    { code: "THRESHER", name: "থ্রেশার", category: "THRESHER", basePricePaisa: 12_000, priceUnit: "PER_MAUND", description: "ধান/গম/ভুট্টা মাড়াই — ৯৯% পরিষ্কার দানা, প্রতি মণ হিসাব" },
-    { code: "SOIL_TEST", name: "মাটি পরীক্ষা", category: "SOIL_TESTING", basePricePaisa: 50_000, priceUnit: "PER_SAMPLE", description: "২৪ ঘণ্টায় ল্যাব রিপোর্ট — pH, N-P-K, জৈব পদার্থ + সার সুপারিশ" },
-    { code: "AGRONOMIST_VISIT", name: "কৃষিবিদ ভিজিট", category: "AGRONOMIST", basePricePaisa: 80_000, priceUnit: "PER_VISIT", description: "মাঠ পরিদর্শন ও রোগ/পোকা নির্ণয় — লিখিত প্রেসক্রিপশন সহ" },
-  ];
-  // Distinct ratings per service to avoid identical trust metadata (finding A1)
+  // Demo service providers — distinct ratings per service to avoid identical
+  // trust metadata (finding A1). They are demo identities (public phone), so
+  // they belong to this layer, not to the service catalogue.
   const seedRatings: Record<string, { sum: number; count: number }> = {
     DRONE_SPRAY: { sum: 45, count: 10 },
     TRACTOR_PLOUGH: { sum: 42, count: 10 },
@@ -185,11 +231,10 @@ async function main() {
     SOIL_TEST: { sum: 48, count: 10 },
     AGRONOMIST_VISIT: { sum: 46, count: 10 },
   };
-  for (const s of servicesData) {
-    const service = await prisma.service.upsert({ where: { code: s.code }, update: { description: s.description, name: s.name, basePricePaisa: s.basePricePaisa, priceUnit: s.priceUnit }, create: s });
+  for (const service of await prisma.service.findMany({ select: { id: true, code: true, name: true } })) {
     const providerCount = await prisma.serviceProvider.count({ where: { serviceId: service.id } });
     if (providerCount === 0) {
-      const r = seedRatings[s.code] ?? { sum: 44, count: 10 };
+      const r = seedRatings[service.code] ?? { sum: 44, count: 10 };
       await prisma.serviceProvider.create({
         data: {
           serviceId: service.id,
@@ -201,16 +246,6 @@ async function main() {
         },
       });
     }
-  }
-
-  // Membership plans (admin-configurable, Section 25)
-  const plans = [
-    { tier: "BRONZE", pricePaisa: 0, benefitsStr: JSON.stringify(["Basic AI advisory", "Weekly weather digest"]) },
-    { tier: "SILVER", pricePaisa: 50_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "3% marketplace discount", "Priority soil testing"]) },
-    { tier: "GOLD", pricePaisa: 120_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "5% marketplace discount", "Free drone spraying per season", "Dedicated agronomist hotline"]) },
-  ];
-  for (const p of plans) {
-    await prisma.membershipPlan.upsert({ where: { tier: p.tier }, update: {}, create: p });
   }
 
   // Welcome notification for demo farmer
@@ -226,18 +261,54 @@ async function main() {
     });
   }
 
-  console.log("Seed complete:");
-  console.log(`  SUPER_ADMIN: ${superAdmin.phone} / Demo@1234`);
-  console.log(`  ADMIN:       ${admin.phone} / Demo@1234`);
-  console.log(`  FARMER:      ${farmer.phone} / Demo@1234`);
-  console.log(`  DEALER:      ${dealer.phone} / Demo@1234`);
-  console.log(`  PROCUREMENT: ${procurementManager.phone} / Demo@1234`);
+  log("Seed complete:");
+  log(`  SUPER_ADMIN: ${superAdmin.phone} / Demo@1234`);
+  log(`  ADMIN:       ${admin.phone} / Demo@1234`);
+  log(`  FARMER:      ${farmer.phone} / Demo@1234`);
+  log(`  DEALER:      ${dealer.phone} / Demo@1234`);
+  log(`  PROCUREMENT: ${procurementManager.phone} / Demo@1234`);
+
+  return DEMO_PHONES;
 }
 
-main()
-  .then(() => prisma.$disconnect())
-  .catch(async (e) => {
-    console.error(e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+/**
+ * Applies `seedPlan` to a client: reference data always, demo data only when
+ * the plan allows it. Returns the plan and — when demo data was seeded — the
+ * demo phones, so a caller (or a test) can assert exactly what ran.
+ */
+export async function runSeed(
+  prisma: PrismaClient,
+  env: SeedEnv = process.env,
+  log: Log = console.log,
+  warn: Log = console.warn,
+): Promise<{ plan: SeedPlan; demoPhones?: readonly string[] }> {
+  const plan = seedPlan(env);
+  await seedReferenceData(prisma, log);
+
+  if (!plan.demo) {
+    log("Seed: demo data skipped — production requires ALLOW_DEMO_SEED=1 AND ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION=1 (reference data was seeded).");
+    return { plan };
+  }
+
+  if (env.NODE_ENV === "production") {
+    warn(
+      `WARNING: demo credentials are being seeded into a PRODUCTION database (ALLOW_DEMO_SEED=1 and ALLOW_DEMO_CREDENTIALS_IN_PRODUCTION=1). ` +
+        `Public demo accounts with the known password Demo@1234 are live: ${DEMO_PHONES.join(", ")}. Remove them before launch.`,
+    );
+  }
+
+  const demoPhones = await seedDemoData(prisma, log);
+  return { plan, demoPhones };
+}
+
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  const prisma = new PrismaClient();
+  runSeed(prisma)
+    .then(() => prisma.$disconnect())
+    .catch(async (e) => {
+      console.error(e);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}

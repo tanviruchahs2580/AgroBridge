@@ -2,6 +2,12 @@
 
 # Security
 
+> **Owner:** engineering · **Purpose:** security controls, limits and accepted risks · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
+See also: `docs/threat-model.md` (STRIDE abuse cases with control locations and the tests that pin
+them) and `docs/slo.md` (alert mapping). This page remains the control inventory.
+
 ## Implemented controls
 - **Passwords:** bcrypt (cost 12; 4 in tests only). Uniform login errors prevent user enumeration.
 - **Sessions:** JWT access tokens (15 min, issuer-checked) + opaque refresh tokens stored as SHA-256
@@ -49,6 +55,11 @@
   code actually reads (`API_PUBLIC_URL`, not the `API_BASE_URL` that never existed in code); the API
   **refuses to boot** in production with default/dev JWT secrets; logs redact auth
   headers/passwords, and provider/datasource errors are never logged with their connection details.
+- **Observability endpoints:** `/health` and `/ready` are public and intentionally minimal;
+  `/metrics` is restricted in production to private source addresses or a `METRICS_TOKEN` bearer
+  (`apps/api/src/middleware/metricsGuard.ts`), and request metrics label the matched route pattern
+  rather than the raw URL (`apps/api/src/infrastructure/metrics.ts`), so unmatched scanner traffic
+  cannot mint unbounded label sets.
 - **Audit trail:** registration, login, checkout, payments, withdrawals, disease reviews and admin
   user/role changes recorded in `audit_logs` with actor/IP/entity metadata.
 - **Release integrity:** production is only considered current when its **commit and its schema**
@@ -61,6 +72,24 @@
 scans history for committed secrets, Trivy fails the image build on HIGH/CRITICAL (accepted risks in
 `.trivyignore`, each cross-referenced to `SECURITY_WAIVERS.md` with an expiry), and CodeQL runs on
 every push and PR. Action pins are full SHAs with the version in a trailing comment.
+
+## Status notes (2026-10-19): DAST, attestation, headers
+
+Code facts only — status statements, not claims of coverage:
+
+- **DAST:** no dynamic application security testing runs in CI. `.github/workflows/` has CodeQL
+  (SAST, `codeql.yml`), Trivy image and config scanning plus CycloneDX SBOM generation
+  (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline test suites, and the
+  deploy gate's live-header assertions — but no ZAP/Nuclei/equivalent DAST job or config exists in
+  the repository.
+- **Build attestation:** no provenance attestation is produced (no `attest-build-provenance`/SLSA
+  step in any workflow). Release integrity rests on SHA-pinned actions, the SBOM artifact, the
+  apksigner/jarsigner signature checks (`android-release.yml:115-144`), and the deploy gate that
+  compares the running commit and applied schema with the repository (ADR-0007).
+- **Headers:** the API helmet policy and the static-site edge policy are described above; the live
+  assertions run in `deploy-verify.yml`, and the web build fails if the two Vercel configs'
+  policies diverge or if the CSP hash drifts from the built HTML
+  (`docs/deployment.md` §7). No scanner asserts header *values* today other than that gate.
 
 ## Reporting
 See [SECURITY.md](../SECURITY.md) for responsible disclosure instructions.

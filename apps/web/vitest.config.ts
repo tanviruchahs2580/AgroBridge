@@ -12,20 +12,20 @@ export default defineConfig({
     //
     // Measured on the current suite (2026-10-18, local, v8, 136/136 tests):
     //   statements 18.49 | branches 77.20 | functions 51.51 | lines 18.49
-    // Floors sit ~5 points below those numbers (same policy as
-    // apps/api/vitest.config.ts): they catch regressions without blocking
-    // current work on the large untested feature surfaces (src/features/*).
-    // Raise them as feature-level tests land.
+    // Floors sit just below measured (2 points) so a real regression fails but
+    // refactors do not — the earlier ~5-point gap let the suite lose several
+    // points of coverage without turning the gate red. Raise them as
+    // feature-level tests land (src/features/* is still largely untested).
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.d.ts", "src/**/*.stories.{ts,tsx}"],
       thresholds: {
-        statements: 13,
-        branches: 72,
-        functions: 46,
-        lines: 13,
+        statements: 16,
+        branches: 75,
+        functions: 49,
+        lines: 16,
       },
     },
   },

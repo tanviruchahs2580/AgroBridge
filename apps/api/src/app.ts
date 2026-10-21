@@ -6,7 +6,7 @@ import * as helmetModule from "helmet";
 import * as rateLimitModule from "express-rate-limit";
 const helmet = helmetModule.default;
 const rateLimit = rateLimitModule.default;
-import { corsAllowedOrigins, env, isProd } from "./config/env.js";
+import { corsAllowedOrigins, env, isDev, isProd } from "./config/env.js";
 import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
@@ -14,6 +14,7 @@ import { logger } from "./lib/logger.js";
 import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 import { readSchemaState } from "./infrastructure/schemaState.js";
+import { storageReadiness } from "./providers/storage/index.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
 const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
@@ -61,10 +62,10 @@ export function createApp() {
       origin: corsAllowedOrigins,
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE"],
-      // Custom response headers the web client reads: the correlation id and
-      // the list totals that make truncation visible (C-06/C-22). Without
-      // this, cross-origin callers see neither.
-      exposedHeaders: ["X-Request-Id", "X-Total-Count"],
+      // Custom response headers the web client reads: the correlation ids
+      // (request id + W3C trace context) and the list totals that make
+      // truncation visible. Without this, cross-origin callers see neither.
+      exposedHeaders: ["X-Request-Id", "traceparent", "X-Total-Count"],
     })
   );
   // Global body limits; JSON only for non-multipart routes.
@@ -85,7 +86,7 @@ export function createApp() {
     // first few users of the window. See middleware/rateLimitKeys.ts.
     keyGenerator: credentialOrIpKey,
     // Relaxed in local dev; enforced in test/staging/production.
-    skip: () => process.env.NODE_ENV === "development",
+    skip: () => isDev,
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
     handler: rateLimitHandler,
@@ -122,7 +123,9 @@ export function createApp() {
       // deploy gate compares `schema.latest` with the repository's newest
       // migration (ADR-0007).
       const schema = await readSchemaState();
-      res.json({ ok: true, ready: true, db: true, schema, limiterStore });
+      // Storage durability is release-blocking, like the schema: production
+      // must outlive its instances (deploy-verify.yml enforces it).
+      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness() });
     } catch {
       dbUp.set(0);
       res.status(503).json({ ok: false, ready: false, db: false });
@@ -162,7 +165,7 @@ export function createApp() {
   logger.info("AgroBridge API routes mounted");
 
   app.get("/", (_req, res) => {
-    res.json({ ok: true, service: "agrobridge-api", message: "AgroBridge API is running", docs: "/health", version: "1.0" });
+    res.json({ ok: true, service: "agrobridge-api", message: "AgroBridge API is running", docs: "/health", commit: deployedCommit });
   });
 
   app.use(notFoundHandler);

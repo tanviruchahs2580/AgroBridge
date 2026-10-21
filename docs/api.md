@@ -2,6 +2,9 @@
 
 # API Reference (v1)
 
+> **Owner:** engineering · **Purpose:** HTTP API reference consumed by the web app · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+
+
 Base URL: `/api/v1` · JSON envelope:
 
 ```json
@@ -188,3 +191,38 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
 - `GET /admin/audit-logs` (`audit:read`) · `GET /admin/ai-usage`
 - `GET /admin/withdrawals?status=` · `POST /admin/withdrawals/:id/decision` (`finance:withdrawals`)
   — the finance withdrawal queue (see the wallet withdrawal section above).
+
+## `Idempotency-Key` header (money paths)
+
+`POST /orders/checkout` and `POST /payments/intent` accept the standard `Idempotency-Key`
+request header (8–128 visible ASCII characters). The first request that creates an order or
+payment with a key owns it; a later request with the same key replays that same resource with
+`200` and causes no stock/ledger side effects (one key = one resource for its lifetime). On
+checkout the header wins over the legacy `clientRequestId` body field — both land in the same
+column, so replays from old and new clients resolve identically. A malformed header is refused
+with 400, never silently ignored. Pinned by `tests/idempotency-key.test.ts`.
+
+## Password reset (self-service recovery)
+
+- `POST /auth/password/forgot` — `{phone}` → always `200 {sent: true, expiresInMinutes: 5}`;
+  no account-existence oracle. When the number belongs to an active account a 6-digit
+  `PASSWORD_RESET` code is created (stored hashed, 5-minute TTL) and delivered via the SMS
+  provider; outside production the response also carries `devCode`. Limited to 5 requests/hour
+  per IP+phone.
+- `POST /auth/password/reset` — `{phone, otp, newPassword ≥ 8}` → `{reset: true}`. Verifies the
+  code (max 5 attempts), rotates the password, revokes every refresh token for the account and
+  clears the per-account login lockout. `422` when the code is expired/exhausted/incorrect;
+  limited to 10 attempts/hour per IP+phone.
+
+## Registration consent (PRD-05 / AUD-150)
+
+`POST /auth/register` requires `consent: true` (the literal boolean). A body without it — any
+older client — is refused with `400 BAD_REQUEST` by design. On success the API writes a
+`CONSENT_CAPTURED` audit row for the new user carrying the accepted policy version
+(`meta.policyVersion`, currently `1.1`, mirroring the published legal documents).
+
+## Disease upload limit (SEC-11)
+
+`POST /disease/cases` is limited to **20 uploads/hour per user** (429 `RATE_LIMITED` with the
+standard envelope and `requestId` beyond that), in addition to the global rate limiter — each
+accepted photo writes a stored file plus a disease-case row.

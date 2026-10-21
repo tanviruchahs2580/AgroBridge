@@ -8,13 +8,14 @@ import { forbidden, badRequest } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
 
 /** All admin routes require at least one elevated permission. */
 adminRouter.use((req, res, next) => {
-  if (!["ADMIN", "SUPER_ADMIN", "REGIONAL_MANAGER", "AREA_MANAGER", "PROCUREMENT_MANAGER"].includes(req.auth!.role)) {
+  if (!["ADMIN", "SUPER_ADMIN", "REGIONAL_MANAGER", "AREA_MANAGER", "PROCUREMENT_MANAGER"].includes(getAuth(req).role)) {
     return next(forbidden("Admin area"));
   }
   next();
@@ -109,11 +110,11 @@ const userUpdate = z.object({
 
 adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ body: userUpdate }), async (req, res, next) => {
   try {
-    const body: z.infer<typeof userUpdate> = req.body;
-    const target = await prisma.user.findUnique({ where: { id: req.params.id! }, select: { id: true, role: true } });
+    const body = req.body as z.infer<typeof userUpdate>;
+    const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
     if (!target) throw badRequest("User not found");
 
-    if (target.id === req.auth!.userId) {
+    if (target.id === getAuth(req).userId) {
       if (body.status === "SUSPENDED") throw badRequest("You cannot suspend your own account");
       if (body.role && body.role !== target.role) throw badRequest("You cannot change your own role");
     }
@@ -121,7 +122,7 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
     // admin tiers. Without this an ADMIN could mint a SUPER_ADMIN (wildcard
     // permissions) or demote the account that governs it.
     const ACTOR_MUST_BE_SUPER = ["ADMIN", "SUPER_ADMIN"];
-    const actorRole = req.auth!.role;
+    const actorRole = getAuth(req).role;
     if (actorRole !== "SUPER_ADMIN") {
       if (body.role && ACTOR_MUST_BE_SUPER.includes(body.role)) {
         throw forbidden("Only a SUPER_ADMIN can grant admin roles");
@@ -132,7 +133,7 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
     }
 
     const user = await prisma.user.update({
-      where: { id: req.params.id! },
+      where: { id: req.params.id },
       // Only the keys the schema actually received: `null` is a meaningful
       // region value (clearing it) and must not be confused with "unchanged",
       // so an absent key is omitted rather than sent as undefined.
@@ -145,7 +146,7 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
     });
     // Revoke all sessions on role/status change
     await prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
-    await audit({ actorId: req.auth!.userId, action: "ADMIN_USER_UPDATE", entityType: "User", entityId: user.id, meta: req.body as Record<string, unknown> });
+    await audit({ actorId: getAuth(req).userId, action: "ADMIN_USER_UPDATE", entityType: "User", entityId: user.id, meta: req.body as Record<string, unknown> });
     ok(res, user);
   } catch (e) {
     next(e);
@@ -156,7 +157,7 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
 adminRouter.get("/audit-logs", requirePermission("audit:read"), async (req, res, next) => {
   try {
     // Non-numeric query values previously flowed into skip/take as NaN
-    // (Prisma error → 500); clamp to sane integers instead (AUD-116).
+    // (Prisma error → 500); clamp to sane integers instead.
     const page = Math.max(1, Math.floor(Number(req.query.page ?? 1)) || 1);
     const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.query.pageSize ?? 50)) || 50));
     const [items, total] = await Promise.all([
@@ -193,7 +194,7 @@ adminRouter.get("/withdrawals", requirePermission("finance:withdrawals"), async 
   try {
     const status = typeof req.query.status === "string" ? req.query.status.toUpperCase() : "PENDING";
     const where = ["PENDING", "APPROVED", "REJECTED", "PAID"].includes(status) ? { status } : {};
-    // X-Total-Count (C-06/C-22): the queue body stays a capped slice (100); the
+    // X-Total-Count: the queue body stays a capped slice (100); the
     // header is the selected status' true count so finance can see truncation.
     const [items, total] = await Promise.all([
       prisma.withdrawal.findMany({
@@ -229,11 +230,11 @@ adminRouter.post(
           // The claim update locks the Withdrawal row; the wallet writes below
           // serialize hold maintenance with concurrent withdrawal requests.
           const claimed = await tx.withdrawal.updateMany({
-            where: { id: req.params.id!, status: "PENDING" },
-            data: { status: "APPROVED", decidedBy: req.auth!.userId, decidedAt: new Date(), note },
+            where: { id: req.params.id, status: "PENDING" },
+            data: { status: "APPROVED", decidedBy: getAuth(req).userId, decidedAt: new Date(), note },
           });
           if (claimed.count !== 1) throw badRequest("Withdrawal not in PENDING state");
-          const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+          const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id } });
           await tx.wallet.updateMany({
             where: { userId: wd.userId },
             data: { heldPaisa: { decrement: wd.amountPaisa } },
@@ -258,11 +259,11 @@ adminRouter.post(
         }
         if (action === "REJECT") {
           const claimed = await tx.withdrawal.updateMany({
-            where: { id: req.params.id!, status: "PENDING" },
-            data: { status: "REJECTED", decidedBy: req.auth!.userId, decidedAt: new Date(), note },
+            where: { id: req.params.id, status: "PENDING" },
+            data: { status: "REJECTED", decidedBy: getAuth(req).userId, decidedAt: new Date(), note },
           });
           if (claimed.count !== 1) throw badRequest("Withdrawal not in PENDING state");
-          const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+          const wd = await tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id } });
           // Release the request-time hold so the funds become withdrawable again.
           await tx.wallet.updateMany({
             where: { userId: wd.userId },
@@ -272,14 +273,14 @@ adminRouter.post(
         }
         // MARK_PAID: after the manual bKash/Nagad/bank transfer completes.
         const claimed = await tx.withdrawal.updateMany({
-          where: { id: req.params.id!, status: "APPROVED" },
-          data: { status: "PAID", decidedBy: req.auth!.userId, decidedAt: new Date(), note },
+          where: { id: req.params.id, status: "APPROVED" },
+          data: { status: "PAID", decidedBy: getAuth(req).userId, decidedAt: new Date(), note },
         });
         if (claimed.count !== 1) throw badRequest("Withdrawal not in APPROVED state");
-        return tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id! } });
+        return tx.withdrawal.findUniqueOrThrow({ where: { id: req.params.id } });
       }, { timeout: 15000, maxWait: 8000 });
 
-      await audit({ actorId: req.auth!.userId, action: `WITHDRAWAL_${action}`, entityType: "Withdrawal", entityId: w.id });
+      await audit({ actorId: getAuth(req).userId, action: `WITHDRAWAL_${action}`, entityType: "Withdrawal", entityId: w.id });
       await notify({
         userId: w.userId,
         type: "PAYMENT",

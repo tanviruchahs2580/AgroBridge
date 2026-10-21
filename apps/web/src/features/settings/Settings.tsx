@@ -52,9 +52,9 @@ export default function Settings() {
 
   // Prefill: every successful /auth/me result resets the form fields, so a save
   // or a phone verification re-normalises them from the server — the old
-  // load() did this on the same trigger. A *layout* effect, not an effect: the
+  // load did this on the same trigger. A *layout* effect, not an effect: the
   // fields must be filled in the same commit that first paints the form, the
-  // way the old load() set them before the form existed, so no frame ever shows
+  // way the old load set them before the form existed, so no frame ever shows
   // the inputs empty.
   useLayoutEffect(() => {
     if (!me) return;
@@ -84,7 +84,7 @@ export default function Settings() {
         ...(address.trim() ? { address: address.trim() } : {}),
       });
       toast.success(t("profileSavedToast", lang));
-      // The old code awaited load(): that refetched exactly this endpoint, and
+      // The old code awaited load: that refetched exactly this endpoint, and
       // the prefill effect re-syncs the fields from the fresh result.
       invalidate("auth-me");
     } catch (err) {
@@ -123,7 +123,7 @@ export default function Settings() {
       setOtpSent(false);
       setOtpCode("");
       setDevCode(null);
-      // Same endpoint and same refetch set as the old `await load()`: the
+      // Same endpoint and same refetch set as the old `await load`: the
       // verified badge reads the fresh phoneVerified flag.
       invalidate("auth-me");
     } catch (err) {
@@ -134,7 +134,7 @@ export default function Settings() {
   }
 
   /**
-   * Personal-data export (AUD-130). A file download cannot go through `api()`
+   * Personal-data export. A file download cannot go through `api`
    * (it parses the JSON envelope), so the endpoint is fetched directly with the
    * current access token and the blob is saved under the server-provided
    * filename from Content-Disposition.
@@ -217,7 +217,7 @@ export default function Settings() {
     return (
       <div className="min-w-0 space-y-3">
         {/* The old catch discarded the error and showed the generic copy; the
-            copy is unchanged (the retry is now the resource's reload). */}
+ copy is unchanged (the retry is now the resource's reload).*/}
         <ErrorBanner message={t("errorGeneric", lang)} />
         <Button variant="outline" onClick={() => void meRes.reload()}>
           {t("retry", lang)}
@@ -230,7 +230,7 @@ export default function Settings() {
     <div className="min-w-0 space-y-5">
       <PageHeader icon={<SettingsIcon className="h-5 w-5" aria-hidden />} title={t("settings", lang)} subtitle={t("settingsSubtitle", lang)} />
 
-      {/* ── Profile ── */}
+      {/* ── Profile ──*/}
       <Card className="space-y-4">
         <SectionHeader title={t("profile", lang)} />
         <form onSubmit={saveProfile} className="space-y-3" noValidate>
@@ -299,7 +299,7 @@ export default function Settings() {
         </form>
       </Card>
 
-      {/* ── Phone verification ── */}
+      {/* ── Phone verification ──*/}
       <Card className="space-y-3">
         <SectionHeader title={t("phoneVerification", lang)} />
         <div className="flex flex-wrap items-center gap-2">
@@ -356,7 +356,7 @@ export default function Settings() {
         )}
       </Card>
 
-      {/* ── Personal data export ── */}
+      {/* ── Personal data export ──*/}
       <Card className="space-y-3">
         <SectionHeader title={t("dataExportTitle", lang)} />
         <p className="text-sm text-stone-600">{t("dataExportHint", lang)}</p>
@@ -370,7 +370,7 @@ export default function Settings() {
         </Button>
       </Card>
 
-      {/* ── Policies ── */}
+      {/* ── Policies ──*/}
       <Card className="space-y-2">
         <SectionHeader title={t("legalTitle", lang)} />
         <ul className="divide-y divide-stone-100 text-sm">
@@ -392,7 +392,7 @@ export default function Settings() {
         </ul>
       </Card>
 
-      {/* ── Danger zone ── */}
+      {/* ── Danger zone ──*/}
       <Card className="space-y-3">
         <SectionHeader title={t("accountTitle", lang)} />
         <p className="flex items-start gap-2 text-xs leading-relaxed text-stone-600">
@@ -420,7 +420,7 @@ export default function Settings() {
           {t("onboarding", lang)}
         </Link>
       </p>
-      <p className="px-1 text-center text-xs text-stone-400">
+      <p className="px-1 text-center text-xs text-stone-500">
         <UserRound className="mr-1 inline h-3 w-3" aria-hidden />
         {t("accountIdLabel", lang)}: <span className="font-mono">{me.id.slice(0, 8)}</span>
       </p>

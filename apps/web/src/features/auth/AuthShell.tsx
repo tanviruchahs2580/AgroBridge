@@ -87,7 +87,7 @@ export function AuthShell({
 }) {
   return (
     <div className="agro-shell relative min-h-[100dvh] md:grid md:grid-cols-[1.05fr_1fr]">
-      {/* Mobile: the photo is the whole page — nothing cuts off behind the form */}
+      {/* Mobile: the photo is the whole page — nothing cuts off behind the form*/}
       <img
         src="/brand/login-bg-mobile-full.webp"
         alt=""
@@ -95,12 +95,12 @@ export function AuthShell({
         className="absolute inset-0 h-full w-full object-cover md:hidden"
       />
       <div
-        className="absolute inset-0 bg-gradient-to-b from-[#012823]/25 via-[#012823]/30 to-[#012823]/90 md:hidden"
+        className="absolute inset-0 bg-[image:var(--gradient-auth-scrim-mobile)] md:hidden"
         aria-hidden
       />
 
       {/* Brand panel — desktop only. The owner-provided golden-hour field photo
-          carries the panel; a deep-green scrim keeps every text token AA. */}
+ carries the panel; a deep-green scrim keeps every text token AA.*/}
       <aside className="relative hidden overflow-hidden bg-hero text-white md:flex md:flex-col md:justify-between" aria-hidden>
         <img
           src="/brand/login-bg-desktop.webp"
@@ -110,7 +110,7 @@ export function AuthShell({
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover object-[center_64%]"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#012823]/95 via-[#012823]/70 to-[#012823]/35" />
+        <div className="absolute inset-0 bg-[image:var(--gradient-auth-scrim-panel)]" />
 
         <div className="relative flex items-center gap-3 p-10 pb-0">
           <BrandMark />
@@ -137,14 +137,14 @@ export function AuthShell({
         <p className="relative p-10 pt-0 text-xs font-medium text-white/60">© {new Date().getFullYear()} {t("appName", lang)}</p>
       </aside>
 
-      {/* Form side */}
+      {/* Form side*/}
       <main
         id="main"
         tabIndex={-1}
         className="relative flex min-h-[100dvh] flex-col px-4 pb-8 outline-none sm:px-6 md:min-h-0 md:items-center md:justify-center md:px-8"
       >
         {/* Mobile brand hero — centered over the sky, drone stays visible top-right;
-            the credential card then begins around mid-screen (reference layout). */}
+ the credential card then begins around mid-screen (reference layout).*/}
         <div className="relative flex min-h-[45dvh] flex-col items-center pt-[5.5dvh] text-center text-white md:hidden">
           <img
             src="/brand/logo-emblem.png"
@@ -160,18 +160,18 @@ export function AuthShell({
           </div>
         </div>
 
-        {/* Language pill — top-right corner over the photo (mobile) */}
+        {/* Language pill — top-right corner over the photo (mobile)*/}
         <div className="absolute right-4 top-4 z-10 md:hidden">
           <AuthLangToggle lang={lang} onChange={onToggleLang} />
         </div>
 
         <div className="auth-photo-mobile relative w-full max-w-md md:mt-0">
-          {/* Desktop: toggle lives above the card, right-aligned */}
+          {/* Desktop: toggle lives above the card, right-aligned*/}
           <div className="mb-3 hidden justify-end md:flex">
             <AuthLangToggle lang={lang} onChange={onToggleLang} />
           </div>
 
-          <section className="rounded-t-card border border-white/15 bg-[#012823]/85 p-5 shadow-card backdrop-blur-md sm:p-6 md:rounded-card md:border-surface-border md:bg-surface-card md:backdrop-blur-none">
+          <section className="rounded-t-card border border-white/15 bg-[var(--color-auth-card)] p-5 shadow-card backdrop-blur-md sm:p-6 md:rounded-card md:border-surface-border md:bg-surface-card md:backdrop-blur-none">
             <header className="mb-5 flex items-center gap-3">
               <span aria-hidden className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-iconBox ring-1 ring-brand-100 md:block">
                 <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
@@ -186,7 +186,7 @@ export function AuthShell({
 
           {footer && <div className="mt-4">{footer}</div>}
 
-          {/* Mobile: login-page value copy (was the demo-account section) */}
+          {/* Mobile: login-page value copy (was the demo-account section)*/}
           <div className="mt-6 space-y-3.5 pb-4 md:hidden">
             <h2 className="text-[18px] font-extrabold leading-snug tracking-[-0.01em] text-white drop-shadow-sm">
               {t("authHeroHeadline", lang)}

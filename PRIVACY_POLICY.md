@@ -4,7 +4,11 @@
 
 > **Canonical, published version:** the app serves this policy at `/privacy` on the deployed
 > domain, and that page is what Google Play links to. The authoritative text lives in
-> `apps/web/src/features/legal/content.ts`; this file is kept in step with it. Corrections in
+> `apps/web/src/features/legal/content.ts`; this file is kept in step with it. **Operator-entity
+> placeholders in this file are not real details:** where it says "operator entity", the
+> registered legal name and address are to be completed by the owner before store submission —
+> set them in `LEGAL_ENTITY` in `apps/web/src/features/legal/content.ts` (the runtime pages are
+> generated from that file). Corrections in
 > 1.1: login is by mobile number **and password** (a verification code is only used to verify
 > the phone number later, e.g. before a withdrawal); the app does **not** use a crash-reporting
 > SDK and does **not** read device identifiers; the app does **not** request device location.
@@ -15,10 +19,10 @@
 
 ### ১. পরিচিতি
 
-[Company] ("আমরা") AgroBridge পরিষেবা চালায় — কৃষকের জন্য একটি মোবাইল অ্যাপ ও ওয়েবসাইট।
+[operator entity — to be completed by the owner before store submission] ("আমরা") AgroBridge পরিষেবা চালায় — কৃষকের জন্য একটি মোবাইল অ্যাপ ও ওয়েবসাইট।
 এই নীতিতে বলা হয়েছে: আমরা কী তথ্য রাখি, কেন রাখি, কত দিন রাখি, আর আপনি কী করতে পারেন।
 
-**নিয়ন্ত্রক (Data Controller):** [Company], [ঠিকানা], বাংলাদেশ।
+**নিয়ন্ত্রক (Data Controller):** [operator entity — to be completed by the owner before store submission], [নিবন্ধিত ঠিকানা — স্টোর সাবমিশনের আগে মালিক পূরণ করবেন], বাংলাদেশ।
 
 সহজ ভাষায় লেখা হয়েছে। কোনো কথা বুঝতে সমস্যা হলে আমাদের সাপোর্টে ফোন করুন।
 
@@ -91,10 +95,10 @@ AgroBridge · গোপনীয়তা ও ডেটা অনুরোধ: h
 
 ### 1. Who we are
 
-[Company] ("we") operates AgroBridge, a mobile app and website for farmers in Bangladesh.
+[operator entity — to be completed by the owner before store submission] ("we") operates AgroBridge, a mobile app and website for farmers in Bangladesh.
 This policy explains what data we keep, why, how long we keep it, and what you can do about it.
 
-**Data Controller:** [Company], [Address], Bangladesh.
+**Data Controller:** [operator entity — to be completed by the owner before store submission], [registered address — to be completed by the owner before store submission], Bangladesh.
 
 Written in plain language. If anything is unclear, call our support line.
 

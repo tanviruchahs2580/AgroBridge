@@ -27,6 +27,18 @@ export const conflict = (msg: string) => new AppError(409, "CONFLICT", msg);
 export const unprocessable = (msg: string, details?: unknown) => new AppError(422, "UNPROCESSABLE", msg, details);
 export const tooMany = (msg = "Too many requests, please try again later") =>
   new AppError(429, "RATE_LIMITED", msg);
+/**
+ * Per-account login lock (accountThrottle). Keyed by a hash of the phone, so
+ * it fires for unknown numbers too — the message must never reveal whether the
+ * account exists.
+ */
+export const accountLocked = (msg = "Too many failed attempts for this account. Try again in a few minutes.") =>
+  new AppError(429, "ACCOUNT_LOCKED", msg);
+/** Password-reset OTP rejected: the code was wrong (attempt counted).*/
+export const otpInvalid = (msg = "Incorrect verification code") => new AppError(400, "OTP_INVALID", msg);
+/** Password-reset OTP missing, consumed, expired or out of attempts.*/
+export const otpExpired = (msg = "Verification code expired or not found. Request a new one.") =>
+  new AppError(400, "OTP_EXPIRED", msg);
 export const phoneNotVerified = () =>
   new AppError(403, "PHONE_NOT_VERIFIED", "Phone number must be verified before this action");
 export const serviceUnavailable = (msg: string, details?: unknown) =>

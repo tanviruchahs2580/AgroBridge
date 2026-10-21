@@ -6,16 +6,17 @@ import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, badRequest, unprocessable, conflict } from "../../shared/errors/index.js";
-import { ok } from "../../middleware/context.js";
+import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
-import { refNo } from "../../lib/money.js";
+import { refNo, orderTotals } from "../../lib/money.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -33,7 +34,7 @@ const checkoutLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
   store: checkoutStore,
-  // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
+  // Standardized 429 envelope: requestId + ok:false/error shape, with
   // this limiter's own message preserved.
   handler: rateLimitHandler,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many checkout attempts. Please slow down." } },
@@ -97,7 +98,7 @@ productsRouter.post(
   validate({ body: productBody }),
   async (req, res, next) => {
     try {
-      const body: z.infer<typeof productBody> = req.body;
+      const body = req.body as z.infer<typeof productBody>;
       const product = await prisma.product.create({
         data: {
           sku: body.sku,
@@ -113,7 +114,7 @@ productsRouter.post(
           cropRelevance: body.cropRelevance,
         },
       });
-      await audit({ actorId: req.auth!.userId, action: "PRODUCT_CREATE", entityType: "Product", entityId: product.id });
+      await audit({ actorId: getAuth(req).userId, action: "PRODUCT_CREATE", entityType: "Product", entityId: product.id });
       ok(res, product, 201);
     } catch (e) {
       next(e);
@@ -135,7 +136,7 @@ async function getOrCreateCart(userId: string) {
 
 cartRouter.get("/", async (req, res, next) => {
   try {
-    const cart = await getOrCreateCart(req.auth!.userId);
+    const cart = await getOrCreateCart(getAuth(req).userId);
     const subtotalPaisa = cart.items.reduce((s: number, i: { product: { pricePaisa: number }; qty: number }) => s + i.product.pricePaisa * i.qty, 0);
     ok(res, { ...cart, subtotalPaisa });
   } catch (e) {
@@ -155,13 +156,13 @@ cartRouter.post("/items", validate({ body: addItemSchema }), async (req, res, ne
     if (!product) throw notFound("Product");
     if (product.stockQty < qty) throw unprocessable("Insufficient stock", { available: product.stockQty });
 
-    const cart = await getOrCreateCart(req.auth!.userId);
+    const cart = await getOrCreateCart(getAuth(req).userId);
     await prisma.cartItem.upsert({
       where: { cartId_productId: { cartId: cart.id, productId } },
       update: { qty },
       create: { cartId: cart.id, productId, qty },
     });
-    ok(res, await getOrCreateCart(req.auth!.userId), 201);
+    ok(res, await getOrCreateCart(getAuth(req).userId), 201);
   } catch (e) {
     next(e);
   }
@@ -169,8 +170,8 @@ cartRouter.post("/items", validate({ body: addItemSchema }), async (req, res, ne
 
 cartRouter.delete("/items/:productId", async (req, res, next) => {
   try {
-    const cart = await getOrCreateCart(req.auth!.userId);
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id, productId: req.params.productId! } });
+    const cart = await getOrCreateCart(getAuth(req).userId);
+    await prisma.cartItem.deleteMany({ where: { cartId: cart.id, productId: req.params.productId } });
     ok(res, { removed: true });
   } catch (e) {
     next(e);
@@ -182,11 +183,11 @@ ordersRouter.use(requireAuth);
 
 ordersRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
-    // X-Total-Count (C-06/C-22): the body stays a capped slice (100) but the
+    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
+    // X-Total-Count: the body stays a capped slice (100) but the
     // caller can tell a full list from a truncated one. Count runs over the
     // exact same scope as the slice, so a window cannot disagree with its total.
-    const where = isPrivileged ? {} : { userId: req.auth!.userId };
+    const where = isPrivileged ? {} : { userId: getAuth(req).userId };
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
@@ -205,9 +206,9 @@ ordersRouter.get("/", async (req, res, next) => {
 
 ordersRouter.get("/:id", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
+    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
     const order = await prisma.order.findFirst({
-      where: { id: req.params.id!, ...(isPrivileged ? {} : { userId: req.auth!.userId }) },
+      where: { id: req.params.id, ...(isPrivileged ? {} : { userId: getAuth(req).userId }) },
       include: { items: true, user: { select: { fullName: true } } },
     });
     if (!order) throw notFound("Order");
@@ -225,7 +226,7 @@ ordersRouter.get("/:id", async (req, res, next) => {
  */
 ordersRouter.delete("/:id", async (req, res, next) => {
   try {
-    const order = await prisma.order.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!order) throw notFound("Order");
     if (["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status)) {
       throw unprocessable("This order is still in progress — cancel it before deleting");
@@ -244,7 +245,7 @@ ordersRouter.delete("/:id", async (req, res, next) => {
       });
       await tx.order.delete({ where: { id: order.id } });
     });
-    await audit({ actorId: req.auth!.userId, action: "ORDER_DELETED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, status: order.status } });
+    await audit({ actorId: getAuth(req).userId, action: "ORDER_DELETED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, status: order.status } });
     ok(res, { deleted: true });
   } catch (e) {
     next(e);
@@ -272,7 +273,7 @@ const cancelOrderBodySchema = z.preprocess(
 ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
-      where: { id: req.params.id!, userId: req.auth!.userId },
+      where: { id: req.params.id, userId: getAuth(req).userId },
       include: { items: true },
     });
     if (!order) throw notFound("Order");
@@ -280,7 +281,7 @@ ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), asyn
 
     const cancelled = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
       const claimed = await tx.order.updateMany({
-        where: { id: order.id, userId: req.auth!.userId, status: "CONFIRMED", paymentStatus: "UNPAID" },
+        where: { id: order.id, userId: getAuth(req).userId, status: "CONFIRMED", paymentStatus: "UNPAID" },
         data: { status: "CANCELLED", cancelReason: reason ?? null },
       });
       if (claimed.count !== 1) {
@@ -294,9 +295,9 @@ ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), asyn
       return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } });
     }, { timeout: 15000, maxWait: 8000 });
 
-    await audit({ actorId: req.auth!.userId, action: "ORDER_CANCELLED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, reason } });
+    await audit({ actorId: getAuth(req).userId, action: "ORDER_CANCELLED", entityType: "Order", entityId: order.id, meta: { orderNo: order.orderNo, reason } });
     await notify({
-      userId: req.auth!.userId,
+      userId: getAuth(req).userId,
       type: "ORDER",
       titleBn: `অর্ডার বাতিল হয়েছে (${cancelled.orderNo})`,
       titleEn: `Order cancelled (${cancelled.orderNo})`,
@@ -314,7 +315,7 @@ ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), asyn
 /**
  * Delivery details captured by the checkout wizard. All three fields are
  * optional together (an order can still be placed without them), but a field
- * that IS sent must be valid — the previous safeParse().data silently dropped
+ * that IS sent must be valid — the previous safeParse.data silently dropped
  * a malformed phone or address, so the buyer's details vanished with a 201.
  */
 const shippingSchema = z.object({
@@ -323,7 +324,7 @@ const shippingSchema = z.object({
   shippingAddress: z.string().trim().min(5).max(400).optional(),
 });
 
-// AUD-125: optional checkout idempotency key. Opaque client token, bounded
+// optional checkout idempotency key. Opaque client token, bounded
 // (8..100 chars) so a hostile client cannot stuff unbounded keys into the
 // unique index. The composite unique is (userId, clientRequestId).
 const checkoutSchema = shippingSchema.extend({
@@ -347,7 +348,7 @@ async function findOrderByClientKey(userId: string, clientRequestId: string) {
  * Checkout: transactional stock reservation + order creation + membership discount.
  * Stock decrement and order creation are atomic (Rule: transactional consistency).
  *
- * Idempotency (AUD-125): when `clientRequestId` is supplied, the first request
+ * Idempotency: when `clientRequestId` is supplied, the first request
  * that creates an order with that key owns it. Later requests — sequentially,
  * after a network failure, or racing in parallel — replay that SAME order with
  * 200 and cause no stock or ledger side effects. Contract: one key = one order
@@ -361,25 +362,30 @@ ordersRouter.post(
   validate({ body: checkoutBodySchema }),
   async (req, res, next) => {
   try {
-    const { clientRequestId, ...shipping } = req.body as z.infer<typeof checkoutSchema>;
+    const { clientRequestId: bodyKey, ...shipping } = req.body as z.infer<typeof checkoutSchema>;
+    // The `Idempotency-Key` header wins when both are present; the body field
+    // stays supported for clients released before the header existed. Either
+    // way the value lands in the same `clientRequestId` column, so replays
+    // from old and new clients resolve through the same lookup.
+    const clientRequestId = idempotencyKeyOf(req) ?? bodyKey;
 
     // Fast path: this key already produced an order (retry, reload, duplicate
     // submit). Replay it before any stock move or cart mutation.
     if (clientRequestId) {
-      const replay = await findOrderByClientKey(req.auth!.userId, clientRequestId);
+      const replay = await findOrderByClientKey(getAuth(req).userId, clientRequestId);
       if (replay) {
         ok(res, replay);
         return;
       }
     }
 
-    const membership = await getActiveMembership(req.auth!.userId);
+    const membership = await getActiveMembership(getAuth(req).userId);
     const discountPct = membership.discountPct;
 
     try {
       const result = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         const cart = await tx.cart.findUnique({
-          where: { userId: req.auth!.userId },
+          where: { userId: getAuth(req).userId },
           include: { items: { include: { product: true } } },
         });
         if (!cart || cart.items.length === 0) throw badRequest("Cart is empty");
@@ -414,14 +420,15 @@ ordersRouter.post(
           subtotalPaisa += item.product.pricePaisa * item.qty;
         }
 
-        const discountPaisa = Math.round((subtotalPaisa * discountPct) / 100);
-        const deliveryFeePaisa = subtotalPaisa >= 500_000 ? 0 : 5_000; // free delivery over BDT 5000
-        const totalPaisa = subtotalPaisa - discountPaisa + deliveryFeePaisa;
+        // Discount + delivery fee + total come from the shared money engine
+        // (src/shared/utils/money.ts) so the property tests exercise the exact
+        // production arithmetic.
+        const { discountPaisa, deliveryFeePaisa, totalPaisa } = orderTotals(subtotalPaisa, discountPct);
 
         const order = await tx.order.create({
           data: {
             orderNo: refNo("ORD"),
-            userId: req.auth!.userId,
+            userId: getAuth(req).userId,
             status: "CONFIRMED",
             subtotalPaisa,
             discountPaisa,
@@ -448,7 +455,7 @@ ordersRouter.post(
       }, { timeout: 15000, maxWait: 8000 });
 
       await audit({
-        actorId: req.auth!.userId,
+        actorId: getAuth(req).userId,
         action: "ORDER_CHECKOUT",
         entityType: "Order",
         entityId: result.id,
@@ -456,7 +463,7 @@ ordersRouter.post(
       });
 
       await notify({
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
         type: "ORDER",
         titleBn: `অর্ডার নিশ্চিত হয়েছে (${result.orderNo})`,
         titleEn: `Order confirmed (${result.orderNo})`,
@@ -476,7 +483,7 @@ ordersRouter.post(
       // unchanged. If the winner has not committed yet nothing is found and the
       // original error stands — the client's retry then replays it.
       if (clientRequestId) {
-        const replay = await findOrderByClientKey(req.auth!.userId, clientRequestId).catch(() => null);
+        const replay = await findOrderByClientKey(getAuth(req).userId, clientRequestId).catch(() => null);
         if (replay) {
           ok(res, replay);
           return;

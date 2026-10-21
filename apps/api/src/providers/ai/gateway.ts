@@ -34,8 +34,11 @@ async function monthlyBudgetExceeded(): Promise<boolean> {
   return (agg._sum.costEstimatePaisa ?? 0) >= env.AI_MONTHLY_BUDGET_PAISA;
 }
 
-/** AI Gateway: single entry point with usage logging + explicit failure chain (Phase 4). */
-export async function askAgroAgent(question: string, ctx: AiContext & { userId?: string }): Promise<AiAnswer> {
+/** AI Gateway: single entry point with usage logging + explicit failure chain.*/
+export async function askAgroAgent(
+  question: string,
+  ctx: AiContext & { userId?: string; requestId?: string },
+): Promise<AiAnswer> {
   let provider = resolveProvider();
   if (provider.name === "openai-compatible" && (await monthlyBudgetExceeded())) {
     if (isProd) {
@@ -53,6 +56,7 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     aiRequestsTotal.inc({ provider: answer.provider, status: "success" });
     await logUsage({
       userId: ctx.userId,
+      requestId: ctx.requestId,
       provider: answer.provider,
       model: answer.model,
       kbVersion: answer.kbVersion,
@@ -62,10 +66,10 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
       tokensIn: answer.tokensIn,
       tokensOut: answer.tokensOut,
     });
-    await persistQuery(ctx.userId, question, answer);
+    await persistQuery(ctx.userId, question, answer, ctx.requestId);
     return answer;
   } catch (err) {
-    // Error context names the prompt template version in play (A4-06), so a
+    // Error context names the prompt template version in play, so a
     // failing hosted-provider call is attributable to a prompt revision.
     logger.warn(
       { err: (err as Error).message, provider: provider.name, promptVersion: provider.promptVersion },
@@ -80,20 +84,21 @@ export async function askAgroAgent(question: string, ctx: AiContext & { userId?:
     const fallback = new OfflineAgroEngine();
     const answer = await fallback.ask(question, ctx);
     aiRequestsTotal.inc({ provider: fallback.name, status: "fallback_success" });
-    await logUsage({ userId: ctx.userId, provider: fallback.name, model: fallback.model, kbVersion: answer.kbVersion, latencyMs: Date.now() - started, success: true });
-    await persistQuery(ctx.userId, question, answer);
+    await logUsage({ userId: ctx.userId, requestId: ctx.requestId, provider: fallback.name, model: fallback.model, kbVersion: answer.kbVersion, latencyMs: Date.now() - started, success: true });
+    await persistQuery(ctx.userId, question, answer, ctx.requestId);
     return answer;
   }
 }
 
 /**
- * Usage telemetry. `AiUsageLog` has no kbVersion/promptVersion columns and this
- * wave must not add any, so the lineage rides the existing provider/model row
- * plus one structured debug log line (A2-04/A3-07/A4-06); the response itself
- * carries `kbVersion`/`promptVersion` for the client and support.
+ * Usage telemetry. The lineage columns (kbVersion, requestId) exist since the
+ * 2026-10-19 provenance wave, so an AI request can be joined to the KB corpus
+ * and the HTTP request that produced it; promptVersion has no column here (it
+ * lives on the persisted advisory row) and still rides the debug line.
  */
 async function logUsage(p: {
   userId?: string;
+  requestId?: string;
   provider: string;
   model: string;
   kbVersion?: string;
@@ -116,6 +121,8 @@ async function logUsage(p: {
     await prisma.aiUsageLog.create({
       data: {
         userId: p.userId,
+        requestId: p.requestId,
+        kbVersion: p.kbVersion,
         provider: p.provider,
         model: p.model,
         latencyMs: p.latencyMs,
@@ -129,7 +136,7 @@ async function logUsage(p: {
   }
 }
 
-async function persistQuery(userId: string | undefined, question: string, answer: AiAnswer) {
+async function persistQuery(userId: string | undefined, question: string, answer: AiAnswer, requestId?: string) {
   if (!userId) return;
   try {
     await prisma.advisoryQuery.create({
@@ -142,6 +149,9 @@ async function persistQuery(userId: string | undefined, question: string, answer
         model: answer.model,
         lowConfidenceFlag: answer.lowConfidenceFlag,
         groundedRefs: JSON.stringify(answer.groundedRefs),
+        kbVersion: answer.kbVersion,
+        promptVersion: answer.promptVersion,
+        requestId,
       },
     });
   } catch (e) {

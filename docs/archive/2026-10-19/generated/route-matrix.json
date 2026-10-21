@@ -1,0 +1,554 @@
+{
+  "generatedFrom": "src/modules/**/routes.ts",
+  "total": 65,
+  "summary": {
+    "requirePermission:admin:metrics": 3,
+    "requirePermission:audit:read": 1,
+    "requirePermission:users:manage": 1,
+    "requirePermission:users:read": 1,
+    "requirePermission:finance:withdrawals": 2,
+    "requireAuth (file-level use on aiRouter)": 3,
+    "requireAuth": 9,
+    "PUBLIC": 5,
+    "requirePermission:disease:review": 1,
+    "requireAuth (file-level use on diseaseRouter)": 3,
+    "requireAuth (file-level use on farmsRouter)": 4,
+    "requireAuth (file-level use on eventsRouter)": 2,
+    "requireAuth (file-level use on ordersRouter)": 5,
+    "requireAuth (file-level use on cartRouter)": 3,
+    "requireAuth (file-level use on productsRouter)": 1,
+    "requireAuth (file-level use on paymentsRouter)": 4,
+    "requirePermission:payments:refund": 1,
+    "requireAuth (file-level use on walletRouter)": 4,
+    "requirePermission:procurement:pay": 1,
+    "requirePermission:procurement:review": 1,
+    "requireAuth (file-level use on procurementRouter)": 2,
+    "requirePermission:bookings:assign": 1,
+    "requireAuth (file-level use on bookingsRouter)": 4,
+    "requireAuth (file-level use on servicesRouter)": 1,
+    "requirePermission:services:manage": 1,
+    "requirePermission:providers:manage": 1
+  },
+  "routes": [
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/ai-usage",
+      "router": "adminRouter",
+      "auth": "requirePermission:admin:metrics"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/analytics/summary",
+      "router": "adminRouter",
+      "auth": "requirePermission:admin:metrics"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/audit-logs",
+      "router": "adminRouter",
+      "auth": "requirePermission:audit:read"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/metrics",
+      "router": "adminRouter",
+      "auth": "requirePermission:admin:metrics"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "PATCH",
+      "path": "/users/:id",
+      "router": "adminRouter",
+      "auth": "requirePermission:users:manage"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/users",
+      "router": "adminRouter",
+      "auth": "requirePermission:users:read"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "POST",
+      "path": "/withdrawals/:id/decision",
+      "router": "adminRouter",
+      "auth": "requirePermission:finance:withdrawals"
+    },
+    {
+      "module": "admin",
+      "file": "src/modules/admin/routes.ts",
+      "method": "GET",
+      "path": "/withdrawals",
+      "router": "adminRouter",
+      "auth": "requirePermission:finance:withdrawals"
+    },
+    {
+      "module": "aiagent",
+      "file": "src/modules/aiagent/routes.ts",
+      "method": "POST",
+      "path": "/advisory",
+      "router": "aiRouter",
+      "auth": "requireAuth (file-level use on aiRouter)"
+    },
+    {
+      "module": "aiagent",
+      "file": "src/modules/aiagent/routes.ts",
+      "method": "POST",
+      "path": "/history/:id/feedback",
+      "router": "aiRouter",
+      "auth": "requireAuth (file-level use on aiRouter)"
+    },
+    {
+      "module": "aiagent",
+      "file": "src/modules/aiagent/routes.ts",
+      "method": "GET",
+      "path": "/history",
+      "router": "aiRouter",
+      "auth": "requireAuth (file-level use on aiRouter)"
+    },
+    {
+      "module": "analytics",
+      "file": "src/modules/analytics/routes.ts",
+      "method": "POST",
+      "path": "/events",
+      "router": "analyticsRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/login",
+      "router": "authRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/logout",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "GET",
+      "path": "/me/export",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "GET",
+      "path": "/me",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "PATCH",
+      "path": "/me",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "DELETE",
+      "path": "/me",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/otp/request",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/otp/verify",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/refresh",
+      "router": "authRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/register",
+      "router": "authRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "disease",
+      "file": "src/modules/disease/routes.ts",
+      "method": "POST",
+      "path": "/cases/:id/review",
+      "router": "diseaseRouter",
+      "auth": "requirePermission:disease:review"
+    },
+    {
+      "module": "disease",
+      "file": "src/modules/disease/routes.ts",
+      "method": "GET",
+      "path": "/cases/:id",
+      "router": "diseaseRouter",
+      "auth": "requireAuth (file-level use on diseaseRouter)"
+    },
+    {
+      "module": "disease",
+      "file": "src/modules/disease/routes.ts",
+      "method": "POST",
+      "path": "/cases",
+      "router": "diseaseRouter",
+      "auth": "requireAuth (file-level use on diseaseRouter)"
+    },
+    {
+      "module": "disease",
+      "file": "src/modules/disease/routes.ts",
+      "method": "GET",
+      "path": "/cases",
+      "router": "diseaseRouter",
+      "auth": "requireAuth (file-level use on diseaseRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "PATCH",
+      "path": "/:id",
+      "router": "farmsRouter",
+      "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "DELETE",
+      "path": "/:id",
+      "router": "farmsRouter",
+      "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "GET",
+      "path": "/events",
+      "router": "eventsRouter",
+      "auth": "requireAuth (file-level use on eventsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "POST",
+      "path": "/events",
+      "router": "eventsRouter",
+      "auth": "requireAuth (file-level use on eventsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "farmsRouter",
+      "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "farmsRouter",
+      "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/:id/cancel",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/:id",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "DELETE",
+      "path": "/:id",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/checkout",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/items",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "productsRouter",
+      "auth": "requireAuth (file-level use on productsRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "productsRouter",
+      "auth": "requireAuth,requirePermission:products:manage"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "DELETE",
+      "path": "/items/:productId",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "payments-webhook",
+      "file": "src/modules/payments/webhook.ts",
+      "method": "POST",
+      "path": "/webhook/sslcommerz",
+      "router": "paymentWebhookRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/:id/confirm",
+      "router": "paymentsRouter",
+      "auth": "requireAuth (file-level use on paymentsRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/:id/refund",
+      "router": "paymentsRouter",
+      "auth": "requirePermission:payments:refund"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/:id/status",
+      "router": "paymentsRouter",
+      "auth": "requireAuth (file-level use on paymentsRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "paymentsRouter",
+      "auth": "requireAuth (file-level use on paymentsRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "walletRouter",
+      "auth": "requireAuth (file-level use on walletRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/intent",
+      "router": "paymentsRouter",
+      "auth": "requireAuth (file-level use on paymentsRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/payouts",
+      "router": "paymentsRouter",
+      "auth": "requirePermission:procurement:pay"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/plans",
+      "router": "membershipRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/summary",
+      "router": "walletRouter",
+      "auth": "requireAuth (file-level use on walletRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/withdrawals",
+      "router": "walletRouter",
+      "auth": "requireAuth (file-level use on walletRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "GET",
+      "path": "/withdrawals",
+      "router": "walletRouter",
+      "auth": "requireAuth (file-level use on walletRouter)"
+    },
+    {
+      "module": "procurement",
+      "file": "src/modules/procurement/routes.ts",
+      "method": "POST",
+      "path": "/:id/review",
+      "router": "procurementRouter",
+      "auth": "requirePermission:procurement:review"
+    },
+    {
+      "module": "procurement",
+      "file": "src/modules/procurement/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "procurementRouter",
+      "auth": "requireAuth (file-level use on procurementRouter)"
+    },
+    {
+      "module": "procurement",
+      "file": "src/modules/procurement/routes.ts",
+      "method": "POST",
+      "path": "/offers",
+      "router": "procurementRouter",
+      "auth": "requireAuth (file-level use on procurementRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/:id/assign",
+      "router": "bookingsRouter",
+      "auth": "requirePermission:bookings:assign"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/:id/rating",
+      "router": "bookingsRouter",
+      "auth": "requireAuth (file-level use on bookingsRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/:id/status",
+      "router": "bookingsRouter",
+      "auth": "requireAuth (file-level use on bookingsRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "servicesRouter",
+      "auth": "requireAuth (file-level use on servicesRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "servicesRouter",
+      "auth": "requirePermission:services:manage"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "bookingsRouter",
+      "auth": "requireAuth (file-level use on bookingsRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "bookingsRouter",
+      "auth": "requireAuth (file-level use on bookingsRouter)"
+    },
+    {
+      "module": "services",
+      "file": "src/modules/services/routes.ts",
+      "method": "POST",
+      "path": "/providers",
+      "router": "servicesRouter",
+      "auth": "requirePermission:providers:manage"
+    }
+  ]
+}

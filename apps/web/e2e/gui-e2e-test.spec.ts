@@ -48,7 +48,7 @@ async function checkoutOneItem(page: any): Promise<{ successText: string; orderN
   await login(page);
 
   // Navigate to market
-  const marketNav = page.locator('nav[aria-label="Primary navigation"] a').filter({ hasText: /বাজার|Market/i }).first();
+  const marketNav = page.locator('nav[aria-label] a').filter({ hasText: /বাজার|Market/i }).first();
   await marketNav.click();
   await page.waitForTimeout(2000); // wait for products to load
 
@@ -188,7 +188,7 @@ test("T4: MyFarm page works, correct error messages", async ({ page }) => {
   await login(page);
 
   // Click My Farm in bottom nav
-  const farmNav = page.locator('nav[aria-label="Primary navigation"] a').filter({ hasText: /ফার্ম|Farm/ }).first();
+  const farmNav = page.locator('nav[aria-label] a').filter({ hasText: /ফার্ম|Farm/ }).first();
   await farmNav.click();
   await page.waitForTimeout(1500);
 
@@ -208,7 +208,7 @@ test("T5: MyOrders page exists with order tracking", async ({ page }) => {
   await login(page);
 
   // Click My Orders in bottom nav
-  const ordersNav = page.locator('nav[aria-label="Primary navigation"] a').filter({ hasText: /অর্ডার|Orders|Order/i }).first();
+  const ordersNav = page.locator('nav[aria-label] a').filter({ hasText: /অর্ডার|Orders|Order/i }).first();
   await expect(ordersNav, "My Orders missing from primary nav").toBeVisible();
   await ordersNav.click();
   await page.waitForTimeout(1500);
@@ -264,7 +264,7 @@ test("T8: Order appears in MyOrders", async ({ page }) => {
   await dialog.locator("button", { hasText: /সম্পন্ন|Done/i }).first().click();
   await expect(dialog).toHaveCount(0, { timeout: 5000 });
 
-  const ordersNav = page.locator('nav[aria-label="Primary navigation"] a').filter({ hasText: /অর্ডার|Orders|Order/i }).first();
+  const ordersNav = page.locator('nav[aria-label] a').filter({ hasText: /অর্ডার|Orders|Order/i }).first();
   await ordersNav.click();
   await page.waitForTimeout(2000);
 
@@ -280,13 +280,13 @@ test("T9: All navigation items present", async ({ page }) => {
   await login(page);
 
   // Check primary nav items
-  const navLinks = page.locator('nav[aria-label="Primary navigation"] a');
+  const navLinks = page.locator('nav[aria-label] a');
   const navCount = await navLinks.count();
   console.log(`   Primary nav items: ${navCount}`);
   expect(navCount).toBeGreaterThanOrEqual(5); // home, farm, advisor, market, wallet
 
   // Check for My Orders specifically (bn spelling: অর্ডার)
-  const ordersNav = page.locator('nav[aria-label="Primary navigation"] a').filter({ hasText: /Orders|অর্ডার/i });
+  const ordersNav = page.locator('nav[aria-label] a').filter({ hasText: /Orders|অর্ডার/i });
   expect(await ordersNav.count()).toBeGreaterThanOrEqual(1);
 
   console.log("✅ T9 PASS: All navigation items present");

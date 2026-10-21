@@ -38,11 +38,41 @@ export default defineConfig({
         isMobile: true,
       },
     },
+    // Cross-engine smoke (Firefox, WebKit). Both run the same two journeys the
+    // Play-Store review exercises; the full suite stays on chromium only — a
+    // second and third full pass would add runner minutes, not signal, for a
+    // suite whose failures so far were layout logic rather than engine quirks.
+    // Viewport matches the chromium project so a smoke failure means the engine
+    // differs, not the layout.
+    {
+      name: "firefox",
+      testMatch: ["**/farmer-journey.spec.ts", "**/settings-account.spec.ts"],
+      use: {
+        ...devices["Desktop Firefox"],
+        viewport: { width: 390, height: 844 },
+        locale: "bn-BD",
+      },
+    },
+    {
+      name: "webkit",
+      testMatch: ["**/farmer-journey.spec.ts", "**/settings-account.spec.ts"],
+      use: {
+        ...devices["Desktop Safari"],
+        viewport: { width: 390, height: 844 },
+        locale: "bn-BD",
+      },
+    },
   ],
-  webServer: {
-    command: "npm run dev -- --port 5173 --strictPort",
-    url: "http://localhost:5173",
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  // When PLAYWRIGHT_BASE_URL is set the caller owns the server (CI's second,
+  // production-build pass points it at the `vite preview` instance on :4173).
+  // Starting the dev server in that case would be wrong twice over: the URL is
+  // not the dev server's, and the two servers would contend for nothing.
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: "npm run dev -- --port 5173 --strictPort",
+        url: "http://localhost:5173",
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
 });

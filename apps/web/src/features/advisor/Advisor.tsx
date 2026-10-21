@@ -62,7 +62,7 @@ export default function Advisor() {
     confidence?: number;
     low?: boolean;
     refs?: string[];
-    /** Provenance of the answer (A4-04/A2-04): which engine and KB version produced it. */
+    /** Provenance of the answer: which engine and KB version produced it.*/
     provider?: string;
     model?: string;
     kbVersion?: string;
@@ -86,7 +86,7 @@ export default function Advisor() {
 
   // Stored advisories. This is the only surface carrying row ids (the chat list
   // is local state and POST /ai/advisory returns no id), so the report-a-problem
-  // action (A7-07) attaches here.
+  // action attaches here.
   const historyRes = useResource<AdvisoryHistoryItem[]>("advisor-history", () => api<AdvisoryHistoryItem[]>("GET", "/ai/history"));
   const history = historyRes.data ?? [];
 
@@ -148,7 +148,7 @@ export default function Advisor() {
       fd.append("image", blob, "crop.jpg");
       await api("POST", "/disease/cases", fd);
       setUploadMsg(t("pendingReview", lang));
-      // The old code awaited loadCases(): that refetched exactly this resource.
+      // The old code awaited loadCases: that refetched exactly this resource.
       invalidate("advisor-cases");
     } catch (err) {
       setUploadMsg(mapError(err, lang));
@@ -164,7 +164,7 @@ export default function Advisor() {
   }
 
   /**
-   * Report-a-problem (A7-07): POSTs the farmer's reason for a stored answer.
+   * Report-a-problem: POSTs the farmer's reason for a stored answer.
    * The API overwrites a previous report (there is one feedback slot per row),
    * so a repeat submission is simply accepted again and confirmed with the same
    * success toast. The row is updated from the response, never optimistically.
@@ -213,8 +213,8 @@ export default function Advisor() {
           ))}
 
         {/* Cases: their own block — its skeleton while loading, and its own
-            error with retry (previously the failure was silent). The empty
-            state stays silent, as it was: the list is an optional extra. */}
+ error with retry (previously the failure was silent). The empty
+ state stays silent, as it was: the list is an optional extra.*/}
         <BlockError error={casesRes.error} retryLabel={t("retry", lang)} onRetry={() => void casesRes.reload()} />
 
         {casesRes.loading ? (
@@ -257,7 +257,7 @@ export default function Advisor() {
             </div>
           ) : (
             <div key={i} className="max-w-[90%] space-y-1">
-              {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike */}
+              {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike*/}
               <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-surface-subdued px-4 py-2.5 text-sm text-stone-800">{m.text}</div>
               {m.refs && m.refs.length > 0 && (
                 <ul className="space-y-0.5 px-1 text-xs text-stone-500">
@@ -270,13 +270,13 @@ export default function Advisor() {
               {m.confidence !== undefined && (
                 // Coarse support band, never a percentage: the score behind it
                 // is a keyword-retrieval heuristic, not a calibrated
-                // probability (AUD-108).
+                // probability.
                 <Badge tone={confidenceSupportKey(m.confidence ?? 0, m.low ?? false) === "lowConfidence" ? "warning" : "success"}>
                   {t(confidenceSupportKey(m.confidence ?? 0, m.low ?? false), lang)}
                 </Badge>
               )}
               {/* Which engine/mode answered and the KB version it was grounded in
-                  (A4-04 / A2-04) — a disclosure line, not a score. */}
+ — a disclosure line, not a score.*/}
               {m.kbVersion && (
                 <p className="px-1 text-[11px] text-stone-500">
                   {answerModeLabel(m.provider ?? "", m.model ?? "", lang)} · {t("advisorKbVersion", lang, { v: shortKbVersion(m.kbVersion) })}
@@ -306,8 +306,8 @@ export default function Advisor() {
       </form>
 
       {/* Stored advisories — the only surface with row ids, so report-a-problem
-          (A7-07) lives on these rows. Collapsed by default; the chat stays the
-          primary surface. */}
+ lives on these rows. Collapsed by default; the chat stays the
+ primary surface.*/}
       <section className="space-y-2">
         <Button
           variant="ghost"
@@ -370,7 +370,7 @@ export default function Advisor() {
           <p className="mt-2 line-clamp-2 text-xs text-stone-500">{reporting.question}</p>
           <textarea
             aria-label={t("reportReasonLabel", lang)}
-            className="mt-3 w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
+            className="mt-3 w-full rounded-input border border-surface-border-strong bg-surface-card px-3 py-2.5 text-base text-stone-800 shadow-sm placeholder:text-stone-500 focus:border-brand-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
             rows={4}
             maxLength={500}
             value={reason}

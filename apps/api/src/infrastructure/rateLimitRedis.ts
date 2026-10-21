@@ -12,7 +12,7 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
     maxRetriesPerRequest: 2,
   });
   client.on("error", () => {
-    // Never crash the app over limiter connectivity — increment() fails open.
+    // Never crash the app over limiter connectivity — increment fails open.
   });
 
   let configuredWindowMs = windowMs;
@@ -36,7 +36,7 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
   }
 
   return {
-    async init(options: Options) {
+    init(options: Options) {
       if (!configuredWindowMs && options.windowMs) configuredWindowMs = options.windowMs;
     },
     async increment(key: string): Promise<ClientRateLimitInfo> {

@@ -34,7 +34,7 @@ const TABLES = [
   "Farm", "Plot", "CropCycle", "FarmEvent",
   "AdvisoryQuery", "DiseaseCase", "Product", "Cart", "CartItem", "Order", "OrderItem",
   "Service", "ServiceProvider", "Booking", "ProcurementOrder", "Payment", "Wallet",
-  "WalletTransaction", "MembershipPlan", "Notification", "AuditLog", "AiUsageLog",
+  "WalletTransaction", "MembershipPlan", "Notification", "AuditLog", "AiUsageLog", "LoginAttempt", "StoredObject", "PendingUploadPurge",
 ];
 
 const t0 = Date.now();

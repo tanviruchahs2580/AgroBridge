@@ -14,7 +14,7 @@ function messageFrom(options: unknown): string | null {
 }
 
 /**
- * 429 response used by every rate limiter (H-07).
+ * 429 response used by every rate limiter.
  *
  * express-rate-limit's built-in serializer emits a bare object without the
  * API's request id, so a throttled caller could not be correlated to a log

@@ -1,10 +1,10 @@
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { ReactNode } from "react";
 import { motionTokens } from "../lib/motion";
 
 export function PageTransition({ children }: { children: ReactNode }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
@@ -12,6 +12,6 @@ export function PageTransition({ children }: { children: ReactNode }) {
       className="motion-reduce:transform-none motion-reduce:transition-none"
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

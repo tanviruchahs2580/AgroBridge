@@ -54,6 +54,12 @@ const KNOWN = new Set([
 const args = [
   "--no-progress",
   "--no-exit-code",
+  // One knip configuration in the repo: the remediation branch's knip.jsonc
+  // (it already declares the contract-mirror, operator-run and web-surface
+  // exemptions this gate's baseline documents). Pinned explicitly because a
+  // second config file (the pre-merge knip.json) would make bare-knip
+  // resolution ordering decide the findings.
+  "--config", "knip.jsonc",
   "--exclude", "types,nsTypes,exports,nsExports",
   "--reporter", "json",
 ];

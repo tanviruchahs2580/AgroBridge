@@ -36,7 +36,7 @@ export function formatDateTime(d: DateInput, lang: Lang): string {
 
 /**
  * Locale tag for `toLocaleDateString`-style calls in components — one source
- * (DATE_LOCALE) instead of `lang === "bn" ? "bn-BD" : "en-GB"` at each call site.
+ * (DATE_LOCALE) instead of `lang === "bn" ? "bn-BD": "en-GB"` at each call site.
  */
 export function dateLocale(lang: Lang): string {
   return DATE_LOCALE[lang];

@@ -9,6 +9,7 @@ import { ok } from "../../middleware/context.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const servicesRouter = Router();
 export const bookingsRouter = Router();
@@ -41,7 +42,7 @@ const serviceBody = z.object({
 
 servicesRouter.post("/", requirePermission("services:manage"), validate({ body: serviceBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const body: z.infer<typeof serviceBody> = req.body;
+    const body = req.body as z.infer<typeof serviceBody>;
     ok(res, await prisma.service.create({
       data: {
         code: body.code,
@@ -67,7 +68,7 @@ const providerBody = z.object({
 
 servicesRouter.post("/providers", requirePermission("providers:manage"), validate({ body: providerBody }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const body: z.infer<typeof providerBody> = req.body;
+    const body = req.body as z.infer<typeof providerBody>;
     ok(res, await prisma.serviceProvider.create({
       data: {
         serviceId: body.serviceId,
@@ -101,7 +102,7 @@ bookingsRouter.post(
       const b = req.body as z.infer<typeof bookingCreate>;
 
       // Ownership + validation
-      const farm = await prisma.farm.findFirst({ where: { id: b.farmId, ownerId: req.auth!.userId } });
+      const farm = await prisma.farm.findFirst({ where: { id: b.farmId, ownerId: getAuth(req).userId } });
       if (!farm) throw forbidden("Farm not found in your account");
       const service = await prisma.service.findFirst({ where: { id: b.serviceId, isActive: true } });
       if (!service) throw notFound("Service");
@@ -115,7 +116,7 @@ bookingsRouter.post(
       }
 
       // Pricing rule: only PER_BIGHA is area-scaled. Every other unit
-      // (PER_MAUND / PER_SAMPLE / PER_VISIT / PER_HOUR / ...) describes a flat
+      // (PER_MAUND / PER_SAMPLE / PER_VISIT / PER_HOUR /...) describes a flat
       // job, so it is charged once (×1) regardless of the booked area.
       const isPerBigha = service.priceUnit.toUpperCase() === "PER_BIGHA";
       const estimatedPricePaisa = isPerBigha
@@ -125,7 +126,7 @@ bookingsRouter.post(
       const booking = await prisma.booking.create({
         data: {
           bookingNo: refNo("BKG"),
-          userId: req.auth!.userId,
+          userId: getAuth(req).userId,
           farmId: farm.id,
           serviceId: service.id,
           providerId,
@@ -137,7 +138,7 @@ bookingsRouter.post(
       });
 
       await notify({
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
         type: "BOOKING",
         titleBn: `সার্ভিস বুকিং গৃহীত (${booking.bookingNo})`,
         titleEn: `Service booking received (${booking.bookingNo})`,
@@ -156,9 +157,9 @@ bookingsRouter.post(
 
 bookingsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(req.auth!.role);
+    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
     const bookings = await prisma.booking.findMany({
-      where: isPrivileged ? {} : { userId: req.auth!.userId },
+      where: isPrivileged ? {} : { userId: getAuth(req).userId },
       include: { service: { select: { name: true, category: true } }, farm: { select: { name: true } }, provider: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -173,11 +174,11 @@ const assignSchema = z.object({ providerId: z.string().min(5) });
 
 bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validate({ body: assignSchema }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const booking = await prisma.booking.findUnique({ where: { id: req.params.id! } });
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
     if (!booking) throw notFound("Booking");
     // A territory-scoped assigner may only act on bookings from their region.
     await assertSubjectInRegion(
-      await actorRegionLimit(req.auth!.userId, req.auth!.role),
+      await actorRegionLimit(getAuth(req).userId, getAuth(req).role),
       booking.userId,
       "This booking"
     );
@@ -186,7 +187,7 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
     // Provider assignment must respect the same service-compatibility rule as
     // booking creation — a provider registered for another service is not
     // assignable here.
-    const provider = await prisma.serviceProvider.findFirst({ where: { id: req.body.providerId as string, serviceId: booking.serviceId, isActive: true } });
+    const provider = await prisma.serviceProvider.findFirst({ where: { id: (req.body as { providerId: string }).providerId, serviceId: booking.serviceId, isActive: true } });
     if (!provider) throw unprocessable("Selected provider does not serve this service");
 
     const updated = await prisma.booking.update({
@@ -212,21 +213,21 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
 
 bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]), reason: z.string().max(300).optional() }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const role = req.auth!.role;
+    const role = getAuth(req).role;
     const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
     // SERVICE_PROVIDER may only transition bookings assigned to THEM.
     let scope: Record<string, unknown>;
     if (isAdmin) {
       scope = {};
     } else if (role === "SERVICE_PROVIDER") {
-      const provider = await prisma.serviceProvider.findFirst({ where: { userId: req.auth!.userId }, select: { id: true } });
+      const provider = await prisma.serviceProvider.findFirst({ where: { userId: getAuth(req).userId }, select: { id: true } });
       if (!provider) throw notFound("Provider profile");
       scope = { providerId: provider.id };
     } else {
-      scope = { userId: req.auth!.userId };
+      scope = { userId: getAuth(req).userId };
     }
     const booking = await prisma.booking.findFirst({
-      where: { id: req.params.id!, ...scope },
+      where: { id: req.params.id, ...scope },
     });
     if (!booking) throw notFound("Booking");
 
@@ -288,7 +289,7 @@ const ratingSchema = z.object({ rating: z.number().int().min(1).max(5) });
 
 bookingsRouter.post("/:id/rating", validate({ body: ratingSchema }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const booking = await prisma.booking.findFirst({ where: { id: req.params.id!, userId: req.auth!.userId } });
+    const booking = await prisma.booking.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!booking) throw forbidden("Not your booking");
     if (booking.status !== "COMPLETED") throw unprocessable("Only completed bookings can be rated");
     if (booking.rating != null) throw conflict("Booking already rated");

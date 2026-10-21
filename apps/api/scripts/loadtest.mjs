@@ -6,6 +6,15 @@
  */
 import autocannon from "autocannon";
 
+/**
+ * Release thresholds. The runner exits non-zero when a phase breaches one, so
+ * this is a gate rather than a printout: a read endpoint at p95 > 500 ms or an
+ * error rate above 1% on the seeded local stack fails. Production numbers need
+ * the owner-agreed load profile (docs/performance.md) — these floors are for
+ * the local docker PostgreSQL profile.
+ */
+const THRESHOLDS = { p95Ms: 500, errorRatePct: 1 };
+
 const BASE = process.env.BASE_URL ?? "http://localhost:4000";
 
 async function login() {
@@ -27,6 +36,15 @@ function run(name, opts) {
         `p50=${String(l.p50).padStart(4)}ms p90=${String(l.p90).padStart(4)}ms p99=${String(l.p99).padStart(5)}ms ` +
         `errors=${result.errors} non2xx=${result.non2xx}`
       );
+      if (l.p95 > THRESHOLDS.p95Ms) {
+        console.error(`THRESHOLD: ${name} p95 ${l.p95}ms exceeds ${THRESHOLDS.p95Ms}ms`);
+        process.exitCode = 1;
+      }
+      const errPct = result.requests.total > 0 ? (result.non2xx / result.requests.total) * 100 : 0;
+      if (errPct > THRESHOLDS.errorRatePct) {
+        console.error(`THRESHOLD: ${name} non-2xx ${errPct.toFixed(2)}% exceeds ${THRESHOLDS.errorRatePct}%`);
+        process.exitCode = 1;
+      }
       resolve(result);
     });
     process.stdout.write(`Running ${name} ... \n`);

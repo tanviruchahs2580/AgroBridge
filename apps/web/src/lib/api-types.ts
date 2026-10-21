@@ -24,7 +24,7 @@
  *    update the fixture, this file, and the API consumer together — in one PR.
  */
 
-/** `ok()` envelope from apps/api/src/middleware/context.ts. */
+/** `ok` envelope from apps/api/src/middleware/context.ts. */
 export interface ApiEnvelope<T> {
   ok: true;
   data: T;
@@ -32,7 +32,7 @@ export interface ApiEnvelope<T> {
 }
 
 /**
- * `fail()` envelope. Note: rate-limiter rejections (429) return only
+ * `fail` envelope. Note: rate-limiter rejections (429) return only
  * `{ ok:false, error:{ code, message } }` — no `requestId`, no `reference`.
  */
 export interface ApiErrorEnvelope {
@@ -211,7 +211,7 @@ export interface WeatherAdvisory {
 
 /**
  * GET /weather — `data`. `forecast` length is provider-dependent (3 requested).
- * The route adds a provenance envelope (AUD-126 / A5-01): `source`, `fetchedAt`
+ * The route adds a provenance envelope: `source`, `fetchedAt`
  * and `cached` describe the payload, and `current.observedAt` is the provider's
  * own observation instant **when the provider reports one** — absent, never
  * fabricated, otherwise.
@@ -282,11 +282,17 @@ export interface AdvisoryHistoryItem {
   confidence: number;
   lowConfidenceFlag: boolean;
   groundedRefs: string[];
-  /** Latest report reason, or null when the answer was never reported (A7-07). */
+  /** Latest report reason, or null when the answer was never reported. */
   feedbackReason: string | null;
   /** When the report was recorded; null when never reported. A repeat report overwrites. */
   feedbackAt: IsoDateTime | null;
   createdAt: IsoDateTime;
+  /** KB corpus version that grounded the stored answer (null on older rows).*/
+  kbVersion: string | null;
+  /** Hosted prompt-template version when one was used; null offline or on older rows.*/
+  promptVersion: string | null;
+  /** X-Request-Id of the request that produced the answer (null on older rows).*/
+  requestId: string | null;
 }
 
 /** POST /ai/history/:id/feedback — `data`. Own rows only; a repeat report overwrites the first. */

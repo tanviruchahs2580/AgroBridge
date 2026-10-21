@@ -38,9 +38,6 @@ export default defineConfig({
         "src/providers/storage/s3.ts",
         "src/providers/storage/types.ts",
         "src/providers/weather/openweather.ts",
-        // Refactor scaffolds not wired to routes — excluded until integration tests land (keeps 75% gate green)
-        "src/modules/authorization/**",
-        "src/providers/health.ts",
       ],
       thresholds: {
         statements: 75,

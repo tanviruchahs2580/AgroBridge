@@ -20,7 +20,7 @@ weatherRouter.get(
       // Cache hits reuse the ORIGINAL successful payload and its fetch time.
       // A provider failure takes the `catch` path below and is NEVER served
       // from a cache entry: an outage must surface as an honest error, not as
-      // stale "current" weather presented as fresh (A5-05 / AUD-126). Risks
+      // stale "current" weather presented as fresh. Risks
       // are re-derived per request because they depend on the caller's
       // cropStage, which is not part of the cached payload.
       //
@@ -37,7 +37,7 @@ weatherRouter.get(
         return { current, forecast, fetchedAt: Date.now() };
       });
 
-      // Provenance envelope (AUD-126 / A5-01): where the data came from, when
+      // Provenance envelope: where the data came from, when
       // it was fetched from the provider, the provider's own observation time
       // (when reported), and whether this response was a cache reuse.
       const current = { ...payload.current, source: payload.current.source ?? provider.name };
@@ -54,7 +54,7 @@ weatherRouter.get(
     } catch (e) {
       // Provider failures currently surface as a generic server error (the
       // adapter throws plain Errors) — never a fake forecast. Mapping them to
-      // an explicit 502/503 is tracked as a deferred improvement (AUD-117).
+      // an explicit 502/503 is tracked as a deferred improvement.
       next(e);
     }
   }

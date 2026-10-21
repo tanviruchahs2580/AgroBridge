@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * AgroBridge — Web Docs Generator (Phase 11, e2e counterpart)
- * Generates/updates docs/generated/test-status.md from REAL Playwright output.
+ * Generates/updates docs/qa/test-status.md from REAL Playwright output.
  * No hand-typed numbers; all counts come from `playwright test --reporter=json`
  * (and `playwright test --list --reporter=json` as fallback).
  *
@@ -11,7 +11,7 @@
  *
  * Env:
  *   PLAYWRIGHT_ARGS  extra args (e.g. "--project=chromium --reporter=json")
- *   OUTPUT_MD        override output path (default: docs/generated/test-status.md)
+ *   OUTPUT_MD        override output path (default: docs/qa/test-status.md)
  *   PLAYWRIGHT_BASE_URL  forwarded to Playwright (default: http://localhost:5173)
  *
  * Requirements:
@@ -49,7 +49,7 @@ function findRepoRoot(start) {
 const REPO_ROOT = findRepoRoot(__dirname);
 const WEB_DIR = resolve(REPO_ROOT, "apps/web");
 const OUTPUT_MD =
-  process.env.OUTPUT_MD || resolve(REPO_ROOT, "docs/generated/test-status.md");
+  process.env.OUTPUT_MD || resolve(REPO_ROOT, "docs/qa/test-status.md");
 const TMP_JSON = resolve(WEB_DIR, ".tmp-playwright-report.json");
 const TMP_LIST_JSON = resolve(WEB_DIR, ".tmp-playwright-list.json");
 

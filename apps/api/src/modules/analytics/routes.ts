@@ -3,11 +3,12 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 /**
  * First-party product analytics. Lightweight, privacy-respecting (no PII in
  * props), self-hosted — feeds the activation/funnel KPIs defined in the
- * Phase 1 product audit without shipping user data to third parties.
+ *product audit without shipping user data to third parties.
  */
 export const analyticsRouter = Router();
 
@@ -24,7 +25,7 @@ const eventSchema = z.object({
     .max(20),
 });
 
-analyticsRouter.post("/events", requireAuth, validate({ body: eventSchema }), async (req, res, next) => {
+analyticsRouter.post("/events", requireAuth, validate({ body: eventSchema }), (req, res, next) => {
   try {
     const { events } = req.body as z.infer<typeof eventSchema>;
     // Fire-and-forget ingest: never block the caller on analytics.
@@ -32,7 +33,7 @@ analyticsRouter.post("/events", requireAuth, validate({ body: eventSchema }), as
       .createMany({
         data: events.map((e) => ({
           name: e.name,
-          userId: req.auth!.userId,
+          userId: getAuth(req).userId,
           sessionId: e.sessionId,
           propsStr: e.props ? JSON.stringify(e.props) : undefined,
         })),

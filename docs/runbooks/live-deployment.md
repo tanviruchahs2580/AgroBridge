@@ -10,7 +10,7 @@
 
 The previous API host (Render `agrobridge-vfbz.onrender.com`) is **retired**: its free
 PostgreSQL instance expired (~30-day free-tier limit) and took login down (see
-`ENTERPRISE_CERTIFICATION_STATUS.md` addendum 2026-10-15). The Render dashboard service is
+archived `ENTERPRISE_CERTIFICATION_STATUS.md` addendum 2026-10-15 (docs/archive/2026-10-19/)). The Render dashboard service is
 not part of the live path anymore.
 
 ## API deploy pipeline (Vercel, prebuilt)
@@ -53,7 +53,8 @@ root's `.vercel/project.json` is linked to `agro-bridge-api`; the web is linked 
 | `WEB_ORIGIN` | comma list: `https://agrobridge-web.vercel.app`, `https://agro-bridge-api-vantiq-systems.vercel.app`, `https://localhost`, `capacitor://localhost`, `http://localhost:5173`, `http://localhost:4173`, `http://localhost:8080` |
 | `NODE_ENV` | `production` |
 | `ALLOW_PLACEHOLDER_PROVIDERS` | `1` (mock weather / offline AI / sandbox SMS — accepted placeholders) |
-| `UPLOAD_BASE_DIR` | `/tmp/agrobridge-uploads` (serverless writable dir; local default is repo `uploads/`) |
+| `STORAGE_PROVIDER` | `db` — uploads are stored in the database (`StoredObject`) and survive redeploys. Use `s3` + `S3_*` when object storage is provisioned; `local` is rejected by the deploy gate because instance-disk uploads are lost on redeploy (ADR-0012). |
+| `UPLOAD_BASE_DIR` | only meaningful with `STORAGE_PROVIDER=local` (serverless writable dir, e.g. `/tmp/agrobridge-uploads`); irrelevant to `db`/`s3` |
 
 ## Database migrations
 

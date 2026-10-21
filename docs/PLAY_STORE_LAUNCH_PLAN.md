@@ -5,8 +5,8 @@
 credentials), the app is submittable to Google Play with no remaining launch blocker.
 **Method:** three independent read-only audits (web frontend, API/security, Android/Play
 release path) at the commit above, each finding verified against source before being
-entered here. Prior rounds (1–9) are recorded in `EXECUTION_LOG.md` and
-`ENTERPRISE_CERTIFICATION_STATUS.md`; this register supersedes those where they conflict.
+entered here. Prior rounds (1–9) are recorded in the archived logs (docs/archive/2026-10-19/) and
+the archived status summary; this register supersedes those where they conflict.
 
 Legend — **B** = hard Google Play submission blocker · **P0/P1/P2/P3** = severity for the
 running product (P0 broken/unsafe for users, P1 significant, P2 quality, P3 polish).

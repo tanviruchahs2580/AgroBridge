@@ -26,6 +26,7 @@ export class OfflineAgroEngine implements AiProvider {
     this.kbVersion = opts.corpus ? kbVersionOf(opts.corpus) : KB_VERSION;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- async by provider contract (hosted engines await I/O); the offline engine retrieves synchronously.
   async ask(question: string, ctx: AiContext): Promise<AiAnswer> {
     const q = question.toLowerCase();
     const { entries, scores } = retrieve(q, ctx.cropName, this.opts.corpus);
