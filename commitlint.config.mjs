@@ -8,5 +8,9 @@ export default {
     "subject-empty": [2, "never"],
     "subject-case": [0], // Bangla subjects and file paths are legitimate
     "body-max-line-length": [0], // evidence receipts wrap however the evidence needs
+    // GitHub's squash-merge generates the message footer (commit list + co-author
+    // lines) whose lines can exceed 100 — that footer is machine-generated, not
+    // hand-written, so the length rule must not reject the merge.
+    "footer-max-line-length": [0],
   },
 };
