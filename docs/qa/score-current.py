@@ -158,12 +158,35 @@ DELTAS = {
     # (docs/performance.md "10 000 concurrent users", docs/operations.md, env keys
     # MAX_CONCURRENT_REQUESTS / DATABASE_CONNECTION_LIMIT / SERVER_MAX_CONNECTIONS /
     # BCRYPT_POOL_SIZE). Still no maxDuration/region contract, so 1 (partial), not 2.
-    "ARC-06": (1, "pool/instance knobs + measured 10k table + tuning guidance (docs/operations.md, docs/performance.md); maxDuration/region contract still absent"),
+    # Pool/instance contract doc (docs/runtime-contract.md) + knobs + measured 10k
+    # table. Still no maxDuration/region declaration for the serverless function
+    # itself — 2, not 3.
+    "ARC-06": (2, "runtime contract written (docs/runtime-contract.md: region/maxDuration/pool/timeouts/instance protections) + knobs + measured 10k table"),
     # The 2026-10-21 round ran the drill the parameter asks for: a 10 000-session
     # simulation plus overload bursts with DB-pool sampling (results in
     # qa-evidence, numbers committed in docs/performance.md and the 10k report).
     # Ad-hoc and unautomated — 1, not 2.
     "QAT-07": (1, "10k-session simulation + overload/connection-pressure drills executed and reported (docs/qa/2026-10-21-load-10k-and-condition-report.md); no automated soak/threshold in CI"),
+    # STRIDE per boundary with controls mapped to enforcing artifacts; residuals
+    # (uploads durability AUD-165, KB sourcing AUD-127/128) named — not all
+    # residuals have dedicated tests, so 2, not 3.
+    "ARC-16": (2, "STRIDE threat model with controls mapped to tests (docs/threat-model.md); residuals named"),
+    # Traceparent correlation + X-Trace-Id echo (hardening-round11) and SLOs
+    # proposed (docs/slo.md); no vendor tracing/external sink — 2, not 3.
+    "ARC-14": (2, "traceparent↔X-Trace-Id correlation (hardening-round11) + SLOs proposed (docs/slo.md); no vendor tracing/sink"),
+    # SLOs/SLIs with budgets and enforcement (docs/slo.md); owner sign-off pending —
+    # 2, exactly per the parameter's own definition.
+    "OPS-01": (2, "SLIs/SLOs + error budgets proposed with enforcement (docs/slo.md); owner sign-off pending"),
+    # Blocking set widened on this branch: migration drift, knip (dead files/deps),
+    # jscpd duplication and the licence allow-list are enforced via ci.yml
+    # quality-gates, alongside commitlint on the push range. Still missing from the
+    # wave-2 blocking set: Lighthouse category budgets (the workflow remains
+    # dispatch-only) and a diff-coverage gate — so 2 stands until those land.
+    "CID-06": (2, "blocking gates widened this branch: migration drift + knip + jscpd + licence allow-list + commitlint; Lighthouse budgets and diff-coverage still outstanding"),
+    # Wallet reconciliation is now executed by a committed test (clean → 0
+    # mismatches; corrupted → exactly one named mismatch, apps/api/tests/
+    # wallet-reconciliation.test.ts) as well as by the ops schedule.
+    "API-03": (3, "reconciliation exercised by a committed test running the operator script on the suite database (clean → 0; corrupted → exactly 1 named mismatch)"),
 }
 
 # The wave-0 audit deducted one point per false/unverifiable claim left in docs.
