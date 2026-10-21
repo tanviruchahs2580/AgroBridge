@@ -9,6 +9,16 @@ module.exports = {
     // (AgroBridge, Play, PostgreSQL, AAB) are this repository's voice; the
     // conventional preset's subject-case rule would reject them.
     "subject-case": [0],
+    // GitHub squash merges turn the PR description into a single-paragraph
+    // commit body, and conventional-commits-parser classifies a lone trailing
+    // paragraph as the footer — so any prose line longer than 100 characters
+    // trips body/footer-max-line-length on main regardless of how the PR was
+    // written. The contract this gate enforces is conventional SUBJECTS (type,
+    // scope, casing, subject length); body/footer wrapping is prose style, not
+    // a testable property, and failing main's push range for it produced the
+    // false red in PR #54's post-merge run.
+    "body-max-line-length": [0],
+    "footer-max-line-length": [0],
   },
   // One commit in PR #40's range carries an invalid scope separator
   // ("feat(web)+ci:"). Fixing its message needs a force-push of a published
