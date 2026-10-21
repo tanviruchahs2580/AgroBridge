@@ -19,6 +19,10 @@ server.headersTimeout = env.HEADERS_TIMEOUT_MS;
 // Applied only when configured: the default (Node's 5 s) is the safe ordering in
 // front of a 60 s load-balancer idle timeout. See config/env.ts.
 if (env.KEEPALIVE_TIMEOUT_MS !== undefined) server.keepAliveTimeout = env.KEEPALIVE_TIMEOUT_MS;
+// Opt-in for the same reason: a limit belongs where the fronting proxy is sized,
+// because Node's accept queue is exactly the place F-05 measured as invisible to
+// the in-process guard. Node's default is no limit.
+if (env.SERVER_MAX_CONNECTIONS !== undefined) server.maxConnections = env.SERVER_MAX_CONNECTIONS;
 logger.info(
   { requestTimeoutMs: server.requestTimeout, headersTimeoutMs: server.headersTimeout, keepAliveTimeoutMs: server.keepAliveTimeout },
   "http timeouts configured",

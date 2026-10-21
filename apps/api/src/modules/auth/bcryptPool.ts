@@ -82,6 +82,17 @@ const DUMMY_PASSWORD_SOURCE = "agrobridge-dummy-password-timing-equalizer";
 /** Production cost factor; the test profile hashes at 4 for speed (unchanged rule). */
 const COST = isTest ? 4 : 12;
 
+/**
+ * The factor every hash this process writes is and was produced at — the single
+ * place that knows it. Login compares a stored hash's own embedded cost against
+ * this value to decide whether to upgrade it transparently (F-02 option c): if an
+ * operator ever lowers the factor under load, accounts heal back to the higher
+ * cost as their owners return, instead of the weakening becoming permanent.
+ */
+export function bcryptCost(): number {
+  return COST;
+}
+
 interface Job {
   id: number;
   kind: "hash" | "compare";

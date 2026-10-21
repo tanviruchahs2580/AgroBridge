@@ -98,6 +98,17 @@ const schema = z.object({
    * arriving.
    */
   KEEPALIVE_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  /**
+   * Cap on simultaneous open connections to this instance. Unset keeps Node's no
+   * limit. The one measured fact that makes this worth having: at 10 000
+   * concurrent sessions the in-process admission guard capped the requests it
+   * *handled* (256) while excess demand piled up in the socket accept backlog
+   * invisible to it, so callers still waited ~50 s. Refusing the connection at the
+   * edge — a faster failure than any application-level response — is what a proxy
+   * or load balancer is there to do, and this is that knob inside the process.
+   * Set it well above legitimate concurrency, next to whatever sits in front.
+   */
+  SERVER_MAX_CONNECTIONS: z.coerce.number().int().positive().optional(),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)

@@ -13,8 +13,8 @@ import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { logger } from "../../lib/logger.js";
 import { normalizeBdPhone } from "../../shared/utils/phone.js";
-import { verifyPasswordAgainst } from "./password.js";
-import { bcryptHash } from "./bcryptPool.js";
+import { verifyPasswordAgainst, storedHashIsCheaper } from "./password.js";
+import { bcryptCost, bcryptHash } from "./bcryptPool.js";
 import { accountOrIpKey, userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
@@ -198,6 +198,24 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
     // the module's dummy hash, before the same 401.
     const valid = await verifyPasswordAgainst(user?.passwordHash ?? null, password);
     if (!user || !valid || user.status !== "ACTIVE") throw invalidCredentials();
+
+    // Transparent cost upgrade (F-02 option c): a hash stored at a cheaper
+    // factor than this environment uses is re-hashed at the current one, so an
+    // emergency cost reduction under load — or imported legacy rows — heals
+    // itself as owners return rather than weakening their accounts permanently.
+    // Best-effort by design: the caller authenticated successfully, so a failed
+    // upgrade must not turn login into a failure, and a lower-cost hash simply
+    // remains until the next login. Current-cost hashes (all of them today) take
+    // the same path and pay nothing.
+    if (storedHashIsCheaper(user.passwordHash, bcryptCost())) {
+      try {
+        const upgraded = await bcryptHash(password);
+        await prisma.user.update({ where: { id: user.id }, data: { passwordHash: upgraded } });
+        logger.info({ requestId: req.requestId, userId: user.id }, "password hash upgraded to the current cost");
+      } catch (e) {
+        logger.warn({ requestId: req.requestId, userId: user.id, err: (e as Error).message }, "password cost upgrade deferred — retried on next login");
+      }
+    }
 
     await audit({ actorId: user.id, action: "AUTH_LOGIN", entityType: "User", entityId: user.id, ip: req.ip });
 
