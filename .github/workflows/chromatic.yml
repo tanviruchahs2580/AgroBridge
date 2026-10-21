@@ -21,7 +21,7 @@ jobs:
         with: { node-version-file: .nvmrc }
       - run: npm ci
         working-directory: apps/web
-      - uses: chromaui/action@1cfa065cbdab28f6ca3afaeb3d761383076a35aa # pin v11
+      - uses: chromaui/action@e50abd573c8a789526f165fec06137a7c21d7299 # pin v18.13.0
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           workingDir: apps/web
