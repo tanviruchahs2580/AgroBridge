@@ -124,3 +124,30 @@ python .audit/v2/score-v2.py                    # the unmerged branch's 63.13 (l
 gh pr view 40 --json state,mergedAt             # the controlling fact
 npm run typecheck && npm run test --workspace apps/api   # 373/373 on PG17 (see docs/testing.md)
 ```
+
+### Third pass (same day, CI/CD + live deployment)
+
+All remaining terminology/protocol rows landed: TODO gate + ERD freshness + route-matrix
+`--check` added to the CI quality job (CID-06/documented partial), route matrix mount-prefix
+documentation, CONTRIBUTING code conventions (SLP-05), traceability (QAT-01), STRIDE and
+SLOs/runtime-contract pages (ARC-16/OPS-01/ARC-06 partials — docs).
+
+Live pipeline + deploy, executed per repo SOP:
+1. Branch `fix/audit-10k-hardening` pushed → PR #49 → full CI 13/13 green (CodeQL alert fix
+   included: the two PR-new alerts were in this branch's own new scripts and were fixed).
+2. Squash-merged → main `98447ee` → the first main CI run failed on
+   `footer-max-line-length` (GitHub's squash-generated footer) → PR #51 disabled the rule for
+   machine-generated footers → merged → the main CI run then passed ALL jobs.
+3. Production deploys via Vercel Git integration (both projects) completed; the API was also
+   CLI-deployed from the local tree (`vercel --prod`), after which the git-integration build
+   took over the alias.
+4. Live verification on the production URL: `/health.commit` = `2e37cd9` (== current main
+   tip, full sync), `/ready` db:true + schema chain latest, `X-Trace-Id` echo live,
+   `Invalid-idempotency-key` guard live, membership plans public 200, register → login →
+   products → cart → checkout (order ORD-20261021-8EC14E4F CONFIRMED) and an idempotent
+   REPLAY proving the same order twice — all executed against the production database.
+
+Final V2-catalog score on this state: **40.32** (docs/qa/score-current.py). The remaining gap
+to the 63.13 remediation branch and beyond stays as documented: PR #40 merge decision plus
+the owner/human-bound rows (Agronomy KB sourcing, UAT, legal, device passes, production
+infra).
