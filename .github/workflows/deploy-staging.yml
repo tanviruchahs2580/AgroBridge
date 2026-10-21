@@ -46,7 +46,7 @@ jobs:
 
       - name: Extract metadata (api)
         id: meta-api
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # pin v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/api
           tags: |
@@ -64,7 +64,7 @@ jobs:
 
       - name: Extract metadata (web)
         id: meta-web
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # pin v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/web
           tags: |
