@@ -43,6 +43,10 @@ const KNOWN = new Set([
   // URL-built import (knip resolves it as an unused *file* while flagging the
   // specifier as unresolved; both sides of the same artifact).
   "apps/api/prisma/postgres/schema.prisma",
+  // One-shot ARC-15 receipt generator, run manually in the QA container
+  // (receipt committed at docs/qa/query-plan-receipt.md). Not an npm entry by
+  // design — it requires the suite database. Removal trigger: ARC-15 closes.
+  "apps/api/scripts/query-receipts.mjs",
   // Component workbench used during UI development; not shipped.
   "apps/web/src/components/ui.stories.tsx",
 ]);

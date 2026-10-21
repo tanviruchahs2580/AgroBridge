@@ -96,6 +96,12 @@ jobs:
         run: npx commitlint --from=HEAD~1 --to=HEAD
       - name: migration drift
         run: node scripts/drift-check.mjs
+      - name: no TODO/FIXME markers in shipped source
+        run: node scripts/todo-gate.mjs
+      - name: generated docs freshness (route matrix + ERD)
+        run: |
+          node apps/api/scripts/route-matrix.mjs --check
+          node apps/api/scripts/gen-erd.mjs --check
 
 
   api-postgres:
