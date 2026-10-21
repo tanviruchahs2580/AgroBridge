@@ -22,7 +22,10 @@
     "lint:dup": "npx jscpd --silent --threshold 3 apps/api/src apps/web/src",
     "lint:licences": "node scripts/licence-gate.mjs",
     "lint:commits": "npx commitlint --from=HEAD~5 --to=HEAD",
-    "drift:check": "node scripts/drift-check.mjs"
+    "drift:check": "node scripts/drift-check.mjs",
+    "lint:todos": "node scripts/todo-gate.mjs",
+    "check:route-matrix": "node apps/api/scripts/route-matrix.mjs --check",
+    "check:erd": "node apps/api/scripts/gen-erd.mjs --check"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0"

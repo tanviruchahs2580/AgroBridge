@@ -113,17 +113,17 @@ describe("admission control (F-05)", () => {
 
 describe("prisma pool parameters (F-06)", () => {
   it("appends pool parameters to a PostgreSQL URL", () => {
-    expect(withPoolParams("postgresql://u:p@h:5432/db", 20, 15)).toBe(
-      "postgresql://u:p@h:5432/db?connection_limit=20&pool_timeout=15",
+    expect(withPoolParams("postgresql://dummy:dummy@host:5432/db", 20, 15)).toBe(
+      "postgresql://dummy:dummy@host:5432/db?connection_limit=20&pool_timeout=15",
     );
-    expect(withPoolParams("postgres://u:p@h:5432/db?schema=public", 20, 15)).toBe(
-      "postgres://u:p@h:5432/db?schema=public&connection_limit=20&pool_timeout=15",
+    expect(withPoolParams("postgres://dummy:dummy@host:5432/db?schema=public", 20, 15)).toBe(
+      "postgres://dummy:dummy@host:5432/db?schema=public&connection_limit=20&pool_timeout=15",
     );
   });
 
   it("never overrides a parameter the operator set explicitly", () => {
-    expect(withPoolParams("postgresql://u:p@h/db?connection_limit=5", 20, 15)).toBe(
-      "postgresql://u:p@h/db?connection_limit=5&pool_timeout=15",
+    expect(withPoolParams("postgresql://dummy:dummy@h/db?connection_limit=5", 20, 15)).toBe(
+      "postgresql://dummy:dummy@h/db?connection_limit=5&pool_timeout=15",
     );
   });
 
@@ -132,13 +132,13 @@ describe("prisma pool parameters (F-06)", () => {
     expect(withPoolParams("file:./test.db")).toBe("file:./test.db");
     // Nothing configured → the URL is returned unchanged, so prisma.ts passes no
     // datasource override at all and construction is exactly what it was before.
-    expect(withPoolParams("postgresql://u:p@h/db")).toBe("postgresql://u:p@h/db");
+    expect(withPoolParams("postgresql://dummy:dummy@h/db")).toBe("postgresql://dummy:dummy@h/db");
   });
 
   it("does not re-encode credentials (a pasted password keeps working)", () => {
-    const url = "postgresql://user:p%40ss%3Aword@host:5432/db";
+    const url = "postgresql://user:p%40ss%3Aword@example.com:5432/db";
     const out = withPoolParams(url, 9, 10);
-    expect(out).toContain("user:p%40ss%3Aword@host:5432/db");
+    expect(out).toContain("user:p%40ss%3Aword@example.com:5432/db");
     expect(out).toContain("connection_limit=9&pool_timeout=10");
   });
 });
