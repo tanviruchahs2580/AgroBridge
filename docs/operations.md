@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: on-call, alerting and capacity tuning · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Operations
 
 ## Health & readiness

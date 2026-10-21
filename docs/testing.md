@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: how the suites run on both database profiles · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Testing
 
 Framework: **Vitest + Supertest** against the real Express app. Two database profiles:

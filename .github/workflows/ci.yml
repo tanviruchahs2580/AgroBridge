@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -66,6 +66,38 @@ jobs:
           DATABASE_URL: postgresql://agrobridge:ci-password@localhost:5432/agrobridge
         run: npx prisma validate --schema prisma/schema.postgresql.prisma
 
+  # Dependency/dead-code/duplication/licence/migration-drift gates (CID-06, SLP-02).
+  # Each threshold sits at the measured baseline with a document ratchet: knip
+  # findings are gated through scripts/knip-gate.mjs (reviewed baseline + reasons),
+  # jscpd fails above 3% (measured 2.47%), the licence allow-list is
+  # scripts/licence-allowlist.json, and the migration chain must reproduce the
+  # schema with zero drift (scripts/drift-check.mjs).
+  quality-gates:
+    name: Quality gates — knip / jscpd / licences / commitlint / migration drift
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+        with:
+          # commitlint checks the commit range, not just the checkout SHA
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: knip (dead files, unused deps, unlisted)
+        run: node scripts/knip-gate.mjs
+      - name: jscpd duplication <= 3%
+        run: npx jscpd --silent --threshold 3 apps/api/src apps/web/src
+      - name: licence allow-list
+        run: node scripts/licence-gate.mjs
+      - name: commitlint (push range)
+        run: npx commitlint --from=HEAD~1 --to=HEAD
+      - name: migration drift
+        run: node scripts/drift-check.mjs
+
+
   api-postgres:
     name: API — Integration & Concurrency (PostgreSQL 17)
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
@@ -93,7 +125,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -118,7 +150,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -173,7 +205,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies (all workspaces)
@@ -241,7 +273,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # pin v6.1.0
@@ -420,7 +452,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: npm audit — production deps must be clean (fail on moderate+)

@@ -18,6 +18,18 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
   const incoming = (req.headers["x-request-id"] as string) || "";
   req.requestId = /^[\x20-\x7e]{1,128}$/.test(incoming) ? incoming : randomUUID();
   res.setHeader("X-Request-Id", req.requestId);
+
+  // W3C trace-context correlation (ARC-14 partial): echo a valid `traceparent`'s
+  // trace id back as `X-Trace-Id`. Hex-validated, so a vendor header cannot inject
+  // characters into responses; `requestId` is untouched — the two identifiers
+  // deliberately coexist (a request is one hop, a trace is the whole journey).
+  const tpMatch = /^00-([0-9a-f]{32})-([0-9a-f]{16})-01$/.exec(
+    ((req.headers["traceparent"] as string) || "").trim().toLowerCase()
+  );
+  if (tpMatch) {
+    res.setHeader("X-Trace-Id", tpMatch[1]);
+    (req as Request & { traceId?: string }).traceId = tpMatch[1];
+  }
   next();
 }
 

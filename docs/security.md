@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: Implemented security controls and the audit findings behind them · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Security
 
 ## Implemented controls

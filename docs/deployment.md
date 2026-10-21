@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: deployment, edge policy and operational knobs · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Deployment Runbook
 
 ## Environments

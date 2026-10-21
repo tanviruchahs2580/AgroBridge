@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: route reference for the mounted API surface — regenerated inventory in docs/qa/route-matrix.md · last-verified: 2026-10-21 @ 6550a9a -->
+
 # API Reference (v1)
 
 Base URL: `/api/v1` · JSON envelope:

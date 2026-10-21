@@ -1,0 +1,6 @@
+{
+  "threshold": 3,
+  "min-tokens": 50,
+  "reporters": ["consoleFull"],
+  "ignore": ["**/node_modules/**", "**/coverage/**", "**/dist/**", "**/*.min.*"]
+}

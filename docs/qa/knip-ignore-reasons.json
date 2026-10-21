@@ -1,0 +1,5 @@
+{
+  "public/sw.js": "one-time kill-switch service worker; referenced from ADR-0008 and app deployment docs, intentionally not imported",
+  "scripts/capture-*.mjs|prod-*.mjs|gen-docs.mjs|shot-current.mjs|e2e-verify.mjs": "operator capture/smoke scripts invoked manually (documented in docs/testing.md and qa run receipts)",
+  ".storybook|src/components/ui.stories.tsx": "component workbench used during UI development, not shipped"
+}

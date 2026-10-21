@@ -1,9 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
+import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { badRequest, notFound, forbidden, conflict } from "../../shared/errors/index.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { audit } from "../../middleware/audit.js";
@@ -15,6 +18,19 @@ import { notify } from "../../providers/notification/service.js";
 
 export const diseaseRouter = Router();
 diseaseRouter.use(requireAuth);
+
+// Uploads are an 8 MB-per-call storage/DoS surface (SEC-11: "upload no limiter"):
+// a per-route cap bounded to the caller, not skipped in tests.
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  // Memory store; a Redis shared store arrives with REDIS_URL wiring (SEC-11).
+  handler: rateLimitHandler,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many uploads. Please try again later." } },
+});
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_SIZE_BYTES = 8 * 1024 * 1024;
@@ -28,6 +44,7 @@ const MAX_SIZE_BYTES = 8 * 1024 * 1024;
  */
 diseaseRouter.post(
   "/cases",
+  uploadLimiter,
   async (req, res, next) => {
     try {
       const contentType = req.headers["content-type"] ?? "";

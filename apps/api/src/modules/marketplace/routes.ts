@@ -15,6 +15,7 @@ import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -353,7 +354,12 @@ async function findOrderByClientKey(userId: string, clientRequestId: string) {
  * for its lifetime; a key later re-used for a DIFFERENT cart still replays the
  * FIRST order created under it (the client must mint a fresh key per checkout).
  */
-ordersRouter.post("/checkout", checkoutLimiter, validate({ body: checkoutBodySchema }), async (req, res, next) => {
+ordersRouter.post(
+  "/checkout",
+  checkoutLimiter,
+  acceptIdempotencyKeyHeader,
+  validate({ body: checkoutBodySchema }),
+  async (req, res, next) => {
   try {
     const { clientRequestId, ...shipping } = req.body as z.infer<typeof checkoutSchema>;
 

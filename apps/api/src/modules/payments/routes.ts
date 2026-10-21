@@ -18,6 +18,7 @@ import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 
@@ -106,6 +107,7 @@ export async function applyPaymentSideEffects(
 paymentsRouter.post(
   "/intent",
   financialLimiter,
+  acceptIdempotencyKeyHeader,
   validate({
     body: z.object({
       purposeType: z.enum(["ORDER", "BOOKING", "PROCUREMENT", "MEMBERSHIP"]),
@@ -193,6 +195,15 @@ paymentsRouter.post(
         });
       });
       paymentIntentsTotal.inc({ purpose_type: purposeType, status: "created" });
+      // Intent creation is a security-adjacent money event: without a trail row,
+      // a stale-intent supersede (right above) is invisible to the audit log.
+      await audit({
+        actorId: userId,
+        action: "PAYMENT_INTENT_CREATED",
+        entityType: "Payment",
+        entityId: payment.id,
+        meta: { purposeType, purposeId, amountPaisa, providerMode: env.PAYMENT_PROVIDER },
+      });
 
       ok(res, {
         paymentId: payment.id,

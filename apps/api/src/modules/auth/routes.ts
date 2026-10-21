@@ -197,7 +197,19 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
     // too (B-05): an unknown phone still pays one bcrypt comparison, against
     // the module's dummy hash, before the same 401.
     const valid = await verifyPasswordAgainst(user?.passwordHash ?? null, password);
-    if (!user || !valid || user.status !== "ACTIVE") throw invalidCredentials();
+    if (!user || !valid || user.status !== "ACTIVE") {
+      // Failure event for the security trail (SEC-12: failed-login audit events).
+      // Write-amplification is bounded by the same limiters that bound the attempts
+      // themselves: per-account login limiter plus the global per-credential cap.
+      await audit({
+        action: "AUTH_LOGIN_FAILED",
+        entityType: "User",
+        entityId: user?.id ?? undefined,
+        ip: req.ip,
+        meta: { phone, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
+      }).catch(() => undefined);
+      throw invalidCredentials();
+    }
 
     // Transparent cost upgrade (F-02 option c): a hash stored at a cheaper
     // factor than this environment uses is re-hashed at the current one, so an

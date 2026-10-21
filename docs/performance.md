@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: measured load behaviour and byte budgets (with caveats) · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Performance
 
 What this document is: the measured bounds this repository enforces and one recorded local
