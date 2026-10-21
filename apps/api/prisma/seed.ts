@@ -69,6 +69,26 @@ async function main() {
   });
   await prisma.farmerProfile.update({ where: { userId: farmer.id }, data: { userId: farmer.id } }).catch(() => undefined);
 
+  // Opening balance needs a matching CREDIT ledger row, or the wallet invariant
+  // (SUM(CREDIT) - SUM(DEBIT) == balancePaisa, enforced by
+  // scripts/reconcile-wallet.mjs and now by a committed test) fails for the demo
+  // seed out of the box.
+  const seededFarmer = await prisma.user.findUnique({ where: { phone: "01700000002" }, select: { id: true } });
+  if (seededFarmer) {
+    const seededWallet = await prisma.wallet.findUnique({ where: { userId: seededFarmer.id } });
+    if (seededWallet && seededWallet.balancePaisa > 0) {
+      await prisma.walletTransaction.create({
+        data: {
+          userId: seededFarmer.id,
+          direction: "CREDIT",
+          amountPaisa: seededWallet.balancePaisa,
+          balanceAfterPaisa: seededWallet.balancePaisa,
+          reason: "Opening balance (demo seed)",
+        },
+      });
+    }
+  }
+
   const dealer = await prisma.user.upsert({
     where: { phone: "01700000003" },
     update: {},

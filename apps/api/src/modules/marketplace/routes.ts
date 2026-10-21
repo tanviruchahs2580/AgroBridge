@@ -14,6 +14,8 @@ import { refNo } from "../../lib/money.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -21,16 +23,15 @@ export const ordersRouter = Router();
 
 // Financial hot paths get stricter limits than the global one.
 // Keyed by authenticated user (falls back to IP pre-auth) so one busy user
-// cannot exhaust another's quota behind a shared NAT/127.0.0.1.
-const byUserOrIp = (req: { auth?: { userId?: string }; ip?: string }) =>
-  req.auth?.userId ?? req.ip ?? "unknown";
+// cannot exhaust another's quota behind a shared NAT/127.0.0.1. Shared helper
+// since F-04 collapsed four copies of this rule into rateLimitKeys.ts.
 const checkoutStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
 const checkoutLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 40,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: byUserOrIp,
+  keyGenerator: userOrIpKey,
   store: checkoutStore,
   // Standardized 429 envelope (H-07): requestId + ok:false/error shape, with
   // this limiter's own message preserved.
@@ -353,7 +354,12 @@ async function findOrderByClientKey(userId: string, clientRequestId: string) {
  * for its lifetime; a key later re-used for a DIFFERENT cart still replays the
  * FIRST order created under it (the client must mint a fresh key per checkout).
  */
-ordersRouter.post("/checkout", checkoutLimiter, validate({ body: checkoutBodySchema }), async (req, res, next) => {
+ordersRouter.post(
+  "/checkout",
+  checkoutLimiter,
+  acceptIdempotencyKeyHeader,
+  validate({ body: checkoutBodySchema }),
+  async (req, res, next) => {
   try {
     const { clientRequestId, ...shipping } = req.body as z.infer<typeof checkoutSchema>;
 

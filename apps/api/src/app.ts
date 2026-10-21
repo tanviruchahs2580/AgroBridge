@@ -46,6 +46,8 @@ import { analyticsRouter } from "./modules/analytics/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
 import { metricsGuard } from "./middleware/metricsGuard.js";
 import { rateLimitHandler } from "./middleware/rateLimitResponse.js";
+import { credentialOrIpKey } from "./middleware/rateLimitKeys.js";
+import { admissionControl } from "./middleware/admission.js";
 
 export function createApp() {
   const app = express();
@@ -77,12 +79,21 @@ export function createApp() {
     limit: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    // Keyed per credential when one is presented, per address otherwise (F-04):
+    // an IP-keyed global quota is a quota shared with every stranger behind the
+    // same carrier NAT, which is how a village loses its marketplace to the
+    // first few users of the window. See middleware/rateLimitKeys.ts.
+    keyGenerator: credentialOrIpKey,
     // Relaxed in local dev; enforced in test/staging/production.
     skip: () => process.env.NODE_ENV === "development",
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
     handler: rateLimitHandler,
   });
+  // Capacity guard before the quota guard (F-05): a shed request must cost no
+  // rate-limit budget, and `/api/`-only mounting keeps /health, /ready and
+  // /metrics answerable while the instance is at its ceiling.
+  app.use("/api/", admissionControl);
   app.use("/api/", globalLimiter);
 
   // ---- Observability endpoints ----

@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: measured load behaviour and byte budgets (with caveats) · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Performance
 
 What this document is: the measured bounds this repository enforces and one recorded local
@@ -53,9 +55,68 @@ network, SQLite file DB, no container overhead, no concurrent traffic), with aut
 same CPU as the server. It says nothing about production: the deployed topology is a Vercel
 serverless function in front of Neon PostgreSQL (`docs/runbooks/live-deployment.md`), which adds
 network, TLS, cold starts and a real database. The one conclusion that survives the caveat is
-structural: **bcrypt login is CPU-bound at ~11 verifications/s per core**, three orders of
-magnitude below the read paths — expected for bcrypt at its configured cost factor, and the
-reason login is rate-limited separately (`LOGIN_RATE_LIMIT_MAX`).
+structural: **bcrypt login is CPU-bound**, three orders of magnitude below the read paths —
+expected for bcrypt at its configured cost factor, and the reason login is rate-limited
+separately (`LOGIN_RATE_LIMIT_MAX`).
+
+**Login throughput changed on 2026-10-21 (F-02).** The table above was measured while every
+comparison ran on the event loop, where login throughput was capped by the latency of a single
+cost-12 hash no matter how many cores the machine had. Hashes now run in the `BCRYPT_POOL_SIZE`
+worker threads, so throughput scales with the pool rather than with one core — and, the reason for
+the change, a login burst no longer starves every other request in the process. Measured on the
+10k-audit sandbox (100 simultaneous logins at cost 12, one production-mode instance):
+
+| | on the event loop | worker pool |
+|---|---|---|
+| wall time | 77.2 s | **24.6 s** |
+| p50 | 46 416 ms | **24 227 ms** |
+| throughput | 1.3 logins/s | **4.1 logins/s** |
+| server CPU | 106 % (one core) | **395 % (four cores)** |
+| event-loop lag p99 | 5 792 ms | **21 ms** |
+| unrelated `/health` during the burst | 74 000 ms | **p99 35 ms, max 665 ms** |
+
+A single-instance login ceiling remains: the pool multiplies capacity, it does not remove the cost.
+Size the pool, and shape login bursts, before promising capacity — see
+`docs/qa/2026-10-21-load-10k-and-condition-report.md` §5.2.
+
+## 10 000 concurrent users — same box, before and after the fixes
+
+The environment description this section exists for (see §No capacity claims below): one
+production-mode instance of this repository's own image (`docker/api.Dockerfile`, Node 22
+container, `NODE_ENV=production`), one PostgreSQL 17 container, both on one workstation with 4
+physical cores — **not** the production topology, which is a serverless function in front of Neon
+and additionally carries network, TLS, cold starts and a real database. Both runs use the same
+generator, the same 10 000 synthetic farmer identities, one per virtual user, and the same model:
+240 s ramp, 240 s hold, human think time of 10–30 s (a closed loop, so offered load is ≈500 req/s
+against one instance). Before = `100910` requests measured on commit `0ce54b5` before the fixes;
+after = 122 793 on the remediated build (branch `fix/audit-10k-hardening`).
+
+| | before the fixes | after |
+|---|---|---|
+| requests issued | 100 910 | 122 793 |
+| 2xx served (useful) | 55 127 (115/s) | 38 286 (80/s) |
+| `503 OVERLOADED` refused | — | 49 585 |
+| p50 | 9 721 ms | **3 056 ms** |
+| p95 | 56 617 ms | 54 780 ms |
+| over 30 s (client timeout) | **44.1 %** | **28.3 %** |
+| AI quota rejections (`429`) | 1 063 | **0** |
+| 5xx | 0 | 0 |
+
+Read this table the way it was measured, which is narrower than it looks:
+
+- **What the fixes bought, without qualification:** the wrongness is gone. An AI feature that
+  rejected 1 063 of exactly 30-per-hour-quota requests now answers every account that asks; a page
+  admitting work at an unbounded 5 700 in-flight requests now answers at 1 141 peak and refuses the
+  surplus outright; p50 for a served request fell 3×.
+- **What no in-process fix can buy:** useful 2xx *fell* from 115/s to 80/s, because the load
+  offered (≈500 req/s) exceeds what one instance of this size can serve (~150–250 req/s) and the
+  guard now says so instead of queueing it. Before the guard, the surplus got served *slowly*
+  (44 % past 30 s); after, it gets refused quickly and retried. Serving 10 000 concurrent users on
+  this profile is a capacity problem — more instances, sized against `docs/operations.md`'s
+  measured numbers — not a code problem, and the remaining p95 (≈55 s for the backlog) is exactly
+  that gap made visible.
+- **The database was never the limit here:** 11 connections peak, 1–3 queries active, by
+  `pg_stat_activity` sampled through both runs.
 
 ## No capacity claims
 

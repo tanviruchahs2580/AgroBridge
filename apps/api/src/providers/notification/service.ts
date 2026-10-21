@@ -22,8 +22,34 @@ export async function notify(params: {
   refId?: string;
 }) {
   try {
-    const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { langPref: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { langPref: true, notificationPrefs: true },
+    });
     const lang = user?.langPref === "en" ? "en" : "bn";
+
+    // Honours the user's stored notification preferences (AUD-141): the flags the
+    // preferences route persists — {critical, action, info} — decide whether this
+    // category is delivered at all, not just how /notifications renders them.
+    // Absent/unparseable preferences mean deliver (the historical behaviour); a
+    // flag explicitly set to false opts that category out. This is a deliberate
+    // silent skip, not an error state, so a preference can never fail a
+    // business flow that wanted to notify.
+    const prefsRaw = user?.notificationPrefs;
+    if (prefsRaw) {
+      try {
+        const prefs = JSON.parse(prefsRaw) as { critical?: boolean; action?: boolean; info?: boolean };
+        const category = (params.category ?? "INFO") as "CRITICAL" | "ACTION" | "INFO";
+        const key = category.toLowerCase() as "critical" | "action" | "info";
+        if (prefs[key] === false) {
+          logger.info({ userId: params.userId, category }, "notification suppressed by user preference");
+          return;
+        }
+      } catch {
+        /* unparseable prefs fall back to deliver */
+      }
+    }
+
     await prisma.notification.create({
       data: {
         userId: params.userId,

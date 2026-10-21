@@ -92,12 +92,36 @@ not evidence.
 - Major bumps (React, express-rate-limit, bcryptjs, a `@types/node` across a runtime major) are
   migrations, not chores: branch, compatibility test, rollback note.
 
+## Code conventions
+
+Money, phones, time and text are the four places this codebase has repeatedly
+gotten it wrong, so these are the conventions reviewers check first:
+
+- **Money is integer paisa.** `_paisa` suffix on the field. Never float, never
+  `Number(amount)`. Formatting happens at render time (`apps/web/src/lib/format.ts`).
+- **Phones are canonicalised at the edge**: `normalizeBdPhone` on register/login,
+  stored canonically, compared as one string (`tests/phone-normalisation`).
+- **Timestamps are UTC in the database**; Dhaka-date bucketing goes through
+  `apps/api/src/day.ts` (never naive `toLocaleDateString` on the server).
+- **User-visible copy is bn/en paired via i18n keys** (`apps/web/src/lib/i18n.ts`);
+  inline language ternaries fail `npm run i18n:check`.
+- **Errors go through `ok()`/`fail()`** so every response carries the envelope
+  and request id; a raw `res.json` in a route is a review flag.
+- **Modules don't import modules** (ARC-02, enforced by eslint
+  `no-restricted-imports`); shared code belongs in `src/lib`, `src/shared`,
+  `src/middleware`, `src/infrastructure` or `src/providers`.
+- **Size/complexity guardrails** run as eslint warnings (`max-lines` 650,
+  `complexity` 18) because the five largest route files hold one bounded context
+  each. Known over-limit exceptions, with reasons and removal triggers:
+  `admin/routes.ts`, `payments/routes.ts`, `marketplace/routes.ts`,
+  `farms/routes.ts`, `journey-*` suites (fixture-heavy by intent).
+
 ## Local gates before pushing
 
 ```bash
 npm run typecheck                                   # api + web
-npm run test --workspace apps/api                   # 150 tests (1 PG-gated skip by design)
-npm run test:unit --workspace apps/web              # 108 unit tests
+npm run test --workspace apps/api                   # API suite (counts move every round — see docs/testing.md)
+npm run test:unit --workspace apps/web              # web unit tests (ibid.)
 npm run lint --workspace apps/web
 npm run build --workspace apps/web                  # includes typecheck
 cd apps/api && npx eslint src tests

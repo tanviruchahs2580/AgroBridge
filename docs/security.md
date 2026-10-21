@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: Implemented security controls and the audit findings behind them · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Security
 
 ## Implemented controls
@@ -11,14 +13,28 @@
   BD phone numbers, UUID checks for sync ids).
 - **Injection prevention:** Prisma parameterized queries only; no raw string SQL from user input.
 - **Upload safety:** MIME allowlist + magic-byte sniffing + 8 MB cap for disease images.
-- **Rate limiting:** per-route policy, all fail-closed except the store itself: login 20/15 min per
-  IP (uniform error path, no enumeration), OTP request 5/h, OTP verify 20/h, registration 10/h,
-  checkout 40/15 min, financial actions 20/h per user, AI 30/h per user, plus a global cap.
+- **Rate limiting:** per-route policy, all fail-closed except the store itself. Quotas are keyed to
+  the *caller*, not to the address they share (`middleware/rateLimitKeys.ts`): the global cap on a
+  truncated SHA-256 of the presented bearer token (address for anonymous callers), login/refresh on
+  the normalised account named in the body, authenticated routes on the authenticated user. The
+  keying is a security property as much as a fairness one — an address-keyed quota lets one
+  neighbour spend another user's brute-force budget, and it is what silently broke the AI feature
+  for every user behind a carrier-NAT address (10 000 distinct users shared one exhausted quota).
+  Policy: login 20/15 min per **account** (uniform error path, no enumeration), OTP request 5/h per
+  user, OTP verify 20/h per user, registration 10/h per **address** (deliberate: it is the
+  mass-account-creation control and the key would otherwise be attacker-supplied), checkout
+  40/15 min per user, financial actions 20/h per user, AI 30/h per user, plus a global cap.
   **Known limitation:** windows are shared only when `REDIS_URL` is set. On serverless without
   Redis each instance counts its own window, so the effective quota is *(instances × limit)* —
   the Redis store also fails **open** during an outage. Both are accepted for now (an outage must
   not take the API down with it) and are reported on `/ready` as `limiterStore` so the state is
   visible in production instead of assumed. Provisioning Redis is tracked as a P1 reliability item.
+- **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
+  `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
+  immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare
+  500. Before this, one instance under a 10 000-user spike held requests for minutes — 44 % exceeded
+  30 s and it never recovered. Refusal is bounded and honest, and `/health`, `/ready` and `/metrics`
+  are deliberately outside the guard so an operator can still see the instance drowning.
 - **Headers/CORS:** helmet on the API (CSP, HSTS, COOP/CORP, `nosniff`, `X-Frame-Options`,
   `Referrer-Policy: no-referrer`, no `x-powered-by`); CORS restricted to the `WEB_ORIGIN` list;
   request IDs propagated via `X-Request-Id` and echoed into every error envelope.

@@ -2,7 +2,7 @@
   "name": "agrobridge",
   "version": "1.4.0",
   "private": true,
-  "description": "AgroBridge — Integrated Digital Agriculture Platform (Green Soil. Smart Farm. Secure Future.)",
+  "description": "AgroBridge \u2014 Integrated Digital Agriculture Platform (Green Soil. Smart Farm. Secure Future.)",
   "license": "MIT",
   "workspaces": [
     "apps/*"
@@ -17,7 +17,15 @@
     "test": "npm run test --workspace apps/api",
     "typecheck": "npm run typecheck --workspace apps/api && npm run typecheck --workspace apps/web",
     "db:migrate": "npm run db:migrate --workspace apps/api",
-    "db:seed": "npm run db:seed --workspace apps/api"
+    "db:seed": "npm run db:seed --workspace apps/api",
+    "lint:knip": "node scripts/knip-gate.mjs",
+    "lint:dup": "npx jscpd --silent --threshold 3 apps/api/src apps/web/src",
+    "lint:licences": "node scripts/licence-gate.mjs",
+    "lint:commits": "npx commitlint --from=HEAD~5 --to=HEAD",
+    "drift:check": "node scripts/drift-check.mjs",
+    "lint:todos": "node scripts/todo-gate.mjs",
+    "check:route-matrix": "node apps/api/scripts/route-matrix.mjs --check",
+    "check:erd": "node apps/api/scripts/gen-erd.mjs --check"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0"
@@ -28,7 +36,11 @@
     "source-map-js": "^1.2.2"
   },
   "devDependencies": {
-    "prisma": "^6.5.0"
+    "prisma": "^6.5.0",
+    "knip": "6.42.0",
+    "jscpd": "5.4.1",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.0"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,

@@ -84,8 +84,8 @@ npm run test:e2e --workspace apps/web    # Playwright browser suite (needs the l
 ```
 
 The counts move with every round — on 2026-10-18 the API suite ran **341 passed / 1 skipped on
-SQLite and 342 passed on PostgreSQL 17** (web unit: 159, web e2e: 30; take the number from your
-own run rather than from this file).
+SQLite and 373 on PostgreSQL 17** (web unit: 166, 2026-10-21; web e2e and all counts move with
+every round — take the number from your own run rather than from this file).
 
 The suite provisions a clean SQLite test database via migrations (+demo seed) and exercises the
 real HTTP API end-to-end: registration→login→profile, farm→plot→crop, weather advisories, AI agent

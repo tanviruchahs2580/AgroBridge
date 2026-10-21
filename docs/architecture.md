@@ -55,4 +55,94 @@ SQLite (dev/test) ⇄ PostgreSQL (production target)
 - [0008 — Static site edge policy](adr/0008-static-site-edge-policy.md) (CSP by hash, cache split, build-time preflight)
 - [0009 — Offline sync policy](adr/0009-offline-sync-policy.md) (write queue allow-list, `clientUuid` idempotency, owner-scoped replay)
 - [0010 — Job durability](adr/0010-job-durability.md) (no server-side queue; Redis is rate-limit-only and fails open)
-- [0011 — Data retention](adr/0011-data-retention.md) (financial rows retained; deletion anonymizes identity)
+- [0012 — Payment provider dual mode](adr/0012-payment-provider-dual-mode.md) (sandbox/live boundary is fail-closed and labelled)
+- [0013 — Hosting topology](adr/0013-hosting-topology-single-region.md) (Vercel + Neon, one region, runtime contract page)
+- [0014 — Contract strategy](adr/0014-contract-strategy-and-generated-inventories.md) (generated inventories, response contract, idempotency keys)
+- [0015 — Row-level security](adr/0015-row-level-security.md) (app-level scoping enforced now; RLS prototype planned)
+- [0016 — OpenAPI deferral and doc freshness](adr/0016-openapi-deferral-and-doc-freshness.md) (generated docs with freshness gates)
+
+## System shape (C4-style container view)
+
+The farmer's phone (`apps/web`, a Vite-built SPA served as a static site and
+wrapped by Capacitor for Android) talks to one stateless API. The API is the
+only process that touches the database; every component boundary below is drawn
+exactly where a network hop or a process boundary exists in the deployed system
+(source of truth: `docker-compose.yml`, `vercel.json`, `apps/api/src/app.ts`).
+
+```mermaid
+flowchart LR
+  farmer["Farmer
+(Android WebView / browser)"]
+  edge["Static site + edge policy
+(vercel.json: CSP, cache split)"]
+  api["AgroBridge API
+(Node, stateless, one instance = one pool)"]
+  db[("PostgreSQL / SQLite
+database files")]
+  wx["Weather provider
+(mock | openweather, 8s timeout)"]
+  ai["AI provider
+(offline KB | OpenAI-compatible)"]
+  pay["Payment provider
+(sandbox | SSLCommerz, signature-checked webhooks)"]
+  sms["SMS provider
+(sandbox | none)"]
+
+  farmer -->|"HTTPS + Bearer/refresh"| edge
+  edge -->|"/api/v1/*"| api
+  api -->|read/write, pool=cpus*2+1| db
+  api -->|getCurrent/forecast, 8s timeout, cache 600s| wx
+  api -->|grounded advisory, budget-capped| ai
+  api -->|payment sessions + webhook verify| pay
+  api -.->|sandbox only, logged| sms
+```
+
+*Caption:* boundaries as deployed — `apps/web` static host → `/api/v1/*` on the
+API → `src/lib/prisma.ts` (single PrismaClient, pool per `DATABASE_CONNECTION_LIMIT`)
+→ the databases; provider adapters are `apps/api/src/providers/*`, each an
+independent failure domain (timeouts set per adapter,
+`tests/ai-provider-adapter`, `weather-*` suites).
+
+## Login and refresh (sequence)
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as API (auth/routes)
+  participant D as Database
+  C->>A: POST /auth/login {phone, password}
+  A->>D: user by phone (normalised B-06)
+  A->>A: one bcrypt compare (dummy hash when unknown — B-05)
+  A->>D: refresh token row (sha256, expires)
+  A-->>C: accessToken(15m, HS256) + refreshToken
+  C->>A: POST /auth/refresh {refreshToken}
+  A->>D: find by sha256 + claim revocation (updateMany ... revokedAt null)
+  note over A,D: claim lost → reuse detected → whole token family revoked
+  A-->>C: new accessToken + rotated refreshToken
+```
+
+*Caption:* the rotation claim runs `updateMany` filtered on `revokedAt: null`
+and demands `count === 1` (`apps/api/src/modules/auth/routes.ts` /refresh) — the
+reuse-detection that `journey-auth` tests exercise.
+
+## Checkout idempotency (sequence)
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as API (orders/checkout)
+  participant D as Database (transaction)
+  C->>A: POST /orders/checkout {clientRequestId or Idempotency-Key}
+  A->>D: find order by (userId, clientRequestId)
+  alt replay
+    A-->>C: the SAME order (200), no stock move
+  else first submit
+    A->>D: BEGIN; create order; decrement stock (conditional updateMany); COMMIT
+    A-->>C: 201 order
+  end
+```
+
+*Caption:* the duplicate-submit safety lives in
+`ordersRouter.post("/checkout")` (`apps/api/src/modules/marketplace/routes.ts`):
+the replay lookup runs before any stock change; parallel submits are pinned by
+`checkout-idempotency` and `payment-confirm-webhook-race` suites.

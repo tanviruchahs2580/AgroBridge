@@ -138,6 +138,41 @@ export function onOnlineStatusChange(cb: OnlineCb): () => void {
 // wakeBackend() pre-warms the function, but keep the ceiling above worst case.
 const REQUEST_TIMEOUT_MS = 45_000;
 const GET_RETRY_DELAYS_MS = [300, 900];
+/** Ceiling for a server-directed wait, so one bad header cannot stall the UI. */
+const RETRY_DELAY_CAP_MS = 10_000;
+
+/**
+ * Retry delay, jittered (F-08).
+ *
+ * The schedule used to be exactly 300 ms then 900 ms. Every client that failed
+ * at the same moment — which is what happens when a server degrades, because
+ * they all failed for the same reason at the same time — then retried at the same
+ * moment, and the retries arrived as three synchronised waves that kept the
+ * dependency overloaded. Widening each delay to [0.5x, 1.5x] spreads those waves
+ * at no cost to the individual user.
+ *
+ * `Retry-After` wins when the server sent one: a 503 from the concurrency guard
+ * (F-05) or a saturated database pool knows how long to wait better than a fixed
+ * schedule does. The value is capped so a malformed or hostile header cannot
+ * freeze the request path.
+ *
+ * Exported for the retry tests: asserting the delay bounds is deterministic,
+ * while asserting end-to-end timing through a mocked fetch is not.
+ */
+export function retryDelayMs(attempt: number, res?: Response): number {
+  const base = GET_RETRY_DELAYS_MS[attempt] ?? GET_RETRY_DELAYS_MS[GET_RETRY_DELAYS_MS.length - 1]!;
+  const header = res?.headers?.get?.("Retry-After") ?? null;
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, RETRY_DELAY_CAP_MS) + Math.random() * 250;
+    const at = Date.parse(header); // HTTP-date form
+    if (!Number.isNaN(at)) {
+      const delta = at - Date.now();
+      if (delta > 0) return Math.min(delta, RETRY_DELAY_CAP_MS) + Math.random() * 250;
+    }
+  }
+  return base * (0.5 + Math.random());
+}
 
 class NetworkError extends Error {
   constructor(public timedOut: boolean, message: string) {
@@ -196,7 +231,7 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-/** GET-only retry on network errors/timeouts/5xx with exponential backoff. Never retries 4xx.
+/** GET-only retry on network errors/timeouts/5xx with jittered backoff. Never retries 4xx.
  *  Attempts share one `requestId` — they are the same logical request. */
 async function performWithRetry(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
   const isGet = method.toUpperCase() === "GET";
@@ -206,13 +241,13 @@ async function performWithRetry(method: string, path: string, body: unknown, req
       res = await rawRequest(method, path, body, requestId);
     } catch (err) {
       if (isGet && attempt < GET_RETRY_DELAYS_MS.length && err instanceof NetworkError) {
-        await sleep(GET_RETRY_DELAYS_MS[attempt]);
+        await sleep(retryDelayMs(attempt));
         continue;
       }
       throw err;
     }
     if (isGet && attempt < GET_RETRY_DELAYS_MS.length && res.status >= 500) {
-      await sleep(GET_RETRY_DELAYS_MS[attempt]);
+      await sleep(retryDelayMs(attempt, res));
       continue;
     }
     return res;

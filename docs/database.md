@@ -1,3 +1,5 @@
+<!-- owner: @tanviruchahs2580 · purpose: data model, roles and schema-chain expectations · last-verified: 2026-10-21 @ 6550a9a -->
+
 # Database
 
 ## Engine strategy

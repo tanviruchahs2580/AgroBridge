@@ -10,3 +10,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+
+  # docker/ holds the api + web Dockerfiles and the compose pull chain
+  - package-ecosystem: docker
+    directory: "/docker"
+    schedule:
+      interval: weekly

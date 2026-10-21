@@ -109,9 +109,11 @@ describe("POST /ai/history/:id/feedback", () => {
   });
 
   /**
-   * Runs LAST in this file: it deliberately exhausts the per-IP hourly AI
-   * advisory limiter (30/h, same approach as security-matrix.test.ts). Every
-   * advisory call after this point in the file would be throttled.
+   * Runs LAST in this file: it deliberately exhausts this account's hourly AI
+   * advisory budget (F-03 keys the limiter per authenticated user, so the
+   * registration above is what makes the budget finite — see
+   * rate-limit-keys.test.ts for the cross-account regression). Every advisory
+   * call after this point in the file would be throttled.
    */
   it("429 from the AI limiter carries the standard envelope with the request id", async () => {
     const f = await registerFarmer();
