@@ -15,10 +15,19 @@ export default defineConfig({
    * Revisit only when the suite gets its own per-worker database.
    */
   workers: 1,
-  retries: 0,
-  // list for the console, html for the artifact CI uploads on failure
-  // (AUD-119: trace was "on-first-retry" while retries are 0, so no trace
-  // could EVER be produced — a failing run left nothing to diagnose with).
+  /**
+   * CI-only retry budget (local runs still fail fast). Each of these two
+   * failures happened once, on identical content, inside otherwise-green runs:
+   * webkit's journey timed out on the post-login navigation (PR #54's
+   * post-merge run) and chromium's axe scan of the signed-in routes (PR #60).
+   * A single jittered step in a 42-spec, 5-browser, single-worker suite was
+   * turning false reds on main at retry-unaware odds; two retries keep a
+   * genuine regression red while absorbing the observed one-off class.
+   */
+  retries: process.env.CI ? 2 : 0,
+  // html for the artifact CI uploads on failure; traces are retained on
+  // failure, which with a CI retry budget means a spec that fails all
+  // attempts still comes out diagnosable.
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     // 127.0.0.1, not localhost: on Windows `localhost` resolves to IPv6 ::1
