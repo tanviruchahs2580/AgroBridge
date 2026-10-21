@@ -40,7 +40,8 @@ describe("account deletion completion (B-24)", () => {
 
     const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
     expect(del.status).toBe(200);
-    expect(del.body.data).toEqual({ deleted: true });
+    // Honest completion report: the single upload was purged, none pending.
+    expect(del.body.data).toEqual({ deleted: true, uploads: { purged: 1, pendingPurge: 0 } });
 
     // Photo bytes are gone from the uploads dir.
     expect(existsSync(storedFile)).toBe(false);

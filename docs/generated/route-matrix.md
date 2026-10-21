@@ -5,7 +5,7 @@ and the `quality-gates` CI job. `auth` values: `requireAuth`, `requirePermission
 `requireAuth (file-level use on …)` (module declares `router.use(requireAuth)` for that router),
 or `PUBLIC` (rate-limited and validated, but unauthenticated by design — see docs/api.md).
 
-Total: 65 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":9,"PUBLIC":5,"requirePermission:disease:review":1,"requireAuth (file-level use on diseaseRouter)":3,"requireAuth (file-level use on farmsRouter)":4,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on ordersRouter)":5,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:pay":1,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1}
+Total: 67 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":9,"PUBLIC":7,"requirePermission:disease:review":1,"requireAuth (file-level use on diseaseRouter)":3,"requireAuth (file-level use on farmsRouter)":4,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on ordersRouter)":5,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requirePermission:procurement:pay":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1}
 
 | module | method | path | auth |
 |---|---|---|---|
@@ -29,6 +29,8 @@ Total: 65 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | auth | DELETE | /me | requireAuth |
 | auth | POST | /otp/request | requireAuth |
 | auth | POST | /otp/verify | requireAuth |
+| auth | POST | /password/forgot | PUBLIC |
+| auth | POST | /password/reset | PUBLIC |
 | auth | POST | /refresh | PUBLIC |
 | auth | POST | /register | PUBLIC |
 | disease | POST | /cases/:id/review | requirePermission:disease:review |
@@ -55,10 +57,10 @@ Total: 65 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | payments | POST | /:id/confirm | requireAuth (file-level use on paymentsRouter) |
 | payments | POST | /:id/refund | requirePermission:payments:refund |
 | payments | GET | /:id/status | requireAuth (file-level use on paymentsRouter) |
+| payments | POST | /payouts | requirePermission:procurement:pay |
 | payments | GET | / | requireAuth (file-level use on paymentsRouter) |
 | payments | GET | / | requireAuth (file-level use on walletRouter) |
 | payments | POST | /intent | requireAuth (file-level use on paymentsRouter) |
-| payments | POST | /payouts | requirePermission:procurement:pay |
 | payments | GET | /plans | PUBLIC |
 | payments | GET | /summary | requireAuth (file-level use on walletRouter) |
 | payments | POST | /withdrawals | requireAuth (file-level use on walletRouter) |

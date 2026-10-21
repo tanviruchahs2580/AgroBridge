@@ -47,7 +47,8 @@ export function accountRateKeyPhone(rawPhone: unknown): string | null {
 
 /** Authenticated endpoint: per principal, per address before auth. */
 export function userOrIpKey(req: Request): string {
-  return req.auth?.userId ? `u:${req.auth!.userId}` : `ip:${req.ip ?? "unknown"}`;
+  const userId = req.auth?.userId;
+  return userId ? `u:${userId}` : `ip:${req.ip ?? "unknown"}`;
 }
 
 /**

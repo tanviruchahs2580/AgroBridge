@@ -1,12 +1,12 @@
 /**
- * Bangladeshi mobile-number normalisation (B-06).
+ * Bangladeshi mobile-number normalisation.
  *
  * The API stores and looks up phone numbers as one canonical string. Before
  * this helper the register schema accepted only ASCII `01[3-9]\d{8}` while
  * login compared the raw request body, so the same human number typed in a
  * different but equally valid way (Bengali numerals ০-৯, a `+880` / `880`
  * country-code prefix, spaces or dashes) either failed validation or silently
- * missed the stored account (the E-10 gap).
+ * missed the stored account (the gap).
  *
  * Contract:
  *  - accepts Bengali digits, an optional `+880` / `880` prefix, optional

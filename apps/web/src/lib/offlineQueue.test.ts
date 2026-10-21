@@ -17,8 +17,10 @@ vi.mock("./api.js", async () => {
   };
 });
 
-import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue, onDrop, onSync, dropToastMessage, syncToastMessage } from "./offlineQueue";
+import { enqueue, size, subscribe, flushAll, isQueueable, onEnqueue, onDrop, onSync, dropToastMessage, syncToastMessage, onStorageError, storageDegraded, purgeQueue } from "./offlineQueue";
+import type { DropOutcome } from "./offlineQueue";
 import { ApiError } from "./api";
+import { setSession, setTokens, clearTokens } from "./sessionManager";
 
 const STORAGE_KEY = "agrobridge.mutationQueue";
 
@@ -104,7 +106,7 @@ describe("lib/offlineQueue — enqueue and dedupe", () => {
   it("enqueue refuses read methods — a failed GET never becomes a pending change (WEB-4)", () => {
     const id = enqueue({ url: "/orders", method: "GET" });
     expect(id).toBeNull();
-    // size() backs the user-facing pending-changes badge: a read that failed
+    // size backs the user-facing pending-changes badge: a read that failed
     // offline must not be counted (or replayed) as unsent work.
     expect(size()).toBe(0);
     expect(readQueue()).toHaveLength(0);
@@ -309,7 +311,7 @@ describe("lib/offlineQueue — flushAll", () => {
     expect(mockApi).not.toHaveBeenCalled();
   });
 
-  // AUD-112b: a permanently refused write used to disappear with only a
+  //b: a permanently refused write used to disappear with only a
   // console.warn; onDrop is the hook App.tsx uses to raise the bilingual toast.
   it("notifies onDrop with the discarded entry and status on a permanent 4xx", async () => {
     const dropped: { url: string; method: string }[] = [];
@@ -362,7 +364,7 @@ describe("lib/offlineQueue — flushAll", () => {
   });
 });
 
-// G-07: a flush that saved queued work must say so (once, with a count), and a
+// a flush that saved queued work must say so (once, with a count), and a
 // drop must distinguish a state conflict (409/422 → "needs your review") from a
 // plain permanent failure ("discarded").
 describe("lib/offlineQueue — synced/drop outcome signalling (G-07)", () => {
@@ -447,6 +449,157 @@ describe("lib/offlineQueue — synced/drop outcome signalling (G-07)", () => {
   });
 });
 
+// Session scoping, TTL and honest storage failures. A queue kept in
+// localStorage outlives the session that filled it unless something ends it:
+// on a shared phone the next account would otherwise be handed the previous
+// user's writes. These cases pin the three guards that prevent that — stamping,
+// purge-on-identity-change, and the flush screen — plus the fallback when the
+// browser refuses to persist at all.
+describe("lib/offlineQueue — session scoping, expiry and storage honesty", () => {
+  const USER_A = { userId: "user-a", fullName: "A", role: "FARMER", lang: "bn" } as const;
+  const USER_B = { userId: "user-b", fullName: "B", role: "FARMER", lang: "bn" } as const;
+
+  beforeEach(() => {
+    localStorage.clear();
+    mockApi.mockReset();
+    mockIsOnline.mockReturnValue(true);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Deterministic identity per test: no tokens, no session, empty queue.
+    clearTokens();
+    setSession(null);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+    clearTokens();
+    setSession(null);
+  });
+
+  it("stamps legacy entries missing queuedAt/ownerId and persists the upgrade", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([{ url: "/farms/1/events", method: "POST", clientUuid: "legacy-1", payloadHash: "h1" }])
+    );
+    const before = Date.now();
+    expect(size()).toBe(1);
+    const upgraded = readQueue() as any[];
+    expect(typeof upgraded[0].queuedAt).toBe("number");
+    expect(upgraded[0].queuedAt).toBeGreaterThanOrEqual(before);
+    expect(upgraded[0].ownerId).toBe(""); // no session signed in in this test
+    // The upgrade reached storage, so the next load does not re-stamp it.
+    expect(localStorage.getItem(STORAGE_KEY)).toContain("queuedAt");
+  });
+
+  it("purges the queue when a different user signs in (shared device)", () => {
+    setSession(USER_A);
+    enqueue({ url: "/farms/1/events", method: "POST", body: { n: 1 } });
+    expect(size()).toBe(1);
+    expect((readQueue() as any[])[0].ownerId).toBe("user-a");
+
+    setSession(USER_B);
+    expect(size()).toBe(0);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("purges the queue when the session ends (logout)", () => {
+    setSession(USER_A);
+    enqueue({ url: "/farms/1/events", method: "POST", body: { n: 1 } });
+    expect(size()).toBe(1);
+
+    // What session.tsx's logout does: clear the tokens, then drop the
+    // session. The queue keys off that pair, not on the session alone.
+    clearTokens();
+    setSession(null);
+    expect(size()).toBe(0);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("keeps the queue when the session is dropped with tokens intact (offline boot)", () => {
+    setTokens("at-a", "rt-a");
+    setSession(USER_A);
+    enqueue({ url: "/farms/1/events", method: "POST", body: { n: 1 } });
+    expect(size()).toBe(1);
+
+    // session.tsx's refresh sets the session to null when the boot request
+    // fails offline, deliberately KEEPING the tokens — not a logout, and the
+    // queued work is still this user's.
+    setSession(null);
+    expect(size()).toBe(1);
+
+    // The token clear is the real end of the session; the queue goes with it.
+    clearTokens();
+    expect(size()).toBe(0);
+  });
+
+  it("dropToastMessage tells expiry apart from a plain discard (both languages)", () => {
+    const entry = { url: "/cart/items/9", method: "DELETE", clientUuid: "x", payloadHash: "y", queuedAt: 0, ownerId: "" };
+    for (const lang of ["bn", "en"] as const) {
+      const expired = dropToastMessage(entry, "expired", lang);
+      expect(expired).not.toBe(dropToastMessage(entry, "discarded", lang));
+      expect(expired.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("flushAll drops entries older than the 72 h replay window as expired", async () => {
+    const old = Date.now() - 73 * 60 * 60 * 1000;
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([{ url: "/farms/1/events", method: "POST", clientUuid: "old-1", payloadHash: "h1", queuedAt: old, ownerId: "" }])
+    );
+    mockApi.mockResolvedValue({});
+    const outcomes: DropOutcome[] = [];
+    const unsub = onDrop((_entry, _status, outcome) => outcomes.push(outcome));
+
+    await flushAll();
+
+    expect(mockApi).not.toHaveBeenCalled(); // expired work is never replayed
+    expect(size()).toBe(0);
+    expect(outcomes).toEqual(["expired"]);
+    unsub();
+  });
+
+  it("flushAll skips entries queued by another account", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([{ url: "/farms/1/events", method: "POST", clientUuid: "someone-else", payloadHash: "h1", queuedAt: Date.now(), ownerId: "user-x" }])
+    );
+    mockApi.mockResolvedValue({});
+    const statuses: number[] = [];
+    const unsub = onDrop((_entry, status) => statuses.push(status));
+
+    await flushAll();
+
+    expect(mockApi).not.toHaveBeenCalled();
+    expect(size()).toBe(0);
+    expect(statuses).toEqual([0]); // refused by the queue itself, not by a server response
+    unsub();
+  });
+
+  it("reports a storage failure and keeps the queue in memory only when setItem throws", () => {
+    const seen: { keptInMemory: boolean }[] = [];
+    const unsub = onStorageError((info) => seen.push(info));
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota exceeded");
+    });
+
+    const id = enqueue({ url: "/farms/1/events", method: "POST", body: { n: 7 } });
+
+    expect(id).toBeTruthy();
+    expect(seen).toEqual([{ keptInMemory: true }]);
+    expect(storageDegraded()).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull(); // nothing reached storage
+    expect(size()).toBe(1); // still replayable in this tab
+
+    spy.mockRestore();
+    unsub();
+    // Leave the module healthy for later tests: one successful save retires the
+    // in-memory fallback, then the entry is dropped like any other purge.
+    enqueue({ url: "/cart/items/1", method: "DELETE", body: { cleanup: true } });
+    expect(storageDegraded()).toBe(false);
+    purgeQueue("test cleanup");
+  });
+});
+
 describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documents current limitation)", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -466,7 +619,7 @@ describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documen
     const idOffline = enqueue({ url: "/farms/1/events", method: "POST", body: { offline: true } });
     expect(idOffline).toBeTruthy();
     expect(size()).toBe(1);
-    // Documented: there is no `if (!isOnline()) return null` inside enqueue itself.
+    // Documented: there is no `if (!isOnline) return null` inside enqueue itself.
     // This means callers can manually queue even while online, and
     // `lib/api.ts` is the only place that decides WHEN to call enqueue.
   });
@@ -486,7 +639,7 @@ describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documen
     // This test documents the lazy import gap in `lib/api.ts#getOfflineQueue`:
     // `trySyncEnqueue` checks `_offlineQueue?.isQueueable` only if already loaded.
     // A network failure that happens before the dynamic import resolves will not enqueue
-    // synchronously; it falls back to `await getOfflineQueue()` in the NetworkError handler.
+    // synchronously; it falls back to `await getOfflineQueue` in the NetworkError handler.
     // For queueable URLs this still eventually enqueues, but for non-queueable it silently drops.
     // No assertion — documentation only; the `api.test.ts` offline-enqueue test already characterizes this.
     expect(isQueueable("POST", "/farms/1/events")).toBe(true);

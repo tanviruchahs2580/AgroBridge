@@ -1,0 +1,189 @@
+#!/usr/bin/env node
+/**
+ * ERD generator.
+ *
+ * Emits docs/erd.md from apps/api/prisma/postgres/schema.prisma: every model
+ * with its scalar fields, and a Mermaid erDiagram of the declared relations
+ * plus the scalar `<model>Id` columns that act as foreign keys without a
+ * declared `@relation` (WalletTransaction.userId, AuditLog.actorId, …) — those
+ * are exactly the join paths a query author reaches for, so hiding them would
+ * make the diagram lie about the schema.
+ *
+ * The PostgreSQL schema is the canonical one (ADR-0004); the SQLite variant
+ * mirrors it for local/test runs.
+ *
+ * Drift gate: tests/generated-docs-freshness.test.ts re-renders in memory and
+ * fails when the committed file differs byte-for-byte.
+ *
+ * Usage:
+ *   node apps/api/scripts/generate-erd.mjs          # write the doc
+ *   node apps/api/scripts/generate-erd.mjs --check  # exit 1 on drift
+ */
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const API_DIR = resolve(HERE, "..");
+const REPO_ROOT = resolve(API_DIR, "..", "..");
+const SCHEMA = resolve(API_DIR, "prisma/postgres/schema.prisma");
+const OUT_MD = resolve(REPO_ROOT, "docs/erd.md");
+
+const SCALARS = new Set(["String", "Int", "Float", "Boolean", "DateTime", "Bytes", "Json", "BigInt", "Decimal"]);
+
+/** Models and fields of the Prisma schema. */
+function parseSchema() {
+  const src = readFileSync(SCHEMA, "utf8");
+  const models = [];
+  const modelRe = /^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm;
+  let m;
+  while ((m = modelRe.exec(src))) {
+    const name = m[1];
+    const fields = [];
+    for (const rawLine of m[2].split("\n")) {
+      const line = rawLine.trim();
+      if (line === "" || line.startsWith("//") || line.startsWith("@@")) continue;
+      const fm = /^(\w+)\s+([A-Za-z]\w*)(\[\])?(\?)?\s*(.*)$/.exec(line);
+      if (!fm) continue;
+      const rest = fm[5];
+      const commentIdx = rest.indexOf("//");
+      fields.push({
+        name: fm[1],
+        type: fm[2],
+        list: Boolean(fm[3]),
+        optional: Boolean(fm[4]),
+        attributes: commentIdx === -1 ? rest : rest.slice(0, commentIdx),
+        isId: /@id\b/.test(rest),
+        comment: commentIdx === -1 ? "" : rest.slice(commentIdx + 2).trim(),
+      });
+    }
+    models.push({ name, fields });
+  }
+  if (!models.length) throw new Error("no models parsed from schema.prisma");
+  return models;
+}
+
+/** Relation edges: declared relations first, then scalar `<model>Id` columns. */
+function buildEdges(models) {
+  const byName = new Map(models.map((m) => [m.name, m]));
+  const edges = new Map(); // "one|many" -> edge
+  const add = (edge) => {
+    const key = `${edge.one}|${edge.many}`;
+    if (!edges.has(key)) edges.set(key, edge);
+  };
+
+  // Pass 1 — list fields name the relation from the collection side, so they
+  // win the label when both sides are declared.
+  for (const model of models) {
+    for (const field of model.fields) {
+      if (!byName.has(field.type) || field.type === model.name || !field.list) continue;
+      const target = byName.get(field.type);
+      // Each `target` row has (at most) one `model`; the paired singular
+      // field on the other side says whether that one is optional.
+      const back = target.fields.find((f) => f.type === model.name && !f.list);
+      add({ one: model.name, many: field.type, label: field.name, optional: back ? back.optional : false, kind: "relation" });
+    }
+  }
+  // Pass 2 — singular fields that DECLARE the foreign key
+  // (@relation(fields: [...])); the inverse side (no `fields:`) is the same
+  // edge seen from the other end and must not be rendered twice.
+  for (const model of models) {
+    for (const field of model.fields) {
+      if (!byName.has(field.type) || field.type === model.name || field.list) continue;
+      if (!/@relation\([^)]*fields:/.test(field.attributes)) continue;
+      add({ one: field.type, many: model.name, label: field.name, optional: field.optional, kind: "relation" });
+    }
+  }
+  for (const model of models) {
+    for (const field of model.fields) {
+      if (!field.name.endsWith("Id") || !SCALARS.has(field.type)) continue;
+      const candidate = field.name.slice(0, -2).toLowerCase();
+      const target = [...byName.keys()].find((n) => n.toLowerCase() === candidate);
+      if (!target) continue;
+      if (edges.has(`${target}|${model.name}`)) continue; // declared relation already rendered
+      add({ one: target, many: model.name, label: `${field.name} (scalar FK)`, optional: field.optional, kind: "scalar" });
+    }
+  }
+  return [...edges.values()].sort((a, b) => `${a.one}${a.many}`.localeCompare(`${b.one}${b.many}`));
+}
+
+export function buildErd() {
+  const models = parseSchema();
+  const edges = buildEdges(models);
+
+  const lines = [];
+  lines.push("# Entity relationship diagram");
+  lines.push("");
+  lines.push("> Generated by `apps/api/scripts/generate-erd.mjs` — do not edit.");
+  lines.push("> Regenerate: `node apps/api/scripts/generate-erd.mjs`.");
+  lines.push("> Drift gate: `apps/api/tests/generated-docs-freshness.test.ts` compares this file with a fresh in-memory render.");
+  lines.push("");
+  lines.push("Source: `apps/api/prisma/postgres/schema.prisma` (the canonical PostgreSQL schema; ADR-0004 keeps the SQLite variant in step for local/test runs).");
+  lines.push("");
+  lines.push("Edges are declared Prisma relations plus `<model>Id` scalar columns marked `scalar FK` — real join paths without an enforced constraint. A leading `|o` on an edge means the foreign key is nullable.");
+  lines.push("");
+  lines.push("```mermaid");
+  lines.push("erDiagram");
+  for (const edge of edges) {
+    lines.push(`  ${edge.one} ${edge.optional ? "|o" : "||"}--o{ ${edge.many} : "${edge.label}"`);
+  }
+  for (const model of models) {
+    const fkScalars = new Set();
+    for (const field of model.fields) {
+      const rel = /@relation\([^)]*fields:\s*\[([^\]]*)\]/.exec(field.attributes);
+      if (rel) for (const name of rel[1].split(",")) fkScalars.add(name.trim());
+    }
+    // Declared FK scalars whose relation only exists on the other side
+    // (e.g. a list-only back reference) still get the marker from `@relation`.
+    lines.push(`  ${model.name} {`);
+    for (const field of model.fields) {
+      if (!SCALARS.has(field.type)) continue; // relation fields are edges, not attributes
+      const mermaidType = field.type === "DateTime" ? "datetime" : field.type.toLowerCase();
+      const markers = [];
+      if (field.isId) markers.push("PK");
+      if (fkScalars.has(field.name)) markers.push("FK");
+      const type = field.list ? `${mermaidType}[]` : mermaidType;
+      const comment = field.comment.replace(/"/g, "'").replace(/[{}]/g, (c) => (c === "{" ? "(" : ")"));
+      lines.push(`    ${type} ${field.name}${markers.length ? " " + markers.join(",") : ""}${comment ? ` "${comment}"` : ""}`);
+    }
+    lines.push("  }");
+  }
+  lines.push("```");
+  lines.push("");
+  lines.push("## Models");
+  lines.push("");
+  lines.push("| Model | Fields | Edges |");
+  lines.push("|---|---|---|");
+  for (const model of models) {
+    const count = edges.filter((e) => e.one === model.name || e.many === model.name).length;
+    lines.push(`| \`${model.name}\` | ${model.fields.length} | ${count} |`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function main() {
+  const rendered = buildErd();
+  const lineCount = rendered.split("\n").length - 1;
+  if (process.argv.includes("--check")) {
+    let current = "";
+    try {
+      current = readFileSync(OUT_MD, "utf8");
+    } catch {
+      console.error(`${OUT_MD} does not exist — run without --check to generate it`);
+      process.exit(1);
+    }
+    if (current !== rendered) {
+      console.error(`${OUT_MD} is stale — regenerate with: node apps/api/scripts/generate-erd.mjs`);
+      process.exit(1);
+    }
+    console.log(`${OUT_MD} is up to date`);
+    return;
+  }
+  writeFileSync(OUT_MD, rendered, "utf8");
+  console.log(`wrote ${OUT_MD} (${lineCount} lines)`);
+}
+
+const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main();

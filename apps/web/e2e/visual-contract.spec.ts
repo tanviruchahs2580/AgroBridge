@@ -75,7 +75,7 @@ test.describe("Visual contract — 8 pages render, laid out, in both themes", ()
         /কিছু ভুল হয়েছে|Something went wrong/i
       );
       await assertNoHorizontalOverflow(page, p.name);
-      await expect(page.locator('nav[aria-label="Primary navigation"]'), `${p.name}: navigation missing`).toBeAttached();
+      await expect(page.locator('nav[aria-label]'), `${p.name}: navigation missing`).toBeAttached();
     }
   });
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * AgroBridge — API Docs Generator (Phase 11)
- * Generates docs/generated/test-status.md from REAL vitest output.
+ * Generates docs/qa/test-status.md from REAL vitest output.
  * No hand-typed numbers; all counts come from `vitest --coverage --reporter=json`.
  *
  * Usage:
@@ -10,7 +10,7 @@
  *
  * Env:
  *   VITEST_ARGS   extra args forwarded to vitest (e.g. "--run --coverage")
- *   OUTPUT_MD     override output path (default: docs/generated/test-status.md)
+ *   OUTPUT_MD     override output path (default: docs/qa/test-status.md)
  *   CI            if set, exits non-zero when coverage thresholds fail
  *
  * Requirements:
@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Walk up to find repo root (contains package.json with workspaces + docs/generated)
+// Walk up to find repo root (contains package.json with workspaces + docs/qa)
 function findRepoRoot(start) {
   let cur = resolve(start);
   for (let i = 0; i < 6; i++) {
@@ -57,7 +57,7 @@ function findRepoRoot(start) {
 const REPO_ROOT = findRepoRoot(__dirname);
 const API_DIR = resolve(REPO_ROOT, "apps/api");
 const OUTPUT_MD =
-  process.env.OUTPUT_MD || resolve(REPO_ROOT, "docs/generated/test-status.md");
+  process.env.OUTPUT_MD || resolve(REPO_ROOT, "docs/qa/test-status.md");
 const TMP_JSON = resolve(API_DIR, ".tmp-vitest-report.json");
 const COVERAGE_SUMMARY = resolve(API_DIR, "coverage/coverage-summary.json");
 const COVERAGE_FINAL_DIR = resolve(API_DIR, "coverage");
@@ -420,7 +420,7 @@ npx --workspace @agrobridge/api vitest run --coverage
 
 - \`api-quality\` job (\`.github/workflows/ci.yml:15-59\`): Lint → Typecheck → \`vitest run --coverage\` (SQLite) → validate \`schema.postgresql.prisma\`
 - \`api-postgres\` job (\`ci.yml:61-100\`): provision PG 17 → \`vitest run --config vitest.config.pg.ts\` (includes \`concurrency.test.ts\`)
-- Branch protection requires \`CI\` + \`CodeQL\` (see \`docs/generated/governance-branch-protection.md\`)
+- Branch protection requires \`CI\` + \`CodeQL\` (see \`docs/qa/governance-branch-protection.md\`)
 
 ---
 

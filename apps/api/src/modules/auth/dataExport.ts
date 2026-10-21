@@ -2,7 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { liveGroundedRefs } from "../aiagent/routes.js";
 
 /**
- * Personal-data export (AUD-130 / GDPR-style access request).
+ * Personal-data exportGDPR-style access request).
  *
  * Collects everything AgroBridge stores about ONE user into a single
  * JSON-serialisable object. Guarantees, tested in tests/auth-export.test.ts:
@@ -12,7 +12,7 @@ import { liveGroundedRefs } from "../aiagent/routes.js";
  *    the storage key in `imagePath`; bytes stay in the storage provider).
  *
  * Advisory history re-applies the live-KB ref filter the `/ai/history` route
- * uses (AUD-110b), so an export never cites a knowledge-base entry that has
+ * uses, so an export never cites a knowledge-base entry that has
  * since been removed.
  */
 export async function collectUserData(userId: string): Promise<Record<string, unknown>> {

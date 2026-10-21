@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { t } from "../lib/i18n";
 import type { DictKey, Lang } from "../lib/i18n";
 
@@ -49,16 +49,22 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   useEffect(() => {
     if (shouldReduce || staticOnly) return;
     let cancelled = false;
-    // Phase timing: seed 0-1.1s, brand 0.9-1.6s (overlap), loading 1.1-2.6s, exit 2.6-2.8s
-    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 900);
-    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 1100);
-    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 2600);
+    // Phase timing, compressed to ~1.4s total. The splash used to hold the
+    // screen for 2.7s on a fixed clock, which made it the largest-contentful
+    // paint on every cold visit — a self-inflicted LCP above 4s for users and
+    // for the Lighthouse budget. The sequence (seed -> brand -> loading ->
+    // exit) and every visual are unchanged; only the clock is tighter:
+    // seed 0-0.45s, brand 0.35-0.75s (overlap), loading 0.45-1.25s, exit
+    // 1.25-1.45s.
+    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 350);
+    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 450);
+    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 1250);
 
-    // Progress animation 0→100 across 1.1-2.6s (1.5s) with meaningful status
+    // Progress animation 0→100 across 0.45-1.25s (0.8s) with meaningful status
     let raf = 0;
     const start = performance.now();
-    const duration = 1500;
-    const startDelay = 1100;
+    const duration = 800;
+    const startDelay = 450;
     function tick(now: number) {
       if (cancelled) return;
       const elapsed = now - start - startDelay;
@@ -76,8 +82,8 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     const tDone = setTimeout(() => {
       if (cancelled) return;
       setExiting(true);
-      setTimeout(() => onDone?.(), 280);
-    }, 2680);
+      setTimeout(() => onDone?.(), 200);
+    }, 1300);
 
     return () => {
       cancelled = true;
@@ -108,7 +114,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   return (
     <AnimatePresence>
       {!exiting && (
-        <motion.div
+        <m.div
           key="splash"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -129,7 +135,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           />
 
           {/* Logo + ring container */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.92 }}
             animate={phase === "exit" ? { scale: 0.28, x: -140, y: -280, opacity: 0 } : { opacity: 1, scale: 1 }}
             transition={phase === "exit" ? { duration: 0.28, ease: [0.4, 0, 1, 1] } : { duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -151,7 +157,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 </linearGradient>
               </defs>
               <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3.5" />
-              <motion.circle
+              <m.circle
                 cx="60"
                 cy="60"
                 r="54"
@@ -166,7 +172,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 transition={{ duration: 0.08, ease: "linear" }}
               />
               {/* Shimmer traveling along ring — 1.8s loop */}
-              <motion.circle
+              <m.circle
                 cx="60"
                 cy="60"
                 r="54"
@@ -192,7 +198,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
 
             {/* Particles */}
             {Array.from({ length: 6 }).map((_, i) => (
-              <motion.span
+              <m.span
                 key={i}
                 initial={{ opacity: 0, x: 0, y: 0, scale: 0.6 }}
                 animate={{
@@ -206,10 +212,10 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 aria-hidden
               />
             ))}
-          </motion.div>
+          </m.div>
 
           {/* Brand Typography */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: phase === "seed" ? 0 : 1, y: phase === "seed" ? 12 : 0 }}
             transition={{ duration: 0.5, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
@@ -219,12 +225,12 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
               {t("appName", lang)}
             </h1>
             <p className="mt-1 text-xs font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
-          </motion.div>
+          </m.div>
 
           {/* Status text */}
           <div className="absolute bottom-[max(28px,env(safe-area-inset-bottom))] left-0 right-0 flex justify-center px-6">
             <AnimatePresence mode="wait">
-              <motion.p
+              <m.p
                 key={status}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -233,7 +239,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 className="text-center text-sm font-medium tracking-[0.01em] text-white/85"
               >
                 {status}
-              </motion.p>
+              </m.p>
             </AnimatePresence>
           </div>
 
@@ -241,7 +247,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           <span className="sr-only" role="status" aria-live="polite">
             Loading {Math.round(progress)} percent — {status}
           </span>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

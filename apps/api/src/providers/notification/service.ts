@@ -6,9 +6,14 @@ export type NotificationType = "SYSTEM" | "ORDER" | "BOOKING" | "PROCUREMENT" | 
 export type NotificationCategory = "CRITICAL" | "ACTION" | "INFO";
 
 /**
- * In-app notification service. SMS/email adapters plug in here later
- * (NotificationProvider abstraction). In-app delivery is real:
- * notifications are persisted and served via /notifications.
+ * In-app notification service. In-app delivery is real: notifications are
+ * persisted and served via /notifications; SMS delivery for OTP lives in
+ * providers/notification/sms.ts.
+ *
+ * Category preferences (`User.notificationPrefs`, edited at
+ * /notifications/preferences) are honoured here — before this was wired, the
+ * toggles persisted but changed nothing. Security/account-critical messages
+ * pass `bypassPrefs` so a user cannot silence, e.g., a forced password change.
  */
 export async function notify(params: {
   userId: string;
@@ -20,6 +25,7 @@ export async function notify(params: {
   bodyEn?: string;
   refType?: string;
   refId?: string;
+  bypassPrefs?: boolean;
 }) {
   try {
     const user = await prisma.user.findUnique({
@@ -27,34 +33,26 @@ export async function notify(params: {
       select: { langPref: true, notificationPrefs: true },
     });
     const lang = user?.langPref === "en" ? "en" : "bn";
-
-    // Honours the user's stored notification preferences (AUD-141): the flags the
-    // preferences route persists — {critical, action, info} — decide whether this
-    // category is delivered at all, not just how /notifications renders them.
-    // Absent/unparseable preferences mean deliver (the historical behaviour); a
-    // flag explicitly set to false opts that category out. This is a deliberate
-    // silent skip, not an error state, so a preference can never fail a
-    // business flow that wanted to notify.
-    const prefsRaw = user?.notificationPrefs;
-    if (prefsRaw) {
+    const category = params.category ?? "INFO";
+    if (!params.bypassPrefs && user?.notificationPrefs) {
+      let prefs: Partial<Record<"critical" | "action" | "info", boolean>> = {};
       try {
-        const prefs = JSON.parse(prefsRaw) as { critical?: boolean; action?: boolean; info?: boolean };
-        const category = (params.category ?? "INFO") as "CRITICAL" | "ACTION" | "INFO";
-        const key = category.toLowerCase() as "critical" | "action" | "info";
-        if (prefs[key] === false) {
-          logger.info({ userId: params.userId, category }, "notification suppressed by user preference");
-          return;
-        }
+        prefs = JSON.parse(user.notificationPrefs) as typeof prefs;
       } catch {
-        /* unparseable prefs fall back to deliver */
+        // Corrupted prefs fall back to "deliver" — never lose a notification
+        // because its preference blob could not be read.
+      }
+      const key = category.toLowerCase() as "critical" | "action" | "info";
+      if (prefs[key] === false) {
+        logger.debug({ userId: params.userId, type: params.type, category }, "notification suppressed by user preference");
+        return;
       }
     }
-
     await prisma.notification.create({
       data: {
         userId: params.userId,
         type: params.type,
-        category: params.category ?? "INFO",
+        category,
         title: lang === "bn" ? params.titleBn : params.titleEn,
         body:
           (lang === "bn" ? params.bodyBn : params.bodyEn) ??

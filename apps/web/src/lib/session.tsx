@@ -43,6 +43,11 @@ const SessionCtx = createContext<Ctx>({ session: null, loading: true, dark: fals
 export function applyTheme(dark: boolean) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   const meta = document.querySelector('meta[name="theme-color"]');
+  // Literal on purpose: the browser reads <meta name="theme-color"> before any
+  // stylesheet resolves, so var(--color-…) would be ignored and the address bar
+  // would keep the wrong green. Values mirror --color-header (light) and
+  // --color-splash-from (dark) in tokens.css; preflight.mjs allowlists this one
+  // site for the raw-hex scan.
   if (meta) meta.setAttribute("content", dark ? "#0b2b1a" : "#166534");
 }
 

@@ -7,6 +7,14 @@
 #
 # Deploys images built from this repo to the staging VM using docker-compose.prod.yml
 # (see docs/deployment.md §5). Migrations stay manual by design — see echo hint in the deploy step.
+#
+# Rollback: every image is pushed with an immutable `sha-<commit>` tag beside its
+# semver tag, so a bad release goes back by pinning the previous commit and
+# re-running the stack — no rebuild, the old bytes are still in GHCR:
+#   API_IMAGE_TAG=sha-<previous-commit> WEB_IMAGE_TAG=sha-<previous-commit> \
+#     docker compose -f docker-compose.prod.yml up -d
+# Migrations are forward-only: a rollback that crosses a migration needs its own
+# plan, and the compose file applies none on boot.
 name: Deploy Staging
 
 on:

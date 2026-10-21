@@ -39,7 +39,7 @@ a provider incident — go to the DB section below.
   set `WEATHER_PROVIDER=mock` and redeploy **only** if the deployment already accepts
   placeholders (`ALLOW_PLACEHOLDER_PROVIDERS=1`) — production refuses to boot with placeholder
   providers otherwise; (3) put a user-facing note up if the mock data could mislead spraying
-  decisions. Record the switch in `EXECUTION_LOG.md`; switch back when the vendor recovers.
+  decisions. Record the switch in `CHANGELOG.md` (the historical `EXECUTION_LOG.md` is archived under `docs/archive/2026-10-19/`); switch back when the vendor recovers.
 
 ## AI provider (`AI_PROVIDER=openai-compatible`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`)
 
@@ -95,7 +95,7 @@ docker compose -f docker-compose.prod.yml ps                      # compose stac
 - Compose: `docker compose -f docker-compose.prod.yml up -d db` (healthcheck `pg_isready` gates
   the API container). The chaos-drills runbook has the full kill/recovery drill.
 - Neon: check the Neon console status; the free tier has suspended databases before
-  (`ENTERPRISE_CERTIFICATION_STATUS.md`, 2026-10-15 incident). If it is a suspension, restore the
+  (archived: `docs/archive/2026-10-19/ENTERPRISE_CERTIFICATION_STATUS.md`, 2026-10-15 incident). If it is a suspension, restore the
   project in the console — no API change is needed; instances reconnect.
 - If schema state is suspect after recovery, verify `/ready`'s `schema.latest` against the newest
   directory in `apps/api/prisma/postgres/migrations` (ADR-0007) and apply with

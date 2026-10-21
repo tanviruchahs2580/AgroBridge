@@ -2,6 +2,13 @@
 
 **সংস্করণ / Version:** 1.0 · **কার্যকর / Effective:** 2026-08-26
 
+> **Canonical, published version:** the app serves these terms at `/terms` on the deployed
+> domain. The authoritative text lives in `apps/web/src/features/legal/content.ts`; this file is
+> kept in step with it. **Operator-entity placeholders in this file are not real details:** where
+> it says "operator entity", the registered legal name is to be completed by the owner before
+> store submission — set it in `LEGAL_ENTITY` in `apps/web/src/features/legal/content.ts` (the
+> runtime pages are generated from that file).
+
 ---
 
 ## বাংলা
@@ -12,7 +19,7 @@ AgroBridge একটি প্ল্যাটফর্ম যেখানে ক
 কৃষি পরামর্শ (আবহাওয়া, AI উপদেশ, রোগ শনাক্তকরণ), সার-বীজ-ঔষধ কেনার বাজার,
 ফসল বিক্রির অফার, ঠিকাদার/সেবা (যেমন ট্রাক্টর) খোঁজা, আর ওয়ালেট।
 
-[Company] প্ল্যাটফর্মটি চালায়। [Company] নিজে কৃষক, ডিলার বা সেবাদাতা নয় —
+[operator entity — to be completed by the owner before store submission] প্ল্যাটফর্মটি চালায়। [operator entity — to be completed by the owner before store submission] নিজে কৃষক, ডিলার বা সেবাদাতা নয় —
 এটি পক্ষগুলোকে যুক্ত করে।
 
 ### ২. কে ব্যবহার করতে পারবেন
@@ -64,7 +71,7 @@ AI উপদেশ ও রোগ শনাক্তকরণ **তথ্যে�
 
 ### ৮. দায়সীমা
 
-আইনের অনুমোদিত সর্বোচ্চ সীমা পর্যন্ত, [Company] কোনো পরোক্ষ ক্ষতির জন্য দায়ী নয়
+আইনের অনুমোদিত সর্বোচ্চ সীমা পর্যন্ত, [operator entity — to be completed by the owner before store submission] কোনো পরোক্ষ ক্ষতির জন্য দায়ী নয়
 (যেমন: ফসলের ক্ষতি, লাভ হানি, ইন্টারনেট বিভ্রাট)। প্ল্যাটফর্ম-সম্পর্কিত সরাসরি ক্ষতির
 ক্ষেত্রে দায় সীমিত থাকবে **শেষ ৩ মাসে প্ল্যাটফর্মে আপনার মোট লেনদেনের সমান বা
 BDT ১০,০০০ — যেটি কম**।
@@ -94,7 +101,7 @@ AgroBridge is a platform where farmers get agronomy advisories (weather, AI advi
 disease detection), buy inputs from dealers, submit produce sell offers, find service
 providers (e.g., tractor hire), and use a wallet.
 
-The platform is operated by [Company]. [Company] is not itself a farmer, dealer or
+The platform is operated by [operator entity — to be completed by the owner before store submission]. [operator entity — to be completed by the owner before store submission] is not itself a farmer, dealer or
 provider — it connects these parties.
 
 ### 2. Eligibility
@@ -145,7 +152,7 @@ review" is not a confirmed diagnosis.
 
 ### 8. Limitation of liability
 
-To the maximum extent permitted by law, [Company] is not liable for indirect losses
+To the maximum extent permitted by law, [operator entity — to be completed by the owner before store submission] is not liable for indirect losses
 (e.g., crop loss, lost profit, connectivity outages). Direct liability related to the
 platform is capped at the greater of your total platform transactions in the last
 3 months or BDT 10,000.

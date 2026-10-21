@@ -9,7 +9,7 @@ export interface KbEntry {
   answerBn: string;
   confidence: number;
   /**
-   * Provenance ledger (AUD-117-ai). Every entry must carry explicit
+   * Provenance ledger. Every entry must carry explicit
    * source/review metadata so an unsourced entry is visible in code review:
    *   sourceName — human-readable source title, or null when none is recorded
    *   sourceUrl  — public URL, or null
@@ -171,7 +171,7 @@ export function kbVersionOf(corpus: KbEntry[]): string {
 
 /**
  * Content-addressed version of the production knowledge base, computed once at
- * module load (A2-04 / A3-07 / A4-06). Every advisory response carries it as
+ * module load. Every advisory response carries it as
  * `kbVersion`, so which KB answered a farmer is auditable from the response
  * itself and a silent KB edit becomes visible instead of untraceable.
  */

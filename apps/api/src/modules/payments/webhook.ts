@@ -30,7 +30,7 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     if (!storePassword) throw badRequest("Payment gateway not configured");
 
     // Constant-time comparison (both sides are 32-char MD5 hex; a plain !==
-    // would leak a timing oracle over the digest, B-19).
+    // would leak a timing oracle over the digest,).
     const expected = sslcommerzSignature(params, storePassword);
     const provided = (params.verify_sign ?? "").toUpperCase();
     const expectedBuf = Buffer.from(expected, "utf8");
@@ -129,7 +129,10 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
     const requested = req.params.outcome ?? "fail";
     const outcome = ["success", "fail", "cancel"].includes(requested) ? requested : "fail";
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const refFromRequest = String(body.tran_id ?? req.query.tran_id ?? req.query.ref ?? "");
+    // Only the string forms count: a non-string body parameter must not
+    // stringify to "[object Object]" and be treated as a transaction reference.
+    const rawRef = body.tran_id ?? req.query.tran_id ?? req.query.ref;
+    const refFromRequest = typeof rawRef === "string" ? rawRef : "";
     const payment = refFromRequest ? await prisma.payment.findFirst({ where: { refNo: refFromRequest } }) : null;
 
     if (payment && payment.status === "PENDING" && outcome === "success") {
@@ -149,7 +152,7 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
     }
 
     // Send the buyer back to exactly one origin: WEB_ORIGIN is an allow-list
-    // (site + Capacitor origin), and feeding the whole list to URL() builds a
+    // (site + Capacitor origin), and feeding the whole list to URL builds a
     // malformed location.
     const target = new URL("/orders", primaryWebOrigin);
     target.searchParams.set("payment", outcome);

@@ -7,17 +7,17 @@ import { useSession } from "./session";
  * features stop hand-rolling it.
  *
  * Why it exists: ten screens each carried their own `loading` / `loadError` /
- * `load()` triple plus retry UI, and mutations refetched by calling those `load()`
+ * `load` triple plus retry UI, and mutations refetched by calling those `load`
  * functions by hand — 23 call sites. Two consequences were visible in the code:
  * a forgotten refetch leaves stale data on screen, and a page that fetches several
  * independent endpoints blanks completely when any one of them fails.
  *
  * The pattern:
- *   const wallet = useResource("wallet", () => api<WalletData>("GET", "/wallet"));
+ *   const wallet = useResource("wallet",  => api<WalletData>("GET", "/wallet"));
  *   …
  *   invalidate("wallet");           // after a mutation — every subscriber refetches
  * or, from inside a component:
- *   const invalidateResource = useInvalidation();
+ *   const invalidateResource = useInvalidation;
  *
  * `key` is a resource *family*, not a URL: everything that changes together shares
  * one key so a single `invalidate` covers them. Independent blocks on a page get

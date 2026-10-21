@@ -1,0 +1,24 @@
+{
+  "notes": [
+    "SPDX ids accepted for the production dependency tree (scripts/qa/check-licenses.mjs).",
+    "SPDX expressions are split on OR/AND/WITH and every operand must be listed here.",
+    "Keep this list permissive-only: copyleft or source-available ids (GPL, AGPL, SSPL, BUSL, Elastic) belong in a review, not in this file.",
+    "UNLICENSED covers first-party private workspace packages only."
+  ],
+  "allowed": [
+    "MIT",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "BlueOak-1.0.0",
+    "Python-2.0",
+    "CC0-1.0",
+    "CC-BY-4.0",
+    "OFL-1.1",
+    "MPL-2.0",
+    "Unlicense",
+    "UNLICENSED"
+  ]
+}

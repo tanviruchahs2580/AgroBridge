@@ -19,7 +19,7 @@ export interface AiAnswer {
   tokensOut?: number;
   /**
    * Content version (sha256[:12]) of the knowledge base that grounded this
-   * answer — present for BOTH engines (A2-04 / A3-07 / A4-06). The offline
+   * answer — present for BOTH engines. The offline
    * engine reports the version of the corpus it actually retrieved from.
    */
   kbVersion: string;
@@ -40,7 +40,7 @@ export interface AiProvider {
 }
 
 /**
- * Typed provider failure taxonomy (AUD-107 / A4-03). The adapter previously
+ * Typed provider failure taxonomy. The adapter previously
  * threw one generic `Error("AI provider error <status>")`, so 429 vs 5xx vs a
  * blocked/truncated/empty generation were indistinguishable to callers and to
  * the gateway. `retryable` marks the classes the adapter itself retries once.

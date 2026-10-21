@@ -57,7 +57,7 @@ export default function AdminPanel() {
   /**
    * Read that carries the guard. Metrics / users / audit-log 403s used to reject the
    * page-wide `loadAll` and flip the whole panel to denied; they still do, and only
-   * they do — the analytics and withdrawals reads stay plain `api()` calls, so their
+   * they do — the analytics and withdrawals reads stay plain `api` calls, so their
    * failures remain their own section's state, exactly as before.
    */
   async function guardedGet<T>(path: string): Promise<T> {
@@ -165,7 +165,7 @@ export default function AdminPanel() {
     try {
       await api("POST", `/admin/withdrawals/${w.id}/decision`, { action });
       toast.success(t(action === "APPROVE" ? "withdrawalApprovedToast" : "withdrawalRejectedToast", lang));
-      // The decision leaves the queue: the old code awaited loadWithdrawals(),
+      // The decision leaves the queue: the old code awaited loadWithdrawals,
       // which refetched exactly this resource.
       invalidate("admin-withdrawals");
     } catch (err) {
@@ -199,14 +199,14 @@ export default function AdminPanel() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <nav aria-label="Breadcrumb" className="text-sm text-stone-600">
+      <nav aria-label={t("breadcrumbNavAria", lang)} className="text-sm text-stone-600">
         <ol className="flex items-center gap-1">
           <li><Link to="/" className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">{t("home", lang)}</Link> / {t("admin", lang)}</li>
         </ol>
       </nav>
       <PageHeader icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title={t("adminControlTower", lang)} />
 
-      {/* Metric tiles */}
+      {/* Metric tiles*/}
       {metrics ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {cards.map((c) => (
@@ -223,7 +223,7 @@ export default function AdminPanel() {
         <BlockError error={metricsRes.error} retryLabel={t("retry", lang)} onRetry={() => void metricsRes.reload()} />
       )}
 
-      {/* Users */}
+      {/* Users*/}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <SectionHeader title={t("users", lang)} className="mb-0" />
@@ -306,7 +306,7 @@ export default function AdminPanel() {
         </div>
       </Card>
 
-      {/* Withdrawal approval queue */}
+      {/* Withdrawal approval queue*/}
       <Card>
         <SectionHeader title={t("withdrawalsQueue", lang)} className="mb-2" />
         <div className="space-y-2">
@@ -344,7 +344,7 @@ export default function AdminPanel() {
         </div>
       </Card>
 
-      {/* Analytics events summary */}
+      {/* Analytics events summary*/}
       <Card>
         <SectionHeader title={analytics ? t("analyticsSummary", lang, { days: analytics.windowDays }) : ""} className="mb-2" />
         <div className="space-y-2">
@@ -368,7 +368,7 @@ export default function AdminPanel() {
         </div>
       </Card>
 
-      {/* Audit log */}
+      {/* Audit log*/}
       <Card>
         <SectionHeader title={t("auditLogs", lang)} className="mb-2" />
         <div className="space-y-2">

@@ -27,7 +27,7 @@ async function registerViaApi(phone: string, password: string) {
   const res = await fetch(`${API}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fullName: "E2E Settings Farmer", phone, password, langPref: "bn" }),
+    body: JSON.stringify({ fullName: "E2E Settings Farmer", phone, password, langPref: "bn", consent: true }),
   });
   const raw = await res.text();
   expect(res.status, `register failed: ${raw}`).toBe(201);

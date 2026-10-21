@@ -1,0 +1,64 @@
+# Unit tests for monitoring/alert_rules.yml — run with:
+#   docker run --rm -v "$PWD/monitoring:/m:ro" --entrypoint promtool prom/prometheus:v3.15.0 \
+#     test rules /m/alert_rules.test.yml
+# (from the repository root). The CI quality job runs the same command.
+#
+# These tests are the "test alert fired once" evidence the operations audit
+# asks for: the rules are exercised against synthetic series and both the
+# firing path and the quiet path are asserted.
+rule_files:
+  - alert_rules.yml
+evaluation_interval: 1m
+
+tests:
+  # A 50% 5xx ratio sustained past the `for: 5m` window fires High5xxRate.
+  - interval: 1m
+    input_series:
+      - series: 'agrobridge_http_requests_total{status="500"}'
+        values: '0+1x10'
+      - series: 'agrobridge_http_requests_total{status="200"}'
+        values: '0+1x10'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: High5xxRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "API 5xx rate above 5% for 5 minutes"
+              description: 'Error ratio 50% over the last 5m. Check API logs by requestId and recent deploys.'
+              runbook: docs/operations.md
+
+  # A healthy deployment fires nothing.
+  - interval: 1m
+    input_series:
+      - series: 'agrobridge_http_requests_total{status="200"}'
+        values: '0+10x10'
+      - series: 'agrobridge_db_up'
+        values: '1+0x10'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: High5xxRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: DbDown
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: PaymentFailures
+        exp_alerts: []
+
+  # The database gauge stuck at 0 past `for: 2m` fires DbDown.
+  - interval: 1m
+    input_series:
+      - series: 'agrobridge_db_up'
+        values: '1 1 0+0x8'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: DbDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Database unreachable (/ready failing)"
+              description: 'agrobridge_db_up has been 0 for 2m. See docs/runbooks/chaos-drills.md and disaster-recovery restore procedure.'
+              runbook: docs/runbooks/failed-transaction-recovery.md

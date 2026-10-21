@@ -11,12 +11,17 @@
     <link rel="maskable" href="/icons/icon-512.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <!-- Self-hosted Hind Siliguri + Noto Sans Bengali + Inter (offline-safe, no Google CSS dependency).
-         Noto Sans Bengali ships as one file for all three weights (see index.css), so it is preloaded
-         once; it used to be preloaded twice under two names for identical bytes. -->
-    <link rel="preload" href="/fonts/hind-siliguri-bengali-600.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Self-hosted Hind Siliguri + Noto Sans Bengali (offline-safe, no Google
+         CSS dependency). Preload exactly the faces the first paint needs: the
+         body weight (bengali-400) and the heading face the login hero maps to
+         (font-extrabold 800 resolves to the 700 file — there is no 800 face),
+         plus the small Latin 400 for numerals. Noto Sans Bengali is the
+         fallback family in the stack, not a first-paint face: preloading its
+         107 kB pulled a font most sessions never render, and the Lighthouse
+         LCP budget caught it. It still loads on demand when a glyph needs it. -->
+    <link rel="preload" href="/fonts/hind-siliguri-bengali-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/hind-siliguri-bengali-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/hind-siliguri-latin-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/noto-bengali-400.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

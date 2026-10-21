@@ -41,7 +41,7 @@ round 9) served 500s on login for a few minutes until the switch was fixed and r
 `postinstall` → `generate-prisma.mjs` commit (`d6460aa`, 2026-10-17) is the fix that made the
 production path work. This is a separate incident from the 2026-10-15 login outage, whose root
 cause was a Render free-tier PostgreSQL instance expiring (INC-2026-10-15 in
-`ENTERPRISE_CERTIFICATION_STATUS.md` §9) — that outage is what forced the re-platform to
+archived `ENTERPRISE_CERTIFICATION_STATUS.md` §9) — that outage is what forced the re-platform to
 Vercel + Neon, where the postinstall switch became critical in the first place.
 
 ## Decision

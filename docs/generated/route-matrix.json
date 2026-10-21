@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/modules/**/routes.ts",
-  "total": 65,
+  "total": 67,
   "summary": {
     "requirePermission:admin:metrics": 3,
     "requirePermission:audit:read": 1,
@@ -9,7 +9,7 @@
     "requirePermission:finance:withdrawals": 2,
     "requireAuth (file-level use on aiRouter)": 3,
     "requireAuth": 9,
-    "PUBLIC": 5,
+    "PUBLIC": 7,
     "requirePermission:disease:review": 1,
     "requireAuth (file-level use on diseaseRouter)": 3,
     "requireAuth (file-level use on farmsRouter)": 4,
@@ -19,8 +19,8 @@
     "requireAuth (file-level use on productsRouter)": 1,
     "requireAuth (file-level use on paymentsRouter)": 4,
     "requirePermission:payments:refund": 1,
-    "requireAuth (file-level use on walletRouter)": 4,
     "requirePermission:procurement:pay": 1,
+    "requireAuth (file-level use on walletRouter)": 4,
     "requirePermission:procurement:review": 1,
     "requireAuth (file-level use on procurementRouter)": 2,
     "requirePermission:bookings:assign": 1,
@@ -189,6 +189,22 @@
       "path": "/otp/verify",
       "router": "authRouter",
       "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/password/forgot",
+      "router": "authRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/password/reset",
+      "router": "authRouter",
+      "auth": "PUBLIC"
     },
     {
       "module": "auth",
@@ -401,6 +417,14 @@
     {
       "module": "payments",
       "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/payouts",
+      "router": "paymentsRouter",
+      "auth": "requirePermission:procurement:pay"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
       "method": "GET",
       "path": "/",
       "router": "paymentsRouter",
@@ -421,14 +445,6 @@
       "path": "/intent",
       "router": "paymentsRouter",
       "auth": "requireAuth (file-level use on paymentsRouter)"
-    },
-    {
-      "module": "payments",
-      "file": "src/modules/payments/routes.ts",
-      "method": "POST",
-      "path": "/payouts",
-      "router": "paymentsRouter",
-      "auth": "requirePermission:procurement:pay"
     },
     {
       "module": "payments",

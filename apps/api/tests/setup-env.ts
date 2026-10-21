@@ -9,5 +9,11 @@ process.env.PAYMENT_PROVIDER = process.env.PAYMENT_PROVIDER ?? "sandbox";
 // Required by the SSLCommerz webhook signature path; must exist before the app
 // (and its env schema) is imported by tests/helpers.js.
 process.env.SSLCOMMERZ_STORE_PASSWORD = process.env.SSLCOMMERZ_STORE_PASSWORD ?? "test-store-password";
+// The auth suites deliberately exercise brute-force paths (per-account lock
+// thresholds, timing equalisation) which exceed the human-scale per-IP login
+// policy. The limiter's own behaviour is pinned by auth-rate-limit-envelope
+// (OTP limiter) and rate-limit-envelope (financial limiter) tests; CI sets this
+// same documented variable for its e2e job.
+process.env.LOGIN_RATE_LIMIT_MAX = process.env.LOGIN_RATE_LIMIT_MAX ?? "500";
 
 export {};

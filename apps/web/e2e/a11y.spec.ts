@@ -21,15 +21,14 @@ function criticalSerious(violations: { id: string; impact: string | null; descri
 
 async function assertNoCriticalSerious(page: import("@playwright/test").Page) {
   const builder = new AxeBuilder({ page });
-  // Accepted exclusions (review quarterly alongside SECURITY_WAIVERS.md):
-  // 1. form div.rounded-md.bg-stone-50 — demo-credentials hint rendered only
-  //    under import.meta.env.DEV; ships in no production bundle.
-  // 2. .text-stone-400 — muted meta text used across cards sits below AA
-  //    contrast on white. KNOWN DEBT: needs a palette bump (stone-500+) in
-  //    src/components + pages before this exclusion can be dropped.
+  // Accepted exclusion (review quarterly alongside SECURITY_WAIVERS.md):
+  // form div.rounded-md.bg-stone-50 — demo-credentials hint rendered only
+  // under import.meta.env.DEV; ships in no production bundle.
+  // The former `.text-stone-400` exclusion is gone: muted meta text was bumped
+  // to stone-500 in the shared components (Stepper, Input placeholder) so the
+  // gate now sees those nodes instead of looking away from them.
   const results = await builder
     .exclude("form div.rounded-md.bg-stone-50")
-    .exclude(".text-stone-400")
     .analyze();
   const offenders = criticalSerious(results.violations as never);
   if (offenders.length > 0) throw new Error(`Critical/serious a11y violations on ${page.url()}:\n${offenders.join("\n")}`);
@@ -52,13 +51,27 @@ test.describe("Accessibility scans", () => {
     await assertNoCriticalSerious(page);
   });
 
+  // Non-default state: the error banner + toast (danger triplet) and the
+  // aria-invalid inputs only exist after a failed submit, so the clean-form
+  // scan above would never have seen them.
+  test("/login error state (wrong credentials) has zero critical/serious violations", async ({ page }) => {
+    await page.goto("/login");
+    await page.fill("#phone", "01700000002");
+    await page.fill("#password", "definitely-wrong-pass");
+    await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');
+    await expect(page.locator('[role="alert"]').first()).toBeVisible({ timeout: 10_000 });
+    await assertNoCriticalSerious(page);
+  });
+
   test("authenticated shell: /, /market, /wallet have zero critical/serious violations", async ({ page }) => {
     await seededLogin(page);
 
-    // Shell structure: skip link, main landmark, primary nav.
+    // Shell structure: skip link, main landmark, primary nav. The nav's
+    // aria-label is localized, so the assertion keys on the landmark itself
+    // (BottomNav is the only labelled nav in the shell) rather than on English copy.
     await expect(page.locator('a[href="#main"]')).toBeAttached();
     await expect(page.locator("main#main")).toBeVisible();
-    await expect(page.locator('nav[aria-label="Primary navigation"]')).toBeAttached();
+    await expect(page.locator("nav[aria-label]")).toBeAttached();
 
     for (const route of ["/", "/market", "/wallet"]) {
       await page.goto(route);

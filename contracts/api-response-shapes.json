@@ -72,8 +72,11 @@
     "[].feedbackReason: null",
     "[].groundedRefs[]: array<string>",
     "[].id: string",
+    "[].kbVersion: string",
     "[].lowConfidenceFlag: boolean",
-    "[].question: string"
+    "[].promptVersion: null",
+    "[].question: string",
+    "[].requestId: string"
   ],
   "auth/me": [
     "createdAt: string",

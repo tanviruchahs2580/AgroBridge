@@ -94,7 +94,7 @@ export default function SellCrop() {
       track("offer_submitted", { crop: cropValue });
       toast.success(t("offerSubmittedToast", lang));
       form.reset();
-      // The old code awaited load(), which refetched the offers list only —
+      // The old code awaited load, which refetched the offers list only —
       // the farm list was never part of that refetch.
       invalidate("sell-crop-offers");
     } catch (err) {

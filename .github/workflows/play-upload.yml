@@ -1,0 +1,189 @@
+# Play upload — the credentialed half of the Android release.
+#
+# android-release.yml proves the signed build and leaves the AAB as a CI
+# artifact; this workflow takes the same build and hands it to Google Play. It
+# stays manual because publishing is a decision, not a push: the operator picks
+# the track and the entire run fails fast when a secret is missing rather than
+# producing an artifact nobody can upload.
+#
+# Required GitHub repo secrets (same keystore four as android-release.yml, plus
+# the Play service account):
+#   ANDROID_KEYSTORE_BASE64 | KEYSTORE_PASSWORD | KEY_ALIAS | KEY_PASSWORD
+#   PLAY_SERVICE_ACCOUNT_JSON — Google Cloud service account with the Play
+#   Developer API enabled and Play Console > Users and permissions access.
+# See docs/android-release.md and docs/play/release-runbook.md.
+name: Play — Upload signed AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: Play track to release to
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      versionName:
+        description: Expected versionName; the run fails if version.json disagrees (leave empty to trust version.json)
+        type: string
+        required: false
+
+# One upload at a time: two runs would race Play's edit sessions on the same app.
+concurrency:
+  group: play-upload
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Build signed AAB & upload to Play
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
+        with:
+          # The versionCode preflight below compares against the newest v* tag.
+          fetch-depth: 0
+
+      - name: Fail fast if signing or Play secrets are absent
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=""
+          [ -z "$ANDROID_KEYSTORE_BASE64" ]   && missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -z "$KEYSTORE_PASSWORD" ]         && missing="$missing KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS" ]                 && missing="$missing KEY_ALIAS"
+          [ -z "$KEY_PASSWORD" ]              && missing="$missing KEY_PASSWORD"
+          [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ] && missing="$missing PLAY_SERVICE_ACCOUNT_JSON"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required GitHub secrets:$missing"
+            echo "Add them under Settings > Secrets and variables > Actions."
+            echo "Keystore generation + base64 encoding: docs/android-release.md"
+            echo "Play service account JSON: enable the Play Developer API on a Google Cloud service account, then invite it in Play Console > Users and permissions."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # pin v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # pin v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Before any build minutes are spent: Play rejects a versionCode that was
+      # ever used, and version.json is hand-bumped (docs/play/release-runbook.md).
+      - name: versionCode preflight (must exceed the newest release tag)
+        run: node scripts/qa/check-versioncode.mjs
+
+      - name: versionName input must match version.json
+        env:
+          EXPECTED_VERSION: ${{ inputs.versionName }}
+        run: |
+          if [ -n "$EXPECTED_VERSION" ]; then
+            ACTUAL=$(node -p "require('./version.json').version")
+            if [ "$ACTUAL" != "$EXPECTED_VERSION" ]; then
+              echo "::error::version.json says $ACTUAL but the dispatch asked for $EXPECTED_VERSION — bump version.json or re-dispatch"
+              exit 1
+            fi
+            echo "versionName $ACTUAL matches the dispatch input"
+          else
+            echo "no versionName input given; version.json stays the source of truth"
+          fi
+
+      - name: Install dependencies
+        run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
+
+      - name: Build PWA bundle
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Decode keystore from secret
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        working-directory: apps/web/android
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > agrobridge-release.keystore.jks
+
+      - name: Write key.properties (git-ignored)
+        # apps/web/android/ is where app/build.gradle looks first (rootProject.file).
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        working-directory: apps/web/android
+        run: |
+          cat > key.properties <<EOF
+          storeFile=agrobridge-release.keystore.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Sync Capacitor android platform
+        working-directory: apps/web
+        run: npx cap sync android
+
+      - name: Verify the synced bundle matches the build
+        # Android ships whatever sits in app/src/main/assets/public, so a
+        # missing/failed `cap sync` would publish an old web app inside a
+        # correctly-versioned AAB. The version.json emitted by the web build
+        # makes that checkable.
+        run: |
+          set -euo pipefail
+          SYNCED="apps/web/android/app/src/main/assets/public/version.json"
+          test -f "$SYNCED" || { echo "::error::$SYNCED missing — cap sync did not copy the bundle"; exit 1; }
+          SYNCED_VERSION=$(node -p "require('./${SYNCED}').version")
+          EXPECTED=$(node -p "require('./version.json').version")
+          if [ "$SYNCED_VERSION" != "$EXPECTED" ]; then
+            echo "::error::synced web bundle is $SYNCED_VERSION but version.json says $EXPECTED — stale assets"
+            exit 1
+          fi
+          echo "Synced bundle version $SYNCED_VERSION matches version.json"
+
+      - name: Build signed AAB
+        working-directory: apps/web/android
+        run: chmod +x gradlew && ./gradlew bundleRelease --no-daemon
+
+      - name: Verify the AAB is signed with the upload key
+        # A debug-signed or partially-signed bundle is only rejected in the Play
+        # Console, after the upload has already happened. The bundle is
+        # JAR-signed (v1), so jarsigner reads it; -strict fails on any unsigned
+        # entry.
+        run: |
+          set -euo pipefail
+          AAB="apps/web/android/app/build/outputs/bundle/release/app-release.aab"
+          test -f "$AAB" || { echo "::error::$AAB missing"; exit 1; }
+          jarsigner -verify -strict -certs "$AAB" | tee aab-certs.txt
+          if grep -qi "CN=Android Debug" aab-certs.txt; then
+            echo "::error::the AAB is debug-signed; Play will reject it"
+            exit 1
+          fi
+          echo "Signature verification passed"
+
+      - name: Upload AAB to Google Play (${{ inputs.track }})
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # pin v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.agrobridge.app
+          releaseFiles: apps/web/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: completed
+
+      # The exact bytes Play received, kept for 14 days so a rejected upload can
+      # be compared against a rebuilt one without re-running the release.
+      - name: Upload AAB artifact (evidence)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin v7.0.1
+        with:
+          name: agrobridge-play-aab
+          path: apps/web/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14

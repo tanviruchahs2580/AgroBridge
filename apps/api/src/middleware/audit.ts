@@ -1,4 +1,3 @@
-import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../lib/logger.js";
 
@@ -25,17 +24,4 @@ export async function audit(params: {
   } catch (e) {
     logger.warn({ action: params.action, err: (e as Error).message }, "audit write failed");
   }
-}
-
-export function auditMiddleware(action: string, getEntity?: (req: Request) => { entityType?: string; entityId?: string }) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    audit({
-      actorId: req.auth?.userId,
-      action,
-      ip: req.ip,
-      ...(getEntity ? getEntity(req) : {}),
-    })
-      .catch(() => undefined)
-      .finally(() => next());
-  };
 }

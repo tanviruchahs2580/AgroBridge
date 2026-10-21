@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
-  "versionCode": 14000,
+  "version": "1.4.1",
+  "versionCode": 14001,
   "notes": "Single source of truth for the app version. `version` is the user-facing versionName (web bundle + Android); `versionCode` is the monotonic integer Google Play requires (must strictly increase on every upload). Bump both here, then build/sync — see docs/play/release-runbook.md."
 }

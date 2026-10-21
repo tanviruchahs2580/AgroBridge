@@ -5,7 +5,7 @@ import { dhakaDate } from "./day.js";
  * Fixed reference instant for the fixture provider. The whole mock payload is
  * a function of latitude and this constant only — no wall clock — so identical
  * requests produce byte-identical responses and tests can assert exact
- * timestamps/dates. It is explicitly NOT current weather (AUD-126 / A5-01).
+ * timestamps/dates. It is explicitly NOT current weather.
  * 2026-06-15T00:00:00Z == 06:00 on 2026-06-15 in Dhaka.
  */
 export const MOCK_REFERENCE_NOW = new Date("2026-06-15T00:00:00Z");
@@ -18,6 +18,7 @@ export const MOCK_REFERENCE_NOW = new Date("2026-06-15T00:00:00Z");
 export class MockWeatherProvider implements WeatherProvider {
   readonly name = "mock";
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- async by provider contract; the mock computes synchronously.
   async getCurrent(lat: number): Promise<CurrentWeather> {
     // Deterministic pseudo-climate for dev/tests: hotter toward the equator,
     // with a small reproducible latitudinal band so values are never constant.

@@ -10,6 +10,7 @@ import { refNo, calcProcurement } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
+import { getAuth } from "../../shared/auth-context.js";
 
 export const procurementRouter = Router();
 procurementRouter.use(requireAuth);
@@ -33,7 +34,7 @@ procurementRouter.post(
   async (req, res, next) => {
     try {
       const b = req.body as z.infer<typeof submitSchema>;
-      const farm = await prisma.farm.findFirst({ where: { id: b.farmId, ownerId: req.auth!.userId } });
+      const farm = await prisma.farm.findFirst({ where: { id: b.farmId, ownerId: getAuth(req).userId } });
       if (!farm) throw forbidden("Farm not found in your account");
 
       const key = b.cropName.toUpperCase();
@@ -53,7 +54,7 @@ procurementRouter.post(
       const po = await prisma.procurementOrder.create({
         data: {
           poNo: refNo("PRC"),
-          userId: req.auth!.userId,
+          userId: getAuth(req).userId,
           farmId: farm.id,
           cropName: key,
           quantityKg: b.quantityKg,
@@ -67,7 +68,7 @@ procurementRouter.post(
       });
 
       await notify({
-        userId: req.auth!.userId,
+        userId: getAuth(req).userId,
         type: "PROCUREMENT",
         titleBn: `ফসলের অফার গৃহীত (${po.poNo})`,
         titleEn: `Crop offer submitted (${po.poNo})`,
@@ -89,15 +90,15 @@ procurementRouter.get("/", async (req, res, next) => {
     // Queue visibility: admins see all; procurement/area/collection managers
     // see their territory (user.region) or everything while unassigned;
     // farmers see only their own offers.
-    const role = req.auth!.role;
+    const role = getAuth(req).role;
     let where: Record<string, unknown>;
     if (["ADMIN", "SUPER_ADMIN"].includes(role)) {
       where = {};
     } else if (["PROCUREMENT_MANAGER", "AREA_MANAGER", "COLLECTION_MANAGER", "REGIONAL_MANAGER"].includes(role)) {
-      const me = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: { region: true } });
+      const me = await prisma.user.findUnique({ where: { id: getAuth(req).userId }, select: { region: true } });
       where = me?.region ? { user: { region: me.region } } : {};
     } else {
-      where = { userId: req.auth!.userId };
+      where = { userId: getAuth(req).userId };
     }
     const pos = await prisma.procurementOrder.findMany({
       where,
@@ -119,11 +120,11 @@ const reviewSchema = z.object({
 
 procurementRouter.post("/:id/review", requirePermission("procurement:review"), validate({ body: reviewSchema }), async (req, res, next) => {
   try {
-    const po = await prisma.procurementOrder.findUnique({ where: { id: req.params.id! } });
+    const po = await prisma.procurementOrder.findUnique({ where: { id: req.params.id } });
     if (!po) throw notFound("Procurement order");
     // A territory-scoped reviewer may only act on offers from their own region.
     await assertSubjectInRegion(
-      await actorRegionLimit(req.auth!.userId, req.auth!.role),
+      await actorRegionLimit(getAuth(req).userId, getAuth(req).role),
       po.userId,
       "This procurement order"
     );
@@ -164,7 +165,7 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
     // Status transitions move money downstream (QC -> PO -> COLLECT -> payout),
     // so every step is auditable.
     await audit({
-      actorId: req.auth!.userId,
+      actorId: getAuth(req).userId,
       action: `PROCUREMENT_${action}`,
       entityType: "ProcurementOrder",
       entityId: po.id,

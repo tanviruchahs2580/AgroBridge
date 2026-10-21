@@ -1,7 +1,7 @@
 import type { DictKey } from "../../lib/i18n";
 
 /**
- * Qualitative support label for an advisory answer (AUD-108 / A4-01).
+ * Qualitative support label for an advisory answer.
  *
  * The API's `confidence` is a keyword-retrieval score, not a calibrated
  * probability — rendering it as "73%" invited readers to treat it as one, on

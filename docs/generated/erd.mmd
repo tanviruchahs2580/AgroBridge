@@ -116,6 +116,9 @@ erDiagram
   string feedbackReason
   datetime feedbackAt
   datetime createdAt
+  string kbVersion
+  string promptVersion
+  string requestId
   relation user
   }
   DiseaseCase {
@@ -282,6 +285,7 @@ erDiagram
   string refundRef
   string metaStr
   datetime createdAt
+  string requestId
   datetime updatedAt
   relation user
   }
@@ -383,6 +387,8 @@ erDiagram
   boolean success
   datetime createdAt
   relation user
+  string requestId
+  string kbVersion
   }
   Organization {
   string id
@@ -402,4 +408,26 @@ erDiagram
   datetime createdAt
   relation organization
   relation user
+  }
+  StoredObject {
+  string id
+  string key
+  string mime
+  int sizeBytes
+  bytes data
+  datetime createdAt
+  }
+  PendingUploadPurge {
+  string id
+  string key
+  string context
+  int attempts
+  string lastError
+  datetime createdAt
+  }
+  LoginAttempt {
+  string phoneKey
+  int count
+  datetime lockedUntil
+  datetime updatedAt
   }

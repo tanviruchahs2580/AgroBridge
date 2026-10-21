@@ -1,0 +1,83 @@
+{
+  "$readme": [
+    "ACTUAL state of branch protection on main, read back from GitHub on 2026-10-18 with:",
+    "  gh api repos/tanviruchahs2580/AgroBridge/rulesets/25297401",
+    "Protection is a repository RULESET ('main — protected', id 25297401), not the legacy",
+    "branch-protection API: the repo is user-owned and PUT /branches/main/protection is rejected",
+    "for user-owned repositories. This file records reality; it is not a PUT payload. To change",
+    "protection, edit the ruleset (gh api -X PUT repos/tanviruchahs2580/AgroBridge/rulesets/25297401)",
+    "and then re-capture this file. Keys beginning with '$' and 'deliberate_deviations' are",
+    "documentation, not API fields."
+  ],
+  "id": 25297401,
+  "name": "main — protected",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "tanviruchahs2580/AgroBridge",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "require_extra_approval_for_unattributed_changes": true,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "API — Lint · TypeCheck · Tests (SQLite)" },
+          { "context": "API — Integration & Concurrency (PostgreSQL 17)" },
+          { "context": "Web — Lint · Unit · Build" },
+          { "context": "Web — E2E (Playwright)" },
+          { "context": "Android — Build debug APK artifact" },
+          { "context": "Docker — Build images" },
+          { "context": "Security — Dependency audit & secret scan" },
+          { "context": "Security — Gitleaks secret scan" },
+          { "context": "Security — Trivy container scan (HIGH/CRITICAL)" },
+          { "context": "Analyze (javascript-typescript)" },
+          { "context": "CodeQL" }
+        ]
+      }
+    }
+  ],
+  "deliberate_deviations": [
+    {
+      "setting": "pull_request.parameters.required_approving_review_count = 0 (intended: 1)",
+      "rationale": "Solo maintainer: GitHub does not allow approving your own PR, so a 1-approval rule would deadlock every change; raise to 1 in the commit that adds a second maintainer."
+    },
+    {
+      "setting": "pull_request.parameters.require_code_owner_review = false (intended: true)",
+      "rationale": "CODEOWNERS names the same single maintainer, so requiring code-owner review would block the only person who may merge; enable it when a second reviewer exists."
+    },
+    {
+      "setting": "required_status_checks.parameters.strict_required_status_checks_policy = false (intended: true)",
+      "rationale": "With one active contributor plus Dependabot churn, up-to-date-before-merge adds rebase round-trips; the 11 required contexts still gate the exact SHA that lands on main."
+    }
+  ],
+  "verified": {
+    "at": "2026-10-18",
+    "how": "gh api repos/tanviruchahs2580/AgroBridge/rulesets/25297401",
+    "current_user_can_bypass": "never",
+    "notes": "Ruleset created 2026-10-17T14:49:02+06:00; a direct push to main was rejected ('Changes must be made through a pull request', '11 of 11 required status checks are expected')."
+  }
+}

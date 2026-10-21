@@ -54,7 +54,7 @@ console.log(`Post-build smoke vs ${BASE}\n─── Observability ────�
 
 console.log("─── Auth ──────────────────────────────────");
 const reg = await req("POST", "/api/v1/auth/register", {
-  body: { fullName: "Smoke Farmer", phone: phone(), password: "Smoke@1234", langPref: "bn" },
+  body: { fullName: "Smoke Farmer", phone: phone(), password: "Smoke@1234", langPref: "bn", consent: true },
 });
 check("POST /auth/register farmer = 201", reg.status === 201 && !!reg.data?.data?.accessToken);
 const F = reg.data.data.accessToken;
@@ -123,7 +123,7 @@ check("wallet credited exactly netPayable once", delta === offer.data.data.netPa
 console.log("─── RBAC / IDOR negatives ─────────────────");
 const farmerAdmin = await req("GET", "/api/v1/admin/metrics", { token: F });
 check("farmer → admin metrics = 403", farmerAdmin.status === 403);
-const otherOrder = await req("GET", `/api/v1/orders/${co.data.data.id}`, { token: (await req("POST", "/api/v1/auth/register", { body: { fullName: "Other", phone: phone(), password: "Smoke@1234" } })).data.data.accessToken });
+const otherOrder = await req("GET", `/api/v1/orders/${co.data.data.id}`, { token: (await req("POST", "/api/v1/auth/register", { body: { fullName: "Other", phone: phone(), password: "Smoke@1234", consent: true } })).data.data.accessToken });
 check("IDOR other user's order = 404 (no oracle)", otherOrder.status === 404);
 
 console.log("────────────────────────────────────────────");

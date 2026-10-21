@@ -41,6 +41,7 @@
 
 - [ ] Behaviour change has an outcome-based regression test (or the PR says why not)
 - [ ] No test was disabled/skipped/weakened without a documented reason
+- [ ] No CI gate (workflow, guard, threshold, allowlist) was weakened or skipped to make this PR pass
 - [ ] No secret, credential, dump or binary added
 - [ ] User-visible claims match verified behaviour (AI/weather/payments/offline)
 - [ ] Docs updated where behaviour or configuration changed

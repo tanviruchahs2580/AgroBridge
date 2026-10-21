@@ -111,12 +111,14 @@ const schema = z.object({
   SERVER_MAX_CONNECTIONS: z.coerce.number().int().positive().optional(),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
+  /** pino level (debug|info|warn|error|silent); unset = info, silent in tests. */
+  LOG_LEVEL: z.string().optional(),
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)
   WEATHER_PROVIDER: z.enum(["mock", "openweather"]).default("mock"),
   OPENWEATHER_API_KEY: z.string().optional(),
   /**
    * How long a successful weather fetch is reused, keyed by rounded location
-   * (A5-05). 0 disables caching. Provider failures are never served from
+   *. 0 disables caching. Provider failures are never served from
    * cache as "current" — a failure is an honest error, not stale data.
    */
   WEATHER_CACHE_TTL_SECONDS: z.coerce.number().int().nonnegative().default(600),
@@ -144,8 +146,19 @@ const schema = z.object({
    * modules/payments/routes.ts.
    */
   ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION: z.enum(["0", "1"]).optional(),
-  SMS_PROVIDER: z.enum(["sandbox", "none"]).default("sandbox"),
-  STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
+  SMS_PROVIDER: z.enum(["sandbox", "none", "http"]).default("sandbox"),
+  /**
+   * Generic HTTP SMS gateway (SMS_PROVIDER=http): a POST endpoint that
+   * receives `{ to, text }` with an optional bearer token and sender id.
+   * Keeping it provider-agnostic means activating real OTP delivery is an
+   * operator env change, not a code change (OD-15).
+   */
+  SMS_API_URL: z.string().url().optional(),
+  SMS_API_KEY: z.string().optional(),
+  SMS_SENDER_ID: z.string().optional(),
+  STORAGE_PROVIDER: z.enum(["local", "s3", "db"]).default("local"),
+  /** Base directory for STORAGE_PROVIDER=local uploads; default <api cwd>/uploads. */
+  UPLOAD_BASE_DIR: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(), // for R2/MinIO-compatible stores
@@ -187,14 +200,16 @@ export function placeholderManifest(cfg: {
       "ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1 (buyers can COMPLETE simulated payments on this deployment — demo/pilot only, must be removed before store submission)",
     );
   if (cfg.STORAGE_PROVIDER === "local")
-    placeholders.push("STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy)");
+    placeholders.push(
+      "STORAGE_PROVIDER=local (uploads live on the instance disk and are lost on redeploy — use db for durable uploads, or s3)",
+    );
   return placeholders;
 }
 
 /**
  * The monthly AI spend breaker multiplies usage by
  * AI_COST_PER_1K_TOKENS_PAISA; with the default 0 it can never trip, so a
- * hosted provider in production would run unbounded (A7-05). Fail closed
+ * hosted provider in production would run unbounded. Fail closed
  * rather than shipping an inert money guard. Returns the error text or null.
  * Extracted for unit testing, like placeholderManifest.
  */
@@ -211,7 +226,7 @@ if (parsed.data.NODE_ENV === "production") {
     parsed.data.JWT_REFRESH_SECRET.includes("change-me") ||
     parsed.data.JWT_ACCESS_SECRET.startsWith("dev-");
   if (weak) throw new Error("Refusing to start production with default JWT secrets");
-  // Phase 4: fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
+  //fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
   // startup unless the operator explicitly acknowledges them via ALLOW_PLACEHOLDER_PROVIDERS=1.
   // No silent degradation either way: without the flag the process refuses to boot; with it,
   // every placeholder is listed as a startup warning.
@@ -241,6 +256,9 @@ if (parsed.data.NODE_ENV === "production") {
       throw new Error("SSLCOMMERZ_STORE_ID/PASSWORD missing for PAYMENT_PROVIDER=sslcommerz in production — startup aborted");
     }
   }
+  if (parsed.data.SMS_PROVIDER === "http" && (!parsed.data.SMS_API_URL || !parsed.data.SMS_API_KEY)) {
+    throw new Error("SMS_API_URL/SMS_API_KEY missing for SMS_PROVIDER=http in production — startup aborted");
+  }
   const aiCostProblem = hostedAiCostProblem(parsed.data);
   if (aiCostProblem) throw new Error(`${aiCostProblem} — startup aborted`);
 }
@@ -248,6 +266,7 @@ if (parsed.data.NODE_ENV === "production") {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
 export const isTest = env.NODE_ENV === "test";
+export const isDev = env.NODE_ENV === "development";
 
 /** Fallback used when WEB_ORIGIN is empty or unparseable. */
 const LOCAL_WEB_ORIGIN = "http://localhost:5173";
@@ -258,7 +277,7 @@ const LOCAL_WEB_ORIGIN = "http://localhost:5173";
  * WEB_ORIGIN is an allow-list (comma-separated) because a deployment serves the
  * site *and* the Capacitor app, whose WebView origin is `https://localhost`.
  * CORS wants the whole list; a redirect needs exactly one entry — passing the
- * list straight into `new URL()` silently produced a malformed location such as
+ * list straight into `new URL` silently produced a malformed location such as
  * `https://site.example,https/orders`.
  */
 export function primaryOriginOf(webOrigin: string): string {
@@ -277,7 +296,7 @@ export function primaryOriginOf(webOrigin: string): string {
 export const primaryWebOrigin = primaryOriginOf(env.WEB_ORIGIN);
 
 /**
- * Browser origins allowed to call this API (AUD-106 / B-18).
+ * Browser origins allowed to call this API.
  *
  * In production, plain-HTTP localhost origins are dropped from the allow-list:
  * they are developer origins, and the live list once still contained

@@ -30,7 +30,7 @@ const PAY_STEP = 3;
 const SUCCESS_STEP = 4;
 
 /**
- * One checkout idempotency key per attempt (AUD-125), persisted so a page
+ * One checkout idempotency key per attempt, persisted so a page
  * reload or a manual/offline retry re-sends the SAME key — the server then
  * replays the already-created order instead of charging/ordering twice.
  * Cleared on success and whenever the cart is observed empty, so the next

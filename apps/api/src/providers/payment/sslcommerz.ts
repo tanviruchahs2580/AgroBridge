@@ -3,6 +3,16 @@ import type { CreatePaymentInput, PaymentIntent, PaymentProvider } from "./types
 import { logger } from "../../lib/logger.js";
 
 /**
+ * The provider is constructed only when both credentials are configured
+ * (providers/payment/index.ts gates on them), so a missing value here is a
+ * wiring bug — fail with a named error instead of a non-null assertion.
+ */
+function requireCredential(value: string | undefined, name: string): string {
+  if (!value) throw new Error(`${name} is required when SSLCommerzProvider is instantiated`);
+  return value;
+}
+
+/**
  * SSLCommerz adapter — production gateway.
  * Requires SSLCOMMERZ_STORE_ID / PASSWORD. Intent creation posts to SSLCommerz
  * session API; payment verification chains through:
@@ -19,8 +29,8 @@ import { logger } from "../../lib/logger.js";
 export class SSLCommerzProvider implements PaymentProvider {
   readonly name = "sslcommerz";
   readonly mode = "live" as const;
-  private storeId = env.SSLCOMMERZ_STORE_ID!;
-  private storePass = env.SSLCOMMERZ_STORE_PASSWORD!;
+  private storeId = requireCredential(env.SSLCOMMERZ_STORE_ID, "SSLCOMMERZ_STORE_ID");
+  private storePass = requireCredential(env.SSLCOMMERZ_STORE_PASSWORD, "SSLCOMMERZ_STORE_PASSWORD");
   private isSandbox = env.SSLCOMMERZ_SANDBOX !== "false";
 
   private baseUrl() {
