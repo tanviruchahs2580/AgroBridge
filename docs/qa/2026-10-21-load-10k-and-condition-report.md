@@ -578,3 +578,27 @@ authenticated request (~12 %). A security guarantee that the repository tests an
 worth more than 12 % of one instance's throughput; the structural answer to F-05 is the
 backpressure guard (added) plus horizontal scaling (documented in `docs/operations.md`). If the
 trade is ever taken deliberately, it needs a Redis-backed revocation set, not a bare TTL cache.
+
+### Second pass (same day, all findings closed)
+
+- **F-05 remainder resolved without the cache.** Instead of the rejected TTL cache, the per-request
+  lookup was made cheaper: `requireAuth` now reads a minimal raw projection (3 000-call benchmark:
+  mean 3.03 ms → **1.23 ms**, CPU 1.84 → **0.73 ms**, same table/instant/answer). Revocation stays
+  immediate, and `auth-hot-path.test.ts` pins the semantics that had to survive the change: the
+  role comes from the database and never from the token, an unknown subject is rejected through the
+  no-row path, and suspension still cuts an account off on the next request.
+- **F-02 (c) implemented:** a stored hash whose own embedded cost is lower than the configured
+  factor is re-hashed at the current cost on successful login (best-effort; a failed upgrade never
+  fails a login). Dormant today — every hash is written at the configured factor — it exists so the
+  cost factor can be lowered deliberately under load without the weakening becoming permanent.
+- **F-09 completed:** `SERVER_MAX_CONNECTIONS` caps connections at the process edge, for the
+  backlog the 10k run measured as unreachable by any middleware.
+- **§8.6 verification done:** the identical 10 000-user simulation re-run on the remediated build —
+  requests **100 910 → 122 793**, p50 **9 721 → 3 056 ms**, over-30-s **44.1 % → 28.3 %**,
+  AI `429` **1 063 → 0**, `5xx` **0 → 0**; the guard now sheds 49 585 instead of queueing the
+  surplus. The honest cost is recorded in `docs/performance.md`'s table: useful 2xx fell from
+  115/s to 80/s, because at 10 000 sessions the offered load (≈500 req/s) exceeds one instance's
+  ~150–250 req/s — capacity, not code, is the remaining answer, and the ≈55 s p95 backlog is that
+  gap made visible. The overhead-guard comparison tables in `docs/operations.md` were re-measured
+  in a single session (guard off / 256 / 128 / 24) with a useful-2xx column, so the guard's
+  trade-off is decision-grade rather than folklore.

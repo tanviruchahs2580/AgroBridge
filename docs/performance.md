@@ -77,6 +77,45 @@ A single-instance login ceiling remains: the pool multiplies capacity, it does n
 Size the pool, and shape login bursts, before promising capacity — see
 `docs/qa/2026-10-21-load-10k-and-condition-report.md` §5.2.
 
+## 10 000 concurrent users — same box, before and after the fixes
+
+The environment description this section exists for (see §No capacity claims below): one
+production-mode instance of this repository's own image (`docker/api.Dockerfile`, Node 22
+container, `NODE_ENV=production`), one PostgreSQL 17 container, both on one workstation with 4
+physical cores — **not** the production topology, which is a serverless function in front of Neon
+and additionally carries network, TLS, cold starts and a real database. Both runs use the same
+generator, the same 10 000 synthetic farmer identities, one per virtual user, and the same model:
+240 s ramp, 240 s hold, human think time of 10–30 s (a closed loop, so offered load is ≈500 req/s
+against one instance). Before = `100910` requests measured on commit `0ce54b5` before the fixes;
+after = 122 793 on the remediated build (branch `fix/audit-10k-hardening`).
+
+| | before the fixes | after |
+|---|---|---|
+| requests issued | 100 910 | 122 793 |
+| 2xx served (useful) | 55 127 (115/s) | 38 286 (80/s) |
+| `503 OVERLOADED` refused | — | 49 585 |
+| p50 | 9 721 ms | **3 056 ms** |
+| p95 | 56 617 ms | 54 780 ms |
+| over 30 s (client timeout) | **44.1 %** | **28.3 %** |
+| AI quota rejections (`429`) | 1 063 | **0** |
+| 5xx | 0 | 0 |
+
+Read this table the way it was measured, which is narrower than it looks:
+
+- **What the fixes bought, without qualification:** the wrongness is gone. An AI feature that
+  rejected 1 063 of exactly 30-per-hour-quota requests now answers every account that asks; a page
+  admitting work at an unbounded 5 700 in-flight requests now answers at 1 141 peak and refuses the
+  surplus outright; p50 for a served request fell 3×.
+- **What no in-process fix can buy:** useful 2xx *fell* from 115/s to 80/s, because the load
+  offered (≈500 req/s) exceeds what one instance of this size can serve (~150–250 req/s) and the
+  guard now says so instead of queueing it. Before the guard, the surplus got served *slowly*
+  (44 % past 30 s); after, it gets refused quickly and retried. Serving 10 000 concurrent users on
+  this profile is a capacity problem — more instances, sized against `docs/operations.md`'s
+  measured numbers — not a code problem, and the remaining p95 (≈55 s for the backlog) is exactly
+  that gap made visible.
+- **The database was never the limit here:** 11 connections peak, 1–3 queries active, by
+  `pg_stat_activity` sampled through both runs.
+
 ## No capacity claims
 
 - No production capacity, concurrency or SLA number is asserted anywhere in this repository.

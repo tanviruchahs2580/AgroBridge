@@ -4,6 +4,42 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-21 audit remediation — second pass: hot path, cost healing, verification)
+Measured follow-up to the entry below, after re-running the 10 000-user simulation against the
+remediated build. The per-request numbers were taken on PostgreSQL 17 with 3 000 calls each; the
+10k numbers are the same generator, identities and model as the pre-fix run, so the columns are
+comparable (environment and caveats: `docs/performance.md`).
+
+- **The authentication read every request pays for is 2.5× cheaper — without a cache.** F-05's
+  remaining recommendation was to remove the per-request user lookup from the hot path, and the
+  tempting version of that — a short-TTL cache — was deliberately rejected: it would widen the
+  documented, tested "suspended accounts are cut off at once" guarantee to "within the TTL, per
+  instance". What the measurement supported instead was making the same read cheaper:
+  `requireAuth` now runs a minimal raw projection
+  (`SELECT "status", "role" FROM "User" WHERE "id" = $1`) instead of
+  `prisma.user.findUnique()` — mean **3.03 ms → 1.23 ms**, CPU **1.84 → 0.73 ms** per call. Same
+  table, same instant, same answer, so nothing about revocation changes; a suspended account is
+  still cut off on its very next request, and the specs assert that explicitly.
+- **A password stored at a cheaper cost is upgraded transparently on login** (F-02 option c).
+  Nothing rewrites today — every hash is written at the configured factor — but if the factor is
+  ever lowered deliberately under load (the capacity lever this audit forced onto the table), the
+  lowered hashes now heal back to the stronger one as their owners return, instead of the
+  weakening becoming permanent. Only a *lower* embedded factor triggers it: a hash stored at a
+  higher factor is stronger than today's configuration and is left alone. The upgrade is
+  best-effort — a successful login is never turned into a failure by it.
+- **`SERVER_MAX_CONNECTIONS`** completes F-09: a cap on simultaneous connections to the instance
+  (opt-in; Node's default is unlimited). It exists because the 10k audit measured where an
+  in-process guard cannot reach — the socket accept backlog, invisible to any middleware — so the
+  connection-level refusal belongs at the edge, with this as the in-process backstop.
+- **The 10 000-user simulation re-run, with the fixes in** (240 s ramp / 240 s hold, same as the
+  pre-fix run): requests 100 910 → **122 793** (+22 %), p50 **9 721 → 3 056 ms**, over-30 s
+  **44.1 % → 28.3 %**, AI `429` **1 063 → 0**, `5xx` **0 → 0**. The honest part of that table: the
+  guard now refuses 49 585 of those requests outright, so useful 2xx *fell* from 115/s to 80/s — at
+  10 000 concurrent users the offered load exceeds what one instance can serve and the guard says
+  so instead of queueing it. Serving that load is a capacity decision (instances, sized per
+  `docs/operations.md`), and the remaining ≈55 s p95 for the backlog is that gap made visible.
+  Record: `docs/performance.md`, `docs/qa/2026-10-21-load-10k-and-condition-report.md` §11.
+
 ### Fixed (2026-10-21 10k-concurrency audit remediation — F-01…F-11)
 Full report: `docs/qa/2026-10-21-load-10k-and-condition-report.md` (findings, evidence, method and
 its limits). Every number below came from a command in that report; the load figures are one

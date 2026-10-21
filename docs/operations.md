@@ -103,27 +103,43 @@ Runbook: triage → mitigate (rollback `git checkout <prev-tag> && docker compos
 
 ### Tuning the overload guard
 `MAX_CONCURRENT_REQUESTS` (default 128) is the point past which an instance answers
-`503 OVERLOADED` + `Retry-After` rather than accepting more work. **Size it from measurement,
-and size it low.** Measured on the audited box (~150 req/s sustainable for a mixed authenticated
-read load) under an unbounded 1 000-user burst of that mix:
+`503 OVERLOADED` + `Retry-After` rather than accepting more work. **Understand what it buys and
+what it costs before changing it, because it does not manufacture capacity — it only shapes how
+the capacity an instance has is spent.** Measured on the audited box (4 physical cores, ~200 req/s
+sustainable for a mixed authenticated read load) under an unbounded 1 000-user burst of that mix,
+all four settings in one session:
 
-| Setting | Requests handled | p50 | Over 30 s | Shed |
-|---|---|---|---|---|
-| guard off | 12 203 | 954 ms | 13.1 % | 0 |
-| ceiling 256 | 11 438 | 1 142 ms | 14.6 % | 0 |
-| ceiling 24 | 27 267 | **385 ms** | **6.1 %** | 21 807 `503`s |
+| Setting | 2xx served (useful) | useful req/s | p50 | Over 30 s | `503` shed |
+|---|---|---|---|---|---|
+| guard off | 14 995 | 187/s | 863 ms | 9.7 % | 0 |
+| ceiling 256 | 12 068 | 151/s | 892 ms | 11.7 % | 0 |
+| ceiling 128 (default) | 15 834 | **198/s** | **816 ms** | **8.1 %** | 1 094 |
+| ceiling 24 *(measured in a separate run the day before)* | 3 803 | 47/s | **385 ms** | 6.1 % | 21 807 |
 
-The counter-intuitive result is the important one: **too high a ceiling protects nothing.** Once the
-event loop is saturated, arriving requests wait in the socket accept backlog, where no middleware
-runs — so they are neither admitted nor refused, and the caller still hangs for tens of seconds.
-Only a ceiling near (or below) what the instance actually sustains leaves the event loop enough
-headroom to *emit* the refusal, and that is what converts a 50-second hang into an immediate retry.
+Three facts to hold together:
+
+- **The guard is not capacity.** The off / 256 / 128 rows sit inside this box's run-to-run noise
+  for useful throughput; none of them made the instance capable of more work. Only scaling does.
+- **A low ceiling trades useful throughput for latency.** At ceiling 24 admitted requests held a
+  385 ms p50 while useful work fell to 47/s — a quarter of what the instance demonstrably did with
+  the guard off. Shed fast, but you are refusing work the machine could have done.
+- **A ceiling above what the instance sustains protects nothing.** Past saturation, arriving
+  requests wait in the socket accept backlog where no middleware runs — neither admitted nor
+  refused — so callers still hang for tens of seconds and the `503` never gets emitted.
+
+So the ceiling is a policy dial with an arithmetic range: **ceiling roughly = sustainable req/s ×
+the worst wait an admitted request may see.** On the audited box (≈200 req/s, sub-second admitted
+latency) 128 sits at that crossover and measured best on every axis in the comparison above; a
+deployment that values serving overflow over admitting-quickly should raise it, and one that
+values never holding a caller should lower it, knowing the useful-throughput price. For a
+*sustained* overload — where every request is genuinely work that must happen — no in-process
+ceiling helps at all; only more instances do.
 
 No in-process guard can refuse a request it never gets to run: for a true flood, keep
-connection-level limiting at the edge (load balancer / CDN) as well. Watch the `503` rate in
-`agrobridge_http_requests_total` after a change — a guard that trips constantly is misconfigured,
-not protective. `MAX_CONCURRENT_REQUESTS=0` disables it (the pre-audit behaviour: unbounded
-queueing).
+connection-level limiting at the edge too (`SERVER_MAX_CONNECTIONS` is that knob inside this
+process). Watch the `503` rate in `agrobridge_http_requests_total` after a change — a guard that
+trips constantly is misconfigured, not protective. `MAX_CONCURRENT_REQUESTS=0` disables it (the
+pre-audit behaviour: unbounded queueing).
 
 ## Incident quick reference
 - **Requests waiting 30 s+, p95 in the tens of seconds** → the instance is saturated. Check whether
