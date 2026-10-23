@@ -20,6 +20,24 @@ export default function AdminPanel() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  /**
+   * Fail closed on the role, synchronously.
+   *
+   * `denied` below is only ever set by a 403 *response*, so a non-admin used to get
+   * the whole admin panel rendered first — "Admin Control Tower", the user table,
+   * withdrawals, audit log — until the first guarded read came back and replaced it.
+   * Measured on production: reading `#main` right after the route painted returned
+   * the admin panel's text, and the denial only appeared once the requests settled.
+   * The API refuses the data (a farmer gets 403 from every /admin route), so nothing
+   * leaked, but showing an admin console to a farmer is wrong in itself and leaves
+   * any future non-guarded section as a real exposure.
+   *
+   * The authority is still the server; this only stops the UI from displaying a
+   * surface the session's role cannot use, exactly as the shell already decides
+   * whether to render the admin nav link (App.tsx).
+   */
+  const roleDenied = !session || (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN");
+
   const [search, setSearch] = useState("");
   const [denied, setDenied] = useState(false);
   // Per-row draft regions (PATCH on save)
@@ -160,7 +178,7 @@ export default function AdminPanel() {
     }
   }
 
-  if (denied) {
+  if (denied || roleDenied) {
     return (
       <div className="mx-auto mt-10 max-w-md">
         <EmptyState icon={<ShieldCheck className="h-7 w-7 text-brand-600" />} title={t("adminOnly", lang)} />

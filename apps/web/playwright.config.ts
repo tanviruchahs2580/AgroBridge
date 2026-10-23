@@ -3,6 +3,22 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  /**
+   * Assertion budget, deliberately above Playwright's 5 s default.
+   *
+   * Every screen is a lazy chunk and most read the API, so "the element is visible"
+   * is gated on a route chunk plus a round trip — and this suite saturates the one
+   * API instance it runs against (see `workers: 1` below). At 5 s that produced
+   * failures which were not about the UI: a dark-mode axe scan died at its sign-in
+   * step because the shell was still hydrating (the same test passed alone in 22 s,
+   * and the whole file then passed 5/5 on re-run), and two webkit settings tests
+   * timed out looking for `#st-name` after five earlier specs had warmed the load.
+   *
+   * No assertion and no threshold changes — a genuinely missing element still fails,
+   * just after 10 s instead of 5. It removes a class of false red that CI was
+   * already absorbing with `retries: 2`.
+   */
+  expect: { timeout: 10_000 },
   fullyParallel: false,
   /**
    * One worker, deliberately. The specs are independent, but the backend they
