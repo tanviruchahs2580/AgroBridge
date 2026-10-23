@@ -19,10 +19,13 @@ const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const budget = JSON.parse(readFileSync(BUDGET_FILE, "utf8"));
 
+/** Per-app lint targets: the API lints src + tests, the web app has no tests dir. */
+const LINT_TARGETS = { "apps/api": ["src", "tests"], "apps/web": ["src"] };
+
 function countWarnings(cwd) {
   let out = "";
   try {
-    out = execFileSync(npxBin, ["eslint", "src", "tests", "--format", "json"], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, shell: process.platform === "win32" });
+    out = execFileSync(npxBin, ["eslint", ...LINT_TARGETS[cwd], "--format", "json"], { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, shell: process.platform === "win32" });
   } catch (e) {
     // Exit 1 can mean findings OR a lint error; errors must fail loudly either way.
     out = String(e.stdout ?? "");
