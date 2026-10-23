@@ -133,7 +133,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [session?.lang]);
 
   function logout() {
-    void api("POST", "/auth/logout", {}).catch(() => undefined); // revoke server-side; network errors are non-fatal
+    // The refresh token MUST travel in the body: `POST /auth/logout` revokes the
+    // refresh token it is given (`req.body.refreshToken`, optional) and does
+    // nothing at all when the body is empty. This call used to send `{}`, so
+    // logging out cleared the browser's copy and returned to /login while the
+    // server-side row stayed valid for the token's full 7-day TTL — a copied
+    // refresh token kept minting access tokens after the user had logged out.
+    // Measured on the running stack: with body `{}` the same token still got 200
+    // from `/auth/refresh`; with the token in the body it got 401.
+    // The API test suite asserts the revocation contract
+    // (tests/security-matrix.test.ts:65) — the client was simply not exercising it.
+    const { refreshToken } = getTokens();
+    void api("POST", "/auth/logout", refreshToken ? { refreshToken } : {}).catch(() => undefined);
     smClearTokens();
     setSession(null);
   }

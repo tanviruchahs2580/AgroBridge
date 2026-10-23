@@ -221,7 +221,7 @@ describe("lib/session — logout", () => {
   });
   afterEach(() => localStorage.clear());
 
-  it("logout calls POST /auth/logout, clears tokens and sets session null", async () => {
+  it("logout sends the refresh token so the server actually revokes the session", async () => {
     localStorage.setItem("ab_at", "at");
     localStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" }); // initial refresh
@@ -234,7 +234,14 @@ describe("lib/session — logout", () => {
       // logout's api call is fire-and-forget (void ...catch) so wait a tick
       await new Promise((r) => setTimeout(r, 10));
     });
-    expect(mockApi).toHaveBeenCalledWith("POST", "/auth/logout", {});
+    // The body must carry the refresh token. `POST /auth/logout` revokes only the
+    // token it is handed (`req.body.refreshToken`, optional) and does nothing when
+    // the body is empty. This assertion used to read `{}` — it encoded the defect,
+    // which is why logout cleared the browser's copy while the server-side row
+    // stayed valid for the token's full 7-day TTL. Measured on the running stack:
+    // body `{}` → the same token still got 200 from /auth/refresh; with the token
+    // in the body → 401.
+    expect(mockApi).toHaveBeenCalledWith("POST", "/auth/logout", { refreshToken: "rt" });
     expect(mockClearTokens).toHaveBeenCalled();
     expect(getCtx().session).toBeNull();
     unmount();
