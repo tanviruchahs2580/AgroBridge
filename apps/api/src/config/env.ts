@@ -111,6 +111,8 @@ const schema = z.object({
   SERVER_MAX_CONNECTIONS: z.coerce.number().int().positive().optional(),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
+  /** When set, Vercel cron jobs send it as `Authorization: Bearer <token>`; the ops endpoints fail closed without it. */
+  CRON_SECRET: z.string().optional(),
   /** pino level (debug|info|warn|error|silent); unset = info, silent in tests. */
   LOG_LEVEL: z.string().optional(),
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)

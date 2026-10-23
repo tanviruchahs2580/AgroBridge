@@ -1,1 +1,14 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","framework":null,"installCommand":"cd ../.. && npm ci --workspace apps/api --include-workspace-root --include=dev --no-audit --no-fund","buildCommand":"cd ../.. && node scripts/vercel-build-api.mjs","outputDirectory":"public","rewrites":[{"source":"/(.*)","destination":"/api/index"}]}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../.. && npm ci --workspace apps/api --include-workspace-root --include=dev --no-audit --no-fund",
+  "buildCommand": "cd ../.. && node scripts/vercel-build-api.mjs",
+  "outputDirectory": "public",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "crons": [
+    {
+      "path": "/api/v1/ops/retention",
+      "schedule": "43 20 * * *"
+    }
+  ]
+}

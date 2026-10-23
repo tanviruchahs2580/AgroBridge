@@ -56,8 +56,9 @@ From the policy schedule (`docs/data-protection.md:14-26`, decision record
 | Disease-case metadata | account lifetime | rows retained after deletion (no file bytes) |
 | Financial/ledger rows | **5 years** | retained; corrections are compensating entries only (ADR-0011) |
 | Application logs | operator-configured (suggest 30d) | platform setting — §2 |
-| Backups | **30 days**, then auto-expire | backup job retention; deletion does not rewrite dumps (ADR-0011 §4) |
-| Audit log rows (`audit_logs`) | no automated pruning exists | the API writes audit events (registration, login, checkout, payments, withdrawals, reviews, admin changes — `docs/security.md` audit-trail bullet); no script deletes them (checked 2026-10-19: no `auditLog.delete*` under `apps/api/src` / `apps/api/scripts`), so they grow with usage and are kept indefinitely unless the operator adds archiving |
+| Backups | platform-managed (Neon plan-dependent) | **there is no in-repo backup job** — the platform's own snapshot/restore policy applies; deletion does not rewrite existing dumps (ADR-0011 §4). The 30-day expiry stated in the privacy policy is the platform window the operator must verify for the production plan (see PRIVACY_POLICY.md §Data retention). |
+| Audit log rows (`audit_logs`) | **180 days** | deleted by the retention job (`apps/api/src/shared/retention.ts` → `runRetention`, scheduled daily via the Vercel cron `GET /api/v1/ops/retention`, also runnable as `npm run retention`). The pre-2026-10-24 claim that "no script deletes them" was wrong the day it shipped — `retention.mjs` deleted audit rows from commit fae678c (2026-10-22); this row now states what the code does. |
+| Analytics events / notifications / AI usage logs / advisory queries | **180 days** | same retention job — these four tables previously sat outside every window and grew without bound (AUD-V3); the daily cron now prunes them. |
 
 Uploads with `STORAGE_PROVIDER=db` live in the database (`StoredObject`), so **the database's
 backup and size story is the uploads' story**: each upload is capped at 8 MB and JPEG metadata is

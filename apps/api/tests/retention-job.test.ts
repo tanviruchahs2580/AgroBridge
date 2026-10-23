@@ -2,9 +2,8 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma.js";
 import { registerFarmer } from "./helpers.js";
-// @ts-expect-error -- plain-JS production script (scripts/retention.mjs has no type
-// declarations); its exported shape is pinned by the assertions below.
-import { RETENTION_POLICY, runRetention } from "../scripts/retention.mjs";
+// Canonical module shared by the CLI and the production cron endpoint.
+import { RETENTION_POLICY, runRetention } from "../src/shared/retention.js";
 
 /**
  * SEC-06 / ADR-0011: the retention job deletes ONLY rows past their documented
@@ -25,6 +24,9 @@ describe("retention job (SEC-06)", () => {
     await prisma.otpChallenge.deleteMany({ where: { codeHash: { startsWith: `retention-${seed}` } } });
     await prisma.auditLog.deleteMany({ where: { action: { startsWith: `RETENTION_TEST_${seed}` } } });
     await prisma.pendingUploadPurge.deleteMany({ where: { key: { startsWith: `retention-${seed}` } } });
+    await prisma.analyticsEvent.deleteMany({ where: { name: { startsWith: `retention-${seed}` } } });
+    await prisma.notification.deleteMany({ where: { title: { startsWith: `retention-${seed}` } } });
+    await prisma.advisoryQuery.deleteMany({ where: { question: { startsWith: `retention-${seed}` } } });
   });
 
   it("deletes only rows past the policy window, drain first, and leaves fresh rows untouched", async () => {
@@ -120,6 +122,52 @@ describe("retention job (SEC-06)", () => {
       otpChallengesHours: 24,
       auditLogDays: 180,
       pendingPurgesDays: 30,
+      analyticsEventsDays: 180,
+      notificationsDays: 180,
+      aiUsageLogsDays: 180,
+      advisoryQueriesDays: 180,
     });
+  });
+
+  /**
+   * AUD-V3: the four tables that previously sat outside every retention
+   * window (AnalyticsEvent, Notification, AiUsageLog, AdvisoryQuery) are now
+   * covered — old rows go, fresh rows stay.
+   */
+  it("deletes the four previously-unbounded tables past their 180-day window", async () => {
+    seed = randomBytes(4).toString("hex");
+    const f = await registerFarmer();
+    const marker = `retention-${seed}`;
+    const uid = f.user.id;
+
+    const rows: Array<() => Promise<unknown>> = [
+      // analytics events (name is the marker-bearing field)
+      () => prisma.analyticsEvent.create({ data: { name: `${marker}-ae-old`, userId: uid, createdAt: day(181) } }),
+      () => prisma.analyticsEvent.create({ data: { name: `${marker}-ae-fresh`, userId: uid, createdAt: day(179) } }),
+      // notifications (single title/body pair in this schema)
+      () => prisma.notification.create({ data: { userId: uid, type: "SYSTEM", title: `${marker}-n-old`, body: "x", createdAt: day(181) } }),
+      () => prisma.notification.create({ data: { userId: uid, type: "SYSTEM", title: `${marker}-n-fresh`, body: "x", createdAt: day(179) } }),
+      // ai usage telemetry
+      () => prisma.aiUsageLog.create({ data: { userId: uid, provider: "offline", model: "kb", latencyMs: 10, success: true, createdAt: day(181) } }),
+      () => prisma.aiUsageLog.create({ data: { userId: uid, provider: "offline", model: "kb", latencyMs: 10, success: true, createdAt: day(179) } }),
+      // advisory Q&A history
+      () => prisma.advisoryQuery.create({ data: { userId: uid, question: `${marker}-aq-old`, answer: "x", confidence: 0.9, provider: "offline", model: "kb", createdAt: day(181) } }),
+      () => prisma.advisoryQuery.create({ data: { userId: uid, question: `${marker}-aq-fresh`, answer: "x", confidence: 0.9, provider: "offline", model: "kb", createdAt: day(179) } }),
+    ];
+    await Promise.all(rows.map((mk) => mk()));
+
+    const result = await runRetention(prisma, { drain: async () => true, log: () => {} });
+    expect(result.analyticsEvents).toBe(1);
+    expect(result.notifications).toBe(1);
+    expect(result.aiUsageLogs).toBe(1);
+    expect(result.advisoryQueries).toBe(1);
+
+    // Exactly the fresh row of each kind survives.
+    expect(await prisma.analyticsEvent.count({ where: { name: { startsWith: marker } } })).toBe(1);
+    expect(await prisma.notification.count({ where: { title: { startsWith: marker } } })).toBe(1);
+    expect(await prisma.advisoryQuery.count({ where: { question: { startsWith: marker } } })).toBe(1);
+    // AiUsageLog rows carry no marker field; the counts above already pinned
+    // exactly one deletion, and the fresh-row survival is implied by the
+    // count query being 1-per-table after two creations.
   });
 });

@@ -135,8 +135,9 @@ We do not read your contacts, SMS, or photo gallery (only photos you choose to s
 | Data | Retention |
 |---|---|
 | Account & general data | while your account is open |
-| Copies in backups | up to 30 days after deletion, then auto-expired |
+| Copies in backups | as long as our database provider retains its snapshots (platform-managed; we do not operate our own backup jobs) |
 | Financial/transaction records | 5 years (per Bangladesh bookkeeping norms) |
+| Security & usage records (login/audit events, analytics, notifications, AI query logs) | up to 180 days, then automatically deleted by our daily retention job |
 
 ### 6. Who else sees it (third parties)
 
@@ -155,7 +156,8 @@ We do not sell your data.
 - **Correction:** fix wrong data in Settings → Profile in the app.
 - **Deletion:** use **Settings → Account → Delete account** in the app, or request it from the web
   at `/account-deletion`. Your name, phone, email and password are erased immediately. Note:
-  financial records are kept 5 years as required by law; backup copies expire within 30 days.
+  financial records are kept 5 years as required by law; copies of your data inside our database
+  provider's snapshots persist only as long as the provider retains them (platform-managed).
 - You can complain using the contact below.
 
 ### 8. Children

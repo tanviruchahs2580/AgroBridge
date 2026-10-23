@@ -17,7 +17,7 @@
     "pg:rehearse-backup": "node scripts/backup-restore-rehearsal.mjs",
     "loadtest": "node scripts/loadtest.mjs",
     "purge:uploads": "tsx scripts/purge-uploads.ts",
-    "retention": "node scripts/retention.mjs",
+    "retention": "tsx scripts/retention.mjs",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
