@@ -29,5 +29,15 @@ export interface PaymentProvider {
   readonly name: string;
   readonly mode: "sandbox" | "live";
   createPayment(input: CreatePaymentInput): Promise<PaymentIntent>;
-  verifyPayment(providerRef: string): Promise<{ status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }>;
+  /**
+   * `providerRef` is the merchant-side reference (our refNo / tran_id) — the
+   * only key every gateway can resolve. `meta` carries the extras stored at
+   * intent creation (e.g. SSLCommerz's val_id for the Validation API); live
+   * adapters take the gateway-specific key they need from meta when present
+   * and fall back to providerRef, never the reverse.
+   */
+  verifyPayment(
+    providerRef: string,
+    meta?: Record<string, unknown>
+  ): Promise<{ status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }>;
 }

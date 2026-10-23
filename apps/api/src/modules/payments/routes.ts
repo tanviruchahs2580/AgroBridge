@@ -15,6 +15,7 @@ import { getActiveMembership } from "../../lib/membership.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
+import { logger } from "../../lib/logger.js";
 import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
@@ -358,6 +359,59 @@ export async function claimAndApplyPayment(
 }
 
 /**
+ * Reconciliation rule shared by every live-gateway confirmation path
+ * (`GET /:id/status`, gateway return): the webhook's own standard — a verdict
+ * from the gateway proves the SESSION succeeded, not that it belongs to THIS
+ * charge — applied to the amount before any PENDING→SUCCEEDED claim. A
+ * mismatched, missing, or non-finite amount leaves the payment PENDING (the
+ * signed webhook remains the final authority) and is audited so a partial
+ * payment can be reconciled by an operator instead of silently dropping.
+ */
+export async function reconcileLiveVerdict(
+  payment: { id: string; userId: string; refNo: string; purposeType: string; purposeId: string; amountPaisa: number },
+  verdict: { status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }
+): Promise<{ reconciled: boolean; reason?: "amount_mismatch" }> {
+  if (verdict.status === "FAILED") {
+    await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
+    return { reconciled: false };
+  }
+  if (verdict.status !== "SUCCEEDED") return { reconciled: false };
+
+  if (verdict.amountPaisa !== payment.amountPaisa) {
+    logger.warn(
+      { paymentId: payment.id, refNo: payment.refNo, expectedPaisa: payment.amountPaisa, verdictPaisa: verdict.amountPaisa ?? null },
+      "live-gateway reconciliation amount mismatch — payment left PENDING"
+    );
+    await audit({
+      actorId: payment.userId,
+      action: "PAYMENT_RECONCILE_AMOUNT_MISMATCH",
+      entityType: "Payment",
+      entityId: payment.id,
+      meta: { expectedPaisa: payment.amountPaisa, verdictPaisa: verdict.amountPaisa ?? null },
+    });
+    return { reconciled: false, reason: "amount_mismatch" };
+  }
+
+  const claimed = await claimAndApplyPayment(payment, {
+    mode: env.PAYMENT_PROVIDER,
+    verified: true,
+    amountPaisa: verdict.amountPaisa,
+  });
+  return claimed ? { reconciled: true } : { reconciled: false };
+}
+
+/** Parses a payment's stored metaStr, tolerating null/corrupt JSON. */
+export function paymentMetaOf(metaStr: string | null): Record<string, unknown> {
+  if (!metaStr) return {};
+  try {
+    const parsed = JSON.parse(metaStr) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Sandbox confirm: simulates the gateway return path. Only available when the
  * sandbox provider is actually in use, and — in production — only for a
  * deployment that explicitly opted in (ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION).
@@ -408,19 +462,16 @@ paymentsRouter.get("/:id/status", async (req, res, next) => {
 
     let verdict: Awaited<ReturnType<typeof provider.verifyPayment>>;
     try {
-      verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo);
+      verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo, paymentMetaOf(payment.metaStr));
     } catch (e) {
       throw paymentGatewayUnavailable({ reason: (e as Error).message });
     }
 
-    let reconciled = false;
-    if (verdict.status === "SUCCEEDED") {
-      reconciled = await claimAndApplyPayment(payment, { mode: env.PAYMENT_PROVIDER, verified: true, amountPaisa: verdict.amountPaisa });
-    } else if (verdict.status === "FAILED") {
-      await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
-    }
+    // SUCCEEDED verdicts still face the amount cross-check the signed webhook
+    // enforces (reconcileLiveVerdict) before any PENDING→SUCCEEDED claim.
+    const { reconciled, reason } = await reconcileLiveVerdict(payment, verdict);
     const final = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
-    ok(res, { status: final.status, reconciled, providerMode: env.PAYMENT_PROVIDER, providerVerdict: verdict.status });
+    ok(res, { status: final.status, reconciled, reason, providerMode: env.PAYMENT_PROVIDER, providerVerdict: verdict.status });
   } catch (e) {
     next(e);
   }
