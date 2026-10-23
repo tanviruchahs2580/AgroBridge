@@ -415,6 +415,91 @@ test passes; no test failed.
 PostgreSQL 17.11 ran in Docker on the digest CI pins
 (`postgres:17-alpine@sha256:b0f9560a…`), on host port 5434 because 5433 was taken.
 
+## 7b. Release record (2026-10-23) — merged, deployed and verified on production
+
+The work in §7a went out. This is the record of what is live and what it was
+verified against.
+
+### The merges
+
+| PR | Branch | Merged | Subject |
+|---|---|---|---|
+| [#62](https://github.com/tanviruchahs2580/AgroBridge/pull/62) | `feat/ui-ux-renovation-2026-10-22` | 04:54 UTC | the UI/UX audit findings, a logout that revokes, CI gates that can fail |
+| [#63](https://github.com/tanviruchahs2580/AgroBridge/pull/63) | `fix/deploy-verify-storage-check` | 06:03 UTC | the deploy-verify storage gate can finally read the value it asserts |
+| [#64](https://github.com/tanviruchahs2580/AgroBridge/pull/64) | `fix/admin-guard-fail-closed` | 06:16 UTC | the admin guard fails closed, and two verification tools tell the truth |
+
+PR #62's first CI pass failed 3 CodeQL findings (`js/double-escaping`,
+`js/incomplete-sanitization`) — all of them in the scanner that same PR added, and
+all legitimate: the escaping ran twice over one string, so it matched by accident
+and a class name containing a backslash would have compounded. Fixed in one pass
+over one character map, with `selectorExists` no longer building a dynamic `RegExp`
+from the class name at all, and re-proved afterwards: a deliberately broken probe is
+still caught (3 classes, exit 1) and removing it returns the gate to clean.
+
+### What is live
+
+| Check | Value |
+|---|---|
+| Web `version.json` | `{"version":"1.4.1","commit":"ef26c7c","builtAt":"2026-10-23T06:17:07.085Z"}` |
+| API `/health` | `{"ok":true,"service":"agrobridge-api","commit":"ef26c7c","env":"production"}` |
+| main HEAD | `ef26c7c` — **web and API both report the reviewed commit** |
+| `Deploy verification` (main) | **success** — for the first time since 2026-10-21 |
+| `CodeQL` (main) | success |
+
+That deploy-verify job asserted, on the live origin: both deployments include the
+reviewed commit; the security headers are present; the hashed entry chunk is served
+immutable while the document revalidates; `/ready` reports `db:true` with the
+migration chain applied; and — the step that could never run before —
+`storage: db (durable)`.
+
+### `STORAGE_PROVIDER=db` was set in production
+
+ADR-0012 (accepted 2026-10-19) recommended it and named the environment change as
+the outstanding operator action. Production had `storage: {provider: "local",
+durable: false}`, so every redeploy discarded uploaded content — a farmer's
+disease-photo intake included. The API was redeployed from the same commit
+(`vercel redeploy`), so the commit deploy-verify compares against is unchanged, and
+`/ready` now reports:
+
+```json
+"storage": { "provider": "db", "durable": true }
+```
+
+The `StoredObject` table already existed in production (its migration predates the
+newest applied one), so no schema change was needed. This is the only production
+configuration change in the release.
+
+### Live user-level verification
+
+| Check | Result |
+|---|---|
+| `apps/web/scripts/prod-smoke.mjs` (tracked, read-only by design) | **14/14 pass** — was 12/14 before the two faulty assertions were repaired |
+| Read-only API surface probe against the live API | **33/33 pass** |
+| Endpoints exercised live | `/health`, `/ready`, `/auth/me`, `/weather`, `/ai/history`, `/farms`, `/products`, `/cart`, `/orders`, `/services`, `/bookings`, `/procurement`, `/payments`, `/wallet`, `/wallet/summary`, `/wallet/withdrawals`, `/membership/plans`, `/notifications`, `/notifications/preferences`, `/organizations`, `/disease/cases` |
+| Authorization boundaries live | farmer → `/admin/metrics` **403**; anonymous, empty-bearer and forged-token → **401**; anonymous `/products` → **401** (ADR-0001) |
+| Logout revocation live | `POST /auth/logout` with the refresh token in the body → **200**, and replaying that token against `/auth/refresh` → **401** |
+
+Two things this probe did **not** do, stated because their absence is not a pass:
+**no writing requests were made against production** (no registrations, farms,
+offers, orders or uploads — those paths are proven by the API suite and by CI
+against a throwaway database), and **the production admin read surface was not
+exercised** because no production admin credential was available to this verifier.
+The admin *UI* half is asserted by the smoke's garde check and by the API's own RBAC
+boundary (farmer → 403 above).
+
+Two of this probe's own failures were reported and then fixed rather than
+explained away: it first tried the **local** demo accounts (`01700000002`,
+`01700000001`), which deliberately do not exist in production because the seed skips
+without `ALLOW_DEMO_SEED=1`; and it asserted a `balancePaisa` field on
+`/wallet/summary`, which is the monthly roll-up (`monthCreditsPaisa`,
+`pendingWithdrawalsPaisa`, `membership.tier`) — the balance lives on `GET /wallet`.
+
+### The production smoke's two failures were the tool's, not the app's
+
+Covered in §7a; recorded here because they were found only by running the tool
+against the live site, and they are the same failure mode as the repaired
+`api-full-validation.sh`.
+
 ## 8. About Figma
 
 The request was to run this renovation through Figma. That was **not possible in
