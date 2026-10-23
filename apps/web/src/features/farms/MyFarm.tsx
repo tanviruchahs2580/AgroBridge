@@ -29,7 +29,7 @@ export default function MyFarm() {
   // `session?.district` is a real dependency: weather is localised to it, so a
   // profile change must refetch rather than keep showing the old area.
   const weatherRes = useResource<WeatherData>(
-    "weather",
+    RESOURCE_KEYS.weather,
     () => {
       const coords = getWeatherCoords(session?.district);
       return api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
@@ -85,7 +85,7 @@ export default function MyFarm() {
       // The old `load` refetched the farm list and the district weather after
       // every mutation — both families are invalidated, no more and no less.
       invalidate(RESOURCE_KEYS.farms);
-      invalidate("weather");
+      invalidate(RESOURCE_KEYS.weather);
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
   async function createPlot(e: React.FormEvent<HTMLFormElement>, farmId: string) {
@@ -99,7 +99,7 @@ export default function MyFarm() {
       toast.success(t("plotCreatedToast", lang)); setPlotFor(null); (e.target as HTMLFormElement).reset();
       // Same refetch set as the old `load`.
       invalidate(RESOURCE_KEYS.farms);
-      invalidate("weather");
+      invalidate(RESOURCE_KEYS.weather);
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
   async function createCrop(e: React.FormEvent<HTMLFormElement>) {
@@ -112,7 +112,7 @@ export default function MyFarm() {
       toast.success(t("cropCreatedToast", lang)); setCropPlotId(null); (e.target as HTMLFormElement).reset();
       // Same refetch set as the old `load`.
       invalidate(RESOURCE_KEYS.farms);
-      invalidate("weather");
+      invalidate(RESOURCE_KEYS.weather);
     } catch (err) { toast.error(mapError(err, lang)); } finally { setBusy(false); }
   }
 
@@ -237,6 +237,20 @@ export default function MyFarm() {
               {lang === "bn" ? firstRisk.titleBn : firstRisk.titleEn}
             </p>
           )}
+          {/* A failed weather read has to say so here. The briefing's risk row is
+              the screen's "what needs attention" line, and with the read failed it
+              simply disappeared — identical to a day with no risks, on advice. */}
+          {weatherRes.error && (
+            <div className="mt-3 space-y-2">
+              <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {t("weatherUnavailable", lang)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void weatherRes.reload()}>
+                {t("retry", lang)}
+              </Button>
+            </div>
+          )}
         </section>
       )}
 
@@ -285,7 +299,7 @@ export default function MyFarm() {
                       <h3 className="text-base font-bold text-stone-800">{farm.name}</h3>
                       <p className="text-xs text-stone-600">{[farm.district, farm.totalAreaBigha ? `${farm.totalAreaBigha} ${t("bighaShort", lang)}` : null].filter(Boolean).join(" · ")}</p>
                     </div>
-                    <span className={`shrink-0 rounded-chip border px-2.5 py-1 text-xs font-bold ${activeCrops>0?"bg-success-bg text-success-text border-success-border":"bg-warning-bg text-warning-text border-warning-border"}`}>{activeCrops>0? t("myFarmStatusActive", lang) : t("myFarmNeedsAttention", lang)}</span>
+                    <span className={`shrink-0 rounded-chip border px-2.5 py-1 text-xs font-bold ${careToneClass(activeCrops>0 ? "success" : "warning")}`}>{activeCrops>0? t("myFarmStatusActive", lang) : t("myFarmNeedsAttention", lang)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><MapPin className="h-3 w-3" /> {farm.plots.length} {t("myFarmPlotCount", lang)}</span>

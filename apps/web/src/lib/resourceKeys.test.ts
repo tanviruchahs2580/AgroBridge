@@ -22,7 +22,16 @@ import { RESOURCE_KEYS } from "./resourceKeys";
 const FEATURES_DIR = join("src", "features");
 
 /** endpoint path → the key every consumer of it must use. */
-const SHARED_ENDPOINTS: Array<[string, string]> = [['"GET", "/farms"', RESOURCE_KEYS.farms]];
+const SHARED_ENDPOINTS: Array<[string, string]> = [
+  ['"GET", "/farms"', RESOURCE_KEYS.farms],
+  // Added with the keys themselves: Home read weather as `"home-weather"` while
+  // My Farm invalidated `"weather"`, and Home read notifications as
+  // `"home-notifications"` while the notifications screen invalidated
+  // `"notifications"` — two cross-screen refreshes that could never fire, and the
+  // guard above only covered `/farms`, so nothing caught either.
+  ['"GET", `/weather', RESOURCE_KEYS.weather],
+  ['"GET", "/notifications"', RESOURCE_KEYS.notifications],
+];
 
 function featureFiles(dir: string = FEATURES_DIR): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -47,4 +56,38 @@ describe("resource keys are shared, not re-invented", () => {
       ).toEqual([]);
     });
   }
+
+  /**
+   * The other half of the rule: a key that is *invalidated* but never subscribed to
+   * is a no-op. `Services.tsx` called `invalidate("services-farms")` — a name no
+   * resource ever registered — so creating a booking silently left the farm list
+   * stale while the comment above it claimed all three families were invalidated.
+   */
+  it("every invalidate() target is a key some resource actually registers", () => {
+    const files = featureFiles();
+    const registered = new Set<string>();
+    const invalidated = new Map<string, string[]>();
+
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      const rel = file.slice(FEATURES_DIR.length + 1).split("\\").join("/");
+      // useResource(<key>, …) — the first argument, literal or RESOURCE_KEYS.x
+      for (const m of source.matchAll(/useResource<[^>]*>\(\s*(?:"([^"]+)"|RESOURCE_KEYS\.(\w+))/g)) {
+        registered.add(m[1] ?? RESOURCE_KEYS[m[2] as keyof typeof RESOURCE_KEYS]);
+      }
+      for (const m of source.matchAll(/invalidate\(\s*(?:"([^"]+)"|RESOURCE_KEYS\.(\w+))/g)) {
+        const key = m[1] ?? RESOURCE_KEYS[m[2] as keyof typeof RESOURCE_KEYS];
+        invalidated.set(key, [...(invalidated.get(key) ?? []), rel]);
+      }
+    }
+
+    const dead = [...invalidated.entries()]
+      .filter(([key]) => !registered.has(key))
+      .map(([key, where]) => `${key} (${where.join(", ")})`);
+
+    expect(
+      dead,
+      `invalidate() called with keys no resource registers — the call cannot refresh anything: ${dead.join("; ")}`
+    ).toEqual([]);
+  });
 });

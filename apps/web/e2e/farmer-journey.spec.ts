@@ -16,7 +16,9 @@ test.describe("Farmer journey", () => {
     await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');
     // After login, should land on home
     await page.waitForURL(/.*\/$/, { timeout: 10_000 });
-    await expect(page.locator("text=AgroBridge")).toBeVisible({ timeout: 5_000 }).catch(() => {});
+    // The brand must be visible after login; this used to be swallowed with
+    // `.catch(() => {})`, which turned a broken shell into a silent pass.
+    await expect(page.getByText("এগ্রোব্রিজ").first()).toBeVisible({ timeout: 10_000 });
     // Bilingual toggle
     // Language smoke check. The second click must not just repaint the UI: it PATCHes
     // the account's language, and every later spec hydrates from that value. Ending the

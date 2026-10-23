@@ -41,6 +41,8 @@ export default function SellCrop() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // An offer is not idempotent; without this a double activation files two.
+    if (busy) return;
     const form = e.currentTarget;
     const fd = new FormData(form);
     const errs: Record<string, string> = {};
@@ -49,7 +51,14 @@ export default function SellCrop() {
     const qty = Number(fd.get("qty"));
     if (!qty || qty < 1) errs.qty = t("errQuantityInvalid", lang);
     const moistureRaw = fd.get("moisture") as string;
-    if (moistureRaw && (Number(moistureRaw) < 0 || Number(moistureRaw) > 60)) errs.moisture = t("errValidation", lang);
+    if (moistureRaw) {
+      // `Number("abc")` is NaN and every comparison against NaN is false, so the old
+      // range check let unparsable input through and sent `NaN` — which
+      // `JSON.stringify` turns into `null`, i.e. the server got a null the form
+      // believed it had validated. Check the parse first.
+      const moisture = Number(moistureRaw);
+      if (!Number.isFinite(moisture) || moisture < 0 || moisture > 60) errs.moisture = t("errValidation", lang);
+    }
     setFormErrs(errs);
     if (Object.keys(errs).length > 0 || !farms.length) return;
 
@@ -160,7 +169,7 @@ export default function SellCrop() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                        {t(GRADE_KEYS[o.qualityGrade ?? ""] ?? "qualityGrade", lang)}
+                        {o.qualityGrade ? t(GRADE_KEYS[o.qualityGrade], lang) : "—"}
                         <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                       </div>
                       <div className="flex items-center gap-2 text-right">
@@ -177,7 +186,7 @@ export default function SellCrop() {
                   <div className="mb-3 flex items-center justify-between gap-2 text-sm">
                     <div className="min-w-0">
                       <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                      {t(GRADE_KEYS[o.qualityGrade ?? ""] ?? "qualityGrade", lang)}
+                      {o.qualityGrade ? t(GRADE_KEYS[o.qualityGrade], lang) : "—"}
                       <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                     </div>
                     <p className="font-bold text-accent">{formatBDT(o.netPayablePaisa, lang)}</p>

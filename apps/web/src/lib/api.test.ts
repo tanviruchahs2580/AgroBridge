@@ -55,7 +55,6 @@ describe("lib/api — token storage (setTokens / clearTokens / hasToken)", () =>
     expect(localStorage.getItem("ab_at")).toBeNull();
     expect(localStorage.getItem("ab_rt")).toBeNull();
     expect(mod.hasToken()).toBe(false);
-    expect(mod["accessToken" as never] ?? "").toBeFalsy; // indirect check via hasToken
   });
 
   it("initial accessToken is read from localStorage on module load", async () => {
@@ -295,26 +294,6 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
   it("concurrent 401s share single refresh request (single-flight)", async () => {
     mod.setTokens("expired-at", "valid-rt");
     let refreshCount = 0;
-    const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).includes("/auth/refresh")) {
-        refreshCount++;
-        // simulate small delay so concurrent calls overlap
-        await new Promise((r) => setTimeout(r, 30));
-        return new Response(JSON.stringify({ data: { accessToken: "new-at2", refreshToken: "new-rt2" } }), { status: 200 });
-      }
-      // For the protected endpoint, first wave returns 401; after refresh, return 200
-      // Count protected calls
-      const protectedCalls = fetchMock.mock.calls.filter((c) => !String(c[0]).includes("/auth/refresh")).length;
-      if (protectedCalls <= 2) {
-        // first two concurrent requests get 401
-        if (protectedCalls === 1 || protectedCalls === 2) {
-          // need to differentiate: first encounter per request is 401
-          // We'll track via a counter closure? Simpler: if refresh not yet done, return 401
-          if (refreshCount === 0) return errEnvelope(401, "UNAUTHORIZED", "expired");
-        }
-      }
-      return okData({ ok: true });
-    });
     // More deterministic: mock sequence: call1 401, call2 401, refresh 200, call1 retry 200, call2 retry 200
     let callIdx = 0;
     const seqMock = vi.fn(async (url: string) => {
@@ -572,20 +551,26 @@ describe("lib/api — offline enqueue side-effect (characterization)", () => {
     // queueable url contains /events
     await expect(mod.api("POST", "/farms/123/events", { title: "test" })).rejects.toMatchObject({ status: 0 });
 
-    // allow lazy import + enqueue to settle
-    await new Promise((r) => setTimeout(r, 50));
-    const raw = localStorage.getItem("agrobridge.mutationQueue");
-    // If offlineQueue was imported in time, it should have enqueued; otherwise document gap
-    // This test documents current behavior: enqueue is best-effort async (non-blocking).
-    // In jsdom with fast import, it often succeeds; if not, we at least assert no throw and NETWORK_ERROR.
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      expect(parsed.length).toBeGreaterThanOrEqual(1);
-      expect(parsed[0].url).toContain("/events");
-    } else {
-      // Gap documented: sync enqueue may miss if offlineQueue not yet loaded.
-      expect(raw).toBeNull();
+    /**
+     * The enqueue is asynchronous (the failure path imports the queue lazily), so
+     * this waits for it — bounded, and it FAILS if the entry never appears.
+     *
+     * The previous version branched on whether the write happened and asserted the
+     * matching outcome either way, so it passed however the race resolved and could
+     * not detect the offline promise regressing. "A queueable write made offline is
+     * retained" is the feature; a test that tolerates its absence is not a test of it.
+     */
+    let raw: string | null = null;
+    for (let i = 0; i < 40 && !raw; i++) {
+      await new Promise((r) => setTimeout(r, 25));
+      raw = localStorage.getItem("agrobridge.mutationQueue");
     }
+    expect(raw, "a queueable write made offline must be retained in the mutation queue").not.toBeNull();
+
+    const parsed = JSON.parse(raw as string) as Array<{ url: string; method: string }>;
+    expect(parsed.length).toBeGreaterThanOrEqual(1);
+    expect(parsed[0]!.url).toContain("/events");
+    expect(parsed[0]!.method).toBe("POST");
 
     // restore online
     Object.defineProperty(window.navigator, "onLine", { value: true, configurable: true });

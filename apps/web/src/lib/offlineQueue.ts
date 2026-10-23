@@ -5,6 +5,7 @@
 // Session-scoped: every entry records who queued it and when, so a shared
 // phone cannot replay one account's writes under the next account's session.
 import { api, isOnline, ApiError } from "./api";
+import { uuid } from "./uuid";
 import { t } from "./i18n";
 import type { Lang } from "./i18n";
 // One-way dependency by design: the queue needs the signed-in identity, but
@@ -263,24 +264,6 @@ function ensureSessionWatch(): void {
 function emit() {
   const n = size();
   for (const cb of listeners) cb(n);
-}
-
-// Fallback counter for environments without WebCrypto (js/insecure-randomness:
-// these IDs are idempotency tokens, so Math.random must not generate them).
-let uuidFallbackCounter = 0;
-
-function uuid(): string {
-  const c = globalThis.crypto as Crypto | undefined;
-  if (typeof c?.randomUUID === "function") return c.randomUUID();
-  if (typeof c?.getRandomValues === "function") {
-    const bytes = c.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6]! & 0x0f) | 0x40; // version 4
-    bytes[8] = (bytes[8]! & 0x3f) | 0x80; // variant 10
-    const hex = Array.from(bytes, (b: number) => b.toString(16).padStart(2, "0")).join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-  // No WebCrypto at all: timestamp + monotonic counter, never Math.random.
-  return `${Date.now().toString(36)}-${(uuidFallbackCounter++).toString(36)}`;
 }
 
 /** Queue a mutation for later replay. Non-allow-listed methods/URLs are ignored silently.

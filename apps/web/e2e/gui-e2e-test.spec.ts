@@ -164,7 +164,7 @@ test("T2: Farmer login succeeds", async ({ page }) => {
 });
 
 // ─── T3: Dashboard greeting is correct ───
-test("T3: Dashboard greeting correct (single 👋)", async ({ page }) => {
+test("T3: Dashboard greeting correct (no decorative emoji)", async ({ page }) => {
   await login(page);
 
   // Check greeting text
@@ -173,14 +173,17 @@ test("T3: Dashboard greeting correct (single 👋)", async ({ page }) => {
   expect(greeting.length).toBeGreaterThan(0);
   console.log(`   Greeting: "${greeting}"`);
 
-  // Verify single emoji (not double)
-  const emojiCount = (greeting.match(/👋/g) || []).length;
-  expect(emojiCount).toBeLessThanOrEqual(1);
+  // The greeting carries no decorative emoji at all: lucide-only iconography, and
+  // the 👋 that used to sit in the page's most prominent line was removed (see
+  // `i18n.ts` on `greeting`). Assert the absence so it cannot quietly return — the
+  // previous assertion here counted them and allowed one, which could not fail once
+  // the emoji was gone.
+  expect(greeting, "the h1 must not carry decorative emoji").not.toMatch(
+    /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u,
+  );
 
-  // Should contain the seeded demo user's display name
+  // And it still names the signed-in user, which is its purpose.
   expect(greeting).toContain("রহিম");
-
-  console.log("✅ T3 PASS: Greeting has single emoji, shows user name");
 });
 
 // ─── T4: MyFarm page works correctly ───

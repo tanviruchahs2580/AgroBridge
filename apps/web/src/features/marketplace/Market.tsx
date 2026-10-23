@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, setCriticalFlow, ApiError } from "../../lib/api";
+import { uuid } from "../../lib/uuid";
 import type { Cart, CartLine, Me, Order, PaymentIntent, ProductList, ProductListItem } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
@@ -46,7 +47,10 @@ function pendingCheckoutKey(): string {
     /* storage blocked (private mode) — no persisted key to reuse */
   }
   if (stored) return stored;
-  const id = crypto.randomUUID();
+  // `uuid()` never throws (see lib/uuid.ts). A bare `crypto.randomUUID()` here was
+  // called before the caller's `try`, so on a context without it the throw skipped
+  // the `finally` that clears `placing` and the Place-order button spun forever.
+  const id = uuid();
   try {
     localStorage.setItem(PENDING_CHECKOUT_KEY, id);
   } catch {
@@ -231,6 +235,7 @@ export default function Market() {
   }
 
   async function placeOrder() {
+    if (placing) return;
     setPlacing(true);
     setPlaceOrderError(null);
     // Reused across retries/reloads; only cleared once the order is confirmed.
@@ -266,7 +271,7 @@ export default function Market() {
   }
 
   async function pay() {
-    if (!order) return;
+    if (!order || paying) return;
     setPaying(true);
     try {
       const intent = await api<PaymentIntent>("POST", "/payments/intent", {
@@ -312,7 +317,12 @@ export default function Market() {
     }
   }
 
-  const subtotalPaisa = cart.reduce((s, i) => s + i.product.pricePaisa * i.qty, 0);
+  // Guarded like the mutation helpers above, which already read
+  // `item.product?.id ?? item.productId`: a cart line whose joined product is
+  // absent (one payload shape) used to throw here, during render, and take the
+  // whole marketplace to the ErrorBoundary. Integer paisa × quantity is exact, so
+  // this total cannot drift from the server's.
+  const subtotalPaisa = cart.reduce((s, i) => s + (i.product?.pricePaisa ?? 0) * i.qty, 0);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -516,7 +526,8 @@ export default function Market() {
           {step === REVIEW_STEP && (
             <div className="space-y-3">
               {placeOrderError && (
-                <ErrorBanner code="PLACE_ORDER_ERROR" message={placeOrderError} />
+                // No `code`: the raw envelope identifier is not user content.
+                <ErrorBanner message={placeOrderError} />
               )}
               <ul className="divide-y divide-stone-100 text-sm">
                 {cart.map((item) => (

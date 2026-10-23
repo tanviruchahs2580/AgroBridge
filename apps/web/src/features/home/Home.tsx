@@ -68,11 +68,11 @@ export default function Home() {
   // `farms` is the same family MyFarm uses: both screens read the identical
   // `GET /farms`, so adding a farm there invalidates this list too.
   const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
-  const notifRes = useResource<NotificationsData>("home-notifications", () => api<NotificationsData>("GET", "/notifications"));
+  const notifRes = useResource<NotificationsData>(RESOURCE_KEYS.notifications, () => api<NotificationsData>("GET", "/notifications"));
   // `session?.district` is a real dependency: weather is localised to it, so a
   // profile change must refetch rather than keep showing the old area.
   const weatherRes = useResource<WeatherData>(
-    "home-weather",
+    RESOURCE_KEYS.weather,
     () => {
       const coords = getWeatherCoords(session?.district);
       return api<WeatherData>("GET", `/weather?lat=${coords.lat}&lng=${coords.lng}`);
@@ -83,6 +83,18 @@ export default function Home() {
   const farms = farmsRes.data ?? [];
   const weather = weatherRes.data;
   const unread = notifRes.data?.unread ?? 0;
+  /**
+   * The states this screen used to guess at.
+   *
+   * `farms.length === 0` is true both for "this farmer has no farms" and for "the
+   * farm read failed", and the page rendered the *empty* copy for both — telling a
+   * farmer who owns three farms to add their first one because the request failed.
+   * The weather read has the same shape: `weather` is null while loading, after a
+   * failure, and when the provider returns nothing, and every consumer below treated
+   * all three as "no weather".
+   */
+  const farmsUnavailable = Boolean(farmsRes.error);
+  const unreadKnown = !notifRes.error && notifRes.data !== null;
   // Today's tasks are derived from the same `GET /farms` crop cycles the rest of
   // the screen reads (stage + planting date, via the shared care logic). Up to
   // three real suggestions — nothing pre-checked, nothing persisted, because no
@@ -144,14 +156,22 @@ export default function Home() {
               <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-enterprise-warning" : "bg-brand-400"}`} aria-hidden /> {t("farmReadiness", lang)}
             </p>
             <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
-              {farms.length === 0 ? t("aiFarmEmptyTitle", lang) : hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
+              {farmsUnavailable
+                ? t("farmDataUnavailable", lang)
+                : farms.length === 0
+                  ? t("aiFarmEmptyTitle", lang)
+                  : hasRisk
+                    ? t("aiFarmAttention", lang)
+                    : t("aiFarmHealthy", lang)}
             </h2>
             <p className="mt-1 max-w-[36ch] text-sm leading-relaxed text-white/85">
-              {farms.length === 0
-                ? t("aiFarmEmptySub", lang)
-                : hasRisk
-                  ? t("aiFarmAttentionSub", lang)
-                  : t("aiFarmHealthySub", lang)}
+              {farmsUnavailable
+                ? t("farmDataUnavailableSub", lang)
+                : farms.length === 0
+                  ? t("aiFarmEmptySub", lang)
+                  : hasRisk
+                    ? t("aiFarmAttentionSub", lang)
+                    : t("aiFarmHealthySub", lang)}
             </p>
             <Link to="/farm" className="mt-3 inline-flex min-h-[44px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
@@ -161,7 +181,16 @@ export default function Home() {
               weather. With no farm on file there is nothing to score, so the
               number is withheld rather than showing a floor value as if it meant
               something. */}
-          {farms.length === 0 ? (
+          {farmsUnavailable ? (
+            // No number: the reads that produce it did not complete, and a score
+            // computed from an empty array would be a fabricated 60%.
+            <div className="flex shrink-0 flex-col items-center gap-1.5 self-center rounded-card bg-white/10 p-4 text-center ring-1 ring-white/15 backdrop-blur sm:self-auto">
+              <TriangleAlert className="h-6 w-6 text-white/80" aria-hidden />
+              <span className="max-w-[16ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+                {t("farmDataUnavailable", lang)}
+              </span>
+            </div>
+          ) : farms.length === 0 ? (
             <div className="flex shrink-0 flex-col items-center gap-1.5 self-center rounded-card bg-white/10 p-4 text-center ring-1 ring-white/15 backdrop-blur sm:self-auto">
               <Sprout className="h-6 w-6 text-white/80" aria-hidden />
               <span className="max-w-[14ch] text-xs font-medium leading-snug tracking-wide text-white/85">
@@ -171,8 +200,12 @@ export default function Home() {
           ) : (
             <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
               <HealthRing score={healthScore} />
-              {/* The ring already prints the number; repeating it below was noise. */}
-              <span className="max-w-[18ch] text-center text-2xs leading-snug text-white/70">{t("farmReadinessBasis", lang)}</span>
+              {/* The basis line must name what actually contributed. It claimed
+                  "records and today's weather" even when the weather read had
+                  failed and computeHealthScore had silently skipped that term. */}
+              <span className="max-w-[18ch] text-center text-2xs leading-snug text-white/70">
+                {weather ? t("farmReadinessBasis", lang) : t("farmReadinessBasisNoWeather", lang)}
+              </span>
             </div>
           )}
         </div>
@@ -378,7 +411,20 @@ export default function Home() {
                 accent): white on the accent measures 3.77:1 and axe reported it as
                 a serious colour-contrast violation on this very element. The token
                 exists for exactly this case — a white label on a red fill. */}
-            {unread > 0 && <span className="absolute right-2 top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-enterprise-critical-strong px-1 text-xs font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+            {unreadKnown && unread > 0 && (
+              <span className="absolute right-2 top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-enterprise-critical-strong px-1 text-xs font-bold text-white">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+            {/* No badge means "no unread mail" — but only once the read succeeded.
+                A failed notifications read rendered the same badge-less tile as a
+                clean inbox, with the count missing and nothing saying so. */}
+            {!unreadKnown && (
+              <span className="absolute right-2 top-2 flex h-5 items-center justify-center rounded-full bg-warning-bg px-1.5 text-xs font-bold text-warning-text ring-1 ring-warning-border">
+                <span aria-hidden>!</span>
+                <span className="sr-only">{t("unreadCountUnavailable", lang)}</span>
+              </span>
+            )}
           </Link>
         </div>
       </section>
@@ -403,10 +449,18 @@ export default function Home() {
                 </span>
               </li>
             ))
-          ) : (
+          ) : weather ? (
             <li className="flex items-start gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2.5">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-success-border" aria-hidden />
               <span className="text-xs leading-relaxed text-stone-700">{t("weatherFavorable", lang)} — {t("regularFarmVisit", lang)}</span>
+            </li>
+          ) : (
+            // hasRisk is false when the weather read failed or is still running,
+            // and this branch answered that with "Weather favorable" — an agronomic
+            // all-clear derived from no data at all.
+            <li className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-text" aria-hidden />
+              <span className="text-xs leading-relaxed text-warning-text">{t("alertsUnavailable", lang)}</span>
             </li>
           )}
         </ul>
