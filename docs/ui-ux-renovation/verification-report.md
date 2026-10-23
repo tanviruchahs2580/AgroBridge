@@ -446,6 +446,14 @@ still caught (3 classes, exit 1) and removing it returns the gate to clean.
 | `Deploy verification` (main) | **success** — for the first time since 2026-10-21 |
 | `CodeQL` (main) | success |
 
+> **Note added after this record was written.** The docs-only merge that carried
+> this very file moved the stamp: `main` is now `5964fd9`, and both the web
+> `version.json` and the API `/health` report that commit. Nothing about the release
+> changed — a docs commit touches no `apps/web` or `apps/api` file, so the workflow's
+> `REQUIRED_WEB` requirement stayed `ef26c7c` and `Deploy verification` passed again
+> without needing a new build. The relationship the table asserts ("web and API both
+> report the reviewed commit") still holds; only the hash moved.
+
 That deploy-verify job asserted, on the live origin: both deployments include the
 reviewed commit; the security headers are present; the hashed entry chunk is served
 immutable while the document revalidates; `/ready` reports `db:true` with the
