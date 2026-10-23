@@ -205,7 +205,18 @@ jobs:
         run: |
           set -euo pipefail
           body=$(curl -fsS -m 20 "$API_URL/ready")
-          read -r provider durable <<<"$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(j.storage?.provider||'')+' '+String(j.storage?.durable ?? ''))}catch{process.stdout.write(' unknown ')}}")
+          # Two defects lived on this line, and the first one hid the second:
+          #   1. the here-string's closing double quote was missing, so bash kept
+          #      reading, hit the "(" in the error message below, and died with
+          #      "syntax error near unexpected token `('" — exit 2, before the step
+          #      read anything at all;
+          #   2. the node one-liner never closed its own call — `}}` where `}})`
+          #      was needed — so even had it run, `durable` would have been the
+          #      literal string "unknown" and the check could never pass.
+          # Together they mean this release gate has never verified storage since
+          # it was added: it was red on every push to main from 2026-10-21 for a
+          # reason unrelated to the thing it claims to assert.
+          read -r provider durable <<<"$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(j.storage?.provider||'')+' '+String(j.storage?.durable ?? ''))}catch{process.stdout.write(' unknown ')}})")"
           if [ "$durable" != "true" ]; then
             echo "::error::production storage provider is '${provider:-unknown}' — uploads stored on the instance disk are lost on redeploy. Set STORAGE_PROVIDER=db (durable, no external service) or s3 with bucket credentials per docs/runbooks/live-deployment.md, then re-run this workflow."
             exit 1
