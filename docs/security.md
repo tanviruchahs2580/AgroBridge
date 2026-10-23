@@ -35,6 +35,15 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   the Redis store also fails **open** during an outage. Both are accepted for now (an outage must
   not take the API down with it) and are reported on `/ready` as `limiterStore` so the state is
   visible in production instead of assumed. Provisioning Redis is tracked as a P1 reliability item.
+
+  **Why that is survivable today (defense in depth, AUD-V3 assessment):** the brute-force control
+  that matters is *per-account*, and that one is **database-backed**, not in memory —
+  `modules/auth/accountThrottle.ts` locks an account for 15 minutes after 10 failed logins and
+  every instance sees the same rows, so the per-account budget does NOT multiply with instances
+  even on serverless. What multiplies is only the softer per-IP/per-user request *quota*. When a
+  Redis is provisioned, the store's window arithmetic is atomic (one Lua round trip for
+  INCR+EXPIRE+TTL, with orphan-key healing — `infrastructure/rateLimitRedis.ts`), so a crash
+  between operations can no longer leave a TTL-less counter locking an account's bucket forever.
 - **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
   `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
   immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare
