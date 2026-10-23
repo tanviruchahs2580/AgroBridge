@@ -35,9 +35,21 @@ async function assertNoCriticalSerious(page: import("@playwright/test").Page) {
   expect(offenders).toEqual([]);
 }
 
+/**
+ * Sign in as the seeded farmer.
+ *
+ * Goes straight to `/login` rather than starting at `/` and waiting to be bounced
+ * there. The bounce is real and asserted — in six other specs (farmer-journey,
+ * keyboard, offline ×2, admin-guard, english-mode) — but observing it here made
+ * this file depend on how fast the shell hydrates: under a loaded API that took
+ * longer than the 5 s assertion window and the dark-mode scan died before it began
+ * (measured: the page sat at `/` still showing the loading shell; the same test
+ * passed alone in 22 s and the whole file passed 5/5 on re-run). A sign-in helper
+ * should sign in.
+ */
 async function seededLogin(page: import("@playwright/test").Page) {
-  await page.goto("/");
-  await expect(page).toHaveURL(/.*login/);
+  await page.goto("/login");
+  await expect(page.locator("#phone")).toBeVisible();
   await page.fill("#phone", "01700000002");
   await page.fill("#password", "Demo@1234");
   await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');

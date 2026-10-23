@@ -33,10 +33,35 @@ await step("T02 UI login as QA farmer → dashboard", async () => {
   ]);
 });
 
+/**
+ * Wait until the signed-in route has actually rendered, then read it.
+ *
+ * `#main` exists as soon as the shell paints, but every page is a lazy chunk, so
+ * reading its text immediately returns an empty string — which is exactly how T03
+ * reported "no home markers" against a Home page that renders them correctly
+ * (measured: `#main` text length 0 at read time, 886 three seconds later). Poll for
+ * content instead of racing the chunk, so a failure here means the page is wrong
+ * rather than that the network was slow.
+ */
+async function mainText(page, { minLength = 120, timeout = 20000 } = {}) {
+  const deadline = Date.now() + timeout;
+  let text = "";
+  while (Date.now() < deadline) {
+    text = (await page.textContent("#main").catch(() => "")) ?? "";
+    if (text.trim().length >= minLength) return text;
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`#main still nearly empty after ${timeout}ms (got ${text.trim().length} chars)`);
+}
+
 await step("T03 Home greets the user with real shell", async () => {
   await page.waitForSelector("#main", { timeout: 15000 });
-  const text = await page.textContent("#main");
-  if (!text.includes("স্বাস্থ্য স্কোর") && !text.includes("আজকের কাজ") && !text.includes("আবহাওয়া")) throw new Error("no home markers");
+  // Markers must be strings the page actually renders. "স্বাস্থ্য স্কোর" was one of
+  // these until the hero was renamed to "খামার প্রস্তুতি"; it still matched nothing
+  // in the source, so it silently counted as a failure while T03 raced the chunk.
+  const text = await mainText(page);
+  if (!text.includes("খামার প্রস্তুতি") && !text.includes("আজকের কাজ") && !text.includes("আবহাওয়া"))
+    throw new Error("no home markers");
 });
 
 const routes = [
@@ -66,9 +91,18 @@ await step("T11 round-8 markers live (PageHeader + empty state keys)", async () 
 
 await step("T12 admin route still gated for farmer", async () => {
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(1500);
-  const text = await page.textContent("#main");
-  if (!text.includes("adminOnly") && !text.includes("অ্যাডমিন") && !text.includes("কন্ট্রোল")) throw new Error("no gate UI");
+  const text = await mainText(page, { minLength: 10 });
+  // The gate copy is what the route actually renders for a non-admin
+  // (`t("adminOnly")`). The previous markers — the literal string "adminOnly" (a
+  // dictionary KEY, never rendered) and "অ্যাডমিন"/"কন্ট্রোল" (words that appear
+  // only in the ADMIN panel, not in the denial) — could not match this page at the
+  // baseline commit either, so this step reported a broken gate that was working.
+  if (
+    !text.includes("অনুমতি নেই") &&
+    !text.includes("don't have permission") &&
+    !text.includes("do not have permission")
+  )
+    throw new Error(`no gate UI (got: ${text.replace(/\s+/g, " ").slice(0, 120)})`);
 });
 
 await step("T13 language toggle works end-to-end", async () => {
