@@ -7,7 +7,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { notFound, unprocessable, badRequest, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
+import { notFound, unprocessable, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
 import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { refNo } from "../../lib/money.js";
@@ -24,6 +24,9 @@ import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js"
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
+
+/** Params contract for the /:id routes (AUD-V3 L-3: raw params were unvalidated). */
+const idParams = z.object({ id: z.string().min(1).max(64) });
 export const walletRouter = Router();
 export const membershipRouter = Router();
 
@@ -183,7 +186,10 @@ paymentsRouter.post(
   acceptIdempotencyKeyHeader,
   validate({
     body: z.object({
-      purposeType: z.enum(["ORDER", "BOOKING", "PROCUREMENT", "MEMBERSHIP"]),
+      // PROCUREMENT is deliberately absent: payouts flow through the
+      // procurement /payouts route; advertising it here just to refuse it
+      // made the validation contract lie (AUD-V3 L-7).
+      purposeType: z.enum(["ORDER", "BOOKING", "MEMBERSHIP"]),
       purposeId: z.string().min(5),
     }),
   }),
@@ -220,9 +226,6 @@ paymentsRouter.post(
         const b = await prisma.booking.findFirst({ where: { id: purposeId, userId, paymentStatus: "UNPAID", status: { in: ["REQUESTED", "ASSIGNED"] } } });
         if (!b) throw notFound("Payable booking");
         amountPaisa = b.estimatedPricePaisa;
-      } else if (purposeType === "PROCUREMENT") {
-        // Procurement pays OUT to farmer via wallet credit on COLLECTED -> handled by payout route instead.
-        throw badRequest("Procurement payouts are processed via /payouts by procurement managers");
       } else {
         const plan = await prisma.membershipPlan.findUnique({ where: { tier: purposeId } });
         if (!plan || !plan.isActive) throw notFound("Membership plan");
@@ -425,7 +428,7 @@ export function paymentMetaOf(metaStr: string | null): Record<string, unknown> {
  * Live gateways move money exclusively through the verified webhook.
  * Idempotent under concurrency: only the first PENDING->SUCCEEDED claim wins.
  */
-paymentsRouter.post("/:id/confirm", async (req, res, next) => {
+paymentsRouter.post("/:id/confirm", validate({ params: idParams }), async (req, res, next) => {
   try {
     if (env.PAYMENT_PROVIDER !== "sandbox") {
       throw forbidden("Direct confirmation is disabled; complete payment through the gateway");
@@ -452,7 +455,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
  * webhook reaching us. Verification is idempotent and only a SUCCEEDED result
  * from the provider can move a payment forward.
  */
-paymentsRouter.get("/:id/status", async (req, res, next) => {
+paymentsRouter.get("/:id/status", validate({ params: idParams }), async (req, res, next) => {
   try {
     const payment = await prisma.payment.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!payment) throw notFound("Payment");
@@ -524,7 +527,7 @@ const refundSchema = z.object({
 paymentsRouter.post(
   "/:id/refund",
   requirePermission("payments:refund"),
-  validate({ body: refundSchema }),
+  validate({ params: idParams, body: refundSchema }),
   async (req, res, next) => {
     try {
       // Same provider resolution as /intent (getPaymentProvider). Sandbox: this
@@ -721,36 +724,30 @@ walletRouter.get("/", async (req, res, next) => {
     // X-Total-Count: the ledger body is a capped slice (50); the
     // header is the same user scope's true count so the UI can say "showing
     // 50 of N" without a second query shape.
+    //
+    // A read must not write (AUD-V3): the old upsert created a wallet row on
+    // every first GET. Registration creates the wallet; a missing row here
+    // means zero ever moved, so the balance is derived instead of inserted.
     const txWhere = { userId: getAuth(req).userId };
     const [wallet, transactions, txTotal] = await Promise.all([
-      prisma.wallet.upsert({ where: { userId: getAuth(req).userId }, update: {}, create: { userId: getAuth(req).userId } }),
+      prisma.wallet.findUnique({ where: { userId: getAuth(req).userId } }),
       prisma.walletTransaction.findMany({ where: txWhere, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.walletTransaction.count({ where: txWhere }),
     ]);
     res.setHeader("X-Total-Count", String(txTotal));
-    ok(res, { balancePaisa: wallet.balancePaisa, transactions });
+    ok(res, { balancePaisa: wallet?.balancePaisa ?? 0, transactions });
   } catch (e) {
     next(e);
   }
 });
 
 /**
- * Start of the current calendar month in Asia/Dhaka, as a UTC instant.
- *
- * The wallet "this month" boundary is a business-calendar boundary: farmers and
- * ops read it in Dhaka time. Computing it from the server's local clock (the
- * previous implementation) moved transactions made between 00:00 and 06:00
- * Dhaka into the wrong month on a UTC host. The year/month are read with Intl
- * (never local-time getters) and the instant is built arithmetically: Dhaka is
- * UTC+6 with no DST (Bangladesh dropped DST in 2009), so 00:00 on the 1st is
- * exactly 18:00Z on the last day of the previous UTC month.
+ * Re-exported for existing importers (timezone-boundaries tests): the
+ * implementation moved to shared/utils so the AI budget window can use the
+ * same Dhaka business calendar without importing a payments route module.
  */
-export function dhakaMonthStart(now: Date = new Date()): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).formatToParts(now);
-  const year = Number(parts.find((p) => p.type === "year")?.value);
-  const month = Number(parts.find((p) => p.type === "month")?.value);
-  return new Date(Date.UTC(year, month - 1, 1) - 6 * 60 * 60 * 1000);
-}
+import { dhakaMonthStart } from "../../shared/utils/dhakaMonth.js";
+export { dhakaMonthStart };
 
 /** Financial month-in/out + pending holds + membership snapshot. */
 walletRouter.get("/summary", async (req, res, next) => {

@@ -1,4 +1,5 @@
 import { env, isProd } from "../../config/env.js";
+import { dhakaMonthStart } from "../../shared/utils/dhakaMonth.js";
 import { logger } from "../../lib/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import { aiRequestsTotal } from "../../lib/metrics.js";
@@ -24,9 +25,10 @@ function resolveProvider(): AiProvider {
  */
 async function monthlyBudgetExceeded(): Promise<boolean> {
   if (env.AI_COST_PER_1K_TOKENS_PAISA === 0) return false;
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  // Same Dhaka business-calendar boundary the wallet summary uses — two
+  // "monthly" windows must not disagree at month edges (AUD-V3: this used to
+  // be the server's local month start).
+  const startOfMonth = dhakaMonthStart();
   const agg = await prisma.aiUsageLog.aggregate({
     where: { createdAt: { gte: startOfMonth }, provider: "openai-compatible" },
     _sum: { costEstimatePaisa: true },

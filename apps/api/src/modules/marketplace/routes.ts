@@ -168,7 +168,7 @@ cartRouter.post("/items", validate({ body: addItemSchema }), async (req, res, ne
   }
 });
 
-cartRouter.delete("/items/:productId", async (req, res, next) => {
+cartRouter.delete("/items/:productId", validate({ params: z.object({ productId: z.string().min(1).max(64) }) }), async (req, res, next) => {
   try {
     const cart = await getOrCreateCart(getAuth(req).userId);
     await prisma.cartItem.deleteMany({ where: { cartId: cart.id, productId: req.params.productId } });

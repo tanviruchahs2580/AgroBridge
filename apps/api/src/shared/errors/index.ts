@@ -59,3 +59,16 @@ export const paymentGatewayUnconfigured = () =>
 /** The configured gateway could not be reached — retryable, nothing was charged. */
 export const paymentGatewayUnavailable = (details?: unknown) =>
   new AppError(502, "PAYMENT_GATEWAY_UNAVAILABLE", "Payment gateway is temporarily unavailable; nothing was charged", details);
+
+/**
+ * A weather provider failed after the retry policy was exhausted. Explicit
+ * 502 (not a generic 500): the failure is upstream, the client may retry, and
+ * the service never substitutes a fabricated forecast (AUD-V3 — the deferred
+ * improvement in modules/weather/routes.ts, now done).
+ */
+export const weatherProviderUnavailable = (details?: unknown) =>
+  new AppError(502, "WEATHER_PROVIDER_UNAVAILABLE", "Weather service is temporarily unavailable; please retry shortly", details);
+
+/** Refused by our own resilience policy (circuit open / bulkhead full) — 503. */
+export const weatherProviderOverloaded = (details?: unknown) =>
+  new AppError(503, "WEATHER_PROVIDER_OVERLOADED", "Weather service is temporarily overloaded; please retry later", details);

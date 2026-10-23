@@ -33,7 +33,7 @@ export class S3StorageProvider implements StorageProvider {
   }
 
   /** SigV4-signed request against the bucket; shared by save and delete. */
-  private async signedRequest(method: "PUT" | "DELETE", key: string, body: Buffer): Promise<Response> {
+  private async signedRequest(method: "PUT" | "DELETE", key: string, body: Buffer, contentType?: string): Promise<Response> {
     const host = this.endpoint
       ? this.endpoint.replace(/^https?:\/\//, "").replace(/\/$/, "")
       : `${this.bucket}.s3.${this.region}.amazonaws.com`;
@@ -81,7 +81,11 @@ export class S3StorageProvider implements StorageProvider {
             Authorization: authorization,
             "x-amz-content-sha256": payloadHash,
             "x-amz-date": amzDate,
-            ...(method === "PUT" ? { "Content-Type": "application/octet-stream" } : {}),
+            // Content-Type rides unsigned (not in SignedHeaders), so serving
+            // the object's real type costs nothing signature-wise. The stored
+            // bytes' type must reach the CDN/clients correctly — disease
+            // photos are images, not octet streams (AUD-V3 L-4).
+            ...(method === "PUT" ? { "Content-Type": contentType ?? "application/octet-stream" } : {}),
           },
           body: method === "PUT" ? new Uint8Array(body) : undefined,
           signal,
@@ -95,8 +99,8 @@ export class S3StorageProvider implements StorageProvider {
     );
   }
 
-  async save(fileName: string, data: Buffer): Promise<string> {
-    const res = await this.signedRequest("PUT", `disease/${fileName}`, data);
+  async save(fileName: string, data: Buffer, mime: string): Promise<string> {
+    const res = await this.signedRequest("PUT", `disease/${fileName}`, data, mime);
     if (!res.ok) throw new Error(`S3 upload failed ${res.status}`);
 
     // Same relative addressing contract as LocalStorageProvider so existing
