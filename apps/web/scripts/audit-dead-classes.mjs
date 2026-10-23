@@ -12,7 +12,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import { builtCssPath, findDeadClasses, selectorExists } from "./lib/dead-classes.mjs";
+import { builtCssPath, escapeForSelector, findDeadClasses, selectorExists } from "./lib/dead-classes.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // apps/web/scripts
 const WEB = join(HERE, ".."); // apps/web
@@ -30,7 +30,9 @@ if (probes.length > 0) {
   console.log(`CSS: ${cssPath}\n`);
   for (const cls of probes) {
     const alive = selectorExists(cssText, cls);
-    const at = cssText.indexOf(`.${cls.replace(/([/.:])/g, "\\$1")}`);
+    // Shared with the scanner so a probe and a scan cannot escape differently —
+    // CodeQL flagged this line's private copy of the escaping as incomplete.
+    const at = cssText.indexOf(`.${escapeForSelector(cls)}`);
     const rule = at < 0 ? "(no selector)" : `${cssText.slice(at, at + 80).split("{")[0]}{…}`;
     console.log(`  ${cls.padEnd(28)} ${alive ? "PRESENT" : "*** ABSENT ***"}  ${rule}`);
   }

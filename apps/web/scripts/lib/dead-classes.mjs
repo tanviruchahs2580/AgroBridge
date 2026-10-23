@@ -91,15 +91,59 @@ export function collectClassTokens(srcDir) {
 }
 
 /**
+ * Characters that need a backslash in a CSS selector fragment. Tailwind escapes
+ * `/`, `.` and `:` in the class names it emits (`.bg-white\/10`, `.hover\:bg-x`),
+ * and the rest are regex metacharacters the caller must not be able to smuggle in.
+ */
+const SELECTOR_SPECIAL = "\\/.:*+?^$(){}[]|";
+
+/**
+ * Escape a class name into a CSS selector fragment, in **one** pass over a single
+ * character map.
+ *
+ * The previous version escaped twice: `replace(/([/.:])/g, "\\$1")` inserted
+ * backslashes and a second `replace` then re-escaped those same backslashes. It
+ * happened to match because the regex engine read the doubled escape back down to
+ * one, but the result depended on pass order and a class name that already
+ * contained a backslash would have compounded. CodeQL was right to flag it
+ * (`js/double-escaping`, `js/incomplete-sanitization` on both this file and the
+ * CLI that copied the expression) — a scanner that mis-escapes is a scanner that
+ * silently reports clean.
+ */
+export function escapeForSelector(cls) {
+  let out = "";
+  for (const ch of cls) out += SELECTOR_SPECIAL.includes(ch) ? `\\${ch}` : ch;
+  return out;
+}
+
+/** A character that may continue a class name — used to reject prefix matches. */
+const NAME_CHAR = /[A-Za-z0-9_-]/;
+
+/**
  * True when the compiled CSS contains the class's selector, plain or behind any
- * number of variants. Tailwind escapes `/`, `.` and `:` in selectors and writes
- * `.hover\:bg-action-hover`, so the name must be allowed to follow `.` or a
- * variant separator — and the trailing guard is what separates `.bg-warning`
- * from `.bg-warning-bg`.
+ * number of variants.
+ *
+ * Deliberately **not** built as a dynamic `RegExp` from the class name: the name
+ * comes from source files, and interpolating it into a pattern is what made the
+ * escaping subtle in the first place. Plain string searching plus an explicit
+ * boundary check has no escape rules to get wrong.
+ *
+ * The name must be preceded by `.` (`.bg-surface-subdued`) or by a variant
+ * separator (`\:`, as in `.hover\:bg-action-hover`), and must not be continued by
+ * another name character — that trailing guard is exactly what separates
+ * `.bg-warning` (dead) from `.bg-warning-bg` (a different, live class).
  */
 export function selectorExists(css, cls) {
-  const escaped = cls.replace(/([/.:])/g, "\\$1").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`[.\\\\](?:[a-zA-Z0-9_-]*\\\\?\\\\:)*${escaped}(?![a-zA-Z0-9_-])`).test(css);
+  const needle = escapeForSelector(cls);
+  for (let i = css.indexOf(needle); i !== -1; i = css.indexOf(needle, i + 1)) {
+    const before = css[i - 1];
+    const precededByDot = before === ".";
+    const precededByVariant = before === ":" && css[i - 2] === "\\";
+    if (!precededByDot && !precededByVariant) continue;
+    const after = css[i + needle.length];
+    if (after === undefined || !NAME_CHAR.test(after)) return true;
+  }
+  return false;
 }
 
 /** @returns {{ checked: number, dead: { cls: string, files: string[] }[] }} */
