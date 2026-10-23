@@ -11,7 +11,7 @@ import { mapError, BD_PHONE_RE } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Check, Inbox, MapPin, Package, Phone, ShieldCheck, ShoppingBasket, ShoppingCart, FlaskConical, Leaf, Sprout, Trash2, Wrench } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, IconButton, Input, Label, Modal, PageHeader, Skeleton, Stepper, useToast,
+  Badge, BlockError, Button, Card, EmptyState, ErrorBanner, IconButton, Input, Label, Modal, PageHeader, Skeleton, Stepper, useToast,
 } from "../../components/ui";
 
 const CATEGORY_FILTERS: { value: string; key: DictKey }[] = [
@@ -71,21 +71,6 @@ const CATEGORY_ICON: Record<string, { icon: typeof Sprout; box: string }> = {
   CROP_PROTECTION: { icon: ShieldCheck, box: "bg-info-bg text-info-text ring-info-border" },
   EQUIPMENT: { icon: Wrench, box: "bg-warning-bg text-warning-text ring-warning-border" },
 };
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function Market() {
   const { session } = useSession();
@@ -356,6 +341,14 @@ export default function Market() {
       <BlockError error={productsRes.error} retryLabel={t("retry", lang)} onRetry={() => void productsRes.reload()} />
       <BlockError error={cartRes.error} retryLabel={t("retry", lang)} onRetry={() => void cartRes.reload()} />
 
+      {/* Each product card below is an h3, and the only heading above them is the
+          page h1 — so the outline jumped a level. This hidden h2 names the
+          catalogue region, the same pattern Services uses for its discovery
+          section. Rendered only when there is a grid to name. */}
+      {!productsRes.loading && products.length > 0 && (
+        <h2 className="sr-only">{t("marketCatalogSr", lang)}</h2>
+      )}
+
       {productsRes.loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
@@ -434,7 +427,7 @@ export default function Market() {
           {step === 0 && (
             <div className="space-y-3">
               {cart.length === 0 ? (
-                <EmptyState icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("emptyCart", lang)} />
+                <EmptyState headingLevel={3} icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />} title={t("emptyCart", lang)} />
               ) : (
                 <>
                   <ul className="divide-y divide-stone-100">

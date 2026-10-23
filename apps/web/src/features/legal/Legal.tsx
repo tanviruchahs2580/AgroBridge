@@ -29,7 +29,11 @@ function withLinks(text: string, keyPrefix: string) {
         href={part}
         target="_blank"
         rel="noreferrer noopener"
-        className="break-all font-medium text-link underline decoration-link/40 hover:decoration-link"
+        // `decoration-brand-200` rather than `decoration-link/40`: `link` is a bare
+        // `var(--color-link)`, so an opacity modifier cannot resolve and the
+        // underline colour was silently dropped. The link is already identified by
+        // its `text-link` colour, so the underline is reinforcement only.
+        className="break-all font-medium text-link underline decoration-brand-200 hover:decoration-link"
       >
         {part}
       </a>

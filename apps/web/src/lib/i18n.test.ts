@@ -66,8 +66,9 @@ describe("lib/i18n — dict structure and bn/en coverage", () => {
   it("t() interpolates {var} tokens from vars", () => {
     expect(t("welcomeName", "en", { name: "Karim" })).toBe("Welcome, Karim!");
     expect(t("welcomeName", "bn", { name: "করিম" })).toBe("স্বাগতম, করিম!");
-    expect(t("greeting", "en", { name: "Asha" })).toBe("Hello, Asha 👋");
-    expect(t("greeting", "bn", { name: "আশা" })).toBe("আসসালামু আলাইকুম, আশা 👋");
+    // The greeting no longer carries a 👋 — see the note on the key in i18n.ts.
+    expect(t("greeting", "en", { name: "Asha" })).toBe("Hello, Asha");
+    expect(t("greeting", "bn", { name: "আশা" })).toBe("আসসালামু আলাইকুম, আশা");
   });
 
   it("t() leaves unmatched placeholders intact", () => {

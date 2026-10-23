@@ -54,10 +54,18 @@ html[data-theme="dark"] {
   --color-sky-800: #7dd3fc;
   --color-ai-indigo: #818cf8;
   --color-ai-indigo-light: #232347;
+  /* AA with a white label (5.10:1) — a touch brighter than the light-mode fill so
+     it separates from a dark card, but not as bright as the accent above, which
+     would drop the same white label to 2.6:1. Found by the dark-mode axe scan. */
+  --color-ai-indigo-strong: #5b5ce8;
   --color-indigo-100: #2a2a55;
   --color-indigo-200: #3a3a6e;
   --color-warning: #fbbf24;
   --color-critical: #f87171;
+  /* The filled danger surface brightens for dark mode (a #b91c1c fill reads as mud
+     on a dark card) but stops where a white label no longer clears AA: #c02626
+     measures 5.97:1 against white, where the accent's #f87171 would be 2.5:1. */
+  --color-critical-strong: #c02626;
   --color-neutral-bg: #20241f;
   --color-dark-enterprise: #0b1120;
   --color-orange-50: #2b2118;

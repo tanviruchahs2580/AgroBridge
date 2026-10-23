@@ -42,11 +42,13 @@ export default {
           "sky-600": "var(--color-sky-600)",
           "sky-800": "var(--color-sky-800)",
           ai: "var(--color-ai-indigo)",
+          "ai-strong": "var(--color-ai-indigo-strong)",
           "ai-light": "var(--color-ai-indigo-light)",
           "indigo-100": "var(--color-indigo-100)",
           "indigo-200": "var(--color-indigo-200)",
           warning: "var(--color-warning)",
           critical: "var(--color-critical)",
+          "critical-strong": "var(--color-critical-strong)",
           neutral: "var(--color-neutral-bg)",
           dark: "var(--color-dark-enterprise)",
         },
@@ -202,8 +204,13 @@ export default {
         warm: "var(--gradient-warm)",
       },
       fontSize: {
+        // 9 steps, mirroring --text-* in tokens.css. `2xs` and `md` were holes in
+        // the scale that call sites filled with arbitrary values (text-[10px],
+        // text-[15px]) — a named step is reviewable, an arbitrary one is not.
+        "2xs": ["10px", { lineHeight: "14px" }],
         xs: ["11px", { lineHeight: "16px", letterSpacing: "0.01em" }],
         sm: ["13px", { lineHeight: "18px" }],
+        md: ["15px", { lineHeight: "20px" }],
         base: ["16px", { lineHeight: "24px" }],
         lg: ["18px", { lineHeight: "28px" }],
         xl: ["20px", { lineHeight: "28px" }],

@@ -96,3 +96,6 @@ jscpd-report/
 
 # Local Lighthouse CI output
 apps/web/.lighthouseci/
+
+# Local design-review screenshots (apps/web/scripts/capture-design-review.mjs)
+apps/web/design-review/

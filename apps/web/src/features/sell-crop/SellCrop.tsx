@@ -7,35 +7,19 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
 import { formatBDT } from "../../lib/format";
-import { CROP_KEYS, cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../../lib/labels";
+import { CROPS, CROP_KEYS, cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Coins, Sprout } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Field, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Stepper, useConfirm, useToast,
+  Badge, BlockError, Button, Card, EmptyState, Field, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Stepper, useConfirm, useToast,
 } from "../../components/ui";
 
-const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
 const PIPE_KEYS: Record<string, DictKey> = {
   SUBMITTED: "pipeSUBMITTED", QC: "pipeQC", PURCHASE_ORDER: "pipePO",
   COLLECTED: "pipeCOLLECTED", PAID: "pipePAID",
 };
 const GRADE_KEYS: Record<string, DictKey> = { A: "gradeA", B: "gradeB", C: "gradeC" };
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function SellCrop() {
   const { session } = useSession();

@@ -8,11 +8,32 @@ import { NavLink } from "react-router-dom";
 // animations — see the bundle note in main.tsx.
 import { m, AnimatePresence } from "framer-motion";
 import { motionTokens } from "../lib/motion";
+import { t } from "../lib/i18n";
+import type { Lang } from "../lib/i18n";
 
 // ── Design System v2 — Enterprise Tokens (single source of truth: tokens.css) ──
 // Colors: brand/stone ramps + surface system + action/link/accent semantics + status triplets.
 // Spacing: 4/8pt grid · Radius: lg/xl/2xl/card/button/input/chip/iconBox · Elevation: sm→float.
 // Motion: fast 0.15 normal 0.25 slow 0.4, press 0.98 — see src/lib/tokens.ts + src/lib/motion.ts.
+
+// ── UI language for primitive-owned copy ──
+// A few primitives own copy of their own (the error banner's copy button, a
+// dialog's close label). Those defaults used to be English literals, so every
+// screen that did not pass a label showed English chrome on a Bengali page.
+// The language is published by App once and read here, rather than importing the
+// session context — `lib/session.tsx` already imports `useToast` from this file,
+// and a second import in the other direction would make the cycle load-order
+// dependent.
+const UiLangCtx = createContext<Lang>("bn");
+
+export function UiLangProvider({ lang, children }: { lang: Lang; children: ReactNode }) {
+  return <UiLangCtx.Provider value={lang}>{children}</UiLangCtx.Provider>;
+}
+
+/** Current UI language, for primitives that own user-visible copy. */
+export function useUiLang(): Lang {
+  return useContext(UiLangCtx);
+}
 
 type ButtonVariant = "primary" | "cta" | "soft" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -134,7 +155,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
   // so a disabled control does not float above the card.
   const base = "inline-flex items-center justify-center gap-2 rounded-button font-semibold transition-[transform,background-color,box-shadow,filter] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:cursor-not-allowed disabled:bg-surface-subdued disabled:text-stone-600 disabled:shadow-none disabled:hover:brightness-100 motion-reduce:transition-none motion-reduce:active:scale-100";
   const sizes: Record<ButtonSize, string> = {
-    sm: "min-h-[36px] px-3 py-1.5 text-xs",
+    // `sm` keeps the compact text/padding but not a compact hit area: at 36px it
+    // was the one control in the system that did not meet the 44px target the
+    // rest of the app enforces with min-h-[44px] (and that IconButton guarantees).
+    // It is the size used for farm actions, admin approve/reject, mark-all-read
+    // and booking cancel — all reachable on a phone.
+    sm: "min-h-[44px] px-3 py-1.5 text-xs",
     md: "min-h-[44px] px-4 py-2.5 text-sm",
     lg: "min-h-[48px] px-6 py-3 text-base",
   };
@@ -144,7 +170,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
     soft: "bg-brand-50 text-accent hover:bg-brand-100 ring-1 ring-inset ring-brand-100",
     outline: "border border-brand-300 text-link hover:bg-brand-50 hover:border-brand-400",
     ghost: "text-stone-600 hover:bg-stone-100",
-    danger: "bg-enterprise-critical text-white shadow-button hover:brightness-110 active:brightness-95 motion-reduce:hover:brightness-100",
+    // `critical-strong`, not `critical`: the accent token measured 3.77:1 behind
+    // this variant's white label (2.5:1 in dark mode) — below the 4.5:1 WCAG 2.2 AA
+    // minimum for the label sizes these destructive controls carry. axe never
+    // caught it because a danger button is only on screen while a confirmation
+    // dialog is open, which the route scans do not open.
+    danger: "bg-enterprise-critical-strong text-white shadow-button hover:brightness-110 active:brightness-95 motion-reduce:hover:brightness-100",
   };
   return (
     <button ref={ref} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
@@ -255,8 +286,13 @@ export function Field({
       </Label>
       {children}
       {hint && !error && <p className="mt-1 text-xs text-stone-500">{hint}</p>}
+      {/* The error is a real element with the id call sites already point at
+          (`aria-describedby="<field-id>-err"`, used by Login/Register/Reset/
+          SellCrop). Without the id those thirteen attributes referenced
+          nothing, so the field → error association WCAG expects was missing
+          even though role="alert" still announced the message. */}
       {error && (
-        <p role="alert" className="mt-1 text-xs font-medium text-danger-text">
+        <p id={htmlFor ? `${htmlFor}-err` : undefined} role="alert" className="mt-1 text-xs font-medium text-danger-text">
           {error}
         </p>
       )}
@@ -284,23 +320,35 @@ export function Skeleton({ className = "", ...props }: HTMLAttributes<HTMLDivEle
   return <div aria-hidden="true" className={`skeleton-shimmer rounded-xl ${className}`} {...props} />;
 }
 
+/**
+ * Page-level or section-level "nothing here yet".
+ *
+ * `headingLevel` defaults to 2 because every page-level empty state sits directly
+ * under the page's `h1`, and a hardcoded `h3` made those screens skip a level
+ * (axe `heading-order`). The four call sites that render inside a section which
+ * already has its own `h2` — the wallet ledger and withdrawals, the checkout
+ * cart step, and the bookings block — pass 3 and keep the old outline.
+ */
 export function EmptyState({
   icon = <Inbox className="h-7 w-7 text-brand-600" aria-hidden />,
   title,
   description,
   action,
+  headingLevel = 2,
 }: {
   icon?: ReactNode;
   title: string;
   description?: string;
   action?: React.ReactNode;
+  headingLevel?: 2 | 3;
 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <div className="flex flex-col items-center gap-3 rounded-card border border-surface-border bg-surface-card p-4 py-10 text-center shadow-card">
       <span aria-hidden className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 ring-1 ring-inset ring-brand-100">
         {icon}
       </span>
-      <h3 className="text-base font-bold text-stone-800">{title}</h3>
+      <Heading className="text-base font-bold text-stone-800">{title}</Heading>
       {description && <p className="max-w-sm text-sm leading-relaxed text-stone-600">{description}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>
@@ -310,14 +358,19 @@ export function EmptyState({
 export function ErrorBanner({
   code,
   message,
-  copyLabel = "Copy",
-  copiedLabel = "Copied!",
+  copyLabel,
+  copiedLabel,
 }: {
   code?: string;
   message: string;
   copyLabel?: string;
   copiedLabel?: string;
 }) {
+  const lang = useUiLang();
+  // Defaulted from the dictionary instead of English literals: fourteen call
+  // sites omit these props, and they were the only English text on those screens.
+  const resolvedCopy = copyLabel ?? t("errCopy", lang);
+  const resolvedCopied = copiedLabel ?? t("errCopied", lang);
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -342,20 +395,49 @@ export function ErrorBanner({
         onClick={() => void copy()}
         className="shrink-0 min-h-[44px] rounded-lg border border-danger-border bg-surface-card px-2.5 py-2 text-xs font-semibold text-danger-text hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
       >
-        {copied ? copiedLabel : copyLabel}
+        {copied ? resolvedCopied : resolvedCopy}
       </button>
+    </div>
+  );
+}
+
+/**
+ * A failed read plus its retry — the house pattern for a screen whose data did
+ * not arrive. Nine screens had their own byte-identical copy of this; it lives
+ * here so the retry affordance has one definition to change.
+ * Renders nothing when there is no error, so call sites can drop it inline.
+ */
+export function BlockError({ error, retryLabel, onRetry }: { error: string | null | undefined; retryLabel: string; onRetry: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="space-y-2">
+      <ErrorBanner message={error} />
+      <Button variant="outline" onClick={onRetry}>
+        {retryLabel}
+      </Button>
     </div>
   );
 }
 
 // ── Navigation shells — Enterprise Refinement ──
 /** `ariaLabel` is passed in rather than hardcoded: the shell must not announce
- * an English landmark name on a Bengali screen (App.tsx supplies the copy).*/
-export function BottomNav({ items, ariaLabel }: { items: { to: string; label: string; icon: ReactNode; badge?: boolean }[]; ariaLabel: string }) {
+ * an English landmark name on a Bengali screen (App.tsx supplies the copy).
+ * `badgeLabel` names what the dot means, and is rendered *outside* the
+ * `aria-hidden` icon span — inside it, the text was invisible to assistive
+ * technology and the badge became colour-only, and it also said "new
+ * notifications" on a tab whose badge is the offline write queue. */
+export function BottomNav({
+  items,
+  ariaLabel,
+}: {
+  items: { to: string; label: string; icon: ReactNode; badge?: boolean; badgeLabel?: string }[];
+  ariaLabel: string;
+}) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
     <nav
       aria-label={ariaLabel}
+      data-testid="bottom-nav"
       className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-surface-border bg-[var(--glass-nav)] p-1 shadow-float backdrop-blur-md md:hidden"
       style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}
     >
@@ -370,26 +452,26 @@ export function BottomNav({ items, ariaLabel }: { items: { to: string; label: st
           }
           style={{ minHeight: 44 }}
         >
-          <span aria-hidden className="relative text-[18px]">
+          <span aria-hidden className="relative text-lg">
             {it.icon}
             {it.badge && (
-              <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-enterprise-critical ring-2 ring-[var(--color-surface-card)]">
-                <span className="sr-only"> new notifications</span>
-              </span>
+              <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-enterprise-critical ring-2 ring-[var(--color-surface-card)]" />
             )}
           </span>
           <span className="leading-none tracking-[-0.01em]">{it.label}</span>
+          {it.badge && it.badgeLabel && <span className="sr-only">{it.badgeLabel}</span>}
         </NavLink>
       ))}
     </nav>
   );
 }
 
-export function Sidebar({ items }: { items: { to: string; label: string; icon: ReactNode }[] }) {
+/** `ariaLabel` mirrors BottomNav: the two `nav` landmarks must be distinguishable. */
+export function Sidebar({ items, ariaLabel }: { items: { to: string; label: string; icon: ReactNode }[]; ariaLabel: string }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
   return (
     <aside className="hidden w-60 shrink-0 border-r border-surface-border bg-[var(--glass-nav)] backdrop-blur-sm md:block">
-      <nav className="sticky top-[57px] space-y-1 p-3">
+      <nav aria-label={ariaLabel} data-testid="sidebar-nav" className="sticky top-[var(--shell-header-offset)] space-y-1 p-3">
         {items.map((it) => (
           <NavLink
             key={it.to}
@@ -400,7 +482,7 @@ export function Sidebar({ items }: { items: { to: string; label: string; icon: R
               }`
             }
           >
-            <span aria-hidden className="text-[18px]">{it.icon}</span>
+            <span aria-hidden className="text-lg">{it.icon}</span>
             <span>{it.label}</span>
           </NavLink>
         ))}
@@ -539,8 +621,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware).*/}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
+      {/* Fixed viewport, bottom-center above bottom-nav (safe-area aware).
+          The container is NOT a live region: it used to be `aria-live="polite"`
+          while each error toast also carried `role="alert"` + `aria-live=
+          "assertive"`, so errors sat inside two nested live regions and could be
+          announced twice. Each toast now owns exactly one role, which is what
+          decides politeness (`alert` = assertive, `status` = polite). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         <AnimatePresence>
           {items.map((tst) => (
             <m.div
@@ -549,8 +636,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: motionTokens.duration.normal, ease: motionTokens.ease.enter }}
-              role={tst.kind === "error" ? "alert" : undefined}
-              aria-live={tst.kind === "error" ? "assertive" : undefined}
+              role={tst.kind === "error" ? "alert" : "status"}
               onTouchStart={(e: TouchEvent<HTMLDivElement>) => { swipeStart.current = { id: tst.id, x: e.touches[0].clientX }; }}
               onTouchMove={(e: TouchEvent<HTMLDivElement>) => {
                 const s = swipeStart.current;
@@ -595,7 +681,7 @@ export function useToast(): ToastApi {
 export function Modal({
   title,
   onClose,
-  closeLabel = "Close",
+  closeLabel,
   children,
   footer,
 }: {
@@ -605,7 +691,15 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  const dialogRef = useDialogA11y(Boolean(onClose), onClose);
+  const lang = useUiLang();
+  // `true`, not `Boolean(onClose)`: the dialog a11y behaviour must follow whether
+  // the dialog is *open*, not whether it happens to be closable. The checkout
+  // wizard passes no onClose for its intermediate steps, and gating on
+  // closability left those steps rendered as `aria-modal="true"` with no focus
+  // trap, no initial focus and no focus restore — the header, nav and page
+  // behind stayed reachable. Every call site mounts this conditionally, so a
+  // mounted Modal is an open Modal.
+  const dialogRef = useDialogA11y(true, onClose);
   return createPortal(
     <m.div
       initial={{ opacity: 0 }}
@@ -632,7 +726,7 @@ export function Modal({
         <div className="flex items-center justify-between gap-2 border-b border-surface-border px-4 py-3">
           <h2 className="text-base font-bold text-stone-800">{title}</h2>
           {onClose && (
-            <IconButton label={closeLabel} onClick={onClose} className="-mr-2" variant="ghost">
+            <IconButton label={closeLabel ?? t("close", lang)} onClick={onClose} className="-mr-2" variant="ghost">
               <X className="h-5 w-5" aria-hidden />
             </IconButton>
           )}

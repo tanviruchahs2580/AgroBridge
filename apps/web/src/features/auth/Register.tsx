@@ -142,6 +142,10 @@ export default function Register() {
                     : "border-surface-border-strong bg-surface-card text-stone-600 hover:bg-stone-100"
                 }`}
               >
+                {/* Language names are endonyms on purpose and must NOT go through
+                    t(): a user who cannot read the current UI language has to be
+                    able to recognise their own, and "বাংলা" translated into
+                    English would defeat exactly that. */}
                 {l === "bn" ? "বাংলা" : "English"}
               </button>
             ))}

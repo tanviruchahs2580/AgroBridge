@@ -8,7 +8,7 @@ import type { DictKey, Lang } from "./lib/i18n";
 import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
 import { flushAll, onDrop as onQueueDrop, onSync as onQueueSync, onStorageError as onQueueStorageError, dropToastMessage, syncToastMessage, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
 import { track } from "./lib/analytics";
-import { BottomNav, Sidebar, Skeleton, useToast } from "./components/ui";
+import { BottomNav, Sidebar, Skeleton, UiLangProvider, useToast } from "./components/ui";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PageTransition } from "./components/PageTransition";
 import { TopBar } from "./components/TopBar";
@@ -142,6 +142,10 @@ function Shell({ children }: { children: ReactNode }) {
     label: t(n.key, lang),
     icon: n.icon,
     badge: n.to === "/wallet" && queued > 0,
+    // What the dot MEANS. It used to be a hardcoded "new notifications" inside
+    // the aria-hidden icon span: wrong text (this badge is the offline write
+    // queue) and invisible to assistive technology, so the badge was colour-only.
+    badgeLabel: n.to === "/wallet" && queued > 0 ? t("queuePendingBadge", lang, { n: queued }) : undefined,
   }));
   const sidebarItems = [...primaryNav, ...secondaryNav].map((n) => ({ to: n.to, label: t(n.key, lang), icon: n.icon }));
 
@@ -222,14 +226,18 @@ function Shell({ children }: { children: ReactNode }) {
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           role="status"
           aria-live="polite"
+          data-testid="offline-banner"
           className="border-b border-warning-border bg-warning-bg px-4 py-1.5 text-center text-xs font-semibold text-warning-text motion-reduce:transition-none"
         >
           <TriangleAlert className="mr-1 inline h-4 w-4" aria-hidden /> {t("offlineBanner", lang)}
-          {queued > 0 && <span aria-live="polite" aria-atomic="true" className="ml-1">({queued})</span>}
+          {/* No nested aria-live here: the banner is already `role="status"
+              aria-live="polite"`, and a live region inside a live region can
+              announce the queued count twice. */}
+          {queued > 0 && <span className="ml-1">({queued})</span>}
         </m.div>
       )}
       <div className="mx-auto flex max-w-6xl">
-        <Sidebar items={sidebarItems} />
+        <Sidebar items={sidebarItems} ariaLabel={t("sidebarNavAria", lang)} />
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-24 outline-none md:pb-5">{children}</main>
       </div>
       <BottomNav items={bottomItems} ariaLabel={t("primaryNavAria", lang)} />
@@ -320,7 +328,10 @@ export default function App() {
   }
 
   return (
-    <>
+    // Primitive-owned copy (the error banner's copy button, a dialog's close
+    // label) follows the session language from here, so a screen that does not
+    // pass a label no longer shows English chrome on a Bengali page.
+    <UiLangProvider lang={lang}>
       {splashOverlay}
       <Routes>
         <Route path="/login" element={<ReverseGuard><PageTransition><Login /></PageTransition></ReverseGuard>} />
@@ -345,6 +356,6 @@ export default function App() {
         <Route path="/account-deletion" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="deletion" /></Suspense>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </>
+    </UiLangProvider>
   );
 }

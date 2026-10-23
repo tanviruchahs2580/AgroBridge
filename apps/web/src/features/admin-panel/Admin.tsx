@@ -11,23 +11,8 @@ import { formatBDT, formatDateTime } from "../../lib/format";
 import { channelLabel, roleLabel, userStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, PageHeader, SectionHeader, Skeleton, StatTile, useConfirm, useToast,
+  Badge, BlockError, Button, Card, EmptyState, Input, PageHeader, SectionHeader, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function AdminPanel() {
   const { session } = useSession();
@@ -242,13 +227,15 @@ export default function AdminPanel() {
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-xs uppercase text-stone-500">
-                  <th className="px-2 py-2">{t("thName", lang)}</th>
-                  <th className="px-2 py-2">{t("thPhone", lang)}</th>
-                  <th className="px-2 py-2">{t("thRole", lang)}</th>
-                  <th className="px-2 py-2">{t("thTier", lang)}</th>
-                  <th className="px-2 py-2">{t("thStatus", lang)}</th>
-                  <th className="px-2 py-2">{t("thRegion", lang)}</th>
-                  <th className="px-2 py-2"><span className="sr-only">{t("actionSuspend", lang)}</span></th>
+                  {/* scope="col" on every header cell: without it, header-to-cell
+                      association in this data table rested on AT heuristics only. */}
+                  <th scope="col" className="px-2 py-2">{t("thName", lang)}</th>
+                  <th scope="col" className="px-2 py-2">{t("thPhone", lang)}</th>
+                  <th scope="col" className="px-2 py-2">{t("thRole", lang)}</th>
+                  <th scope="col" className="px-2 py-2">{t("thTier", lang)}</th>
+                  <th scope="col" className="px-2 py-2">{t("thStatus", lang)}</th>
+                  <th scope="col" className="px-2 py-2">{t("thRegion", lang)}</th>
+                  <th scope="col" className="px-2 py-2"><span className="sr-only">{t("actionSuspend", lang)}</span></th>
                 </tr>
               </thead>
               <tbody>
