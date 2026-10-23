@@ -78,13 +78,21 @@ diseaseRouter.post(
       if (!imagePart?.data || !imagePart.mime) throw badRequest("Field 'image' is required");
       if (!ALLOWED_MIME.has(imagePart.mime)) throw badRequest("Only JPEG/PNG/WebP images accepted");
       if (imagePart.data.length > MAX_SIZE_BYTES) throw badRequest("Image exceeds 8MB limit");
-      // Magic byte sanity check
-      const sig = imagePart.data.subarray(0, 4);
-      const looksImage =
-        (sig[0] === 0xff && sig[1] === 0xd8) || // jpeg
-        sig.toString("ascii").startsWith("RIFF") || // webp
-        (sig[0] === 0x89 && sig[1] === 0x50); // png
-      if (!looksImage) throw badRequest("File content is not a valid image");
+      // Magic-byte check on the FULL format signature, not a loose prefix:
+      // "RIFF…" alone accepts any RIFF container (WAV/AVI) as WebP, and two
+      // bytes accept unrelated 0x89/0x50 streams as PNG. Deep signatures
+      // keep non-image payloads from occupying upload storage.
+      const buf = imagePart.data;
+      const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+      const isWebp =
+        buf.length >= 12 &&
+        buf.toString("ascii", 0, 4) === "RIFF" &&
+        buf.toString("ascii", 8, 12) === "WEBP";
+      const isPng =
+        buf.length >= 8 &&
+        buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
+        buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a;
+      if (!(isJpeg || isWebp || isPng)) throw badRequest("File content is not a valid image");
 
       let cropCycleIdValidated: string | undefined;
       if (cropCycleId) {
