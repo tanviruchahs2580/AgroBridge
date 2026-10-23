@@ -81,6 +81,21 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
   /** Requests currently in flight; distinguishes a first load from a refresh. */
   const [inFlight, setInFlight] = useState(0);
 
+  /**
+   * The deps array is serialized rather than spread into the effect.
+   *
+   * Two reasons. Spreading a caller-supplied array into a dependency list throws
+   * "the final argument passed to useEffect changed size between renders" the
+   * moment a caller adds or removes a dep conditionally — a latent crash guarded
+   * only by an eslint-disable. And the serialized form doubles as the resource's
+   * *identity*, which is what the reset below needs: `key` alone cannot tell
+   * "refetch the same payload" (a reload) apart from "this hook now points at a
+   * different payload" (a tab or category switch). Every current caller passes
+   * JSON-serializable scalars (`session?.district`, a debounced search term, a
+   * selected tab), so serializing is exact.
+   */
+  const identity = `${key}\u0000${JSON.stringify(deps)}`;
+
   // Latest fetcher without making it a dependency: callers pass inline closures,
   // and depending on them would refetch on every render.
   const fetcherRef = useRef(fetcher);
@@ -128,11 +143,28 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
   // Subscribe to invalidation for this key.
   useEffect(() => subscribe(key, () => void run()), [key, run]);
 
-  // Initial load and dependency changes.
+  /**
+   * Initial load, and a reset when the identity changes.
+   *
+   * The reset is the part that matters: previously `data` survived a key/deps
+   * change, so switching a notification tab or a product category re-rendered the
+   * *previous* selection's list — with `loading === false` because the hook had
+   * already settled — until the new response landed. On a slow connection the list
+   * under the newly active chip visibly belonged to the old one. Dropping the stale
+   * payload restores the honest state: nothing for this identity yet, so loading.
+   */
+  const lastIdentity = useRef(identity);
   useEffect(() => {
+    if (lastIdentity.current !== identity) {
+      lastIdentity.current = identity;
+      setData(null);
+      setError(null);
+      setSettled(false);
+      // Any in-flight response for the previous identity must not be applied.
+      requestId.current += 1;
+    }
     void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, run, ...deps]);
+  }, [identity, run]);
 
   return {
     data,

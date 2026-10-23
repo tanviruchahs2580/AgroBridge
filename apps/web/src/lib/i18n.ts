@@ -336,6 +336,25 @@ export const dict = {
   // A failed weather read is its own state, not an empty one: the dashboard used
   // to print a bare "—", which is indistinguishable from "no reading available".
   weatherUnavailable: { bn: "আবহাওয়ার তথ্য পাওয়া যায়নি", en: "Weather data is unavailable" },
+  // The same rule for the other reads a screen can fail to complete. Each of these
+  // exists because its absence let the UI assert something the app did not know:
+  // "add your first farm" when the farm list had merely failed to load, a readiness
+  // basis claiming weather when weather was missing, "weather favourable" with no
+  // advisory payload at all, and an unread badge reading "0" after a failed read.
+  farmDataUnavailable: { bn: "খামারের তথ্য পাওয়া যায়নি", en: "Farm data is unavailable" },
+  farmDataUnavailableSub: {
+    bn: "আপনার খামারের তথ্য আনা যায়নি, তাই প্রস্তুতি দেখানো হচ্ছে না। উপরে আবার চেষ্টা করুন।",
+    en: "Your farm records could not be loaded, so readiness is not shown. Retry above.",
+  },
+  farmReadinessBasisNoWeather: {
+    bn: "শুধু আপনার খামারের রেকর্ডের ভিত্তিতে",
+    en: "From your farm records only",
+  },
+  alertsUnavailable: {
+    bn: "আবহাওয়ার সতর্কতা পাওয়া যায়নি — আবহাওয়ার তথ্য আনা যায়নি।",
+    en: "Weather advisories are unavailable — the reading could not be loaded.",
+  },
+  unreadCountUnavailable: { bn: "আনপড়া সংখ্যা জানা যায়নি", en: "Unread count unavailable" },
   // Accessible name for the AI chat transcript live region (role="log").
   advisorTranscriptLabel: { bn: "এআই কথোপকথন", en: "AI conversation" },
   // Screen-reader-only heading for the marketplace product grid (its cards are
@@ -452,6 +471,12 @@ export const dict = {
   membershipConfirmTitle: { bn: "মেম্বারশিপ কিনবেন?", en: "Buy this membership?" },
   // No sandbox wording here: the provider mode is only known after the intent
   // response (server-reported `providerMode`), not before the confirm dialog.
+  // Tier labels live here (not labels.ts) so the tier axis sits with the copy it
+  // belongs to; Wallet's plan heading, the confirm body and the admin table all
+  // used to print the raw enum ("BASIC"/"GOLD") — the one axis without a map.
+  membershipTierBasic: { bn: "বেসিক", en: "Basic" },
+  membershipTierSilver: { bn: "সিলভার", en: "Silver" },
+  membershipTierGold: { bn: "গোল্ড", en: "Gold" },
   membershipConfirmBody: { bn: "{tier} প্ল্যানের জন্য {price} পরিশোধ করতে হবে।", en: "{price} will be charged for the {tier} plan." },
   membershipActiveToast: { bn: "{tier} মেম্বারশিপ সক্রিয় (স্যান্ডবক্স)।", en: "{tier} membership activated (sandbox)." },
   membershipExpired: { bn: "মেম্বারশিপ মেয়াদ শেষ", en: "Membership expired" },

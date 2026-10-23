@@ -78,6 +78,15 @@ async function flush(): Promise<void> {
 
 export function track(name: string, props?: Record<string, string | number>): void {
   buffer.push(props ? { name, props } : { name });
+  /**
+   * Cap on push, not only on the failed-send restore. While the device is offline
+   * `flush` returns early without touching the buffer, so the only bound was the
+   * one applied on the restore path — an offline session accumulated events
+   * unbounded, in memory, for the whole outage. Drop the oldest beyond the cap:
+   * analytics are diagnostic, and losing the oldest telemetry is the right trade
+   * against growth on the devices this app runs on.
+   */
+  if (buffer.length > MAX_BUFFERED) buffer = buffer.slice(-MAX_BUFFERED);
   if (buffer.length >= FLUSH_AT_COUNT) void flush();
   else scheduleFlush();
 }

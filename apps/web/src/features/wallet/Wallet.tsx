@@ -5,7 +5,7 @@ import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
-import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel, withdrawalStatusLabel } from "../../lib/labels";
+import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel, tierLabel, withdrawalStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Wallet } from "lucide-react";
@@ -44,11 +44,14 @@ export default function WalletPage() {
   const [planBusyTier, setPlanBusyTier] = useState<string | null>(null);
 
   async function buyPlan(tier: string) {
+    // In-flight guard before the dialog: a second activation used to open a second
+    // confirm and reach a second POST /payments/intent for the same tier.
+    if (planBusyTier) return;
     const plan = plans.find((p) => p.tier === tier);
     const okToBuy = await confirm({
       title: t("membershipConfirmTitle", lang),
       body: t("membershipConfirmBody", lang, {
-        tier,
+        tier: tierLabel(tier, lang),
         price: plan ? formatBDT(plan.pricePaisa, lang) : "—",
       }),
       confirmLabel: t("payNow", lang),
@@ -75,7 +78,7 @@ export default function WalletPage() {
         return;
       }
       await api("POST", `/payments/${intent.paymentId}/confirm`);
-      toast.success(t("membershipActiveToast", lang, { tier }));
+      toast.success(t("membershipActiveToast", lang, { tier: tierLabel(tier, lang) }));
       // The purchase moves the balance, the month summary and the payment list
       // (and the membership tier); the previous refetch set plus the plans.
       invalidate("wallet");
@@ -101,6 +104,9 @@ export default function WalletPage() {
 
   function submitWithdraw(e: React.FormEvent) {
     e.preventDefault();
+    // A withdrawal POST is not idempotent; the button's `loading` state only
+    // appears after a re-render, which is a window a second tap can use.
+    if (wdBusy) return;
     const taka = Number(wdAmount);
     const paisa = takaToPaisa(taka);
     if (!wdAmount || Number.isNaN(taka) || paisa < MIN_WITHDRAWAL_PAISA) {
@@ -225,7 +231,7 @@ export default function WalletPage() {
           <div className="grid gap-2 sm:gap-4 sm:grid-cols-3">
             {plans.map((p) => (
               <Card key={p.tier} className={`min-w-0 overflow-hidden ${p.tier === "GOLD" ? "border-amber-300" : p.tier === "SILVER" ? "border-stone-300" : ""}`}>
-                <h3 className="font-bold text-stone-800">{p.tier}</h3>
+                <h3 className="font-bold text-stone-800">{tierLabel(p.tier, lang)}</h3>
                 <p className="my-1 text-xl font-bold text-accent">
                   {p.pricePaisa === 0 ? t("freeLabel", lang) : formatBDT(p.pricePaisa, lang)}
                 </p>

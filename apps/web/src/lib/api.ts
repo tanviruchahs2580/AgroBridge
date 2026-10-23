@@ -7,6 +7,7 @@
 // session.tsx read storage directly.
 
 import { getTokens, setTokens as smSetTokens, clearTokens as smClearTokens } from "./sessionManager";
+import { newRequestId } from "./uuid";
 
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
@@ -185,24 +186,6 @@ class NetworkError extends Error {
 // Every API request carries one, so a client-side failure report can be tied to
 // the server's log line for the same call. One id per *logical* request: the
 // GET/5xx retry loop and the post-refresh replay of the same `api` call reuse
-// the id of their first attempt, while a new request (including each offline
-// queue replay) gets a fresh one. crypto.randomUUID is required; the
-// getRandomValues fallback covers non-secure contexts (plain-HTTP dev hosts),
-// matching offlineQueue's uuid posture — Math.random never generates these.
-let requestIdFallback = 0;
-function newRequestId(): string {
-  const c = globalThis.crypto as Crypto | undefined;
-  if (typeof c?.randomUUID === "function") return c.randomUUID();
-  if (typeof c?.getRandomValues === "function") {
-    const bytes = c.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6]! & 0x0f) | 0x40; // version 4
-    bytes[8] = (bytes[8]! & 0x3f) | 0x80; // variant 10
-    const hex = Array.from(bytes, (b: number) => b.toString(16).padStart(2, "0")).join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-  return `${Date.now().toString(36)}-${(requestIdFallback++).toString(36)}`;
-}
-
 async function rawRequest(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
@@ -372,13 +355,11 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
             json.error?.details,
             json.error?.reference
           );
-          (e as { isRetryable?: boolean }).isRetryable = true;
-          throw e;
+                    throw e;
         }
         clearTokens();
         if (wasAuthed) unauthorizedHandler?.();
         const msg = json.error?.message ?? "UNAUTHORIZED";
-        // Return a special flag so callers can provide retry UX (checkout wizard, etc.)
         const e = new ApiError(
           res.status,
           msg === "UNAUTHORIZED" ? "UNAUTHORIZED" : json.error?.code ?? "UNAUTHORIZED",
@@ -386,8 +367,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
           json.error?.details,
           json.error?.reference
         );
-        (e as { isRetryable?: boolean }).isRetryable = true;
-        throw e;
+                throw e;
       }
     }
 

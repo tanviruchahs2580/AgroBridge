@@ -324,7 +324,7 @@ export default function App() {
   ) : null;
 
   if (loading && !showSplash) {
-    return <div className="flex min-h-screen items-center justify-center text-green-700">{t("loading", "bn")}</div>;
+    return <div className="flex min-h-screen items-center justify-center text-green-700">{t("loading", lang)}</div>;
   }
 
   return (

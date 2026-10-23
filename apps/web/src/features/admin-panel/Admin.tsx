@@ -8,7 +8,7 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
-import { channelLabel, roleLabel, userStatusLabel } from "../../lib/labels";
+import { channelLabel, roleLabel, tierLabel, userStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import {
   Badge, BlockError, Button, Card, EmptyState, Input, PageHeader, SectionHeader, Skeleton, StatTile, useConfirm, useToast,
@@ -139,8 +139,13 @@ export default function AdminPanel() {
     try {
       await api("PATCH", `/admin/users/${u.id}`, { region: value || null });
       toast.success(t("regionSavedToast", lang));
-      // The old code patched the saved row into the list locally instead of
-      // refetching; `setData` is that same optimistic write, no request.
+      // Show the edit immediately, then reconcile with the server.
+      //
+      // The optimistic write alone was not enough to be *correct*: this endpoint
+      // replies with `{ id, fullName, role, status }` — it does not echo `region`
+      // — so the row would keep displaying whatever the admin typed even if the
+      // server had stored something else, and there was no request that could ever
+      // correct it. The reload is one GET and makes the table state the server's.
       const current = usersRes.data;
       if (current) {
         usersRes.setData({
@@ -148,6 +153,7 @@ export default function AdminPanel() {
           items: current.items.map((x) => (x.id === u.id ? { ...x, region: value || null } : x)),
         });
       }
+      invalidate("admin-users");
     } catch (err) {
       if (!guard403(err)) toast.error(mapError(err, lang));
     } finally {
@@ -209,7 +215,12 @@ export default function AdminPanel() {
       </nav>
       <PageHeader icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title={t("adminControlTower", lang)} />
 
-      {/* Metric tiles*/}
+      {/* Metric tiles. The banner is rendered *above* the tiles rather than instead
+          of them, because the old order (tiles if present, else error) made the error
+          branch unreachable once anything had loaded: a failed reload left the
+          previous numbers on screen with nothing marking them as last-known. A first
+          load that fails has no tiles, so the banner stands alone — which is right. */}
+      <BlockError error={metricsRes.error} retryLabel={t("retry", lang)} onRetry={() => void metricsRes.reload()} />
       {metrics ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {cards.map((c) => (
@@ -222,9 +233,7 @@ export default function AdminPanel() {
             <Card key={i}><Skeleton className="h-10 w-full" /></Card>
           ))}
         </div>
-      ) : (
-        <BlockError error={metricsRes.error} retryLabel={t("retry", lang)} onRetry={() => void metricsRes.reload()} />
-      )}
+      ) : null}
 
       {/* Users*/}
       <Card>
@@ -269,7 +278,7 @@ export default function AdminPanel() {
                     <td className="px-2 py-2 font-medium">{u.fullName}</td>
                     <td className="px-2 py-2">{u.phone}</td>
                     <td className="px-2 py-2"><Badge tone="default">{roleLabel(u.role, lang)}</Badge></td>
-                    <td className="px-2 py-2">{u.farmerProfile?.membershipTier ?? "—"}</td>
+                    <td className="px-2 py-2">{u.farmerProfile?.membershipTier ? tierLabel(u.farmerProfile.membershipTier, lang) : "—"}</td>
                     <td className="px-2 py-2">
                       <Badge tone={u.status === "ACTIVE" ? "success" : "danger"}>
                         {userStatusLabel(u.status, lang)}

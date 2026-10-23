@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { api } from "../../lib/api";
 import type { AppNotification, NotificationPreferences, NotificationsData } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
+import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
@@ -39,7 +40,20 @@ interface NotificationsFeed {
 }
 
 /** Toggle switch (3 prefs share one pattern); keeps the native role=switch semantics. */
-function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: string; checked: boolean; onToggle: () => void }) {
+function ToggleSwitch({
+  id,
+  label,
+  checked,
+  onToggle,
+  busy = false,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+  /** The switch's own PATCH is in flight — announced, and non-interactive meanwhile. */
+  busy?: boolean;
+}) {
   return (
     // The button is 44px tall and the 28px track sits inside it: the switch keeps
     // its exact appearance while the hit area meets the app's own 44px target
@@ -50,8 +64,10 @@ function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: str
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      aria-busy={busy || undefined}
+      disabled={busy}
       onClick={onToggle}
-      className="relative inline-flex h-11 shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
+      className="relative inline-flex h-11 shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] disabled:cursor-progress"
     >
       <span
         aria-hidden
@@ -83,13 +99,15 @@ export default function Notifications() {
   const [tab, setTab] = useState<TabKey>("ALL");
   const [markingAll, setMarkingAll] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  /** Preference key whose PATCH is in flight — serializes the switches. */
+  const [prefBusy, setPrefBusy] = useState<keyof NotificationPreferences | null>(null);
 
   // The screen reads two independent endpoints, so it holds two independent
   // resources: a failed preferences fetch never hides the list, and vice versa.
   // The category is a query parameter, so it rides `deps` — switching tabs
   // refetches this resource exactly as the old load(tab) did, and nothing else.
   const notificationsRes = useResource<NotificationsFeed>(
-    "notifications",
+    RESOURCE_KEYS.notifications,
     async () => {
       const which = tab;
       const payload = await api<NotificationsData>("GET", `/notifications${which === "ALL" ? "" : `?category=${which}`}`);
@@ -128,7 +146,7 @@ export default function Notifications() {
       setMetaCounts({ critical: 0, action: 0 });
       // The old code awaited load(tab), which refetched exactly this resource
       // (the preferences are untouched by a read).
-      invalidate("notifications");
+      invalidate(RESOURCE_KEYS.notifications);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -138,16 +156,27 @@ export default function Notifications() {
 
   async function togglePref(key: keyof NotificationPreferences) {
     if (!prefs) return;
-    const previous = prefs;
+    // One in-flight toggle per switch. Two issues lived here: there was no guard at
+    // all, so rapid taps issued overlapping full-object PATCHes from the same base;
+    // and the failure path restored a snapshot captured *before* its own request,
+    // which could silently undo a newer successful write.
+    if (prefBusy) return;
     const next: NotificationPreferences = { ...prefs, [key]: !prefs[key] };
-    // Optimistic write without a round trip; the PATCH does not refetch.
-    prefsRes.setData(next);
+    setPrefBusy(key);
+    prefsRes.setData(next); // optimistic: the switch moves immediately
     try {
-      await api("PATCH", "/notifications/preferences", next);
+      const saved = await api<NotificationPreferences>("PATCH", "/notifications/preferences", next);
+      // The server owns the stored object; take its answer rather than leaving the
+      // optimistic copy in place.
+      if (saved) prefsRes.setData(saved);
       toast.success(t("prefsSavedToast", lang));
     } catch (err) {
-      prefsRes.setData(previous); // revert on failure
+      // Reconcile with the server instead of restoring a possibly-superseded
+      // snapshot, so a failed toggle cannot resurrect an older state.
+      invalidate("notifications-preferences");
       toast.error(mapError(err, lang));
+    } finally {
+      setPrefBusy(null);
     }
   }
 
@@ -229,7 +258,7 @@ export default function Notifications() {
                   <Label className="!mb-0 flex-1 cursor-pointer text-sm" htmlFor={`pref-${key}`}>
                     {t(labelKey, lang)}
                   </Label>
-                  <ToggleSwitch id={`pref-${key}`} label={t(labelKey, lang)} checked={prefs[key]} onToggle={() => void togglePref(key)} />
+                  <ToggleSwitch id={`pref-${key}`} label={t(labelKey, lang)} checked={prefs[key]} busy={prefBusy === key} onToggle={() => void togglePref(key)} />
                 </div>
               ))}
             </div>

@@ -106,6 +106,16 @@ const ROLE_KEYS: Record<string, DictKey> = {
   FARMER: "roleFARMER", QC_OFFICER: "roleQC_OFFICER", ADMIN: "roleADMIN", SUPER_ADMIN: "roleSUPER_ADMIN",
   SERVICE_PROVIDER: "roleSERVICE_PROVIDER",
 };
+/**
+ * Membership tier → localized label. `.tier` arrives as an internal enum
+ * (BASIC/SILVER/GOLD) and was the one axis rendered raw — every other enum axis
+ * (role, status, channel, purpose) has a map here.
+ */
+const TIER_KEYS: Record<string, DictKey> = {
+  BASIC: "membershipTierBasic", SILVER: "membershipTierSilver", GOLD: "membershipTierGold",
+};
+export const tierLabel = (raw: string, lang: Lang): string => fromMap(TIER_KEYS, raw, lang);
+
 export const roleLabel = (raw: string, lang: Lang): string => fromMap(ROLE_KEYS, raw, lang);
 
 // ── Payment record purposes (Wallet page transactions merge) ──

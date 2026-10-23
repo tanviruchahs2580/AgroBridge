@@ -7,7 +7,7 @@ import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
 import { orderStatusLabel, paymentStatusLabel } from "../../lib/labels";
 import { Package, MapPin, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { Badge, BlockError, Card, EmptyState, Skeleton, useConfirm, useToast } from "../../components/ui";
+import { Badge, BlockError, Card, EmptyState, IconButton, Skeleton, Spinner, useConfirm, useToast } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
 import { mapError } from "../../lib/errors-ui";
 
@@ -33,6 +33,8 @@ export default function MyOrders() {
   const lang = session?.lang ?? "bn";
   const [tab, setTab] = useState<TabKey>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  /** Order id whose DELETE is in flight — guards the handler and drives the button. */
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -53,6 +55,7 @@ export default function MyOrders() {
   }
 
   async function removeOrder(order: OrderWithItems) {
+    if (deletingId) return;
     const okToDelete = await confirm({
       title: t("confirmTitle", lang),
       body: `${t("deleteOrderConfirm", lang)} ${order.orderNo}`,
@@ -60,6 +63,10 @@ export default function MyOrders() {
       danger: true,
     });
     if (!okToDelete) return;
+    // The row used to sit unchanged — no spinner, no aria-busy — until the DELETE
+    // returned and the refetch landed, which is exactly when a second tap is most
+    // likely. The in-flight id drives the button's busy state.
+    setDeletingId(order.id);
     try {
       await api("DELETE", `/orders/${order.id}`);
       toast.success(t("orderDeletedToast", lang));
@@ -68,6 +75,8 @@ export default function MyOrders() {
       invalidate("orders");
     } catch (err) {
       toast.error(mapError(err, lang));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -159,24 +168,28 @@ export default function MyOrders() {
               </div>
               <div className="flex shrink-0 items-center">
                 {deletable(order) && (
-                  <button
-                    type="button"
+                  // IconButton's 44px target with the danger tokens; the raw
+                  // text-red-600/hover:bg-red-50/ring-red-500 palette bypassed the
+                  // danger triplet every other destructive control uses, and the
+                  // button had no in-flight state, so a second tap was invisible.
+                  <IconButton
+                    variant="ghost"
+                    label={`${t("deleteOrder", lang)} ${order.orderNo}`}
+                    disabled={deletingId === order.id}
+                    aria-busy={deletingId === order.id || undefined}
                     onClick={() => void removeOrder(order)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                    aria-label={`${t("deleteOrder", lang)} ${order.orderNo}`}
+                    className="text-danger-text hover:bg-danger-bg focus-visible:ring-danger-border disabled:bg-transparent"
                   >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </button>
+                    {deletingId === order.id ? <Spinner className="h-4 w-4" /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                  </IconButton>
                 )}
-                <button
-                  type="button"
+                <IconButton
+                  label={isExpanded ? t("collapseDetails", lang) : t("expandDetails", lang)}
                   onClick={() => setExpandedId(isExpanded ? null : order.id)}
                   aria-expanded={isExpanded}
-                  className="flex h-11 w-11 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-                  aria-label={isExpanded ? t("collapseDetails", lang) : t("expandDetails", lang)}
                 >
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
+                  {isExpanded ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+                </IconButton>
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { t } from "../lib/i18n";
 import type { DictKey, Lang } from "../lib/i18n";
@@ -33,6 +33,14 @@ function statusFor(p: number, lang: Lang) {
 
 export function Splash({ onDone, staticOnly = false }: SplashProps) {
   const shouldReduce = useReducedMotion();
+  /**
+   * `onDone` through a ref, not a dependency. App passes an inline closure, and the
+   * session is hydrating for exactly as long as this splash is on screen — so every
+   * parent render (loading/session flips) re-ran the animation effect, restarting
+   * the timers and the progress ring mid-flight.
+   */
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
   const [lang] = useState<Lang>(splashLang);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>(() => statusFor(0, splashLang()));
@@ -42,9 +50,9 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   // Respect reduced-motion: show static branded version but still auto-dismiss
   useEffect(() => {
     if (!(shouldReduce || staticOnly)) return;
-    const t = setTimeout(() => onDone?.(), 1200);
-    return () => clearTimeout(t);
-  }, [shouldReduce, staticOnly, onDone]);
+    const t = window.setTimeout(() => onDoneRef.current?.(), 1200);
+    return () => window.clearTimeout(t);
+  }, [shouldReduce, staticOnly]);
 
   useEffect(() => {
     if (shouldReduce || staticOnly) return;
@@ -62,6 +70,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
 
     // Progress animation 0→100 across 0.45-1.25s (0.8s) with meaningful status
     let raf = 0;
+    let tHandoff: ReturnType<typeof setTimeout> | undefined;
     const start = performance.now();
     const duration = 800;
     const startDelay = 450;
@@ -82,18 +91,21 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     const tDone = setTimeout(() => {
       if (cancelled) return;
       setExiting(true);
-      setTimeout(() => onDone?.(), 200);
+      tHandoff = setTimeout(() => onDoneRef.current?.(), 200);
     }, 1300);
 
     return () => {
       cancelled = true;
+      // The 200 ms handoff is cleared with the rest: it was not, so it could call
+      // onDone after the effect had been torn down.
+      if (tHandoff) clearTimeout(tHandoff);
       clearTimeout(tBrand);
       clearTimeout(tLoading);
       clearTimeout(tExit);
       clearTimeout(tDone);
       cancelAnimationFrame(raf);
     };
-  }, [shouldReduce, staticOnly, onDone, lang]);
+  }, [shouldReduce, staticOnly, lang]);
 
   if (shouldReduce || staticOnly) {
     return (

@@ -314,15 +314,6 @@ export function broadcastLogout(): void {
   emit();
 }
 
-// ── Migration note ─────────────────────────────────────────────────────────
-// Future wires (not executed in this doc-only phase, to respect "do not modify
-// existing source"):
-//   lib/api.ts — replace `let accessToken = localStorage.getItem("ab_at")`
-//                with `import { getTokens, setTokens, clearTokens } from "./sessionManager"`
-//                and read `getTokens.accessToken` inside rawRequest/tryRefresh.
-//   lib/session.tsx — replace `if (!localStorage.getItem("ab_at"))` (line 33)
-//                    with `if (!getTokens.accessToken)` and subscribe via
-//                    `onChange` to keep React state in sync with cross-tab logout.
-//   This eliminates the dual-truth bug where api.ts holds a stale module var
-//   while session.tsx reads storage directly, and where one tab logout leaves
-//   other tabs authenticated until reload.
+// Migration note (historical): the "future wires" this block used to list
+// have been executed for a while now - both lib/api.ts and lib/session.tsx go
+// through this module, so the dual-truth bug it described is closed.

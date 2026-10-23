@@ -30,6 +30,17 @@ const CHIP_KEY: Record<FilterKey, "svcFilterAll" | "svcFilterMech" | "svcFilterA
   TEST: "svcFilterTest",
 };
 
+/**
+ * `YYYY-MM-DDTHH:mm` for a `<input type="datetime-local">`, in the user's own
+ * timezone. `toISOString().slice(0, 16)` produces UTC, which is the wrong wall
+ * clock for the picker's `min`/`max` bounds anywhere east or west of Greenwich.
+ */
+function localDateTimeInput(epochMs: number): string {
+  const d = new Date(epochMs);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const containerVariants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.06, delayChildren: 0.08 } },
@@ -82,7 +93,7 @@ export default function Services() {
 
   async function book(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!selected) return;
+    if (!selected || busy) return;
     const fd = new FormData(e.currentTarget);
     const errs: Record<string, string> = {};
     if (!fd.get("farm")) errs.farm = t("errFieldRequired", lang);
@@ -111,7 +122,7 @@ export default function Services() {
       // so all three families are invalidated — no more, no less.
       invalidate("services");
       invalidate("services-bookings");
-      invalidate("services-farms");
+      invalidate(RESOURCE_KEYS.farms);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -120,6 +131,7 @@ export default function Services() {
   }
 
   async function cancelBooking(b: BookingWithRelations) {
+    if (cancellingId) return;
     const ok = await confirm({
       title: t("cancelBooking", lang),
       body: `${b.service?.name ?? ""} · ${formatDateTime(b.scheduledFor, lang)} — ${t("cancelBookingBody", lang)}`,
@@ -135,7 +147,7 @@ export default function Services() {
       // Same refetch set as the old page-wide `load`.
       invalidate("services");
       invalidate("services-bookings");
-      invalidate("services-farms");
+      invalidate(RESOURCE_KEYS.farms);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -439,7 +451,11 @@ export default function Services() {
                 id="bk-date"
                 name="date"
                 type="datetime-local"
-                min={new Date().toISOString().slice(0, 16)}
+                // Local wall-clock, not `toISOString()` (which is UTC): in UTC+6 the
+                // picker's minimum would sit six hours in the past, offering slots the
+                // submit handler then rejects, and the browser's own validity styling
+                // would contradict the app's rule.
+                min={localDateTimeInput(Date.now())}
                 onChange={() => setFormErrs((p) => { const n = { ...p }; delete n.date; return n; })}
                 aria-invalid={Boolean(formErrs.date)}
                 aria-describedby={formErrs.date ? "bk-date-err" : undefined}

@@ -594,17 +594,32 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(0);
   const swipeStart = useRef<{ id: number; x: number } | null>(null);
+  /** Auto-dismiss timers, so a toast that is dismissed early cannot fire its own
+   *  timer later and drop whichever toast happens to hold that id by then. */
+  const timers = useRef(new Map<number, number>());
 
   const dismiss = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timers.current.delete(id);
+    }
     setItems((prev) => prev.filter((tst) => tst.id !== id));
   }, []);
 
   const push = useCallback(
     (kind: ToastItem["kind"], msg: string) => {
+      // The id is minted *here*, not inside the updater. It used to be
+      // `{ id: ++nextId.current }` inside `setItems` while the dismiss timer read
+      // `nextId.current` afterwards — so when React deferred the updater (two
+      // toasts raised in one tick, which the offline queue does), the timer was
+      // armed for the *previous* id: the new toast never auto-dismissed and an
+      // older one disappeared early.
+      const id = ++nextId.current;
       // Max 3 stacked: drop oldest beyond capacity.
-      setItems((prev) => [...prev.slice(-2), { id: ++nextId.current, kind, msg }]);
-      const id = nextId.current;
-      window.setTimeout(() => dismiss(id), kind === "error" ? 6000 : 4000);
+      setItems((prev) => [...prev.slice(-2), { id, kind, msg }]);
+      const timer = window.setTimeout(() => dismiss(id), kind === "error" ? 6000 : 4000);
+      timers.current.set(id, timer);
     },
     [dismiss]
   );
@@ -760,10 +775,23 @@ interface PendingConfirm {
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
 
+  /**
+   * A second `confirm()` while one is on screen replaces the dialog, so the first
+   * caller has to be settled — with `false`, i.e. "the user did not confirm this" —
+   * or its promise never resolves and the handler awaiting it hangs forever.
+   * Measured consequence before this fix: every confirm-then-mutate handler
+   * (withdraw, buy plan, place offer, delete account, admin approve) had a path
+   * where a double activation left the first invocation suspended and the second
+   * one proceeding to the POST — the UI dropped one action silently and performed
+   * the other, on money-moving code.
+   */
   const confirm = useCallback<ConfirmFn>(
     (opts) =>
       new Promise<boolean>((resolve) => {
-        setPending({ opts, resolve });
+        setPending((current) => {
+          current?.resolve(false);
+          return { opts, resolve };
+        });
       }),
     []
   );
@@ -775,6 +803,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Defaults come from the dictionary rather than English literals: a call site
+  // that omitted a label used to render "Cancel"/"OK" on a Bengali page — the same
+  // defect ErrorBanner and Modal had. `confirmAction` was an unreferenced key.
+  const lang = useUiLang();
   const dialogRef = useDialogA11y(Boolean(pending), pending ? () => settle(false) : undefined);
 
   return (
@@ -811,10 +843,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             {pending.opts.body && <p className="mt-2 text-sm leading-relaxed text-stone-600">{pending.opts.body}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => settle(false)}>
-                {pending.opts.cancelLabel ?? "Cancel"}
+                {pending.opts.cancelLabel ?? t("cancel", lang)}
               </Button>
               <Button variant={pending.opts.danger ? "danger" : "primary"} onClick={() => settle(true)}>
-                {pending.opts.confirmLabel ?? "OK"}
+                {pending.opts.confirmLabel ?? t("confirmAction", lang)}
               </Button>
             </div>
           </m.div>
