@@ -508,6 +508,59 @@ Covered in §7a; recorded here because they were found only by running the tool
 against the live site, and they are the same failure mode as the repaired
 `api-full-validation.sh`.
 
+## 7c. Second release record — the deep-audit batch (#68)
+
+The four read-only audits of §7a produced a batch of fixes, merged as #68
+(`20ba97d`). Production web serves it; the API deploy is unchanged at `de96175`
+because #68 touched no `apps/api` file, which the ancestry-based gate accepts.
+
+| Live check | Result |
+|---|---|
+| Web `version.json` | `commit 20ba97d` |
+| API `/health` | `commit de96175` — includes every reviewed API change |
+| `/ready` | `db:true`, schema applied 8, `storage: db (durable)` |
+| Production smoke | **14/14** |
+| Read-only API surface probe | **33/33** (re-run of the §7a probe) |
+
+### What the audit found beyond the first pass
+
+Summarised rather than re-listed; every item is at `verification-report.md` §7a
+and in the PR body. Highlights, by how a user would meet them:
+
+- **Money paths raced.** Two activations of a withdraw, buy-plan, place-order,
+  pay, offer, or admin approval could reach the POST, because a second
+  `confirm()` left the first caller's promise suspended forever. Guards added at
+  every entry and the provider now settles the superseded caller.
+- **A checkout could spin forever.** The idempotency key ran
+  `crypto.randomUUID()` outside its `try`; without WebCrypto it threw before the
+  `finally` cleared the busy flag. Now one guarded `lib/uuid.ts` replaces three
+  near-identical generators.
+- **Screens asserted things the app did not know.** The dashboard told a farmer
+  whose farm list had *failed to load* to add a first farm; Smart Alerts answered
+  a failed weather read with "weather favourable"; a failed notifications read
+  rendered the quick-action tile as a clean inbox; My Farm's briefing lost its
+  risk line the same way; a readiness number claimed a weather basis it had
+  skipped. Each now distinguishes failed, loading and empty.
+- **The notification preference toggle could undo a newer write**, and had no
+  in-flight guard. Per-key guard + reconcile with the server now.
+- **Verification tools reported failures for the wrong reason.** Three
+  `api.test.ts` assertions could not fail (a matcher never invoked, a mock built
+  then discarded, an offline test that branched on the race it should pin); the
+  production smoke mis-marker'd the admin gate and raced the lazy Home chunk; and
+  `useResource` kept the previous tab's payload on screen with `loading === false`
+  after a tab or category switch. All fixed; the admin guard is now fail-closed
+  on the role with the opposite direction pinned by a test.
+
+### What is still open (with the reason it was left)
+
+Carried forward from §7, unchanged in this batch, and not closed by a claim: the
+`Services` route chunk, `session.tsx` context memoization, the quiet-panel and
+chip recipe consolidation, the legacy `components/TopBar`, coverage floors, and
+formal WCAG certification (§7 items 1–6 and 11). Two more recorded after this
+batch measured them: the Home hero surface stack (§7 item 3, a deliberate design
+that could still be compressed) and the `Services` summary-card affordances
+(§7 item 4, which would need a product decision to change).
+
 ## 8. About Figma
 
 The request was to run this renovation through Figma. That was **not possible in
