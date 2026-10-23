@@ -301,6 +301,7 @@ erDiagram
     string id PK
     string userId FK
     int balancePaisa
+    datetime updatedAt
     int heldPaisa
   }
   WalletTransaction {
@@ -453,7 +454,7 @@ erDiagram
 | `Booking` | 20 | 4 |
 | `ProcurementOrder` | 18 | 2 |
 | `Payment` | 16 | 1 |
-| `Wallet` | 5 | 1 |
+| `Wallet` | 6 | 1 |
 | `WalletTransaction` | 9 | 1 |
 | `Withdrawal` | 13 | 1 |
 | `OtpChallenge` | 10 | 1 |

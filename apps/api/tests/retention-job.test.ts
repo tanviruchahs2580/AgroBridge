@@ -53,8 +53,12 @@ describe("retention job (SEC-06)", () => {
     const oldConsumed = await prisma.otpChallenge.create({
       data: { userId: f.user.id, phone: f.phone, codeHash: `${marker}-old-consumed`, consumedAt: hoursAgo(25), expiresAt: hoursAgo(26), createdAt: hoursAgo(26) },
     });
+    // consumedAt set: an expired-but-never-consumed challenge would violate
+    // OtpChallenge_user_purpose_live_key (one LIVE challenge per user+purpose,
+    // AUD-V3) alongside freshExpiredOtp — in production the supersede-then-
+    // create flow always retires the previous row, so the fixture does too.
     const oldExpiredOtp = await prisma.otpChallenge.create({
-      data: { userId: f.user.id, phone: f.phone, codeHash: `${marker}-old-expired`, expiresAt: hoursAgo(25), createdAt: hoursAgo(25) },
+      data: { userId: f.user.id, phone: f.phone, codeHash: `${marker}-old-expired`, consumedAt: hoursAgo(25), expiresAt: hoursAgo(25), createdAt: hoursAgo(25) },
     });
     const freshExpiredOtp = await prisma.otpChallenge.create({
       data: { userId: f.user.id, phone: f.phone, codeHash: `${marker}-fresh-expired`, expiresAt: hoursAgo(1), createdAt: hoursAgo(5) },

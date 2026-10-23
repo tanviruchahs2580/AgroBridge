@@ -88,7 +88,10 @@ describe("weather provenance — response envelope", () => {
     const f = await registerFarmer();
     vi.spyOn(MockWeatherProvider.prototype, "getForecast").mockRejectedValueOnce(new Error("provider down"));
     const res = await request(app).get("/api/v1/weather?lat=25.9&lng=89.1").set("Authorization", `Bearer ${f.accessToken}`);
-    expect(res.status).toBe(500);
+    // AUD-V3: provider failures are explicit upstream errors now —
+    // 502 WEATHER_PROVIDER_UNAVAILABLE, never a fabricated forecast.
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe("WEATHER_PROVIDER_UNAVAILABLE");
     expect(res.body.ok).toBe(false);
     expect(JSON.stringify(res.body)).not.toContain("tempC");
   });

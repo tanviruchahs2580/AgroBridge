@@ -72,7 +72,10 @@ describe("weather cache — route behaviour (default TTL)", () => {
     vi.spyOn(MockWeatherProvider.prototype, "getForecast").mockRejectedValueOnce(new Error("provider outage"));
 
     const res = await request(app).get(weatherUrl(coords.lat, coords.lng)).set(auth);
-    expect(res.status).toBe(500);
+    // AUD-V3: provider failures are explicit upstream errors now —
+    // 502 WEATHER_PROVIDER_UNAVAILABLE, never a fabricated forecast.
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe("WEATHER_PROVIDER_UNAVAILABLE");
     expect(res.body.ok).toBe(false);
     expect(JSON.stringify(res.body)).not.toContain("tempC");
 

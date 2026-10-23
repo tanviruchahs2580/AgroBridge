@@ -17,6 +17,7 @@ import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { getAuth } from "../../shared/auth-context.js";
+import { ciContains } from "../../shared/utils/ciContains.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -70,7 +71,7 @@ productsRouter.get("/", validate({ query: listQuery }), async (req, res, next) =
     const where = {
       isActive: true,
       ...(category ? { category } : {}),
-      ...(search ? { name: { contains: search } } : {}),
+      ...(search ? { name: ciContains(search) } : {}),
     };
     const [items, total] = await Promise.all([
       prisma.product.findMany({

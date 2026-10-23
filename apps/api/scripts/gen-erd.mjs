@@ -5,6 +5,11 @@
  * (defaults, FK targets) is intentionally out of scope — the ERD is the shape
  * overview; docs/database.md and `prisma/migrations` stay authoritative.
  * `--check` fails when the committed output no longer matches the schema.
+ *
+ * NOT the same tool as generate-erd.mjs: that one renders the human-facing
+ * docs/erd.md page; this one emits the raw Mermaid source at
+ * docs/generated/erd.mmd that other docs embed. (Naming predates the pair;
+ * distinguished here so the next reader does not "deduplicate" them.)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
