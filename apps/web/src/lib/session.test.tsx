@@ -155,7 +155,9 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "Karim", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     expect(mockApi).toHaveBeenCalledWith("GET", "/auth/me");
-    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn", dark: false, district: null });
+    // `dark` left the Session shape (AUD-V3 L-7): theme truth lives in the
+    // context state, not on the session object — nothing consumed session.dark.
+    expect(getCtx().session).toEqual({ userId: "u1", fullName: "Karim", role: "FARMER", lang: "bn", district: null });
     expect(getCtx().loading).toBe(false);
     expect(document.documentElement.lang).toBe("bn");
     unmount();
