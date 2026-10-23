@@ -14,10 +14,21 @@ const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/ap
 
 // Lazy offlineQueue helpers (dynamic import avoids a circular init).
 let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (method: string, url: string) => boolean } | null = null;
+/**
+ * Resolves the queue module, or null when it is unavailable FOR ANY REASON
+ * (import failure, or a namespace that does not carry the two functions we
+ * call — possible while a bundler/test-runner is mid-rearrangement of the
+ * api ↔ queue cycle). The queue is an optimization on the failure path: a
+ * lookup that misbehaves must degrade to "no queue", NEVER replace the
+ * user's network error with an internal one (found by vitest 4's module
+ * runner, AUD-V3 — the old code let a TypeError from this lookup become the
+ * error the UI displayed).
+ */
 async function getOfflineQueue() {
   if (_offlineQueue) return _offlineQueue;
   try {
-    _offlineQueue = await import("./offlineQueue");
+    const mod = await import("./offlineQueue");
+    _offlineQueue = typeof mod?.isQueueable === "function" && typeof mod?.enqueue === "function" ? mod : null;
   } catch {
     _offlineQueue = null;
   }

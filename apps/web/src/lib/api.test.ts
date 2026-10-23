@@ -533,6 +533,12 @@ describe("lib/api — offline enqueue side-effect (characterization)", () => {
     mod = await import("./api.js");
     mod.clearTokens();
     localStorage.removeItem("agrobridge.mutationQueue");
+    // Mirror the app's boot contract: App.tsx primes the queue module at
+    // startup ("Prime offlineQueue lazy import for later sync enqueue") so
+    // the failure path never lazy-loads it mid-error. Priming here keeps the
+    // test deterministic under any module runner (vitest 4 could serve a
+    // partial namespace for a lazily-imported cycle member; AUD-V3).
+    await import("./offlineQueue.js");
   });
   afterEach(() => vi.unstubAllGlobals());
 

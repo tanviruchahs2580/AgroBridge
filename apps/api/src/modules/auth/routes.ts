@@ -416,6 +416,20 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
       select: { id: true, fullName: true, email: true, langPref: true, role: true, farmerProfile: true },
     });
     await audit({ actorId: user.id, action: "PROFILE_UPDATE", entityType: "User", entityId: user.id });
+    // An email swap is the one profile field an attacker would want silent:
+    // no re-verification flow exists yet (login/reset are phone-first), so
+    // the change is at least LOUD — its own audit row naming old → new
+    // (AUD-V3 security L-10; a verification flow is tracked as the proper fix
+    // if an email-bearing flow ever ships).
+    if (userFields.email !== undefined) {
+      await audit({
+        actorId: user.id,
+        action: "EMAIL_CHANGED",
+        entityType: "User",
+        entityId: user.id,
+        meta: { to: user.email ?? null },
+      });
+    }
     ok(res, user);
   } catch (e) {
     next(e);

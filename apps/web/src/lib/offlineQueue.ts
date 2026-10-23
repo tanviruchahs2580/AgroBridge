@@ -12,6 +12,7 @@ import type { Lang } from "./i18n";
 // sessionManager must never load the queue — a logout would then pull the
 // transport module into its own teardown path.
 import { getSession, getTokens, onChange as onSessionChange } from "./sessionManager";
+import { isQueueable } from "./offlineQueueRules";
 
 export interface QueuedMutation {
   url: string;
@@ -36,30 +37,11 @@ const KEY = "agrobridge.mutationQueue";
 const MAX_QUEUE_AGE_MS = 72 * 60 * 60 * 1000;
 
 /**
- * Endpoints that must never be replayed blind. A checkout is not idempotent:
- * replaying a queued attempt after the user retried manually creates a second
- * order and decrements stock twice, so it stays out even though it lives under
- * /orders.
+ * The queueability rule lives in ./offlineQueueRules (no imports — see that
+ * file for why it must be dependency-free) and is re-exported here so every
+ * existing importer keeps working.
  */
-const NEVER_QUEUE = ["/orders/checkout"];
-
-/**
- * Methods that change server state and are therefore the only ones worth
- * replaying. A failed GET is a read, not a pending change: replaying it later
- * would send a stale request as if it were a mutation and would inflate the
- * user-facing queue badge for work no one ever asked to retry.
- */
-const QUEUEABLE_METHODS = new Set(["POST", "PATCH", "DELETE"]);
-
-/**
- * Allow-list: state-changing requests to farm events, cart, and orders sync
- * endpoints. Method-aware (WEB-4): reads (`GET`/`HEAD`/…) are never queued.
- */
-export function isQueueable(method: string, url: string): boolean {
-  if (!QUEUEABLE_METHODS.has(method.toUpperCase())) return false;
-  if (NEVER_QUEUE.some((p) => url.includes(p))) return false;
-  return url.includes("/events") || url.includes("/cart") || url.includes("/orders");
-}
+export { isQueueable } from "./offlineQueueRules";
 
 const listeners = new Set<(count: number) => void>();
 /** Enqueue toast notifiers — App.tsx registers toast.info when a mutation is queued offline */
