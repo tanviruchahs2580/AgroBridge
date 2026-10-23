@@ -109,3 +109,47 @@ curl -s -X POST $BASE/api/v1/auth/login -H 'Content-Type: application/json' \
 Web: bundle at `https://agrobridge-web.vercel.app/assets/index-*.js` must reference the
 API base URL above (no `agrobridge-vfbz.onrender.com` remnants), and a real browser login
 must land on `হোম` (verified 2026-10-15 with the demo farmer).
+
+## Rollback (added 2026-10-24 — AUD-V3: the prod runbook had none)
+
+Vercel keeps every production deployment immutable and instant-rollbackable.
+The stack is two independent Vercel projects plus the Neon database; roll
+them in this order.
+
+**1. Freeze the trigger.** If the incident is code-driven, stop the source of
+new deploys first: do not merge to `main` (branch protection keeps main
+deploy-gated), and if a bad migration is in flight, see §Database migrations
+below before anything else.
+
+**2. Roll back the web project** (stateless, always safe to roll):
+
+```bash
+npx vercel ls agrobridge-web          # list production deployments
+npx vercel rollback <deployment-url>  # instant, traffic moves in seconds
+```
+
+Or in the Vercel dashboard: Deployments → the last good one → ⋯ → "Promote to
+Production". Verify with `curl https://agrobridge-web.vercel.app/version.json`
+— `commit` must show the commit you intend, not the broken one.
+
+**3. Roll back the API project** the same way (`npx vercel ls
+agro-bridge-api-vantiq-systems` → `rollback`), then verify `/health` reports
+the expected `commit` and `/ready` reports `db:true`.
+
+**4. Migrations are forward-only — do NOT roll them back.** The API is
+written to run with a schema at-or-ahead of its code (columns/migrations are
+additive first). Rolling the API image back across a schema migration that
+already applied is safe by that design; manually reverting a migration is
+not a supported operation. If a migration itself caused the incident:
+
+- stop: do not run more migrations;
+- apply the compensating migration (write the inverse as a NEW forward
+  migration — see `docs/disaster-recovery.md` §Forward-only migrations);
+- if `deploy-migrations.mjs` marked a migration failed mid-chain,
+  `npx prisma migrate resolve --rolled-back <name>` after inspection, fix,
+  and re-run — the runbook in `docs/disaster-recovery.md` §Restore & recovery
+  covers the Neon restore path if data is damaged.
+
+**5. Re-verify after any rollback** with §Post-deploy verification above, and
+file the incident note in the release record (the deploy-verify job's commit
+assertions will also catch an off-main deployment).

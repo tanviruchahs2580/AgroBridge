@@ -53,3 +53,16 @@ ADR records the decision next to the implementation).
   is a manual extract, and that gap is tracked rather than promised away.
 - Erasure beyond anonymization (e.g. purging photos) is deferred work with a named owner in the
   data-protection document; when it lands it changes the retention table, not this decision.
+
+## Addendum (2026-10-24)
+
+The residuals this ADR left open are now closed by code and this addendum is
+that record: photo purging retries through the durable purge queue with a
+daily drain (the retention job), profile-field clearing shipped with the
+anonymizing deletion handler, and — the enforcement gap AUD-V3 flagged — the
+policy is no longer dependent on a manual invocation: it runs daily as a
+Vercel cron (`GET /api/v1/ops/retention`, CRON_SECRET-guarded) from the shared
+executor in `apps/api/src/shared/retention.ts`, and the window now also covers
+the four tables that previously grew without bound (AnalyticsEvent,
+Notification, AiUsageLog, AdvisoryQuery). Backup expiry remains
+platform-managed and the privacy policy says so.

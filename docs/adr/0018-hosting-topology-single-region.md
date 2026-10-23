@@ -1,4 +1,4 @@
-# ADR-0013: Hosting topology — Vercel functions with Neon PostgreSQL, one region
+# ADR-0018: Hosting topology — Vercel functions with Neon PostgreSQL, one region
 
 Status: Accepted · Date: 2026-10-21 · Deciders: engineering; region/cost owner
 

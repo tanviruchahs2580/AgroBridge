@@ -4,6 +4,76 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-24 deep-audit remediation — AUD-V3)
+- **Live payment gateway reconciliation was verifying with the wrong keys.** The SSLCommerz
+  Validation API was sent the checkout *session key* as `val_id`, and the Transaction Query API the
+  same value as `orderNo`; the real `val_id` was stored and never used. The adapter now sends each
+  API its own key (`val_id` from payment meta; our `tran_id`/refNo as `orderNo`), rounds gateway
+  amounts to paisa exactly once, and refuses to confirm a success verdict that carries no usable
+  amount.
+- **The amount cross-check the webhook enforces now covers every confirmation path.**
+  `GET /payments/:id/status` and the hosted-checkout return funnel through one
+  `reconcileLiveVerdict` rule: a gateway verdict whose amount differs from the payment is refused
+  (payment stays PENDING, `PAYMENT_RECONCILE_AMOUNT_MISMATCH` audited) instead of marking the order
+  PAID.
+- **`/metrics` is no longer effectively public in production.** The private-address allowance was
+  an allow-everything rule behind the platform load balancer (verified live: anonymous 200 with the
+  full Prometheus output). Production now requires `METRICS_TOKEN` (constant-time compare) and
+  fails closed when it is unset; non-production keeps the local-Prometheus convenience.
+- **The offline queue no longer double-sends on boot.** `flushAll` had no in-flight mutex while
+  boot + the online-event registration both fired it — every queued mutation was replayed twice
+  and the "saved" toast doubled. Concurrent flushes now share one pass (pinned by tests).
+- **Closing the checkout wizard by navigating away no longer disables session-expiry handling for
+  the tab.** `setCriticalFlow(true)` leaked on unmount; every later 401 was swallowed.
+- **A losing cross-tab token refresh no longer logs that tab out.** When another tab rotates the
+  refresh family first, the loser retries once with the winner's token instead of clearing the
+  session.
+- **Three non-money state machines settle races in the database now**, matching the money paths'
+  claim-atomic convention: one ACTIVE crop cycle per plot (partial unique index), agronomist
+  reviews claim PENDING→REVIEWED exactly once, and a booking cancel can no longer be resurrected
+  by a racing assign. The MEMBERSHIP side-effect branch reads inside its transaction.
+- **The Redis rate-limit window is atomic** (one Lua round trip for INCR+EXPIRE+TTL) and heals
+  TTL-less orphan keys instead of locking an account's bucket until manual deletion.
+- **Upload magic-byte checks match full format signatures** — a bare `RIFF` prefix accepted WAV/AVI
+  as WebP and two bytes accepted non-PNG streams.
+- Client validation mirrors the server's bounds (password ≤ 72, offer quantity ≤ 1,000,000 kg); the
+  offline banner's copy is honest about what actually queues (cart writes); advisor chat bubbles key
+  by identity; the offlineQueue header names its real hash (djb2, not SHA-256).
+
+### Added (2026-10-24 deep-audit remediation — AUD-V3)
+- **The data-retention policy actually runs.** A daily Vercel cron (`GET /api/v1/ops/retention`,
+  `CRON_SECRET`-guarded, fail-closed, audited) executes the ADR-0011 windows from a single shared
+  executor (`apps/api/src/shared/retention.ts`); the four tables that previously grew without bound
+  (analytics events, notifications, AI usage logs, advisory queries) are covered at 180 days.
+  Operator action: set `CRON_SECRET` in Vercel before the next deploy.
+- **External uptime probe** (`.github/workflows/uptime-probe.yml`): every 15 minutes from
+  GitHub-hosted runners — web 200, `/health`, `/ready` (incl. `db:true`), web `version.json`, with
+  a latency summary. Outage detection no longer depends on a user noticing.
+- **ESLint warning ratchet** in CI (`scripts/qa/lint-budget.mjs`, budget api 26 / web 0): new
+  warnings fail the build; the exceptions table in CONTRIBUTING is the only way to raise it.
+- **Production rollback runbook** (`docs/runbooks/live-deployment.md` §Rollback): Vercel instant
+  rollback for both projects, migrations stay forward-only with the compensating-migration path.
+- OTP live-challenge uniqueness is enforced by a partial unique index (one live challenge per user
+  and purpose) with a retry-on-race issuance flow; `Wallet` carries `updatedAt`; search is
+  case-insensitive consistently on SQLite and PostgreSQL (`ciContains`).
+
+### Changed (2026-10-24 deep-audit remediation — AUD-V3)
+- **Dev toolchain upgraded to clear every advisory:** vitest 3.2.7 → 4.1.12 (clears the tinypool
+  RCE-class chain and mocker path traversal), vite 6.0.3 → 6.4.5 (launch-editor high). Full API
+  (514) and web (198) suites pass; production dependencies remain 0-vulnerability. The failure
+  path's queue lookup degrades honestly instead of letting an internal module error replace the
+  user's network error.
+- **ADR registry de-collided.** Numbers 0012-0016 each had two accepted ADRs; the 2026-10-21 wave
+  re-decided under 0017-0021, the two genuinely superseded decisions carry SUPERSEDED banners, and
+  the registry's references point where they claim.
+- `docs/retention-and-logs.md` now matches the retention code (its "no script deletes audit logs"
+  claim was false the day it shipped) and PRIVACY_POLICY.md states the platform-managed backup
+  window honestly instead of promising a 30-day auto-expiry nothing implemented.
+- Weather provider failures answer 502 `WEATHER_PROVIDER_UNAVAILABLE` (503 when our circuit
+  breaker refuses) instead of a generic 500 — never a fabricated forecast.
+- Load-test gate: the quota-limited AI phase is exempt from the error-rate assertion (its 429s are
+  the limiter working), so the exit code means something again.
+
 ## [1.4.1] - 2026-10-19
 
 ### Fixed (2026-10-19 audit-remediation pass — durability, recovery, gates)

@@ -154,4 +154,10 @@ silenced, because a rule that is quietly off is not a rule:
 | `apps/api/src/middleware/errorHandler.ts`, `shared/utils/jpeg.ts`, `providers/payment/sslcommerz.ts`, `providers/health.ts`, `modules/services/routes.ts`, `modules/aiagent/routes.ts`, `modules/admin/routes.ts`, `modules/auth/dataExport.ts`, `modules/marketplace/routes.ts`, `modules/farms/routes.ts` | Branch-per-provider-error / branch-per-field mapping; each branch is pinned by a test. |
 | `apps/web/src/lib/i18n.ts` (779 lines), `components/ui.tsx`, `lib/api-types.ts` | Dictionary and design-system/contract data: content, not logic. |
 
+**The warning budget is ratcheted (AUD-V3):** `scripts/qa/lint-budget.mjs` runs in the
+quality-gates CI job against `scripts/qa/lint-warning-budget.json` (currently api 26, web 0 —
+the recorded counts behind the table above). A new warning FAILS CI. To land one anyway:
+fix it, or raise the budget in the JSON and add the site to this table with a reason — in the
+same PR. Warnings going down is always welcome; lower the budget to lock it in.
+
 Removal trigger for any row: when the file drops under the limit, delete the row.

@@ -1,6 +1,6 @@
-# ADR-0014: Contract strategy — generated inventories, one response contract, idempotency keys
+# ADR-0019: Contract strategy — generated inventories, one response contract, idempotency keys
 
-Status: Accepted (supersedes "OpenAPI first" from the V2 audit assumption) · Date: 2026-10-21
+Status: Accepted (supersedes ADR-0014 "API contract strategy", 2026-10-19) · Date: 2026-10-21 · (renumbered from ADR-0014 on 2026-10-24 — the earlier 0014 kept its number; see the registry note)
 
 ## Context
 

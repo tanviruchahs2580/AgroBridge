@@ -1,4 +1,4 @@
-# ADR-0012: Payment provider abstraction and the sandbox/live boundary
+# ADR-0017: Payment provider abstraction and the sandbox/live boundary
 
 Status: Accepted · Date: 2026-10-21 · Deciders: engineering; owner sign-off for live credentials
 
@@ -25,7 +25,7 @@ money" and "gateway money" must NEVER be invisible to the caller.
    production" needs the explicit `ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION=1` plus
    an audit note — an owner-gated action by design.
 4. Webhook/intent flows are idempotent on `clientRequestId` / claim-once
-   semantics (ADR-0014); amount is always server-derived from the purpose row.
+   semantics (ADR-0019); amount is always server-derived from the purpose row.
 
 ## Consequences
 

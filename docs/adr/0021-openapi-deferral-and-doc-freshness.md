@@ -1,8 +1,8 @@
-# ADR-0016: OpenAPI deferral and the documentation freshness gates
+# ADR-0021: OpenAPI deferral and the documentation freshness gates
 
 Status: Accepted · Date: 2026-10-21
 
-Related: ADR-0014 (contract strategy — generated inventories), DOC-07.
+Related: ADR-0019 (contract strategy — generated inventories), DOC-07.
 
 ## Context
 

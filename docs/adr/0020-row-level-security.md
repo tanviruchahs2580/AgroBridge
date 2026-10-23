@@ -1,6 +1,6 @@
-# ADR-0015: Row-Level Security — deferred; app-level tenancy is the enforced layer
+# ADR-0020: Row-Level Security — deferred; app-level tenancy is the enforced layer
 
-Status: Accepted (RLS prototype deferred) · Date: 2026-10-21
+Status: Accepted (RLS prototype deferred; supersedes ADR-0015 "Tenant isolation stays application-level", 2026-10-19) · Date: 2026-10-21 · (renumbered from ADR-0015 on 2026-10-24)
 
 ## Context
 
