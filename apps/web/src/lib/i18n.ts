@@ -158,7 +158,9 @@ export const dict = {
   networkBackOnline: { bn: "ইন্টারনেট ফিরে এসেছে ✓", en: "Back online ✓" },
   sessionExpired: { bn: "সেশনের মেয়াদ শেষ — আবার লগইন করুন।", en: "Session expired — please log in again." },
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
-  offlineBanner: { bn: "অফলাইন — পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — changes will queue" },
+  // Honest about what the queue actually covers (ADR-0009): only cart writes
+  // are queueable today — farm/sell/booking screens refuse while offline.
+  offlineBanner: { bn: "অফলাইন — কার্টের পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — cart changes will queue" },
   // A queued write the server refuses permanently (4xx) is discarded — say so
   // instead of only console.warn. {item} is one of queuedItem*.
   queuedChangeDropped: { bn: "অফলাইনে করা {item} পরিবর্তনটি সংরক্ষণ করা যায়নি — বাদ দেওয়া হয়েছে।", en: "Your offline {item} change could not be saved — it was discarded." },

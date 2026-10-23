@@ -577,3 +577,63 @@ describe("lib/api — offline enqueue side-effect (characterization)", () => {
     window.dispatchEvent(new Event("online"));
   });
 });
+
+describe("lib/api — cross-tab refresh rotation (AUD-V3 M-3)", () => {
+  let mod: typeof import("./api.js");
+  beforeEach(async () => {
+    vi.resetModules();
+    localStorage.clear();
+    mod = await import("./api.js");
+    mod.clearTokens();
+    vi.restoreAllMocks();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  /**
+   * Two tabs hitting 401 simultaneously both POST /auth/refresh with the
+   * same refresh token; the server's rotation rejects the loser, which must
+   * NOT log its tab out — the winner's tokens have already landed in storage
+   * via BroadcastChannel/storage events. tryRefresh re-reads the stored
+   * token after a failed attempt and retries once when it moved.
+   */
+  it("a refresh rejected because another tab rotated the family retries with the winner's token", async () => {
+    mod.setTokens("at1", "rt1");
+    const fetchMock = vi.fn(async (url: string, opts: RequestInit) => {
+      if (String(url).includes("/auth/refresh")) {
+        const body = JSON.parse(String(opts.body)) as { refreshToken: string };
+        if (body.refreshToken === "rt1") {
+          // The other tab wins the race while our request is in flight: its
+          // rotation lands in storage before our rejection resolves.
+          localStorage.setItem("ab_at", "at2");
+          localStorage.setItem("ab_rt", "rt2");
+          return new Response(JSON.stringify({ ok: false, error: { code: "UNAUTHORIZED", message: "rotated" } }), { status: 401 });
+        }
+        if (body.refreshToken === "rt2") {
+          return new Response(JSON.stringify({ data: { accessToken: "at3", refreshToken: "rt3" } }), { status: 200 });
+        }
+        return errEnvelope(400, "BAD_REQUEST", "unexpected token");
+      }
+      return okData({ id: "u1" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const okRefresh = await mod.refreshAccessToken();
+    expect(okRefresh).toBe(true);
+    expect(localStorage.getItem("ab_at")).toBe("at3");
+    expect(localStorage.getItem("ab_rt")).toBe("rt3");
+    const refreshBodies = fetchMock.mock.calls
+      .filter((c) => String(c[0]).includes("/auth/refresh"))
+      .map((c) => (JSON.parse(String((c[1] as RequestInit).body)) as { refreshToken: string }).refreshToken);
+    expect(refreshBodies).toEqual(["rt1", "rt2"]); // first lost, second adopted the winner
+  });
+
+  it("a refresh rejected with NO cross-tab rotation still fails honestly", async () => {
+    mod.setTokens("at1", "rt1");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: false, error: { code: "UNAUTHORIZED", message: "revoked" } }), { status: 401 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await mod.refreshAccessToken()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no pointless retry loop
+  });
+});

@@ -1,7 +1,7 @@
 // Offline mutation queue: durable (localStorage) generic queue for allow-listed
 // sync endpoints. Enqueued while offline, flushed on `online` event + app boot.
-// Dedupe by clientUuid AND SHA-256 payload hash — prevents duplicate mutations
-// even when the same URL is hit multiple times while offline.
+// Dedupe by clientUuid AND a djb2 hash of method+url+body — prevents duplicate
+// mutations even when the same URL is hit multiple times while offline.
 // Session-scoped: every entry records who queued it and when, so a shared
 // phone cannot replay one account's writes under the next account's session.
 import { api, isOnline, ApiError } from "./api";
@@ -18,7 +18,7 @@ export interface QueuedMutation {
   method: string;
   body?: unknown;
   clientUuid: string;
-  payloadHash: string; // SHA-256 of method+url+body for dedupe
+  payloadHash: string; // djb2 of method+url+body for dedupe (see hashPayload)
   /** Epoch ms the mutation was queued — TTL anchor for the replay window.*/
   queuedAt: number;
   /** userId that queued it; "" when no session was known (legacy entry).*/
@@ -330,8 +330,24 @@ export function subscribe(cb: (count: number) => void): () => void {
  * subscribers, which is how the user-visible bilingual toast is raised.
  * A flush that saved N>0 mutations notifies `onSync` exactly once with N.
  * Never throws.
+ *
+ * Re-entrancy: boot calls flushAll directly AND the online subscription's
+ * registration callback fires a second one synchronously (see lib/api.ts
+ * onOnlineStatusChange) — without a mutex both loaded the same persisted
+ * list before either saved, double-sending every mutation and firing the
+ * "saved" toast twice. Concurrent callers now share one in-flight flush.
  */
-export async function flushAll(): Promise<void> {
+let flushing: Promise<void> | null = null;
+
+export function flushAll(): Promise<void> {
+  if (flushing) return flushing;
+  flushing = doFlush().finally(() => {
+    flushing = null;
+  });
+  return flushing;
+}
+
+async function doFlush(): Promise<void> {
   if (!isOnline()) return;
   const list = load();
   if (list.length === 0) return;

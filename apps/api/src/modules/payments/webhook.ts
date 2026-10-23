@@ -9,7 +9,7 @@ import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
-import { sslcommerzSignature, applyPaymentSideEffects, claimAndApplyPayment, reconcileLiveVerdict, paymentMetaOf } from "./routes.js";
+import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict, paymentMetaOf } from "./routes.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 
 /**
