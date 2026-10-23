@@ -49,7 +49,7 @@ All notable changes to AgroBridge are documented here.
 - **External uptime probe** (`.github/workflows/uptime-probe.yml`): every 15 minutes from
   GitHub-hosted runners — web 200, `/health`, `/ready` (incl. `db:true`), web `version.json`, with
   a latency summary. Outage detection no longer depends on a user noticing.
-- **ESLint warning ratchet** in CI (`scripts/qa/lint-budget.mjs`, budget api 26 / web 0): new
+- **ESLint warning ratchet** in CI (`scripts/qa/lint-budget.mjs`, budget api 143 / web 0 at CI's src-tests scope): new
   warnings fail the build; the exceptions table in CONTRIBUTING is the only way to raise it.
 - **Production rollback runbook** (`docs/runbooks/live-deployment.md` §Rollback): Vercel instant
   rollback for both projects, migrations stay forward-only with the compensating-migration path.

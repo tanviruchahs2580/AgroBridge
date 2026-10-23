@@ -155,7 +155,7 @@ silenced, because a rule that is quietly off is not a rule:
 | `apps/web/src/lib/i18n.ts` (779 lines), `components/ui.tsx`, `lib/api-types.ts` | Dictionary and design-system/contract data: content, not logic. |
 
 **The warning budget is ratcheted (AUD-V3):** `scripts/qa/lint-budget.mjs` runs in the
-quality-gates CI job against `scripts/qa/lint-warning-budget.json` (currently api 26, web 0 —
+quality-gates CI job against `scripts/qa/lint-warning-budget.json` (currently api 143, web 0 — the counts of CI's `eslint src tests` scope, 2026-10-24 —
 the recorded counts behind the table above). A new warning FAILS CI. To land one anyway:
 fix it, or raise the budget in the JSON and add the site to this table with a reason — in the
 same PR. Warnings going down is always welcome; lower the budget to lock it in.
