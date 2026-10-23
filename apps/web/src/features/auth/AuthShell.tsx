@@ -152,8 +152,8 @@ export function AuthShell({
             aria-hidden
             className="h-16 w-16 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
           />
-          <div className="mt-2.5 text-[22px] font-extrabold leading-none tracking-[-0.01em] drop-shadow-sm">
-            {"AgroBridge"}
+          <div className="mt-2.5 text-xl font-extrabold leading-none tracking-[-0.01em] drop-shadow-sm">
+            {t("appName", lang)}
           </div>
           <div className="mt-1.5 text-xs font-medium tracking-wide text-white/75">
             {t("authTagline", lang)}
@@ -188,7 +188,7 @@ export function AuthShell({
 
           {/* Mobile: login-page value copy (was the demo-account section)*/}
           <div className="mt-6 space-y-3.5 pb-4 md:hidden">
-            <h2 className="text-[18px] font-extrabold leading-snug tracking-[-0.01em] text-white drop-shadow-sm">
+            <h2 className="text-lg font-extrabold leading-snug tracking-[-0.01em] text-white drop-shadow-sm">
               {t("authHeroHeadline", lang)}
             </h2>
             <ul className="space-y-2.5">
@@ -197,7 +197,7 @@ export function AuthShell({
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
                     <Icon className="h-3.5 w-3.5 text-brand-300" strokeWidth={2} />
                   </span>
-                  <span className="text-[12.5px] font-medium leading-snug text-white/90">{t(key, lang)}</span>
+                  <span className="text-sm font-medium leading-snug text-white/90">{t(key, lang)}</span>
                 </li>
               ))}
             </ul>

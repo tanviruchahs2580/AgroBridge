@@ -169,6 +169,15 @@ export const dict = {
   skipToContent: { bn: "স্কিপ করুন", en: "Skip to content" },
   // Screen-reader name for the shell's primary nav (components/ui.tsx BottomNav).
   primaryNavAria: { bn: "প্রধান নেভিগেশন", en: "Primary navigation" },
+  // The two nav landmarks (sidebar at md+, bottom bar below md) have to be
+  // nameable apart; without this key the sidebar rendered as a bare `nav`.
+  sidebarNavAria: { bn: "সাইডবার নেভিগেশন", en: "Sidebar navigation" },
+  // Accessible name for the dot on the wallet tab: it counts offline writes still
+  // waiting to sync, which is not what the old hardcoded "new notifications" said.
+  queuePendingBadge: {
+    bn: "ওয়ালেটে {n}টি অফলাইন পরিবর্তন সিঙ্ক হওয়ার অপেক্ষায়",
+    en: "{n} offline change(s) on your wallet are waiting to sync",
+  },
 
   // ── Procurement status enums ──
   statusPENDING: { bn: "অপেক্ষমাণ", en: "Pending" },
@@ -315,11 +324,25 @@ export const dict = {
   errCopied: { bn: "কপি হয়েছে!", en: "Copied!" },
 
   // ── Home ──
-  greeting: { bn: "আসসালামু আলাইকুম, {name} 👋", en: "Hello, {name} 👋" },
+  // No 👋. It was the last emoji in the UI and it sat in an <h1>, so the page's
+  // most prominent line carried a decorative glyph while every icon in the app is
+  // a lucide component; it also rendered inconsistently across the self-hosted
+  // Bengali font faces. The greeting itself is warm enough.
+  greeting: { bn: "আসসালামু আলাইকুম, {name}", en: "Hello, {name}" },
   todayTasks: { bn: "আজকের কাজ", en: "Today's tasks" },
   taskWaterCheck: { bn: "জমিতে পানি পরীক্ষা করুন", en: "Check field water level" },
   taskPestScout: { bn: "পোকা/রোগ পর্যবেক্ষণ", en: "Scout for pests/disease" },
   weatherFavorable: { bn: "আবহাওয়া অনুকূল", en: "Weather favorable" },
+  // A failed weather read is its own state, not an empty one: the dashboard used
+  // to print a bare "—", which is indistinguishable from "no reading available".
+  weatherUnavailable: { bn: "আবহাওয়ার তথ্য পাওয়া যায়নি", en: "Weather data is unavailable" },
+  // Accessible name for the AI chat transcript live region (role="log").
+  advisorTranscriptLabel: { bn: "এআই কথোপকথন", en: "AI conversation" },
+  // Screen-reader-only heading for the marketplace product grid (its cards are
+  // h3 under the page h1, so the grid needs an h2 of its own).
+  marketCatalogSr: { bn: "পণ্যের তালিকা", en: "Product catalogue" },
+  // Text equivalent for the unread-notification tint, which was colour-only.
+  notifUnread: { bn: "না পড়া", en: "Unread" },
   regularFarmVisit: { bn: "নিয়মিত ফার্ম পরিদর্শন করুন", en: "Regular farm visit" },
   viewDetails: { bn: "বিস্তারিত দেখুন", en: "View details" },
   viewTransactions: { bn: "লেনদেন দেখুন", en: "View transactions" },
@@ -430,7 +453,7 @@ export const dict = {
   // No sandbox wording here: the provider mode is only known after the intent
   // response (server-reported `providerMode`), not before the confirm dialog.
   membershipConfirmBody: { bn: "{tier} প্ল্যানের জন্য {price} পরিশোধ করতে হবে।", en: "{price} will be charged for the {tier} plan." },
-  membershipActiveToast: { bn: "✅ {tier} মেম্বারশিপ সক্রিয় (স্যান্ডবক্স)।", en: "✅ {tier} membership activated (sandbox)." },
+  membershipActiveToast: { bn: "{tier} মেম্বারশিপ সক্রিয় (স্যান্ডবক্স)।", en: "{tier} membership activated (sandbox)." },
   membershipExpired: { bn: "মেম্বারশিপ মেয়াদ শেষ", en: "Membership expired" },
   noWithdrawalsYet: { bn: "কোনো উত্তোলনের ইতিহাস নেই।", en: "No withdrawal history yet." },
   channelLabel: { bn: "মাধ্যম", en: "Channel" },
@@ -473,7 +496,7 @@ export const dict = {
 
   // ── Services page ──
   needFarmFirst: { bn: "বুকিং দিতে আগে “আমার ফার্ম”-এ ফার্ম যোগ করুন।", en: 'Add a farm under "My Farm" before booking.' },
-  bookingReceivedToast: { bn: "✅ বুকিং গৃহীত হয়েছে!", en: "✅ Booking received!" },
+  bookingReceivedToast: { bn: "বুকিং গৃহীত হয়েছে!", en: "Booking received!" },
   farmLabel: { bn: "ফার্ম", en: "Farm" },
   scheduleLabel: { bn: "সময় নির্বাচন", en: "Schedule" },
   providerDefaultOption: { bn: "সেবাদাতা (পরে নিয়োগ)", en: "Provider (assign later)" },
@@ -510,7 +533,7 @@ export const dict = {
   // ── SellCrop pipeline ──
   myOffers: { bn: "আমার ফসলের অফার", en: "My crop offers" },
   noOffers: { bn: "এখনো কোনো অফার নেই।", en: "No offers yet." },
-  offerSubmittedToast: { bn: "✅ অফার জমা হয়েছে — গুণগত যাচাইয়ের অপেক্ষায়।", en: "✅ Offer submitted — pending QC." },
+  offerSubmittedToast: { bn: "অফার জমা হয়েছে — গুণগত যাচাইয়ের অপেক্ষায়।", en: "Offer submitted — pending QC." },
   kgUnit: { bn: "কেজি", en: "kg" },
   gradeA: { bn: "গ্রেড A", en: "Grade A" },
   gradeB: { bn: "গ্রেড B", en: "Grade B" },
@@ -630,6 +653,10 @@ export const dict = {
   splashStatusReady: { bn: "আপনার ফার্ম প্রস্তুত", en: "Your farm is ready" },
   splashTagline: { bn: "কৃষি তথ্য ও পরামর্শ", en: "Farm information and advice" },
   splashLoadingLabel: { bn: "এগ্রোব্রিজ লোড হচ্ছে", en: "AgroBridge loading" },
+  // The splash's screen-reader progress announcement. `{status}` is already
+  // localized by statusFor(); the sentence around it used to be a hardcoded
+  // English literal inside an aria-live region, so Bengali users heard English.
+  splashLoadingProgress: { bn: "লোড হচ্ছে {percent} শতাংশ — {status}", en: "Loading {percent} percent — {status}" },
 
   // ── Services discovery (v2: chips/search/sort/count/empty via dictionary) ──
   svcFilterAll: { bn: "সব", en: "All" },
@@ -772,8 +799,11 @@ export const dict = {
 
   // ── Offline queue outcomes (lib/offlineQueue.ts → App.tsx toasts) ──
   // A flush that saved at least one queued change reports the count.
-  queueSyncedToastOne: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued change saved." },
-  queueSyncedToastMany: { bn: "✅ অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "✅ {n} queued changes saved." },
+  // No ✅ prefix in these two: ToastProvider already renders the success tick as
+  // an icon (components/ui.tsx), so the emoji drew a second one and was the only
+  // emoji in an otherwise lucide-only icon language.
+  queueSyncedToastOne: { bn: "অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "{n} queued change saved." },
+  queueSyncedToastMany: { bn: "অফলাইনে করা {n}টি পরিবর্তন সিঙ্ক হয়েছে।", en: "{n} queued changes saved." },
   // 409/422 conflicts are the user's to resolve — distinct from a plain discard.
   queuedChangeConflict: { bn: "অফলাইনে করা {item} পরিবর্তনটি সার্ভারের তথ্যের সাথে মিলছে না — আপনার পর্যালোচনা দরকার।", en: "Your offline {item} change conflicts with server data — it needs your review." },
   // A queued change is only replayed for 72 h (offlineQueue.ts): past that it is

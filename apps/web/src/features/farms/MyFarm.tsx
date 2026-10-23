@@ -6,39 +6,14 @@ import { invalidate, useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import type { DictKey } from "../../lib/i18n";
 import { dateLocale } from "../../lib/format";
-import { cropLabel, stageLabel, farmCareSuggestion } from "../../lib/labels";
+import { CROPS, CROP_KEYS, careToneClass, cropLabel, stageLabel, farmCareSuggestion } from "../../lib/labels";
+import { actionableRisks } from "../../lib/weatherRisks";
 import { getWeatherCoords } from "../../lib/geo";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Bot, Wrench, ShoppingBag, ChevronRight, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
-import { Button, Card, EmptyState, ErrorBanner, Input, Label, Select, Skeleton, useToast } from "../../components/ui";
-
-const CROPS = ["RICE", "WHEAT", "JUTE", "MUSTARD", "MAIZE", "POTATO"] as const;
-const CROP_KEYS: Record<string, DictKey> = { RICE: "cropRICE", WHEAT: "cropWHEAT", JUTE: "cropJUTE", MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO" };
-
-/** Tailwind classes for a care-suggestion tone (single source: labels.ts tone). */
-function careColor(tone: "danger" | "warning" | "success"): string {
-  if (tone === "danger") return "bg-danger-bg text-danger-text border-danger-border";
-  if (tone === "warning") return "bg-warning-bg text-warning-text border-warning-border";
-  return "bg-success-bg text-success-text border-success-border";
-}
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
+import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Bot, Wrench, ShoppingBag, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
+import { BlockError, Button, Card, EmptyState, Input, Label, Select, Skeleton, useToast } from "../../components/ui";
 
 export default function MyFarm() {
   const { session } = useSession();
@@ -70,6 +45,8 @@ export default function MyFarm() {
   // the risk line instead of raising an error over the farm data. Same intent, now
   // read off the weather resource's own error: failed ⇒ no risks shown.
   const weather = weatherRes.error ? null : weatherRes.data;
+  // Only advisories worth acting on reach the UI; see lib/weatherRisks.ts.
+  const firstRisk = useMemo(() => actionableRisks(weather)[0], [weather]);
 
   const [busy, setBusy] = useState(false);
   const [showFarmForm, setShowFarmForm] = useState(false);
@@ -156,7 +133,7 @@ export default function MyFarm() {
                     <div key={c.id} className="mt-3 flex items-center gap-2 rounded-xl bg-surface-card px-3 py-2 shadow-sm">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-4 w-4" /></span>
                       <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{cropLabel(c.cropName, lang)} • {stageLabel(c.stage, lang)}</p><p className="text-xs text-stone-600">{new Date(c.plantedAt).toLocaleDateString(dateLocale(lang))} • {care.task}</p></div>
-                      <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-xs font-semibold ${careColor(care.tone)}`}>{care.label}</span>
+                      <span className={`ml-auto shrink-0 rounded-chip border px-2 py-0.5 text-xs font-semibold ${careToneClass(care.tone)}`}>{care.label}</span>
                     </div>
                   );
                 }) : <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>}
@@ -186,7 +163,7 @@ export default function MyFarm() {
           keep whatever they have and this retry refetches that resource alone. */}
       <BlockError error={farmsRes.error} retryLabel={t("retry", lang)} onRetry={() => void farmsRes.reload()} />
 
-      {showFarmForm && <Card><form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label><Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} /><p role="alert" className="text-xs text-danger-text">{formErrs.name}</p></div><div><Label htmlFor="fm-district">{t("districtPh", lang)}</Label><Input id="fm-district" name="district" /></div><div><Label htmlFor="fm-area">{t("areaBigha", lang)}</Label><Input id="fm-area" name="area" type="number" step="0.1" min="0.1" /></div><Button type="submit" className="sm:col-span-3" loading={busy}>{t("save", lang)}</Button></form></Card>}
+      {showFarmForm && <Card><form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label><Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} aria-describedby={formErrs.name ? "fm-name-err" : undefined} /><p id="fm-name-err" role="alert" className="text-xs text-danger-text">{formErrs.name}</p></div><div><Label htmlFor="fm-district">{t("districtPh", lang)}</Label><Input id="fm-district" name="district" /></div><div><Label htmlFor="fm-area">{t("areaBigha", lang)}</Label><Input id="fm-area" name="area" type="number" step="0.1" min="0.1" /></div><Button type="submit" className="sm:col-span-3" loading={busy}>{t("save", lang)}</Button></form></Card>}
 
       {farmsRes.loading && <Card><Skeleton className="h-24 w-full" /></Card>}
 
@@ -217,7 +194,7 @@ export default function MyFarm() {
                   <p className="mt-0.5 text-sm font-semibold text-stone-800">{task.care.task}</p>
                   <p className="text-xs text-stone-600">{task.care.label} • {stageLabel(task.stage, lang)} • {new Date(task.plantedAt).toLocaleDateString(dateLocale(lang))}</p>
                 </div>
-                <span className={`shrink-0 rounded-chip border px-2 py-1 text-xs font-bold ${careColor(task.care.tone)}`}>{task.care.label}</span>
+                <span className={`shrink-0 rounded-chip border px-2 py-1 text-xs font-bold ${careToneClass(task.care.tone)}`}>{task.care.label}</span>
               </Card>
             ))}
           </div>
@@ -248,8 +225,18 @@ export default function MyFarm() {
           <p className="mt-2 text-sm leading-6 text-stone-700">{t("myFarmAiLine", lang, { n: stats.crops })}</p>
           <p className="mt-2 text-xs text-stone-500">{t("myFarmAiDisclaimer", lang)}</p>
           {/* Risk title comes from the weather API as a {titleBn,titleEn} pair —
-              server data, not UI copy, so it is selected by field, not the dictionary. */}
-          {weather?.risks?.[0] && <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {lang==="bn"?weather.risks[0].titleBn:weather.risks[0].titleEn}</p>}
+              server data, not UI copy, so it is selected by field, not the dictionary.
+              Filtered through the shared actionableRisks(): `risks[0]` is not "the
+              risk", it is merely the first advisory, and the provider's first entry
+              is INFO-level reassurance ("Weather favourable"). Reading it raw put a
+              favourable advisory inside an amber warning box with a warning icon,
+              while Home — which filtered — reported no risk from the same payload. */}
+          {firstRisk && (
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              {lang === "bn" ? firstRisk.titleBn : firstRisk.titleEn}
+            </p>
+          )}
         </section>
       )}
 
@@ -273,20 +260,24 @@ export default function MyFarm() {
               return (
                 <Card
                   key={farm.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={selectedFarm === farm.id}
-                  className="cursor-pointer space-y-3 p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-                  onClick={() => setSelectedFarm(farm.id)}
-                  // Keyboard parity for the click-only disclosure. Keys pressed on
-                  // the nested buttons or the add-plot form bubble up here too, so
-                  // only the card itself activates — no double-trigger.
-                  onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault(); // Space would otherwise scroll the page
-                      setSelectedFarm(farm.id);
-                    }
+                  className="cursor-pointer space-y-3 p-5"
+                  // Click-anywhere still opens the farm, but only from the card's
+                  // own surface. Without this guard, clicking the inline
+                  // "add plot" form (rendered inside this Card) bubbled here and
+                  // swapped the page to the detail view — measured in a browser:
+                  // clicking the plot-name field destroyed the form and the farm
+                  // detail appeared (`detailAppeared=true formStillThere=false`).
+                  // The nested buttons already stopPropagation; form controls are
+                  // matched by ancestor so the whole form is exempt.
+                  //
+                  // No `role="button"`/`tabIndex`/`onKeyDown`: a button's children
+                  // are presentational, so the nested buttons and form inputs were
+                  // invalid inside it, and the card also unmounted on activation and
+                  // dropped focus to <body>. Keyboard and assistive-technology users
+                  // get the same action from the real "view plots" button below.
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, label, form")) return;
+                    setSelectedFarm(farm.id);
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -300,9 +291,13 @@ export default function MyFarm() {
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><MapPin className="h-3 w-3" /> {farm.plots.length} {t("myFarmPlotCount", lang)}</span>
                     <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><Leaf className="h-3 w-3" /> {activeCrops} {t("myFarmActiveCropsChip", lang)}</span>
                   </div>
-                  <div className="flex items-center justify-end">
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-link">{t("myFarmDetails", lang)} <ChevronRight className="h-3 w-3" /></span>
-                  </div>
+                  {/* The "details ›" hint that sat here was a <span> styled like a
+                      link — `text-link` plus a chevron — so it looked tappable but
+                      was not a control; only the card's click-anywhere handler made
+                      it do anything. The "view plots" button below performs that
+                      same action, so the card offered one action twice and one of
+                      the two affordances was fake. Removed: the button is the real,
+                      focusable control. */}
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" className="flex-1" onClick={(e)=>{ e.stopPropagation(); setPlotFor(plotFor===farm.id?null:farm.id);}}>+ {t("addPlot", lang)}</Button>
                     <Button size="sm" className="flex-1" onClick={(e)=>{ e.stopPropagation(); setSelectedFarm(farm.id);}}>{t("myFarmViewPlots", lang)}</Button>

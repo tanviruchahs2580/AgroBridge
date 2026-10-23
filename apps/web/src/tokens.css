@@ -44,10 +44,22 @@
   --color-sky-800: #075985;
   --color-ai-indigo: #4f46e5;
   --color-ai-indigo-light: #eef2ff;
+  /* The FILLED AI surface, for the chip and CTA that carry a white label. The
+     accent above is also used as text on `ai-indigo-light`, which is why it cannot
+     simply be darkened; this token exists so the fill keeps white text at AA in
+     both themes. 6.26:1 against white. */
+  --color-ai-indigo-strong: #4f46e5;
   --color-indigo-100: #e0e7ff;
   --color-indigo-200: #c7d2fe;
   --color-warning: #f59e0b;
+  /* `critical` is the accent: dots, borders, icons, small non-text marks (3:1).
+     `critical-strong` is the FILLED danger surface, used where a white label sits
+     on top of it. The distinction is a contrast requirement, not a preference:
+     white on #ef4444 measures 3.77:1, which fails WCAG 2.2 AA (4.5:1) for the
+     text sizes these surfaces carry — axe reported exactly that on the unread
+     count and the danger button. #b91c1c measures 6.5:1 against white. */
   --color-critical: #ef4444;
+  --color-critical-strong: #b91c1c;
   --color-neutral-bg: #f8fafc;
   --color-dark-enterprise: #0f172a;
   /* International surface system */
@@ -152,16 +164,30 @@
   --ring-color: #16a34a;
   --ring-offset: 2px;
 
-  /* Type scale — 7 sizes */
+  /* Shell geometry — the sticky header's own height, so anything that has to sit
+     below it (the sidebar's sticky column) references one number instead of a
+     copy. Derived from App.tsx's header: py-3 (12px × 2) + the 32px brand mark.
+     Safe-area padding is added by the header itself and only applies below md,
+     where the sidebar is not rendered. */
+  --shell-header-offset: 57px;
+
+  /* Type scale — 9 sizes. The two smallest/odd values below were previously
+     written as arbitrary utilities at their call sites (text-[10px], text-[15px]);
+     they are real steps of this scale, so they live here where they can be
+     reviewed. Every step is a deliberate size, not a one-off. */
+  --text-2xs: 10px;  /* line-height 14px — micro captions only (ring basis, order meta) */
   --text-xs: 11px;   /* line-height 16px, letter-spacing 0.01em */
   --text-sm: 13px;   /* line-height 18px */
+  --text-md: 15px;   /* line-height 20px — compact card/section headings */
   --text-base: 16px; /* line-height 24px */
   --text-lg: 18px;   /* line-height 28px */
   --text-xl: 20px;   /* line-height 28px */
   --text-2xl: 28px;  /* line-height 36px */
   --text-display: 34px; /* line-height 44px, tracking -0.02em — hero numerals */
+  --leading-2xs: 14px;
   --leading-xs: 16px;
   --leading-sm: 18px;
+  --leading-md: 20px;
   --leading-base: 24px;
   --leading-lg: 28px;
   --leading-xl: 28px;

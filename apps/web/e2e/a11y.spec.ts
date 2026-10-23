@@ -71,7 +71,9 @@ test.describe("Accessibility scans", () => {
     // (BottomNav is the only labelled nav in the shell) rather than on English copy.
     await expect(page.locator('a[href="#main"]')).toBeAttached();
     await expect(page.locator("main#main")).toBeVisible();
-    await expect(page.locator("nav[aria-label]")).toBeAttached();
+    // Two labelled landmarks exist now (sidebar + bottom bar). Assert the mobile
+    // primary nav by its stable id rather than by "any labelled nav".
+    await expect(page.locator('[data-testid="bottom-nav"]')).toBeAttached();
 
     for (const route of ["/", "/market", "/wallet"]) {
       await page.goto(route);
@@ -97,6 +99,39 @@ test.describe("Accessibility scans", () => {
       await page.goto(route);
       await expect(page.locator("#main"), `${route}: main landmark missing`).toBeVisible();
       // Let the page's resources settle (skeletons are not what a user sees last).
+      await page.waitForTimeout(800);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await assertNoCriticalSerious(page);
+    }
+  });
+
+  /**
+   * Dark mode is a designed second token set, and axe evaluates the colours that
+   * are actually painted — so a light-only scan cannot see a contrast failure that
+   * exists only in dark. It did not: `--color-critical` is #f87171 in dark, and the
+   * danger button's white label on it measures 2.5:1, well under AA. Nothing was
+   * watching that; this scan walks the data-bearing routes with
+   * `data-theme="dark"` applied.
+   *
+   * The theme is read back after each navigation rather than assumed: it lives in
+   * localStorage and an inline boot script (index.html), so if persistence broke,
+   * this test would quietly scan the light theme and prove nothing.
+   */
+  test("dark theme: signed-in routes have zero critical/serious violations", async ({ page }) => {
+    test.slow();
+    await seededLogin(page);
+    await page.locator("header button[aria-pressed]").first().click();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.dataset.theme))
+      .toBe("dark");
+
+    for (const route of ["/", "/market", "/wallet", "/notifications", "/settings"]) {
+      await page.goto(route);
+      await expect(page.locator("#main"), `${route} (dark): main landmark missing`).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.dataset.theme),
+        `${route}: the dark theme did not survive navigation — this scan would be meaningless`
+      ).toBe("dark");
       await page.waitForTimeout(800);
       await page.waitForLoadState("networkidle").catch(() => {});
       await assertNoCriticalSerious(page);

@@ -13,6 +13,13 @@ const CROP_KEYS: Record<string, DictKey> = {
   MUSTARD: "cropMUSTARD", MAIZE: "cropMAIZE", POTATO: "cropPOTATO",
 };
 export { CROP_KEYS };
+/**
+ * The crop vocabulary, in the order the pickers present it. MyFarm and SellCrop
+ * each kept a private copy of this list beside the shared `CROP_KEYS`, so the two
+ * forms could drift apart and still compile. Derived from the same map the labels
+ * come from, so a new crop cannot be labellable but unpickable, or vice versa.
+ */
+export const CROPS = Object.keys(CROP_KEYS);
 export const cropLabel = (raw: string, lang: Lang): string => fromMap(CROP_KEYS, raw, lang);
 
 // ── Crop cycle stages ──
@@ -166,6 +173,18 @@ export const notifCategoryLabel = (raw: string, lang: Lang): string => fromMap(N
 // dictionary (careTask*) so it stays on the one canonical localization path.
 export type CareTone = "danger" | "warning" | "success";
 export interface CareSuggestion { label: string; tone: CareTone; task: string }
+
+/**
+ * Tailwind classes for a care tone. Home and MyFarm each had a byte-identical
+ * private copy of this map (as `careToneClass` and `careColor`), which is the
+ * shape a tone vocabulary drifts in. The tone is the axis `farmCareSuggestion`
+ * owns, so its presentation belongs beside it.
+ */
+export function careToneClass(tone: CareTone): string {
+  if (tone === "danger") return "bg-danger-bg text-danger-text border-danger-border";
+  if (tone === "warning") return "bg-warning-bg text-warning-text border-warning-border";
+  return "bg-success-bg text-success-text border-success-border";
+}
 
 const CARE_CALENDAR: Record<string, DictKey[]> = {
   SEED: ["careTaskSeedbedMoisture"],

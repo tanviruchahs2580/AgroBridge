@@ -29,13 +29,17 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       const lang = this.props.lang ?? "bn";
+      // A div with role="alert", not <main>: this boundary renders *inside*
+      // Shell's own <main id="main">, so the old markup produced two main
+      // landmarks on every caught crash. role="alert" is what the fallback needs —
+      // the failure must be announced, not landmarked.
       return (
-        <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
+        <div role="alert" className="mx-auto flex min-h-[100dvh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
           <TriangleAlert className="h-10 w-10 text-amber-500" aria-hidden />
           <h1 className="text-lg font-bold text-stone-800">{t("errorGeneric", lang)}</h1>
           {import.meta.env.DEV && <ErrorBanner message={this.state.error.message} />}
           <Button onClick={() => this.setState({ error: null })}>{t("retry", lang)}</Button>
-        </main>
+        </div>
       );
     }
     return this.props.children;

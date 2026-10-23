@@ -17,12 +17,12 @@ test.describe("Offline banner", () => {
     await page.waitForURL(/.*\/$/, { timeout: 10_000 });
 
     // No banner while online.
-    await expect(page.locator('div[role="status"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="offline-banner"]')).toHaveCount(0);
 
     // Cut the network — the shell reacts to the window "offline" event and the
     // live connectivity singleton, so hold offline and wait for the banner
     // (robust to event/React re-render timing).
-    const banner = page.locator('div[role="status"]');
+    const banner = page.locator('[data-testid="offline-banner"]');
     await context.setOffline(true);
     await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
     await expect(banner).toBeVisible({ timeout: 10_000 });
@@ -104,7 +104,7 @@ test.describe("Offline queue replay (ARC-17/WEB-05)", () => {
     await expect(addToCart, "market shows no purchasable add-to-cart button").toBeVisible({ timeout: 10_000 });
 
     // ── 1. offline write through the UI ────────────────────────────────────
-    const banner = page.locator('div[role="status"]');
+    const banner = page.locator('[data-testid="offline-banner"]');
     await context.setOffline(true);
     await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
     // The banner proves the app's connectivity singleton has flipped before the

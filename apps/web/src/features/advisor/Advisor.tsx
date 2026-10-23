@@ -8,7 +8,7 @@ import { formatDate } from "../../lib/format";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Bot, Camera, Sprout } from "lucide-react";
-import { Badge, Button, Card, ErrorBanner, Input, Modal, PageHeader, Skeleton, Spinner, useToast } from "../../components/ui";
+import { Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Modal, PageHeader, Skeleton, Spinner, useToast } from "../../components/ui";
 import { confidenceSupportKey } from "./supportLabel";
 import { answerModeLabel, shortKbVersion } from "./answerMeta";
 
@@ -36,21 +36,6 @@ async function compressImage(file: File): Promise<Blob> {
   }
 }
 
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
-
 export default function Advisor() {
   const { session } = useSession();
   const lang = session?.lang ?? "bn";
@@ -59,6 +44,13 @@ export default function Advisor() {
   const [chat, setChat] = useState<{
     role: "user" | "ai";
     text: string;
+    /**
+     * A failed request is carried on the turn, not painted as an answer.
+     * Previously the mapped error was pushed with `role: "ai"`, so a network
+     * failure rendered inside the same bubble as real advice — in a product
+     * whose premise is that nothing unverified is shown as agronomic guidance.
+     */
+    failed?: boolean;
     confidence?: number;
     low?: boolean;
     refs?: string[];
@@ -125,7 +117,7 @@ export default function Advisor() {
       // until a reload (found live 2026-10-19).
       invalidate("advisor-history");
     } catch (err) {
-      setChat((c) => [...c, { role: "ai", text: mapError(err, lang) }]);
+      setChat((c) => [...c, { role: "ai", text: mapError(err, lang), failed: true }]);
     } finally {
       setBusy(false);
     }
@@ -194,12 +186,15 @@ export default function Advisor() {
       <p className="text-xs leading-relaxed text-stone-600">{t("advisoryDisclaimer", lang)}</p>
 
       <Card className="space-y-2">
-        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-button border border-brand-300 px-4 py-2 font-semibold text-link transition-colors hover:border-brand-400 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]">
+        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-button border border-brand-300 px-4 py-2 font-semibold text-link transition-colors hover:border-brand-400 hover:bg-brand-50 focus-within:ring-2 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-color)] peer-focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]">
           <Camera className="mr-2 inline h-5 w-5" aria-hidden /> {t("uploadPhoto", lang)} · {t("diseaseCheck", lang)}
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={uploadImage} disabled={uploading} />
+          {/* `sr-only`, not `hidden`: display:none removes the input from the tab
+              order, so the photo upload — the only way to use the disease
+              intake — could not be reached or activated by keyboard at all. */}
+          <input type="file" accept="image/*" capture="environment" className="peer sr-only" onChange={uploadImage} disabled={uploading} />
         </label>
         {uploading && (
-          <p className="flex items-center gap-2 text-sm text-stone-500">
+          <p role="status" className="flex items-center gap-2 text-sm text-stone-500">
             <Spinner className="h-4 w-4" /> {t("compressingImage", lang)}
           </p>
         )}
@@ -221,7 +216,7 @@ export default function Advisor() {
           <Skeleton className="h-10 w-full" />
         ) : cases.length > 0 ? (
           <div className="pt-1">
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("myCases", lang)}</h3>
+            <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("myCases", lang)}</h2>
             <ul className="space-y-1.5">
               {visibleCases.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">
@@ -245,52 +240,69 @@ export default function Advisor() {
 
       <Card className="space-y-3">
         {chat.length === 0 && !busy && (
-          <div className="space-y-1 rounded-xl bg-surface-subdued py-8 text-center text-sm text-stone-500">
-            <Sprout className="mx-auto mb-1 h-8 w-8 text-brand-600" aria-hidden />
-            {t("exampleQuestion", lang)}
-          </div>
+          <EmptyState
+            icon={<Sprout className="h-7 w-7 text-brand-600" aria-hidden />}
+            title={t("aiAgent", lang)}
+            description={t("exampleQuestion", lang)}
+          />
         )}
-        {chat.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-sm text-white">
-              {m.text}
-            </div>
-          ) : (
-            <div key={i} className="max-w-[90%] space-y-1">
-              {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike*/}
-              <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-surface-subdued px-4 py-2.5 text-sm text-stone-800">{m.text}</div>
-              {m.refs && m.refs.length > 0 && (
-                <ul className="space-y-0.5 px-1 text-xs text-stone-500">
-                  <li className="font-semibold">{t("advisorSource", lang)}</li>
-                  {m.refs.map((r, ri) => (
-                    <li key={ri}>· {r}</li>
-                  ))}
-                </ul>
-              )}
-              {m.confidence !== undefined && (
-                // Coarse support band, never a percentage: the score behind it
-                // is a keyword-retrieval heuristic, not a calibrated
-                // probability.
-                <Badge tone={confidenceSupportKey(m.confidence ?? 0, m.low ?? false) === "lowConfidence" ? "warning" : "success"}>
-                  {t(confidenceSupportKey(m.confidence ?? 0, m.low ?? false), lang)}
-                </Badge>
-              )}
-              {/* Which engine/mode answered and the KB version it was grounded in
+        {/* `role="log"` + polite: the transcript is a live region designed for
+            appended chat turns, so an answer (or its failure) is announced when it
+            arrives. Without it the whole conversation landed silently. */}
+        <div
+          role="log"
+          aria-live="polite"
+          aria-label={t("advisorTranscriptLabel", lang)}
+          className="space-y-3"
+        >
+          {chat.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-sm text-white">
+                {m.text}
+              </div>
+            ) : m.failed ? (
+              // A request that never reached the model is an error, not an answer:
+              // it must not wear the answer bubble's styling.
+              <div key={i} className="max-w-[90%]">
+                <ErrorBanner message={m.text} />
+              </div>
+            ) : (
+              <div key={i} className="max-w-[90%] space-y-1">
+                {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike*/}
+                <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-surface-subdued px-4 py-2.5 text-sm text-stone-800">{m.text}</div>
+                {m.refs && m.refs.length > 0 && (
+                  <ul className="space-y-0.5 px-1 text-xs text-stone-500">
+                    <li className="font-semibold">{t("advisorSource", lang)}</li>
+                    {m.refs.map((r, ri) => (
+                      <li key={ri}>· {r}</li>
+                    ))}
+                  </ul>
+                )}
+                {m.confidence !== undefined && (
+                  // Coarse support band, never a percentage: the score behind it
+                  // is a keyword-retrieval heuristic, not a calibrated
+                  // probability.
+                  <Badge tone={confidenceSupportKey(m.confidence ?? 0, m.low ?? false) === "lowConfidence" ? "warning" : "success"}>
+                    {t(confidenceSupportKey(m.confidence ?? 0, m.low ?? false), lang)}
+                  </Badge>
+                )}
+                {/* Which engine/mode answered and the KB version it was grounded in
  — a disclosure line, not a score.*/}
-              {m.kbVersion && (
-                <p className="px-1 text-[11px] text-stone-500">
-                  {answerModeLabel(m.provider ?? "", m.model ?? "", lang)} · {t("advisorKbVersion", lang, { v: shortKbVersion(m.kbVersion) })}
-                </p>
-              )}
+                {m.kbVersion && (
+                  <p className="px-1 text-xs text-stone-500">
+                    {answerModeLabel(m.provider ?? "", m.model ?? "", lang)} · {t("advisorKbVersion", lang, { v: shortKbVersion(m.kbVersion) })}
+                  </p>
+                )}
+              </div>
+            )
+          )}
+          {busy && (
+            <div role="status" className="flex items-center gap-2 text-sm text-stone-500">
+              <Spinner className="h-4 w-4" /> {t("loading", lang)}
             </div>
-          )
-        )}
-        {busy && (
-          <div className="flex items-center gap-2 text-sm text-stone-500">
-            <Spinner className="h-4 w-4" /> {t("loading", lang)}
-          </div>
-        )}
-        <div ref={chatEndRef} />
+          )}
+          <div ref={chatEndRef} />
+        </div>
       </Card>
 
       <form onSubmit={ask} noValidate className="flex gap-2">
@@ -328,8 +340,8 @@ export default function Advisor() {
             ) : (
               <ul className="space-y-2">
                 {history.map((h) => (
-                  <li key={h.id} className="space-y-1 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
-                    <p className="text-[11px] text-stone-500">{formatDate(h.createdAt, lang)}</p>
+                  <li key={h.id} className="space-y-1 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2">
+                    <p className="text-xs text-stone-500">{formatDate(h.createdAt, lang)}</p>
                     <p className="text-sm leading-snug text-stone-700">{h.question}</p>
                     {h.feedbackAt ? (
                       // The stored report is reflected from the server fields, not

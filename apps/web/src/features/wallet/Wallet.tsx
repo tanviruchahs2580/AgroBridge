@@ -10,26 +10,11 @@ import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Wallet } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
+  Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
 } from "../../components/ui";
 
 const MIN_WITHDRAWAL_PAISA = 10_000; // mirrors API rule
 const CHANNELS = ["BKASH", "NAGAD", "BANK"] as const;
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function WalletPage() {
   const { session, refresh } = useSession();
@@ -280,7 +265,7 @@ export default function WalletPage() {
           ) : ledgerRows.length === 0 ? (
             // A failed half must not read as "no transactions".
             ledgerFailed ? null : (
-              <EmptyState icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
+              <EmptyState headingLevel={3} icon={<Receipt className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noTransactions", lang)} />
             )
           ) : (
             <Card variant="static" padded={false} className="divide-y divide-stone-100">
@@ -312,7 +297,7 @@ export default function WalletPage() {
             </Card>
           ) : withdrawals.length === 0 ? (
             withdrawalsRes.error ? null : (
-              <EmptyState icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
+              <EmptyState headingLevel={3} icon={<Landmark className="h-10 w-10 text-stone-300" aria-hidden />} title={t("noWithdrawalsYet", lang)} />
             )
           ) : (
             <Card variant="static" padded={false} className="divide-y divide-stone-100">
@@ -366,7 +351,11 @@ export default function WalletPage() {
                 ))}
               </Select>
             </div>
-            {wdErr && <div id="wd-amount-err" role="alert"><ErrorBanner message={wdErr} /></div>}
+            {/* The wrapper carries the id the amount input points at via
+                aria-describedby; it must not also carry role="alert", because
+                ErrorBanner is itself role="alert" and the message was announced
+                twice from two nested live regions. */}
+            {wdErr && <div id="wd-amount-err"><ErrorBanner message={wdErr} /></div>}
             <div className="flex gap-2 pt-1">
               <Button type="button" variant="ghost" className="flex-1" disabled={wdBusy} onClick={() => setWdOpen(false)}>
                 {t("cancel", lang)}

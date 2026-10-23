@@ -12,7 +12,7 @@ import { bookingStatusLabel, serviceCategoryLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { ClipboardList, Search, SlidersHorizontal, Tractor, TriangleAlert, CheckCircle2, CalendarClock, ArrowRight, ShieldCheck, Leaf, Wrench, Phone } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
+import { Badge, BlockError, Button, Card, EmptyState, Input, Label, Modal, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
 import { ServiceCard, ServiceCardSkeleton } from "../../components/service/ServiceCard";
 
 type FilterKey = "ALL" | "MECH" | "ADVISORY" | "TEST";
@@ -38,21 +38,6 @@ const itemVariants = {
   hidden: { opacity: 0, y: 12 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const } },
 };
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function Services() {
   const { session } = useSession();
@@ -181,7 +166,7 @@ export default function Services() {
                 {t("svcCount", lang, { n: services.length })}
               </span>
               {bookings.length > 0 && (
-                <a href="#my-bookings" className="inline-flex min-h-[36px] items-center rounded-full px-3 text-xs font-semibold text-link hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
+                <a href="#my-bookings" className="inline-flex min-h-[44px] items-center rounded-full px-3 text-xs font-semibold text-link hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
                   {t("myBookings", lang)} ↓
                 </a>
               )}
@@ -189,19 +174,22 @@ export default function Services() {
           </div>
           <div className="hidden sm:flex items-center justify-center rounded-2xl bg-surface-subdued p-4">
             <div className="grid w-full max-w-[280px] gap-3">
+              {/* Counts come from FILTER_MAP, not from literals. They used to be
+                  hardcoded 5 / 2 / 1 beside the same mapping, so adding a service
+                  category would have left the summary panel quietly wrong. */}
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning-bg text-warning-text ring-1 ring-warning-border"><Tractor className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterMech", lang)}</p><p className="text-xs text-stone-500">5 {t("svcTypesPlural", lang)}</p></div>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterMech", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.MECH.length} {t("svcTypesPlural", lang)}</p></div>
                 <ArrowRight className="ml-auto h-4 w-4 text-stone-500" aria-hidden />
               </div>
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-info-bg text-info-text ring-1 ring-info-border"><Wrench className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterAdvisory", lang)}</p><p className="text-xs text-stone-500">2 {t("svcTypesPlural", lang)}</p></div>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterAdvisory", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.ADVISORY.length} {t("svcTypesPlural", lang)}</p></div>
                 <CheckCircle2 className="ml-auto h-4 w-4 text-link" aria-hidden />
               </div>
               <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-enterprise-soil-50 text-warning-text ring-1 ring-warning-border"><ShieldCheck className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterTest", lang)}</p><p className="text-xs text-stone-500">1 {t("svcTypeSingular", lang)}</p></div>
+                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterTest", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.TEST.length} {FILTER_MAP.TEST.length === 1 ? t("svcTypeSingular", lang) : t("svcTypesPlural", lang)}</p></div>
                 <span className="ml-auto text-xs font-bold text-link">{t("svcClearLabel", lang)}</span>
               </div>
             </div>
@@ -231,7 +219,11 @@ export default function Services() {
             placeholder={t("svcSearchPh", lang)}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-[44px] w-full rounded-button border border-surface-border bg-surface-card pl-10 pr-4 text-sm font-medium text-stone-800 placeholder:text-stone-500 shadow-sm focus:border-action focus:outline-none focus:ring-2 focus:ring-brand-200"
+            // Focus ring comes from the token ring like every other control on the app;
+            // this field cannot simply reuse <Input> because the leading search icon
+            // needs its own left padding, and overriding px on a utility-driven input
+            // resolves by CSS order rather than by class order.
+            className="h-11 w-full rounded-input border border-surface-border-strong bg-surface-card pl-10 pr-4 text-sm font-medium text-stone-800 placeholder:text-stone-500 shadow-sm focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
             aria-label={t("svcSearchLabel", lang)}
           />
         </div>
@@ -255,7 +247,7 @@ export default function Services() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="min-h-[44px] rounded-button border border-surface-border bg-surface-card px-3 py-2 text-sm font-medium text-stone-800 focus:border-action focus:outline-none focus:ring-2 focus:ring-brand-200"
+              className="min-h-[44px] rounded-input border border-surface-border-strong bg-surface-card px-3 py-2 text-sm font-medium text-stone-800 focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               aria-label={t("svcSortLabel", lang)}
             >
               <option value="default">{t("svcSortLabel", lang)}</option>
@@ -450,8 +442,9 @@ export default function Services() {
                 min={new Date().toISOString().slice(0, 16)}
                 onChange={() => setFormErrs((p) => { const n = { ...p }; delete n.date; return n; })}
                 aria-invalid={Boolean(formErrs.date)}
+                aria-describedby={formErrs.date ? "bk-date-err" : undefined}
               />
-              {formErrs.date && <p role="alert" className="mt-1 text-xs font-medium text-danger-text">{formErrs.date}</p>}
+              {formErrs.date && <p id="bk-date-err" role="alert" className="mt-1 text-xs font-medium text-danger-text">{formErrs.date}</p>}
             </div>
             <div>
               <Label htmlFor="bk-area">{t("areaBigha", lang)}</Label>
@@ -463,8 +456,9 @@ export default function Services() {
                 min="0.1"
                 onChange={() => setFormErrs((p) => { const n = { ...p }; delete n.area; return n; })}
                 aria-invalid={Boolean(formErrs.area)}
+                aria-describedby={formErrs.area ? "bk-area-err" : undefined}
               />
-              {formErrs.area && <p role="alert" className="mt-1 text-xs font-medium text-danger-text">{formErrs.area}</p>}
+              {formErrs.area && <p id="bk-area-err" role="alert" className="mt-1 text-xs font-medium text-danger-text">{formErrs.area}</p>}
             </div>
             <div>
               <Label htmlFor="bk-provider">{t("providerLabel", lang)}</Label>
@@ -505,6 +499,7 @@ export default function Services() {
           // A failed list must not read as "no bookings".
           bookingsRes.error ? null : (
             <EmptyState
+              headingLevel={3}
               icon={<ClipboardList className="h-10 w-10 text-stone-300" aria-hidden />}
               title={t("noBookings", lang)}
               description={t("svcBookingEmptyHint", lang)}

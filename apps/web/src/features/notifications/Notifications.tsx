@@ -11,7 +11,7 @@ import { mapError } from "../../lib/errors-ui";
 import { notifCategoryLabel } from "../../lib/labels";
 import { Award, Bell, BellOff, Bot, Check, CloudSun, CreditCard, Megaphone, Package, Settings, Sprout, Tractor } from "lucide-react";
 import {
-  Badge, Button, Card, EmptyState, ErrorBanner, Label, PageHeader, Skeleton, useToast,
+  Badge, BlockError, Button, Card, EmptyState, Label, PageHeader, Skeleton, useToast,
 } from "../../components/ui";
 
 const TYPE_ICONS: Record<string, ReactNode> = {
@@ -41,6 +41,9 @@ interface NotificationsFeed {
 /** Toggle switch (3 prefs share one pattern); keeps the native role=switch semantics. */
 function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: string; checked: boolean; onToggle: () => void }) {
   return (
+    // The button is 44px tall and the 28px track sits inside it: the switch keeps
+    // its exact appearance while the hit area meets the app's own 44px target
+    // (the button itself was 28px tall).
     <button
       type="button"
       id={id}
@@ -48,14 +51,19 @@ function ToggleSwitch({ id, label, checked, onToggle }: { id: string; label: str
       aria-checked={checked}
       aria-label={label}
       onClick={onToggle}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${
-        checked ? "bg-action" : "bg-stone-300"
-      }`}
+      className="relative inline-flex h-11 shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]"
     >
       <span
         aria-hidden
-        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${checked ? "left-[22px]" : "left-0.5"}`}
-      />
+        className={`relative h-7 w-12 rounded-full transition-colors motion-reduce:transition-none ${checked ? "bg-action" : "bg-stone-300"}`}
+      >
+        {/* transform, not `left`: the knob animates on the compositor and the
+            22px travel is derived from the 2px inset + 20px shift, not a magic
+            offset. */}
+        <span
+          className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${checked ? "translate-x-5" : "translate-x-0"}`}
+        />
+      </span>
     </button>
   );
 }
@@ -66,21 +74,6 @@ const TABS: { id: TabKey; key: DictKey }[] = [
   { id: "ACTION", key: "notifCategoryACTION" },
   { id: "INFO", key: "notifCategoryINFO" },
 ];
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function Notifications() {
   const { session } = useSession();
@@ -204,7 +197,13 @@ export default function Notifications() {
             >
               {t(tb.key, lang)}
               {count !== null && count > 0 && (
-                <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-bold ${active ? "bg-white/20" : "bg-danger-bg text-danger-text"}`}>
+                // On the active tab the badge used `bg-white/20` with the tab's own
+                // `text-white` inherited, so a 20%-white fill over the green action
+                // colour put white-on-white-ish at roughly 3.4:1 — a serious
+                // colour-contrast violation axe reported on this route. A solid
+                // light pill with the accent colour as text clears AA and reads as
+                // a counter rather than a smudge.
+                <span aria-live="polite" className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-bold ${active ? "bg-surface-card text-accent" : "bg-danger-bg text-danger-text"}`}>
                   {count}<span className="sr-only"> {t("notifCountSr", lang)}</span>
                 </span>
               )}
@@ -263,6 +262,10 @@ export default function Notifications() {
           {items.map((n) => (
             <Card key={n.id} className={`flex gap-3 ${!n.readAt ? "border-brand-200 bg-brand-50" : ""}`}>
               <span className="flex items-center text-stone-500" aria-hidden>{TYPE_ICONS[n.type] ?? <Megaphone className="h-5 w-5" aria-hidden />}</span>
+              {/* Unread was conveyed by the tinted card alone — a colour-only state
+                  (WCAG 1.4.1). This gives it a text equivalent that assistive
+                  technology announces and a low-vision reader can still detect. */}
+              {!n.readAt && <span className="sr-only">{t("notifUnread", lang)}</span>}
               <div className="flex-1">
                 <p className="text-sm font-semibold text-stone-800">
                   {n.title}

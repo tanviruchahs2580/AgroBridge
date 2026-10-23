@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BadgeCheck, CircleAlert, Download, KeyRound, Loader2, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { BadgeCheck, CircleAlert, Download, KeyRound, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { api, ApiError, API_BASE } from "../../lib/api";
 import { getTokens } from "../../lib/sessionManager";
 import type { Me, OtpRequestResult } from "../../lib/api-types";
@@ -10,7 +10,7 @@ import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
 import { BUILD_INFO } from "../../lib/build-info";
 import {
-  Badge, Button, Card, ErrorBanner, Input, Label, PageHeader, SectionHeader, Select, Skeleton, useConfirm, useToast,
+  Badge, Button, Card, ErrorBanner, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Spinner, useConfirm, useToast,
 } from "../../components/ui";
 
 /**
@@ -280,8 +280,8 @@ export default function Settings() {
           </div>
           <p className="text-xs text-stone-500">{t("districtWeatherHint", lang)}</p>
           <div className="flex items-center gap-2">
-            <Button type="submit" disabled={savingProfile}>
-              {savingProfile && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
+            <Button type="submit" disabled={savingProfile} aria-busy={savingProfile || undefined}>
+              {savingProfile && <Spinner className="mr-1.5 h-4 w-4" />}
               {savingProfile ? t("saving", lang) : t("save", lang)}
             </Button>
             <div>
@@ -291,6 +291,9 @@ export default function Settings() {
                 value={lang}
                 onChange={(e) => void setLang(e.target.value as "bn" | "en")}
               >
+                {/* Endonyms are deliberately literal, not t()-looked-up: each
+                    language must read as itself so a user who cannot read the
+                    current UI language can still find their own. */}
                 <option value="bn">বাংলা</option>
                 <option value="en">English</option>
               </Select>
@@ -320,8 +323,8 @@ export default function Settings() {
           <div className="space-y-3">
             {otpErr && <ErrorBanner message={otpErr} />}
             {!otpSent ? (
-              <Button type="button" onClick={() => void requestOtp()} disabled={otpBusy}>
-                {otpBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
+              <Button type="button" onClick={() => void requestOtp()} disabled={otpBusy} aria-busy={otpBusy || undefined}>
+                {otpBusy && <Spinner className="mr-1.5 h-4 w-4" />}
                 <KeyRound className="mr-1.5 h-4 w-4" aria-hidden /> {t("sendCode", lang)}
               </Button>
             ) : (
@@ -342,8 +345,8 @@ export default function Settings() {
                   </p>
                 )}
                 <div className="flex gap-2">
-                  <Button type="submit" disabled={otpBusy}>
-                    {otpBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
+                  <Button type="submit" disabled={otpBusy} aria-busy={otpBusy || undefined}>
+                    {otpBusy && <Spinner className="mr-1.5 h-4 w-4" />}
                     {t("verify", lang)}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => void requestOtp()} disabled={otpBusy}>
@@ -360,12 +363,8 @@ export default function Settings() {
       <Card className="space-y-3">
         <SectionHeader title={t("dataExportTitle", lang)} />
         <p className="text-sm text-stone-600">{t("dataExportHint", lang)}</p>
-        <Button type="button" variant="outline" onClick={() => void downloadMyData()} disabled={exporting}>
-          {exporting ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <Download className="mr-1.5 h-4 w-4" aria-hidden />
-          )}
+        <Button type="button" variant="outline" onClick={() => void downloadMyData()} disabled={exporting} aria-busy={exporting || undefined}>
+          {exporting ? <Spinner className="mr-1.5 h-4 w-4" /> : <Download className="mr-1.5 h-4 w-4" aria-hidden />}
           {t("downloadMyData", lang)}
         </Button>
       </Card>
@@ -406,8 +405,9 @@ export default function Settings() {
           className="border-danger-border text-danger-text hover:bg-danger-bg"
           onClick={() => void deleteAccount()}
           disabled={deleting}
+          aria-busy={deleting || undefined}
         >
-          {deleting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />}
+          {deleting && <Spinner className="mr-1.5 h-4 w-4" />}
           <Trash2 className="mr-1.5 h-4 w-4" aria-hidden /> {deleting ? t("deletingAccount", lang) : t("deleteAccount", lang)}
         </Button>
       </Card>

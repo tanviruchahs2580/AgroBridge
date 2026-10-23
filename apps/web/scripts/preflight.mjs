@@ -3,7 +3,7 @@
  * Web release preflight — the checks that must hold for what we actually serve.
  *
  * Runs after `npm run build` (CI: the web-quality job's build step; locally the
- * same commands). Four families, each one a trap that fails *silently* in
+ * same commands). Five families, each one a trap that fails *silently* in
  * production if nothing checks it:
  *
  * 1. **CSP ↔ inline script.** `index.html` carries a deliberately inline
@@ -27,12 +27,21 @@
  *    one place. A literal that slips into a component renders fine in light mode
  *    and is invisible to every other check (and to axe) — see the allowlist
  *    below for the one site the browser itself forces.
+ * 5. **Dead Tailwind classes.** A class that does not exist in
+ *    `tailwind.config.js` emits no rule at all, so the element renders unstyled
+ *    while lint, typecheck, unit tests, E2E and axe all stay green. Three such
+ *    classes shipped at HEAD and were found by the 2026-10-22 audit:
+ *    `bg-surface-card-subdued` (the token is spelled `surface.subdued`),
+ *    `bg-warning` (the `warning` group has no DEFAULT key) and
+ *    `decoration-link/40` (a bare `var(--color-*)` cannot take an opacity
+ *    modifier). Scanner: scripts/lib/dead-classes.mjs.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { builtCssPath, findDeadClasses } from "./lib/dead-classes.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // apps/web/scripts
 const WEB = join(HERE, ".."); // apps/web
@@ -236,6 +245,27 @@ if (hexOffenders.length) {
   pass(`no raw hex colors in src/**/*.ts(x) outside the token layer (${hexAllowed.length} allowlisted)`);
 }
 for (const a of hexAllowed) console.log(`  ↳ ${a}`);
+
+// ── 5. Dead Tailwind classes ────────────────────────────────────────────────
+// Checked against the compiled stylesheet, not the source: the source cannot say
+// whether a class resolved, and every other gate passes while the element is
+// unstyled.
+const cssPath = builtCssPath(join(WEB, "dist", "assets"));
+if (!cssPath) {
+  fail("no stylesheet in dist/assets — the dead-class check needs a build");
+} else {
+  const { checked, dead } = findDeadClasses({ cssText: readFileSync(cssPath, "utf8"), srcDir: join(WEB, "src") });
+  if (dead.length) {
+    fail(
+      `Tailwind class(es) that emit no CSS (${dead.length} of ${checked} checked):\n     ` +
+        dead.map((d) => `${d.cls} — ${d.files.join(", ")}`).join("\n     ") +
+        `\n     a class the config does not define renders unstyled; check the token name in ` +
+        `tailwind.config.js, and remember a bare var(--color-*) cannot take an /opacity modifier`
+    );
+  } else {
+    pass(`every Tailwind class in src/ resolves in the built CSS (${checked} checked)`);
+  }
+}
 
 if (failures.length) {
   console.error(`\n✗ web preflight FAILED (${failures.length} problem${failures.length === 1 ? "" : "s"})`);

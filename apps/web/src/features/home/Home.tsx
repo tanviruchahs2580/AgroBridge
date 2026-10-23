@@ -9,7 +9,8 @@ import { useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import { cropLabel, stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import { careToneClass, cropLabel, stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import { actionableRisks } from "../../lib/weatherRisks";
 import { deriveTodayTasks } from "./todayTasks";
 import { weatherProvenanceLine } from "./weatherProvenance";
 import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
@@ -20,12 +21,10 @@ import { RiceEarMedallion } from "../../components/icons/AgriIcons";
  * Farm health indicator derived from the data actually loaded on this screen
  * (farms, active crop cycles, weather risks). It is a deterministic readiness
  * meter, not an AI verdict — only actionable risks (non-INFO, non-LOW) count
- * against the score.
+ * against the score. The filter is shared with MyFarm via lib/weatherRisks.ts:
+ * MyFarm used to read `risks[0]` unfiltered and so showed a favourable advisory
+ * as a warning while this screen correctly showed no risk.
  */
-function actionableRisks(weather: WeatherData | null) {
-  return weather ? weather.risks.filter((r) => r.type !== "INFO" && r.severity !== "LOW") : [];
-}
-
 function computeHealthScore(farms: FarmListItem[], weather: WeatherData | null): number {
   const cycles = farms.flatMap((f) => f.plots.flatMap((p) => p.cropCycles));
   const risks = actionableRisks(weather).length;
@@ -46,16 +45,9 @@ function HealthRing({ score }: { score: number }) {
         <circle cx="46" cy="46" r={r} stroke="rgba(255,255,255,0.18)" strokeWidth="7" fill="none" />
         <circle cx="46" cy="46" r={r} stroke="var(--color-brand-400)" strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} className="drop-shadow-sm transition-all duration-700" />
       </svg>
-      <span className="absolute text-[22px] font-extrabold text-white">{score}%</span>
+      <span className="absolute text-xl font-extrabold text-white">{score}%</span>
     </div>
   );
-}
-
-/** Tone classes for a derived care suggestion (same grammar as MyFarm's chips). */
-function careToneClass(tone: "danger" | "warning" | "success"): string {
-  if (tone === "danger") return "bg-danger-bg text-danger-text border-danger-border";
-  if (tone === "warning") return "bg-warning-bg text-warning-text border-warning-border";
-  return "bg-success-bg text-success-text border-success-border";
 }
 
 const AI_ACTIONS: { key: import("../../lib/i18n").DictKey; icon: typeof Bot }[] = [
@@ -108,7 +100,9 @@ export default function Home() {
     <div className="min-w-0 space-y-5 overflow-hidden">
       {/* Greeting */}
       <section className="animate-enterprise px-1" style={{ animationDelay: "0ms" } as React.CSSProperties}>
-        <h1 className="text-[17px] font-bold leading-tight tracking-tight text-stone-800 sm:text-xl">
+        {/* On the scale: this was the only page <h1> sized off it (17px, not a
+            step, against the 20px every PageHeader screen uses). */}
+        <h1 className="text-lg font-bold leading-tight tracking-tight text-stone-800 sm:text-xl">
           {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
         <p className="mt-1.5 flex items-center gap-1.5 text-sm text-stone-600">
@@ -144,7 +138,10 @@ export default function Home() {
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
-              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-warning" : "bg-brand-400"}`} aria-hidden /> {t("farmReadiness", lang)}
+              {/* `bg-enterprise-warning`, not `bg-warning`: the warning token group
+                  has no DEFAULT key, so `bg-warning` compiled to no rule and the
+                  dot vanished on exactly the risk state it exists to signal. */}
+              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-enterprise-warning" : "bg-brand-400"}`} aria-hidden /> {t("farmReadiness", lang)}
             </p>
             <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
               {farms.length === 0 ? t("aiFarmEmptyTitle", lang) : hasRisk ? t("aiFarmAttention", lang) : t("aiFarmHealthy", lang)}
@@ -156,7 +153,7 @@ export default function Home() {
                   ? t("aiFarmAttentionSub", lang)
                   : t("aiFarmHealthySub", lang)}
             </p>
-            <Link to="/farm" className="mt-3 inline-flex min-h-[36px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <Link to="/farm" className="mt-3 inline-flex min-h-[44px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
             </Link>
           </div>
@@ -175,7 +172,7 @@ export default function Home() {
             <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
               <HealthRing score={healthScore} />
               {/* The ring already prints the number; repeating it below was noise. */}
-              <span className="max-w-[18ch] text-center text-[10px] leading-snug text-white/70">{t("farmReadinessBasis", lang)}</span>
+              <span className="max-w-[18ch] text-center text-2xs leading-snug text-white/70">{t("farmReadinessBasis", lang)}</span>
             </div>
           )}
         </div>
@@ -187,12 +184,12 @@ export default function Home() {
             cycles. No checkbox: there is no write API for task completion, so a
             tick would only ever be local fiction. No progress badge either. */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
-          <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
+          <div className="flex items-center justify-between gap-2 border-b border-surface-border bg-surface-subdued px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-action text-white shadow-sm" aria-hidden>
                 <CheckSquare className="h-3.5 w-3.5" strokeWidth={2.5} />
               </span>
-              <h2 className="text-[15px] font-bold text-stone-800">{t("todayTasks", lang)}</h2>
+              <h2 className="text-md font-bold text-stone-800">{t("todayTasks", lang)}</h2>
             </div>
           </div>
           <div className="flex-1 p-2">
@@ -202,7 +199,7 @@ export default function Home() {
               <ul className="divide-y divide-surface-border">
                 {todayTasks.map((task) => (
                   <li key={task.id} className="flex items-start gap-3 rounded-lg px-2 py-2.5">
-                    <span className={`mt-0.5 shrink-0 rounded-chip border px-2 py-0.5 text-[11px] font-semibold ${careToneClass(task.care.tone)}`}>{task.care.label}</span>
+                    <span className={`mt-0.5 shrink-0 rounded-chip border px-2 py-0.5 text-xs font-semibold ${careToneClass(task.care.tone)}`}>{task.care.label}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm leading-tight text-stone-700">{task.care.task}</span>
                       <span className="mt-0.5 block truncate text-xs leading-tight text-stone-500">
@@ -231,7 +228,7 @@ export default function Home() {
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-[0.07]" aria-hidden style={{ background: "var(--gradient-sky)" }} />
             <div className="relative flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h2 className="text-[15px] font-bold text-stone-800">{t("weather", lang)}</h2>
+                <h2 className="text-md font-bold text-stone-800">{t("weather", lang)}</h2>
                 {/* Weather is resolved from the profile district; say so plainly
                     instead of presenting a national default as local advice. */}
                 <p className="mt-0.5 truncate text-xs text-stone-500">
@@ -248,7 +245,9 @@ export default function Home() {
             </div>
             {/* The old `loaded` flag gated this skeleton on the *farm* read, so a
                 failed weather fetch showed a spinner forever. The weather card now
-                follows its own resource: loading ⇒ skeleton, settled ⇒ data or "—". */}
+                follows its own resource: loading ⇒ skeleton, settled ⇒ data, and a
+                failed read says so with a retry instead of a bare "—" that left the
+                user unable to tell "no reading" from "no weather service". */}
             {weatherRes.loading ? (
               <div className="relative mt-3 space-y-2"><Skeleton className="h-10 w-28" /><Skeleton className="h-4 w-32" /></div>
             ) : weather ? (
@@ -260,11 +259,11 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="relative mt-4 grid grid-cols-2 gap-2">
-                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
+                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2">
                     <Droplets aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
                     <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
                   </span>
-                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2">
+                  <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2">
                     <Wind aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
                     <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
@@ -274,29 +273,42 @@ export default function Home() {
                     fetch time, never the response time. */}
                 <p className="relative mt-3 text-xs text-stone-500">{weatherProvenanceLine(weather, lang)}</p>
               </>
-            ) : <p className="relative mt-3 text-sm text-stone-500">—</p>}
+            ) : (
+              <div className="relative mt-3 space-y-2">
+                <p className="flex items-start gap-1.5 text-sm leading-snug text-warning-text">
+                  <TriangleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+                  {t("weatherUnavailable", lang)}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => void weatherRes.reload()}>
+                  {t("retry", lang)}
+                </Button>
+              </div>
+            )}
           </div>
-          <div className={`flex items-start gap-2 px-4 py-3 ${hasRisk ? "bg-warning-bg" : "bg-surface-card-subdued"}`}>
-            <Leaf aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${hasRisk ? "text-warning-text" : "text-stone-500"}`} />
-            <div className="min-w-0">
-              <p className={`text-xs font-bold leading-tight ${hasRisk ? "text-warning-text" : "text-stone-700"}`}>{weather && hasRisk ? (lang === "bn" ? weather.risks[0].titleBn : weather.risks[0].titleEn) : t("weatherFavorable", lang)}</p>
-              <p className="text-xs leading-tight text-stone-600">{weather && hasRisk ? (weatherRiskActionLabel(weather.risks[0].type, lang) ?? t("regularFarmVisit", lang)) : t("regularFarmVisit", lang)}</p>
-            </div>
-          </div>
+          {/* No status strip here any more. It printed the same two strings as the
+              Smart Alerts section below it — when clear, the identical
+              "আবহাওয়া অনুকূল / নিয়মিত ফার্ম পরিশোধন" pair; when risky, the same
+              risk title and action. The advisory belongs to the advisory section,
+              so this card now carries the reading (temperature, condition, wind,
+              provenance) and nothing repeats. It also read `risks[0]` raw while
+              `hasRisk` used the filtered list, so an INFO-level favourable
+              advisory could take the warning branch on this very strip. */}
         </div>
 
         {/* চলমান ফসল */}
         <div className="flex flex-col overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
-          <div className="flex items-center gap-2 border-b border-surface-border bg-surface-card-subdued px-4 py-3">
+          <div className="flex items-center gap-2 border-b border-surface-border bg-surface-subdued px-4 py-3">
             <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100"><Leaf className="h-3.5 w-3.5" /></span>
-            <h2 className="text-[15px] font-bold text-stone-800">{t("activeCropsTitle", lang)}</h2>
+            <h2 className="text-md font-bold text-stone-800">{t("activeCropsTitle", lang)}</h2>
           </div>
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
             {primaryCrop ? (
               <div className="flex items-center gap-3">
                 <RiceEarMedallion size={72} />
                 <div className="min-w-0 text-left">
-                  <p className="text-base font-extrabold leading-tight text-accent">{primaryCrop.cropName}</p>
+                  {/* `cropLabel`, like the task rows above: the raw API enum
+                      ("RICE") was leaking into the Bengali UI. */}
+                  <p className="text-base font-extrabold leading-tight text-accent">{cropLabel(primaryCrop.cropName, lang)}</p>
                   <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-accent ring-1 ring-inset ring-brand-100">
                     <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
                     {stageLabel(primaryCrop.stage, lang)}
@@ -320,13 +332,13 @@ export default function Home() {
       <section className="animate-enterprise rounded-card border border-indigo-100 bg-enterprise-ai-light p-4 shadow-card" style={{ animationDelay: "180ms" } as React.CSSProperties}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-chip bg-enterprise-ai px-2.5 py-1 text-xs font-bold tracking-wide text-white">
+            <p className="inline-flex items-center gap-1.5 rounded-chip bg-enterprise-ai-strong px-2.5 py-1 text-xs font-bold tracking-wide text-white">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden /> AI • AgroBridge
             </p>
             <h2 className="mt-2 text-base font-extrabold text-stone-800">{t("aiAskTitle", lang)}</h2>
             <p className="text-sm text-stone-600">{t("aiAskSubtitle", lang)}</p>
           </div>
-          <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
+          <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai-strong px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
             {t("askNow", lang)} <span aria-hidden className="ml-1">→</span>
           </Link>
         </div>
@@ -356,9 +368,17 @@ export default function Home() {
             <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickSellSub", lang)}</span></span>
           </Link>
           <Link to="/notifications" className="relative flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-danger-bg text-danger-text ring-1 ring-inset ring-danger-border" aria-hidden><Bell className="h-5 w-5" /></span>
+            {/* info tones, not danger: reading your notifications is a neutral
+                action, and red is this system's danger/critical token. The tile
+                and its count used the danger surface and the `text-danger-text`
+                token as a background, so a mailbox looked like an alert. */}
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-info-bg text-info-text ring-1 ring-inset ring-info-border" aria-hidden><Bell className="h-5 w-5" /></span>
             <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("notifications", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickNotifSub", lang)}</span></span>
-            {unread > 0 && <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-danger-text text-xs font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+            {/* `critical-strong` (filled danger surface), not `critical` (the
+                accent): white on the accent measures 3.77:1 and axe reported it as
+                a serious colour-contrast violation on this very element. The token
+                exists for exactly this case — a white label on a red fill. */}
+            {unread > 0 && <span className="absolute right-2 top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-enterprise-critical-strong px-1 text-xs font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
           </Link>
         </div>
       </section>
@@ -384,7 +404,7 @@ export default function Home() {
               </li>
             ))
           ) : (
-            <li className="flex items-start gap-2 rounded-xl border border-surface-border bg-surface-card-subdued px-3 py-2.5">
+            <li className="flex items-start gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2.5">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-success-border" aria-hidden />
               <span className="text-xs leading-relaxed text-stone-700">{t("weatherFavorable", lang)} — {t("regularFarmVisit", lang)}</span>
             </li>

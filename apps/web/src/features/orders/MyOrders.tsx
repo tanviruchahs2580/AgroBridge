@@ -7,7 +7,7 @@ import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
 import { orderStatusLabel, paymentStatusLabel } from "../../lib/labels";
 import { Package, MapPin, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { Badge, Button, Card, EmptyState, ErrorBanner, Skeleton, useConfirm, useToast } from "../../components/ui";
+import { Badge, BlockError, Card, EmptyState, Skeleton, useConfirm, useToast } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
 import { mapError } from "../../lib/errors-ui";
 
@@ -27,21 +27,6 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   DELIVERED: "success",
   CANCELLED: "danger",
 };
-
-/**
- * Failure UI for one resource: its own mapped error text plus a retry, shown
- * where that resource's data would be. Only the block that owns the failed
- * resource shows it — every block whose data arrived keeps rendering.
- */
-function BlockError({ error, retryLabel, onRetry }: { error: string | null; retryLabel: string; onRetry: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="space-y-2">
-      <ErrorBanner message={error} />
-      <Button variant="outline" onClick={onRetry}>{retryLabel}</Button>
-    </div>
-  );
-}
 
 export default function MyOrders() {
   const { session } = useSession();
@@ -198,10 +183,11 @@ export default function MyOrders() {
             {/* Expanded details */}
             {isExpanded && (
               <div className="border-t border-stone-100 bg-stone-50 px-4 py-3 text-sm">
-                {/* Items */}
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                {/* h2, not h3: the only heading above this on the page is its h1,
+                    so h3 skipped a level (axe heading-order). */}
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
                   {t("ordItemsTitle", lang)}
-                </h3>
+                </h2>
                 <ul className="divide-y divide-stone-200">
                   {order.items.map((item) => (
                     <li key={item.id} className="flex justify-between py-1.5">
@@ -254,7 +240,7 @@ export default function MyOrders() {
                 </div>
 
                 {/* Last updated */}
-                <p className="mt-2 text-[10px] text-stone-500">
+                <p className="mt-2 text-2xs text-stone-500">
                   {t("ordLastUpdated", lang)}: {formatDateTime(order.updatedAt, lang)}
                 </p>
               </div>

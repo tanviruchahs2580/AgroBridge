@@ -101,7 +101,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
         <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 backdrop-blur">
           <img src="/brand/logo-mark.png" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
         </div>
-        <h1 className="mt-4 text-[22px] font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
+        <h1 className="mt-4 text-xl font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
         <p className="mt-1 text-xs font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
         <p className="mt-6 text-sm font-medium text-white/80">{statusFor(100, lang)}</p>
       </div>
@@ -122,7 +122,9 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           data-testid="splash"
           className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6"
           style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-          aria-label={t("splashLoadingLabel", lang)}
+          // No aria-label here: the element has no role, and aria-label is not
+          // supported on the generic role a div maps to, so it was ignored. The
+          // h1 inside the splash is what names it.
         >
           {/* Subtle field texture — low opacity, performance friendly */}
           <div
@@ -221,7 +223,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             transition={{ duration: 0.5, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
             className="mt-5 text-center"
           >
-            <h1 className="text-[26px] font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
+            <h1 className="text-2xl font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
               {t("appName", lang)}
             </h1>
             <p className="mt-1 text-xs font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
@@ -243,9 +245,11 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             </AnimatePresence>
           </div>
 
-          {/* Accessible progress */}
+          {/* Accessible progress. The sentence goes through the dictionary: it sits
+              inside an aria-live region, so the hardcoded English literal was read
+              aloud to Bengali users even though `status` itself is localized. */}
           <span className="sr-only" role="status" aria-live="polite">
-            Loading {Math.round(progress)} percent — {status}
+            {t("splashLoadingProgress", lang, { percent: Math.round(progress), status })}
           </span>
         </m.div>
       )}

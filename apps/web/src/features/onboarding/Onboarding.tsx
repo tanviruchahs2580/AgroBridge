@@ -7,6 +7,7 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
+import { roleLabel } from "../../lib/labels";
 import { Button, Card, ErrorBanner, Input, Label } from "../../components/ui";
 
 export default function Onboarding() {
@@ -54,15 +55,20 @@ export default function Onboarding() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4 py-6">
+      {/* The flow had no level-1 heading at all — every step started at h2, so
+          the document outline had no root (axe: page-has-heading-one). The h1
+          names the flow rather than the current step; each step keeps its own
+          h2 below it. */}
+      <h1 className="sr-only">{t("onboarding", lang)}</h1>
       <div className="h-2 w-full rounded-full bg-stone-200">
-        <div className="h-2 rounded-full bg-green-700 transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-2 rounded-full bg-action transition-all" style={{ width: `${progress}%` }} />
       </div>
       <p className="text-center text-xs text-stone-600">
         {t("obStepOf", lang, { step: step + 1, total })} ·{" "}
         <button
           type="button"
           onClick={() => { localStorage.setItem("ab_onboarded", "1"); nav("/"); }}
-          className="font-semibold text-green-700 hover:underline"
+          className="inline-flex min-h-[44px] items-center px-1 font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
         >
           {t("skipForNow", lang)}
         </button>
@@ -72,7 +78,8 @@ export default function Onboarding() {
         <Card className="space-y-3">
           <h2 className="text-lg font-bold text-stone-800">{t("onboarding", lang)}</h2>
           <p className="text-sm text-stone-600">
-            {session?.fullName} · <span className="text-xs">{session?.role}</span>
+            {/* `roleLabel`, not the raw enum: this rendered "FARMER" on a Bengali screen. */}
+            {session?.fullName} · <span className="text-xs">{session ? roleLabel(session.role, lang) : ""}</span>
           </p>
           <p className="text-xs text-stone-600">{t("obWhoHint", lang)}</p>
         </Card>

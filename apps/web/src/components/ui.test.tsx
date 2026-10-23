@@ -199,12 +199,27 @@ describe("toast surface — stacking, semantics, auto-dismiss (E-06)", () => {
     expect(text).toContain("toast-fourth");
     expect(text, "the oldest toast was not dropped at the 3-toast cap").not.toContain("toast-first");
 
-    // Error toasts announce assertively; the container is a polite live region.
+    // Announcement semantics. The container used to be `aria-live="polite"` while
+    // each error toast also carried `role="alert"` + `aria-live="assertive"`, so
+    // an error sat inside two nested live regions and could be announced twice.
+    // Each toast now owns exactly one role, and that role is what decides
+    // politeness (alert = assertive, status = polite); nothing above them is a
+    // live region.
     const error = Array.from(document.querySelectorAll('[role="alert"]')).find((n) =>
       (n.textContent ?? "").includes("toast-third")
     );
     expect(error, "the error toast lost its role=alert").toBeTruthy();
-    expect(document.querySelector('[aria-live="polite"]')).toBeTruthy();
+
+    const container = document.querySelector(".pointer-events-none.fixed");
+    expect(
+      container?.getAttribute("aria-live"),
+      "the toast container must not be a live region — that nested the error toast inside two of them"
+    ).toBeNull();
+
+    const success = Array.from(document.querySelectorAll('[role="status"]')).find((n) =>
+      (n.textContent ?? "").includes("toast-fourth")
+    );
+    expect(success, "a non-error toast must announce politely via role=status").toBeTruthy();
     mounted.unmount();
   }, 15_000);
 
