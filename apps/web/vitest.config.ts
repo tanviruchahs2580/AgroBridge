@@ -13,19 +13,22 @@ export default defineConfig({
     // Measured on the current suite (2026-10-18, local, v8, 136/136 tests):
     //   statements 18.49 | branches 77.20 | functions 51.51 | lines 18.49
     // Floors sit just below measured (2 points) so a real regression fails but
-    // refactors do not — the earlier ~5-point gap let the suite lose several
-    // points of coverage without turning the gate red. Raise them as
-    // feature-level tests land (src/features/* is still largely untested).
+    // refactors do not. Measured 2026-10-24 on vitest 4 (its v8 remapping
+    // counts branches far more granularly than vitest 3 did — the absolute
+    // numbers moved with the toolchain, the suite did not): statements 42.66,
+    // branches 32.37, functions 38.08, lines 44.12. The weakest tier remains
+    // src/features/* — the AUD-V3 wave added orders/wallet/sell-crop; raise
+    // the floors as more feature suites land.
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.d.ts", "src/**/*.stories.{ts,tsx}"],
       thresholds: {
-        statements: 16,
-        branches: 75,
-        functions: 49,
-        lines: 16,
+        statements: 40,
+        branches: 30,
+        functions: 36,
+        lines: 42,
       },
     },
   },
