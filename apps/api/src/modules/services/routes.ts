@@ -190,10 +190,18 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
     const provider = await prisma.serviceProvider.findFirst({ where: { id: (req.body as { providerId: string }).providerId, serviceId: booking.serviceId, isActive: true } });
     if (!provider) throw unprocessable("Selected provider does not serve this service");
 
-    const updated = await prisma.booking.update({
-      where: { id: booking.id },
+    // Claim-atomic like /status below: the status predicate in the updateMany
+    // settles a cancel racing this assign — the assign can no longer
+    // resurrect a booking the user just cancelled (AUD-V3).
+    const claimed = await prisma.booking.updateMany({
+      where: { id: booking.id, status: { in: ["REQUESTED", "ASSIGNED"] } },
       data: { providerId: provider.id, status: "ASSIGNED" },
     });
+    if (claimed.count !== 1) {
+      const current = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id }, select: { status: true } });
+      throw unprocessable(`Cannot assign booking in status ${current.status}`);
+    }
+    const updated = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
 
     await notify({
       userId: booking.userId,

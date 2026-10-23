@@ -144,11 +144,18 @@ export async function applyPaymentSideEffects(
       data: { paymentStatus: "PAID" },
     });
   } else if (payment.purposeType === "MEMBERSHIP") {
-    const plan = await prisma.membershipPlan.findUnique({ where: { tier: payment.purposeId } });
+    // Both reads go through the TRANSACTION client (AUD-V3): the outer
+    // client read a different snapshot, so an expiry extension racing this
+    // claim could compute "extend from" on a stale base even though the
+    // writes correctly used tx.
+    const plan = await tx.membershipPlan.findUnique({ where: { tier: payment.purposeId } });
     const durationDays = plan?.durationDays ?? 365;
-    const current = await getActiveMembership(payment.userId);
+    const profile = await tx.farmerProfile.findUnique({
+      where: { userId: payment.userId },
+      select: { membershipExpiresAt: true },
+    });
     // Extend from existing expiry when still active, else from now.
-    const base = current.expiresAt && current.expiresAt > new Date() ? current.expiresAt : new Date();
+    const base = profile?.membershipExpiresAt && profile.membershipExpiresAt > new Date() ? profile.membershipExpiresAt : new Date();
     const expiresAt = new Date(base.getTime() + durationDays * 86_400_000);
     await tx.farmerProfile.upsert({
       where: { userId: payment.userId },

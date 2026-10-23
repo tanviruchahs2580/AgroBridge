@@ -288,22 +288,34 @@ export function cropsRouter() {
         const active = await prisma.cropCycle.count({ where: { plotId: plot.id, status: "ACTIVE" } });
         if (active > 0) throw conflict("This plot already has an active crop cycle");
 
-        const cycle = await prisma.cropCycle.create({
-          data: {
-            plotId: plot.id,
-            cropName: body.cropName,
-            variety: body.variety,
-            plantedAt: body.plantedAt,
-            expectedHarvestAt: body.expectedHarvestAt,
-            stage: cropStageFor(body.plantedAt),
-            farmEvents: {
-              create: {
-                farmId: plot.farmId, actorId: getAuth(req).userId, type: "PLANTING",
-                title: `Planted ${body.cropName}`, occurredAt: body.plantedAt,
+        let cycle;
+        try {
+          cycle = await prisma.cropCycle.create({
+            data: {
+              plotId: plot.id,
+              cropName: body.cropName,
+              variety: body.variety,
+              plantedAt: body.plantedAt,
+              expectedHarvestAt: body.expectedHarvestAt,
+              stage: cropStageFor(body.plantedAt),
+              farmEvents: {
+                create: {
+                  farmId: plot.farmId, actorId: getAuth(req).userId, type: "PLANTING",
+                  title: `Planted ${body.cropName}`, occurredAt: body.plantedAt,
+                },
               },
             },
-          },
-        });
+          });
+        } catch (e) {
+          // The count above is the friendly fast path; the partial unique
+          // index CropCycle_plot_id_active_key (one ACTIVE cycle per plot) is
+          // the guarantee — two concurrent POSTs that both saw zero are
+          // settled by the database, not by luck (AUD-V3).
+          if ((e as { code?: string })?.code === "P2002") {
+            throw conflict("This plot already has an active crop cycle");
+          }
+          throw e;
+        }
         ok(res, cycle, 201);
       } catch (e) {
         next(e);

@@ -208,13 +208,14 @@ diseaseRouter.post(
     try {
       const kase = await prisma.diseaseCase.findUnique({ where: { id: req.params.id } });
       if (!kase) throw notFound("Disease case");
-      // Reviewing is final: a second submission would silently overwrite the
-      // recorded agronomist diagnosis (the app's highest-stakes content).
-      if (kase.status !== "PENDING_REVIEW") throw conflict(`Case already ${kase.status}`);
 
       const review = req.body as z.infer<typeof reviewSchema>;
-      const updated = await prisma.diseaseCase.update({
-        where: { id: kase.id },
+      // Reviewing is final, and the claim is atomic: two racing agronomists
+      // both passed the old pre-check and the second silently overwrote the
+      // first. The updateMany predicate is the gate — exactly one PENDING_REVIEW
+      // transition wins (AUD-V3).
+      const claimed = await prisma.diseaseCase.updateMany({
+        where: { id: kase.id, status: "PENDING_REVIEW" },
         data: {
           // Exactly the schema's three fields, plus the server-set audit trio.
           diagnosis: review.diagnosis,
@@ -225,6 +226,11 @@ diseaseRouter.post(
           reviewedAt: new Date(),
         },
       });
+      if (claimed.count !== 1) {
+        const current = await prisma.diseaseCase.findUniqueOrThrow({ where: { id: kase.id }, select: { status: true } });
+        throw conflict(`Case already ${current.status}`);
+      }
+      const updated = await prisma.diseaseCase.findUniqueOrThrow({ where: { id: kase.id } });
 
       // The diagnosis decision itself is the auditable event.
       await audit({
