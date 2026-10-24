@@ -378,7 +378,7 @@ const eventBody = z.object({
   notes: z.string().trim().max(2000).optional(),
   plotId: z.string().optional(),
   cropCycleId: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(), // zod v4 record needs an explicit key type
   occurredAt: z.coerce.date().default(() => new Date()),
   clientUuid: z.string().uuid().optional(),
 });
