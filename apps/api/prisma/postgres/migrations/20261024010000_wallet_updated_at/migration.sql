@@ -1,5 +1,7 @@
 -- Parity with the SQLite chain (20261024010000): Wallet gains updatedAt.
--- The default exists only to backfill existing rows; Prisma's schema declares
--- none, so it is dropped again immediately to keep the chain drift-free.
-ALTER TABLE "Wallet" ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE "Wallet" ALTER COLUMN "updatedAt" DROP DEFAULT;
+-- Nullable + backfilled so this can be applied BEFORE the code deploy: the
+-- still-running old client omits the column on INSERT, which a NOT NULL
+-- column would reject — this ordering is what makes the release
+-- zero-downtime (migrate first, then deploy).
+ALTER TABLE "Wallet" ADD COLUMN "updatedAt" TIMESTAMP(3);
+UPDATE "Wallet" SET "updatedAt" = CURRENT_TIMESTAMP WHERE "updatedAt" IS NULL;

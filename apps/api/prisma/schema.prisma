@@ -396,7 +396,7 @@ model Wallet {
   id           String   @id @default(cuid())
   userId       String   @unique
   balancePaisa Int      @default(0)
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime? @updatedAt
   // Sum of PENDING withdrawal amounts currently held against this wallet
   // (available = balancePaisa - heldPaisa). A hold is reserved at request time
   // and released by admin APPROVE (which simultaneously debits balancePaisa)
