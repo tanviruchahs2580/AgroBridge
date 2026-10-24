@@ -1,5 +1,7 @@
 # ADR-0015: Tenant isolation stays application-level; Postgres RLS deferred
 
+> **SUPERSEDED (2026-10-21)** by [ADR-0020](0020-row-level-security.md), which re-decided the topic at the same conclusion (app-level tenancy enforced, RLS deferred). Kept for the decision trail.
+
 - **Status:** accepted (2026-10-19) — re-decide at the trigger points below
 - **Deciders:** engineering (single maintainer); adopting RLS is a schema-wide change on a live database
 - **Related:** ADR-0002 (hand-rolled data layer), ADR-0004 (dual-dialect Prisma); control inventory in `docs/security.md` §RBAC

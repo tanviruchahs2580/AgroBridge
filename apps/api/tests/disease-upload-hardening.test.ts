@@ -77,7 +77,15 @@ describe("disease upload — EXIF stripping (B-17)", () => {
     const f = await registerFarmer();
     const provider = getStorageProvider();
     const deleteSpy = vi.spyOn(provider, "delete");
-    const createSpy = vi.spyOn(prisma.diseaseCase, "create").mockRejectedValueOnce(new Error("simulated DB failure"));
+    // Deliberately NOT vi.spyOn(prisma.diseaseCase, "create"): spying on a
+    // Prisma model delegate and mockRestore()-ing leaves the delegate's own
+    // `create` property deleted, so every later test in the file hit
+    // "diseaseCase.create is not a function" (found by AUD-V3, whose WebP
+    // test was the first to run after this one). Swapping the function and
+    // restoring the same reference keeps the delegate intact.
+    const delegate = prisma.diseaseCase as unknown as { create: typeof prisma.diseaseCase.create };
+    const originalCreate = delegate.create;
+    delegate.create = () => Promise.reject(new Error("simulated DB failure"));
     try {
       const res = await uploadImage(f.accessToken, jpegWithExif(), "image/jpeg", "orphan.jpg");
       expect(res.status).toBe(500);
@@ -88,8 +96,56 @@ describe("disease upload — EXIF stripping (B-17)", () => {
       // The stored file is actually gone from the uploads dir.
       expect(existsSync(path.resolve(cleanedKey))).toBe(false);
     } finally {
-      createSpy.mockRestore();
+      delegate.create = originalCreate;
       deleteSpy.mockRestore();
     }
+  });
+});
+
+/**
+ * AUD-V3: the magic-byte check must match the FULL format signature. A bare
+ * "RIFF" prefix accepted any RIFF container (WAV/AVI) as WebP, and two bytes
+ * accepted unrelated streams as PNG — non-image payloads could occupy upload
+ * storage disguised as images.
+ */
+describe("disease upload — deep magic-byte signatures (AUD-V3)", () => {
+  it("rejects a RIFF container that is not WebP (WAV payload declared as image/webp)", async () => {
+    const f = await registerFarmer();
+    // RIFF....WAVE — a valid WAV, not WEBP at bytes 8-12.
+    const wav = Buffer.concat([
+      Buffer.from("RIFF", "ascii"),
+      Buffer.from([0x24, 0x08, 0x00, 0x00]),
+      Buffer.from("WAVEfmt ", "ascii"),
+      Buffer.alloc(16),
+    ]);
+    const res = await uploadImage(f.accessToken, wav, "image/webp", "attack.webp");
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a two-byte 0x89 0x50 stream that is not a PNG", async () => {
+    const f = await registerFarmer();
+    const fake = Buffer.concat([Buffer.from([0x89, 0x50]), Buffer.alloc(32, 0xab)]);
+    const res = await uploadImage(f.accessToken, fake, "image/png", "attack.png");
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts a real WebP signature (RIFF….WEBP)", async () => {
+    const f = await registerFarmer();
+    const webp = Buffer.concat([
+      Buffer.from("RIFF", "ascii"),
+      Buffer.from([0x24, 0x00, 0x00, 0x00]),
+      Buffer.from("WEBPVP8 ", "ascii"),
+      Buffer.alloc(24),
+    ]);
+    const res = await uploadImage(f.accessToken, webp, "image/webp", "leaf.webp");
+    expect(res.status).toBe(201);
+    const imagePath = res.body.data.imagePath as string;
+    rmSync(path.resolve(imagePath), { force: true });
+  });
+
+  it("still rejects arbitrary binary", async () => {
+    const f = await registerFarmer();
+    const res = await uploadImage(f.accessToken, Buffer.from("#!/bin/sh\nrm -rf /\n"), "image/jpeg", "sh.img");
+    expect(res.status).toBe(400);
   });
 });

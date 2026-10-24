@@ -1,19 +1,21 @@
 # STATUS
 
-One page, current as of **2026-10-19 (+06:00)**. What is actually live, what is pilot-grade
+One page, current as of **2026-10-24 (+06:00)**. What is actually live, what is pilot-grade
 simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
 roadmap and no marketing: if a line here disagrees with the running system, the system is right and
-this page is a bug. Production is `main`; the remediation work described in its own section below
-lives on branch `audit/v2-remediation` and is **not deployed** until it is merged and released.
+this page is a bug. Production is `main`; the AUD-V3 deep-audit remediation described in its own
+section below lives on branch `audit/v3-remediation` and is **not deployed** until it is merged and
+released. (The previous remediation wave, `audit/v2-remediation` / PR #40, is deployed — its
+content now lives in the "Live in production" rows.)
 
 ## Live in production
 
 | Thing | State | Evidence |
 |---|---|---|
-| Repository | Branch `main` at `0ce54b59a93657df3c9292db47cd2821f8d8136c` | `.audit/v2/BASELINE.md` G0 |
-| Web SPA | Deployed; `version.json` reports version `1.4.0`, commit `0ce54b5`, built 2026-10-19T03:50Z | live probe in `.audit/evidence/E-V2-live-probes.txt` |
-| API | Deployed; `/health` reports commit `38718bf`, `env: production` | same probe file |
-| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 6/6, latest migration `20261018120000_order_idempotency_feedback_indexes` | same probe file |
+| Repository | Branch `main` at `1d96534` (the 2026-10-23 deep-audit release record) | git log; `docs/ui-ux-renovation/verification-report.md` §7c |
+| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `1d96534`, built 2026-10-23T10:13Z | live probe (curl, 2026-10-24) |
+| API | Deployed; `/health` reports commit `1d96534`, `env: production` | live probe (curl, 2026-10-24) |
+| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 8/8, latest migration `20261019140000_login_attempt_throttle` | live probe (curl, 2026-10-24) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
 | Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers in the probe file |
 | API error contract | Unknown routes return the structured envelope with `requestId` | live probe (`ROUTE_NOT_FOUND` example) |
@@ -25,23 +27,30 @@ Known production properties that are not defects but are easy to misread:
   and fail open (`/ready`, `apps/api/src/app.ts:26-39`; documented in `docs/security.md`).
 - API functions execute in `iad1` while the web edge answers from `bom1`; the function region is
   not pinned in the repository (`docs/runtime-contract.md`).
-- `/metrics` is private-network or token guarded in production
-  (`apps/api/src/middleware/metricsGuard.ts`).
+- `/metrics` requires `METRICS_TOKEN` in production — the private-address allowance was an
+  allow-everything rule behind the platform LB (verified live 2026-10-23; fixed on
+  `audit/v3-remediation` with a fail-closed token guard).
 
-## On the remediation branch — verified, not yet deployed (2026-10-19)
+## On the remediation branch — verified, not yet deployed (2026-10-24)
 
-Branch `audit/v2-remediation` (PR #40). The live/pilot rows above keep describing production until
-this is merged and released; these changes land with it:
+Branch `audit/v3-remediation` — the AUD-V3 deep-audit remediation (full report in the PR). The
+live/pilot rows above keep describing production until this is merged and released; the highlights
+landing with it (the complete list is the CHANGELOG's 2026-10-24 entries):
 
-| Change | What it does | Evidence |
+| Change | What it fixes | Evidence |
 |---|---|---|
-| Durable uploads gate | `STORAGE_PROVIDER=db` keeps uploaded photos in the database, and deploy verification now fails any production that reports a non-durable storage provider | ADR-0012 (`docs/adr/0012-durable-uploads-in-database.md`); gate `.github/workflows/deploy-verify.yml:198-213` |
-| Self-service password reset | forgot/reset endpoints with an SMS code; uniform responses, per-phone throttling; a successful reset rotates the password and revokes every refresh token | `apps/api/src/modules/auth/routes.ts:440-506`; web screen `apps/web/src/features/auth/Reset.tsx` |
-| Real SMS delivery path | provider-agnostic HTTP gateway (`SMS_PROVIDER=http` + `SMS_API_URL`/`SMS_API_KEY`); production boot aborts if `http` is selected without credentials. Still `sandbox` (codes only logged) until the owner supplies them | `apps/api/src/config/env.ts:63-72`, `:171-173` |
-| Offline write-queue policy | Allow-listed mutations queue and replay with `clientUuid` idempotency; the queue is session-scoped, so a shared phone cannot replay one account's writes under the next account | ADR-0009 (`docs/adr/0009-offline-sync-policy.md`); `apps/web/src/lib/offlineQueue.ts:5-13,212-248` |
+| Live-gateway verification keys + amount cross-check | The SSLCommerz reconciliation paths posted the session key as `val_id`/`orderNo` and skipped the webhook's amount cross-check | `apps/api/src/providers/payment/sslcommerz.ts`; `reconcileLiveVerdict` in `modules/payments/routes.ts`; `tests/payments-reconciliation-amount.test.ts` |
+| Retention actually scheduled | The policy ran nowhere in production; four tables grew without bound. Daily Vercel cron + `CRON_SECRET`, 180-day windows now cover analytics/notifications/AI logs/advisory queries | `apps/api/src/shared/retention.ts`; `apps/api/vercel.json` crons; `tests/ops-retention-endpoint.test.ts` |
+| `/metrics` fails closed | Anonymous production access returned the full Prometheus output (verified live) | `apps/api/src/middleware/metricsGuard.ts`; `tests/metrics-guard-prod.test.ts` |
+| Offline-queue flush mutex + critical-flow cleanup | Boot double-flush double-sent queued writes; the checkout 401-guard leaked past unmount | `apps/web/src/lib/offlineQueue.ts`; `Market.tsx` unmount cleanup; mutex + cross-tab tests |
+| Three claim-atomic state machines | Crop-cycle/disease-review/booking-assign races now settled by DB predicates + the `CropCycle_plot_id_active_key` partial unique | `tests/state-machine-races.test.ts`; both migration chains `20261024000000`/`020000` |
+| JWT secret entropy gate | Production refuses JWT secrets < 32 chars (RFC 8725) | `apps/api/src/config/env.ts`; rotation: `docs/runbooks/secret-rotation.md` |
+| Uptime probe + lint ratchet + loadtest gate fix | External 15-min reachability probe; eslint warning budget in CI; the AI phase no longer structurally fails the loadtest gate | `.github/workflows/uptime-probe.yml`; `scripts/qa/lint-budget.mjs`; `apps/api/scripts/loadtest.mjs` |
+| Dev toolchain cleared | vitest 4.1.12 + vite 6.4.5 — zero advisories left in any audit surface | `npm audit --workspaces` post-upgrade; suites 514/198 green |
 
-The go-live cutover for these (which environment values flip, in what order) is
-`docs/play/launch-checklist.md`.
+Owner actions when releasing this branch: set `CRON_SECRET` and `METRICS_TOKEN` in the Vercel
+project env, and confirm the JWT secrets are ≥ 32 chars (the boot gate enforces it from this
+release on). The go-live cutover order remains `docs/play/launch-checklist.md`.
 
 ## Pilot-grade simulation (works, but not the real thing)
 

@@ -1,7 +1,7 @@
 // Offline mutation queue: durable (localStorage) generic queue for allow-listed
 // sync endpoints. Enqueued while offline, flushed on `online` event + app boot.
-// Dedupe by clientUuid AND SHA-256 payload hash — prevents duplicate mutations
-// even when the same URL is hit multiple times while offline.
+// Dedupe by clientUuid AND a djb2 hash of method+url+body — prevents duplicate
+// mutations even when the same URL is hit multiple times while offline.
 // Session-scoped: every entry records who queued it and when, so a shared
 // phone cannot replay one account's writes under the next account's session.
 import { api, isOnline, ApiError } from "./api";
@@ -12,13 +12,14 @@ import type { Lang } from "./i18n";
 // sessionManager must never load the queue — a logout would then pull the
 // transport module into its own teardown path.
 import { getSession, getTokens, onChange as onSessionChange } from "./sessionManager";
+import { isQueueable } from "./offlineQueueRules";
 
 export interface QueuedMutation {
   url: string;
   method: string;
   body?: unknown;
   clientUuid: string;
-  payloadHash: string; // SHA-256 of method+url+body for dedupe
+  payloadHash: string; // djb2 of method+url+body for dedupe (see hashPayload)
   /** Epoch ms the mutation was queued — TTL anchor for the replay window.*/
   queuedAt: number;
   /** userId that queued it; "" when no session was known (legacy entry).*/
@@ -36,30 +37,11 @@ const KEY = "agrobridge.mutationQueue";
 const MAX_QUEUE_AGE_MS = 72 * 60 * 60 * 1000;
 
 /**
- * Endpoints that must never be replayed blind. A checkout is not idempotent:
- * replaying a queued attempt after the user retried manually creates a second
- * order and decrements stock twice, so it stays out even though it lives under
- * /orders.
+ * The queueability rule lives in ./offlineQueueRules (no imports — see that
+ * file for why it must be dependency-free) and is re-exported here so every
+ * existing importer keeps working.
  */
-const NEVER_QUEUE = ["/orders/checkout"];
-
-/**
- * Methods that change server state and are therefore the only ones worth
- * replaying. A failed GET is a read, not a pending change: replaying it later
- * would send a stale request as if it were a mutation and would inflate the
- * user-facing queue badge for work no one ever asked to retry.
- */
-const QUEUEABLE_METHODS = new Set(["POST", "PATCH", "DELETE"]);
-
-/**
- * Allow-list: state-changing requests to farm events, cart, and orders sync
- * endpoints. Method-aware (WEB-4): reads (`GET`/`HEAD`/…) are never queued.
- */
-export function isQueueable(method: string, url: string): boolean {
-  if (!QUEUEABLE_METHODS.has(method.toUpperCase())) return false;
-  if (NEVER_QUEUE.some((p) => url.includes(p))) return false;
-  return url.includes("/events") || url.includes("/cart") || url.includes("/orders");
-}
+export { isQueueable } from "./offlineQueueRules";
 
 const listeners = new Set<(count: number) => void>();
 /** Enqueue toast notifiers — App.tsx registers toast.info when a mutation is queued offline */
@@ -330,8 +312,24 @@ export function subscribe(cb: (count: number) => void): () => void {
  * subscribers, which is how the user-visible bilingual toast is raised.
  * A flush that saved N>0 mutations notifies `onSync` exactly once with N.
  * Never throws.
+ *
+ * Re-entrancy: boot calls flushAll directly AND the online subscription's
+ * registration callback fires a second one synchronously (see lib/api.ts
+ * onOnlineStatusChange) — without a mutex both loaded the same persisted
+ * list before either saved, double-sending every mutation and firing the
+ * "saved" toast twice. Concurrent callers now share one in-flight flush.
  */
-export async function flushAll(): Promise<void> {
+let flushing: Promise<void> | null = null;
+
+export function flushAll(): Promise<void> {
+  if (flushing) return flushing;
+  flushing = doFlush().finally(() => {
+    flushing = null;
+  });
+  return flushing;
+}
+
+async function doFlush(): Promise<void> {
   if (!isOnline()) return;
   const list = load();
   if (list.length === 0) return;

@@ -12,7 +12,6 @@ export interface Session {
   fullName: string;
   role: string;
   lang: "bn" | "en";
-  dark: boolean;
   /** Profile district, used to localise weather advice (null until the user sets one). */
   district: string | null;
 }
@@ -96,7 +95,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // errors and 5xx before we ever see the throw.
     try {
       const me = await api<{ id: string; fullName: string; role: string; langPref: "bn" | "en"; farmerProfile?: { district?: string | null } | null }>("GET", "/auth/me");
-      setSession({ userId: me.id, fullName: me.fullName, role: me.role, lang: me.langPref, dark, district: me.farmerProfile?.district?.trim() || null });
+      setSession({ userId: me.id, fullName: me.fullName, role: me.role, lang: me.langPref, district: me.farmerProfile?.district?.trim() || null });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         smClearTokens();

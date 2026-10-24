@@ -9,7 +9,7 @@ import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
-import { sslcommerzSignature, applyPaymentSideEffects, claimAndApplyPayment } from "./routes.js";
+import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict, paymentMetaOf } from "./routes.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 
 /**
@@ -84,7 +84,9 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const claimed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
-        data: { status: "SUCCEEDED", providerRef: valId || payment.providerRef, metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },
+        // providerRef stays the merchant tran_id (stable across gateway
+        // session keys); the gateway-side val_id lives in metaStr.
+        data: { status: "SUCCEEDED", metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },
       });
       if (claimed.count !== 1) return; // lost race / superseded
       processed = true;
@@ -139,12 +141,10 @@ paymentWebhookRouter.all("/gateway/return/:outcome", async (req, res, next) => {
       const provider = getPaymentProvider();
       if (provider.mode === "live") {
         try {
-          const verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo);
-          if (verdict.status === "SUCCEEDED") {
-            await claimAndApplyPayment(payment, { mode: env.PAYMENT_PROVIDER, verified: true, amountPaisa: verdict.amountPaisa });
-          } else if (verdict.status === "FAILED") {
-            await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
-          }
+          const verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo, paymentMetaOf(payment.metaStr));
+          // Same amount cross-check the signed webhook enforces, via the
+          // shared reconciliation rule (reconcileLiveVerdict).
+          await reconcileLiveVerdict(payment, verdict);
         } catch {
           // Stay PENDING: the webhook or a later status poll settles it.
         }

@@ -17,6 +17,7 @@ import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { getAuth } from "../../shared/auth-context.js";
+import { ciContains } from "../../shared/utils/ciContains.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -70,7 +71,7 @@ productsRouter.get("/", validate({ query: listQuery }), async (req, res, next) =
     const where = {
       isActive: true,
       ...(category ? { category } : {}),
-      ...(search ? { name: { contains: search } } : {}),
+      ...(search ? { name: ciContains(search) } : {}),
     };
     const [items, total] = await Promise.all([
       prisma.product.findMany({
@@ -168,7 +169,7 @@ cartRouter.post("/items", validate({ body: addItemSchema }), async (req, res, ne
   }
 });
 
-cartRouter.delete("/items/:productId", async (req, res, next) => {
+cartRouter.delete("/items/:productId", validate({ params: z.object({ productId: z.string().min(1).max(64) }) }), async (req, res, next) => {
   try {
     const cart = await getOrCreateCart(getAuth(req).userId);
     await prisma.cartItem.deleteMany({ where: { cartId: cart.id, productId: req.params.productId } });

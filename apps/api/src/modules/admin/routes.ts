@@ -9,6 +9,7 @@ import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { getAuth } from "../../shared/auth-context.js";
+import { ciContains } from "../../shared/utils/ciContains.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -79,7 +80,7 @@ adminRouter.get("/users", requirePermission("users:read"), validate({ query: use
     const where = {
       ...(q.role ? { role: q.role } : {}),
       ...(q.status ? { status: q.status } : {}),
-      ...(q.search ? { OR: [{ fullName: { contains: q.search } }, { phone: { contains: q.search } }] } : {}),
+      ...(q.search ? { OR: [{ fullName: ciContains(q.search) }, { phone: ciContains(q.search) }] } : {}),
     };
     const [items, total] = await Promise.all([
       prisma.user.findMany({

@@ -2,9 +2,11 @@ import type { NextFunction, Request, Response } from "express";
 import { forbidden } from "../shared/errors/index.js";
 
 /**
- * Server-side RBAC. Roles are never trusted from the client; permissions
- * derive from the authenticated user's role stored in the signed token,
- * which itself derives from the DB at login time.
+ * Server-side RBAC. Roles are never trusted from the client. The role is
+ * re-read from the DATABASE on every authenticated request
+ * (middleware/auth.ts requireAuth), so a demotion or suspension takes effect
+ * on the next request — a stale role inside a still-valid access token is
+ * never the authority. Permission sets below are pure functions of that role.
  */
 export const PERMISSIONS: Record<string, string[]> = {
   SUPER_ADMIN: ["*"],

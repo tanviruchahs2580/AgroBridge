@@ -101,9 +101,14 @@ export class SSLCommerzProvider implements PaymentProvider {
       if (gatewayUrl) {
         return {
           provider: this.name,
-          providerRef: sessionKey ?? input.refNo,
+          // providerRef is the MERCHANT reference (tran_id = our refNo): it is
+          // the only key the Transaction Query API accepts, and it stays
+          // resolvable even when the gateway session keys rotate. The
+          // gateway-side keys (val_id, sessionkey) travel in meta, where
+          // verifyPayment picks them up for the Validation API.
+          providerRef: input.refNo,
           redirectUrl: gatewayUrl,
-          meta: { valId, transactionId: trxId, provider: this.name },
+          meta: { valId, sessionKey, transactionId: trxId, provider: this.name },
         };
       }
 
@@ -122,58 +127,82 @@ export class SSLCommerzProvider implements PaymentProvider {
   // Payment verification
   // -----------------------------------------------------------------------
 
-  async verifyPayment(providerRef: string): Promise<{ status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }> {
+  async verifyPayment(
+    providerRef: string,
+    meta?: Record<string, unknown>
+  ): Promise<{ status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }> {
     if (!this.storeId || !this.storePass) {
       return { status: "PENDING" };
     }
 
-    const valId = providerRef;
+    // The Validation Server API resolves a val_id (issued at session creation
+    // and stored in payment meta); the Transaction Query API resolves the
+    // merchant orderNo (our refNo/tran_id). Using either key for the other
+    // API silently degrades every reconciliation to PENDING — so each API
+    // gets exactly the key it understands.
+    const metaValId = meta?.valId;
+    const valId = typeof metaValId === "string" && metaValId ? metaValId : "";
 
-    // ── Primary: Validation Server API ──────────────────────────────────
-    try {
-      const validatorRes = await fetch(this.validatorUrl(), {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: AbortSignal.timeout(15_000),
-        body: new URLSearchParams({
-          val_id: valId,
-          store_id: this.storeId,
-          store_passwd: this.storePass,
-        }).toString(),
-      });
+    /** Gateway amounts arrive as BDT decimals; paisa must round exactly once. */
+    const toPaisa = (raw: unknown): number | undefined => {
+      if (raw == null || raw === "") return undefined;
+      const paisa = Math.round(Number(raw) * 100);
+      return Number.isFinite(paisa) ? paisa : undefined;
+    };
 
-      if (validatorRes.ok) {
-        // SSLCommerz validator returns JSON with `status` + `transactionStatus`
-        const raw = await validatorRes.text();
-        const j = JSON.parse(raw) as Record<string, unknown>;
+    // ── Primary: Validation Server API (val_id from payment meta) ───────
+    if (valId) {
+      try {
+        const validatorRes = await fetch(this.validatorUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          signal: AbortSignal.timeout(15_000),
+          body: new URLSearchParams({
+            val_id: valId,
+            store_id: this.storeId,
+            store_passwd: this.storePass,
+          }).toString(),
+        });
 
-        const txStatus = (j.transactionStatus ?? j.status ?? "") as string;
+        if (validatorRes.ok) {
+          // SSLCommerz validator returns JSON with `status` + `transactionStatus`
+          const raw = await validatorRes.text();
+          const j = JSON.parse(raw) as Record<string, unknown>;
 
-        if (txStatus === "VALID" || txStatus === "VALIDATED") {
-          return { status: "SUCCEEDED", amountPaisa: Number(j.amount ?? 0) * 100 };
+          const txStatus = (j.transactionStatus ?? j.status ?? "") as string;
+
+          if (txStatus === "VALID" || txStatus === "VALIDATED") {
+            // A success without a resolvable amount cannot be cross-checked
+            // against the payment, so it must not be confirmed here — the
+            // signed webhook remains the authority for that session.
+            const amountPaisa = toPaisa(j.amount);
+            if (amountPaisa === undefined) {
+              logger.warn({ val_id: valId }, "SSLCom validator returned success without a usable amount — staying PENDING");
+              return { status: "PENDING" };
+            }
+            return { status: "SUCCEEDED", amountPaisa };
+          }
+
+          if (txStatus === "INVALID" || txStatus === "FAILED" || txStatus === "CLOSED") {
+            return { status: "FAILED" };
+          }
+
+          // Unknown status — fall through to transaction query
+          logger.debug({ txStatus, val_id: valId }, "SSLCom-validator returned unknown tx status, falling back to query API");
         }
-
-        if (txStatus === "INVALID" || txStatus === "FAILED" || txStatus === "CLOSED") {
-          return { status: "FAILED" };
-        }
-
-        // Unknown status — fall through to transaction query
-        logger.debug({ txStatus, val_id: valId }, "SSLCom-validator returned unknown tx status, falling back to query API");
+      } catch (e) {
+        logger.debug({ err: (e as Error).message }, "SSLCom validator API failed, falling back to transaction query");
       }
-    } catch (e) {
-      logger.debug({ err: (e as Error).message }, "SSLCom validator API failed, falling back to transaction query");
     }
 
-    // ── Fallback: Transaction Query API ─────────────────────────────────
+    // ── Fallback: Transaction Query API (orderNo = our refNo) ───────────
     try {
-      // The providerRef is the sessionkey/val_id from createPayment.
-      // For query API we use it as the transaction identifier.
       const queryRes = await fetch(this.transactionQueryUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         signal: AbortSignal.timeout(15_000),
         body: new URLSearchParams({
-          orderNo: valId,
+          orderNo: providerRef,
           store_id: this.storeId,
           store_passwd: this.storePass,
         }).toString(),
@@ -184,7 +213,12 @@ export class SSLCommerzProvider implements PaymentProvider {
         const txStatus = (j.transactionStatus ?? j.status ?? "") as string;
 
         if (txStatus === "VALID" || txStatus === "VALIDATED" || txStatus === "Completed") {
-          return { status: "SUCCEEDED", amountPaisa: Number(j.amount ?? 0) * 100 };
+          const amountPaisa = toPaisa(j.amount);
+          if (amountPaisa === undefined) {
+            logger.warn({ orderNo: providerRef }, "SSLCom transaction query returned success without a usable amount — staying PENDING");
+            return { status: "PENDING" };
+          }
+          return { status: "SUCCEEDED", amountPaisa };
         }
 
         if (txStatus === "INVALID" || txStatus === "FAILED" || txStatus === "CLOSED") {
@@ -193,7 +227,7 @@ export class SSLCommerzProvider implements PaymentProvider {
 
         // Still unknown — store the partial result and mark pending for
         // retry. The async webhook will be the final authority.
-        logger.debug({ txStatus, orderNo: valId }, "SSLCom transaction query returned unknown status — pending retry");
+        logger.debug({ txStatus, orderNo: providerRef }, "SSLCom transaction query returned unknown status — pending retry");
       }
     } catch (e) {
       logger.debug({ err: (e as Error).message }, "SSLCom transaction query API also failed");

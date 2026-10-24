@@ -98,6 +98,8 @@ jobs:
         run: node scripts/drift-check.mjs
       - name: no TODO/FIXME markers in shipped source
         run: node scripts/todo-gate.mjs
+      - name: eslint warning ratchet (api 143 / web 0)
+        run: node scripts/qa/lint-budget.mjs
       - name: generated docs freshness (route matrix + ERD)
         run: |
           node apps/api/scripts/route-matrix.mjs --check

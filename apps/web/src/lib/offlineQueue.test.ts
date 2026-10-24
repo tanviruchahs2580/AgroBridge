@@ -655,3 +655,74 @@ describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documen
     expect(b).toBeNull(); // second identical payload is deduped
   });
 });
+
+/**
+ * AUD-V3 H-6: boot calls flushAll directly AND the online subscription's
+ * registration callback fires a second flush synchronously (lib/api.ts
+ * invokes the listener with the current state on subscribe). Without the
+ * in-flight mutex both callers loaded the same persisted list before either
+ * saved — every queued mutation was sent twice and the "saved" toast fired
+ * twice. The mutex makes concurrent callers share ONE flush.
+ */
+describe("lib/offlineQueue — flush re-entrancy mutex (AUD-V3)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockApi.mockReset();
+    mockIsOnline.mockReturnValue(true);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("two concurrent flushAll calls send each mutation exactly once and signal one sync", async () => {
+    enqueue({ url: "/cart/items", method: "POST", body: { productId: "p1", qty: 2 } });
+    enqueue({ url: "/cart/items", method: "POST", body: { productId: "p2", qty: 1 } });
+
+    // Hold the first send until both flush calls are in flight — the exact
+    // boot+online interleaving.
+    let release!: (v: unknown) => void;
+    const gate = new Promise((resolve) => (release = resolve));
+    mockApi.mockImplementationOnce(() => gate.then(() => ({ ok: 1 })));
+    mockApi.mockResolvedValue({ ok: 1 });
+
+    const synced: number[] = [];
+    const off = onSync((n) => synced.push(n));
+
+    const first = flushAll();
+    const second = flushAll(); // must join the first, not start its own pass
+    release(undefined);
+    await Promise.all([first, second]);
+
+    expect(mockApi).toHaveBeenCalledTimes(2); // each mutation once — not four
+    expect(size()).toBe(0);
+    expect(synced).toEqual([2]); // one signal with the true count — not [2, 2] or [1, 1]
+    off();
+  });
+
+  it("a flush started while another is running waits and then finds nothing left to send", async () => {
+    enqueue({ url: "/cart/items", method: "POST", body: { productId: "p1", qty: 1 } });
+    let release!: (v: unknown) => void;
+    const gate = new Promise((resolve) => (release = resolve));
+    mockApi.mockImplementationOnce(() => gate.then(() => ({ ok: 1 })));
+
+    const first = flushAll();
+    const second = flushAll();
+    release(undefined);
+    await Promise.all([first, second]);
+
+    expect(mockApi).toHaveBeenCalledTimes(1);
+    expect(size()).toBe(0);
+  });
+
+  it("sequential flushes after a completed flush run normally (mutex releases)", async () => {
+    enqueue({ url: "/cart/items", method: "POST", body: { productId: "p1", qty: 1 } });
+    mockApi.mockResolvedValue({ ok: 1 });
+    await flushAll();
+    enqueue({ url: "/cart/items", method: "POST", body: { productId: "p2", qty: 3 } });
+    await flushAll();
+    expect(mockApi).toHaveBeenCalledTimes(2);
+    expect(size()).toBe(0);
+  });
+});

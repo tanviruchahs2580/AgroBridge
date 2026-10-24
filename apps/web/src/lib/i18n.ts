@@ -128,6 +128,8 @@ export const dict = {
   errInvalidCredentials: { bn: "মোবাইল নম্বর বা পাসওয়ার্ড সঠিক নয়।", en: "Wrong mobile number or password." },
   errPhoneTaken: { bn: "এই নম্বরে একটি অ্যাকাউন্ট আছে — লগইন করুন।", en: "An account with this number already exists — log in." },
   errWeakPassword: { bn: "পাসওয়ার্ড দুর্বল — কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", en: "Weak password — use at least 8 strong characters." },
+  // bcrypt only uses the first 72 bytes; the server refuses longer, so say it here.
+  errPasswordTooLong: { bn: "পাসওয়ার্ড খুব দীর্ঘ — সর্বোচ্চ ৭২ অক্ষর।", en: "Password too long — 72 characters maximum." },
   errPhoneInvalid: { bn: "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (11 সংখ্যা)।", en: "Enter a valid Bangladeshi mobile number (11 digits)." },
   errNetwork: { bn: "নেটওয়ার্ক সমস্যা — ইন্টারনেট সংযোগ দেখে নিন।", en: "Network problem — check your internet connection." },
   errValidation: { bn: "দেওয়া তথ্য সঠিক নয় — আবার দেখে নিন।", en: "The information given is invalid — please review it." },
@@ -158,7 +160,9 @@ export const dict = {
   networkBackOnline: { bn: "ইন্টারনেট ফিরে এসেছে ✓", en: "Back online ✓" },
   sessionExpired: { bn: "সেশনের মেয়াদ শেষ — আবার লগইন করুন।", en: "Session expired — please log in again." },
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
-  offlineBanner: { bn: "অফলাইন — পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — changes will queue" },
+  // Honest about what the queue actually covers (ADR-0009): only cart writes
+  // are queueable today — farm/sell/booking screens refuse while offline.
+  offlineBanner: { bn: "অফলাইন — কার্টের পরিবর্তনগুলো সংরক্ষিত হবে", en: "Offline — cart changes will queue" },
   // A queued write the server refuses permanently (4xx) is discarded — say so
   // instead of only console.warn. {item} is one of queuedItem*.
   queuedChangeDropped: { bn: "অফলাইনে করা {item} পরিবর্তনটি সংরক্ষণ করা যায়নি — বাদ দেওয়া হয়েছে।", en: "Your offline {item} change could not be saved — it was discarded." },

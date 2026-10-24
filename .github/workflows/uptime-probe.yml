@@ -1,0 +1,95 @@
+# External uptime probe (AUD-V3 DevOps F4): production had no monitoring of
+# any kind — outage detection was "an end user notices". This workflow runs on
+# a schedule from GitHub's infrastructure (a genuinely external vantage point),
+# asserts the deployment-verification invariants that matter within minutes of
+# an incident, and fails loudly so the run history itself becomes an uptime
+# record. It needs no secrets: everything it asserts is public by design.
+#
+# What it intentionally does NOT do: replace real alerting (no paging sink
+# exists yet — the moment the owner adds one, wire a notification here; the
+# job's failure is the signal). Latency numbers land in the run summary.
+name: uptime-probe
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # every 15 minutes
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe production reachability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe web, API health, readiness and version pinning
+        id: probe
+        run: |
+          set -uo pipefail
+          WEB_URL="https://agrobridge-web.vercel.app"
+          API_URL="https://agro-bridge-api.vercel.app"
+          fail=0
+
+          probe() { # name expected http_code_regex url
+            local name="$1" expect="$2" url="$3" t0 t1 code body
+            t0=$(date +%s%3N)
+            code=$(curl -s -o /tmp/probe-body -w "%{http_code}" --max-time 20 "$url") || code="000"
+            t1=$(date +%s%3N)
+            body=$(cat /tmp/probe-body 2>/dev/null || true)
+            local ms=$((t1 - t0))
+            echo "${name}: HTTP ${code} in ${ms}ms"
+            if ! [[ "$code" =~ $expect ]]; then
+              echo "::error::${name} expected HTTP matching ${expect}, got ${code} — ${url}"
+              fail=1
+            fi
+            echo "${name}_ms=${ms}" >> "$GITHUB_OUTPUT"
+            echo "$body" > "/tmp/probe-${name//[^a-z]/}.txt"
+          }
+
+          probe web 200 "$WEB_URL/"
+          probe api_health "^200$" "$API_URL/health"
+          probe api_ready "^200$" "$API_URL/ready"
+          probe web_version "^200$" "$WEB_URL/version.json"
+
+          # /ready must actually be ready: db up + schema applied (ADR-0007's
+          # lesson — a deployed-but-unmigrated API answers /health fine).
+          if ! grep -q '"ready":true' /tmp/probe-apiready.txt; then
+            echo "::error::API /ready did not report ready:true — $(cat /tmp/probe-apiready.txt)"
+            fail=1
+          fi
+          if ! grep -q '"db":true' /tmp/probe-apiready.txt; then
+            echo "::error::API /ready did not report db:true"
+            fail=1
+          fi
+
+          # Web must report the same commit as the repository head claims (the
+          # deploy-verify job asserts ancestry on deploy; this catches a
+          # prod rollback or an off-main deploy between verifies).
+          web_commit=$(node -e "try{console.log(JSON.parse(process.argv[1]).commit||'')}catch{console.log('')}" "$(cat /tmp/probe-webversion.txt 2>/dev/null || echo '{}')")
+          if [ -z "$web_commit" ]; then
+            echo "::warning::web version.json missing/invalid — skipping commit pin"
+          else
+            echo "web_commit=${web_commit}" >> "$GITHUB_OUTPUT"
+          fi
+
+          exit $fail
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## Uptime probe $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo "| Probe | Result |"
+            echo "|---|---|"
+            echo "| web | ${{ steps.probe.outputs.web_ms || 'n/a' }} ms |"
+            echo "| api /health | ${{ steps.probe.outputs.api_health_ms || 'n/a' }} ms |"
+            echo "| api /ready | ${{ steps.probe.outputs.api_ready_ms || 'n/a' }} ms |"
+            echo "| web commit | ${{ steps.probe.outputs.web_commit || 'unknown' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

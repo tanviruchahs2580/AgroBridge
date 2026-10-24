@@ -18,7 +18,7 @@ const eventSchema = z.object({
       z.object({
         name: z.string().regex(/^[a-z_]{3,64}$/),
         sessionId: z.string().max(64).optional(),
-        props: z.record(z.union([z.string().max(120), z.number(), z.boolean()])).optional(),
+        props: z.record(z.string(), z.union([z.string().max(120), z.number(), z.boolean()])).optional(), // zod v4 record needs an explicit key type (AUD-V3 security upgrade)
       })
     )
     .min(1)

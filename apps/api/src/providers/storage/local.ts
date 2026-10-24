@@ -12,7 +12,10 @@ export class LocalStorageProvider implements StorageProvider {
   // set UPLOAD_BASE_DIR there; default keeps the repo-relative layout locally.
   constructor(private baseDir = path.resolve(env.UPLOAD_BASE_DIR ?? "uploads")) {}
 
-  async save(fileName: string, data: Buffer): Promise<string> {
+  async save(fileName: string, data: Buffer, _mime: string): Promise<string> {
+    // `_mime`: the interface's third parameter is honored by object stores
+    // (S3 sets the Content-Type); a filesystem has nowhere to put it — the
+    // extension derived from the declared MIME at call time carries the type.
     const dir = path.join(this.baseDir, "disease");
     await mkdir(dir, { recursive: true });
     const full = path.join(dir, fileName);

@@ -44,6 +44,7 @@ import { notificationsRouter } from "./modules/notifications/routes.js";
 import { adminRouter } from "./modules/admin/routes.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
 import { analyticsRouter } from "./modules/analytics/routes.js";
+import { opsRouter } from "./modules/ops/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
 import { metricsGuard } from "./middleware/metricsGuard.js";
 import { rateLimitHandler } from "./middleware/rateLimitResponse.js";
@@ -160,6 +161,10 @@ export function createApp() {
   v1.use("/admin", adminRouter);
   v1.use("/organizations", organizationsRouter);
   v1.use("/analytics", analyticsRouter);
+  // Scheduled-operations surface for the platform cron — secret-guarded in the
+  // router itself (CRON_SECRET), mounted on v1 so admission control and the
+  // global limiter still apply.
+  v1.use("/ops", opsRouter);
   app.use("/api/v1", v1);
 
   logger.info("AgroBridge API routes mounted");

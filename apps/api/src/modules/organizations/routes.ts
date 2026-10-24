@@ -51,7 +51,7 @@ organizationsRouter.get("/", async (req, res, next) => {
   }
 });
 
-organizationsRouter.get("/:id", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+organizationsRouter.get("/:id", validate({ params: z.object({ id: z.string().min(1).max(64) }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const org = await prisma.organization.findUnique({
       where: { id: req.params.id },
@@ -90,7 +90,7 @@ organizationsRouter.post("/:id/members", validate({ body: addMemberSchema }), as
   }
 });
 
-organizationsRouter.delete("/:id/members/:userId", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+organizationsRouter.delete("/:id/members/:userId", validate({ params: z.object({ id: z.string().min(1).max(64), userId: z.string().min(1).max(64) }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const orgId = req.params.id;
     const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { members: true } });
@@ -105,7 +105,7 @@ organizationsRouter.delete("/:id/members/:userId", async (req: import("express")
   }
 });
 
-organizationsRouter.get("/:id/farms", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+organizationsRouter.get("/:id/farms", validate({ params: z.object({ id: z.string().min(1).max(64) }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const orgId = req.params.id;
     const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { members: true } });

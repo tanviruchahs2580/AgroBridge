@@ -25,7 +25,10 @@ export default function Register() {
   const inputInvalid =
     (fullName.trim().length > 0 && fullName.trim().length < 2) ||
     (phone.trim().length > 0 && !BD_PHONE_RE.test(phone.trim())) ||
-    (password.length > 0 && password.length < 8);
+    (password.length > 0 && password.length < 8) ||
+    // Server zod caps passwords at 72 (bcrypt's effective input length) —
+    // catching it client-side saves the user a round trip (AUD-V3 L-3).
+    (password.length > 0 && password.length > 72);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +39,7 @@ export default function Register() {
     else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
     if (!password) errs.password = t("errFieldRequired", lang);
     else if (password.length < 8) errs.password = t("errWeakPassword", lang);
+    else if (password.length > 72) errs.password = t("errPasswordTooLong", lang);
     // Consent capture (PRD-05/AUD-150): the API requires consent:true, so the
     // form refuses to submit without it (guard is belt-and-braces — the button
     // is disabled too).

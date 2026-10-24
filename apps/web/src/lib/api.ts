@@ -6,17 +6,29 @@
 // This eliminates the dual-truth bug where api.ts held stale module vars while
 // session.tsx read storage directly.
 
-import { getTokens, setTokens as smSetTokens, clearTokens as smClearTokens } from "./sessionManager";
+import { getTokens, getSession, setTokens as smSetTokens, clearTokens as smClearTokens } from "./sessionManager";
 import { newRequestId } from "./uuid";
+import { t } from "./i18n";
 
 const BASE = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? "/api/v1").replace(/\/+$/, "");
 
 // Lazy offlineQueue helpers (dynamic import avoids a circular init).
 let _offlineQueue: { enqueue: (m: { url: string; method: string; body?: unknown }) => string | null; isQueueable: (method: string, url: string) => boolean } | null = null;
+/**
+ * Resolves the queue module, or null when it is unavailable FOR ANY REASON
+ * (import failure, or a namespace that does not carry the two functions we
+ * call — possible while a bundler/test-runner is mid-rearrangement of the
+ * api ↔ queue cycle). The queue is an optimization on the failure path: a
+ * lookup that misbehaves must degrade to "no queue", NEVER replace the
+ * user's network error with an internal one (found by vitest 4's module
+ * runner, AUD-V3 — the old code let a TypeError from this lookup become the
+ * error the UI displayed).
+ */
 async function getOfflineQueue() {
   if (_offlineQueue) return _offlineQueue;
   try {
-    _offlineQueue = await import("./offlineQueue");
+    const mod = await import("./offlineQueue");
+    _offlineQueue = typeof mod?.isQueueable === "function" && typeof mod?.enqueue === "function" ? mod : null;
   } catch {
     _offlineQueue = null;
   }
@@ -266,31 +278,45 @@ export async function refreshAccessToken(): Promise<boolean> {
 }
 
 async function tryRefresh(): Promise<boolean> {
-  const tokens = getTokens();
-  if (!tokens.refreshToken) return false;
+  const startedWith = getTokens();
+  if (!startedWith.refreshToken) return false;
   refreshing ??= (async () => {
-    try {
-      const res = await fetch(`${BASE}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Request-Id": newRequestId() },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-      });
-      if (!res.ok) return false;
-      const j = await res.json();
-      // Never trust a malformed refresh body: storing undefined tokens would
-      // silently de-authenticate the user on the next replay.
-      const at = j?.data?.accessToken;
-      const rt = j?.data?.refreshToken;
-      if (typeof at !== "string" || !at || typeof rt !== "string" || !rt) return false;
-      setTokens(at, rt);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      setTimeout(() => (refreshing = null), 0);
+    if (await attemptRefresh(startedWith.refreshToken)) return true;
+    // Cross-tab rotation: if another tab refreshed while our attempt was in
+    // flight, its BroadcastChannel/storage update has already replaced the
+    // stored refresh token — our (now rotated-away) token was rejected for
+    // exactly that reason. Retrying once with the winner's token keeps this
+    // tab signed in instead of logging it out of a healthy session.
+    const now = getTokens();
+    if (now.refreshToken && now.refreshToken !== startedWith.refreshToken) {
+      return attemptRefresh(now.refreshToken);
     }
-  })();
+    return false;
+  })().finally(() => {
+    setTimeout(() => (refreshing = null), 0);
+  });
   return refreshing;
+}
+
+async function attemptRefresh(refreshToken: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Request-Id": newRequestId() },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return false;
+    const j = await res.json();
+    // Never trust a malformed refresh body: storing undefined tokens would
+    // silently de-authenticate the user on the next replay.
+    const at = j?.data?.accessToken;
+    const rt = j?.data?.refreshToken;
+    if (typeof at !== "string" || !at || typeof rt !== "string" || !rt) return false;
+    setTokens(at, rt);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
@@ -342,32 +368,34 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       }
       if (res.status === 401) {
         // Refresh failed OR replay STILL returned 401 → session is dead.
+        // Fallback copy comes from the i18n catalog in the session's language
+        // (no concatenated bilingual strings outside it — i18n:check gates
+        // inline copy, and a lib file is not exempt).
+        const expiredFallback = t("sessionExpired", getSession()?.lang ?? "bn");
         // ── Critical-flow guard: during checkout/payment, DO NOT clear
         //    tokens or redirect. The page handles the error UX and will
         //    destroy tokens after the user dismisses the dialog. ──
         if (criticalInProgress) {
           // Throw the error so the caller can show a user-friendly message;
           // the caller will clear tokens after the user acknowledges.
-          const e = new ApiError(
+          throw new ApiError(
             res.status,
             json.error?.code ?? "UNAUTHORIZED",
-            json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
+            json.error?.message ?? expiredFallback,
             json.error?.details,
             json.error?.reference
           );
-                    throw e;
         }
         clearTokens();
         if (wasAuthed) unauthorizedHandler?.();
         const msg = json.error?.message ?? "UNAUTHORIZED";
-        const e = new ApiError(
+        throw new ApiError(
           res.status,
           msg === "UNAUTHORIZED" ? "UNAUTHORIZED" : json.error?.code ?? "UNAUTHORIZED",
-          json.error?.message ?? "সেশন শেষ হয়ে গেছে / Session expired",
+          json.error?.message ?? expiredFallback,
           json.error?.details,
           json.error?.reference
         );
-                throw e;
       }
     }
 

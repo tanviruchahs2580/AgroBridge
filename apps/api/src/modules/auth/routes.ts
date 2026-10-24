@@ -416,6 +416,20 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
       select: { id: true, fullName: true, email: true, langPref: true, role: true, farmerProfile: true },
     });
     await audit({ actorId: user.id, action: "PROFILE_UPDATE", entityType: "User", entityId: user.id });
+    // An email swap is the one profile field an attacker would want silent:
+    // no re-verification flow exists yet (login/reset are phone-first), so
+    // the change is at least LOUD — its own audit row naming old → new
+    // (AUD-V3 security L-10; a verification flow is tracked as the proper fix
+    // if an email-bearing flow ever ships).
+    if (userFields.email !== undefined) {
+      await audit({
+        actorId: user.id,
+        action: "EMAIL_CHANGED",
+        entityType: "User",
+        entityId: user.id,
+        meta: { to: user.email ?? null },
+      });
+    }
     ok(res, user);
   } catch (e) {
     next(e);
@@ -441,22 +455,38 @@ async function issueOtpChallenge(
   user: { id: string; phone: string },
   purpose: "PHONE_VERIFY" | "PASSWORD_RESET",
 ): Promise<{ code: string; challenge: { expiresAt: Date } }> {
-  await prisma.otpChallenge.updateMany({
-    where: { userId: user.id, purpose, consumedAt: null },
-    data: { consumedAt: new Date() },
-  });
-  const code = String(randomInt(100000, 999999));
-  const challenge = await prisma.otpChallenge.create({
-    data: {
-      userId: user.id,
-      // Already canonical `01[3-9]XXXXXXXX` (registration normalises, ),
-      // so hashOtp and every verify lookup compare the same string.
-      phone: user.phone,
-      codeHash: hashOtp(user.phone, code),
-      purpose,
-      expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
-    },
-  });
+  // Supersede-then-create, retried once on the unique-index race: the partial
+  // index OtpChallenge_user_purpose_live_key (one live challenge per user and
+  // purpose) means two concurrent requests cannot both leave a live row —
+  // the loser's create hits P2002, re-supersedes whatever won, and retries
+  // exactly once (AUD-V3; previously both could go live and verification
+  // picked a row nondeterministically).
+  let challenge;
+  let code = "";
+  for (let attempt = 0; ; attempt++) {
+    await prisma.otpChallenge.updateMany({
+      where: { userId: user.id, purpose, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+    code = String(randomInt(100000, 999999));
+    try {
+      challenge = await prisma.otpChallenge.create({
+        data: {
+          userId: user.id,
+          // Already canonical `01[3-9]XXXXXXXX` (registration normalises, ),
+          // so hashOtp and every verify lookup compare the same string.
+          phone: user.phone,
+          codeHash: hashOtp(user.phone, code),
+          purpose,
+          expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
+        },
+      });
+      break;
+    } catch (e) {
+      if ((e as { code?: string })?.code === "P2002" && attempt === 0) continue;
+      throw e;
+    }
+  }
   return { code, challenge };
 }
 

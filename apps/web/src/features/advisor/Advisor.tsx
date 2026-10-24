@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { uuid } from "../../lib/uuid";
 import { api } from "../../lib/api";
 import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
@@ -42,6 +43,8 @@ export default function Advisor() {
   const toast = useToast();
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState<{
+    /** Stable key: array-index keys break if the transcript ever reorders. */
+    id: string;
     role: "user" | "ai";
     text: string;
     /**
@@ -91,7 +94,7 @@ export default function Advisor() {
     e.preventDefault();
     if (!question.trim() || busy) return;
     const q = question.trim();
-    setChat((c) => [...c, { role: "user", text: q }]);
+    setChat((c) => [...c, { id: uuid(), role: "user", text: q }]);
     setQuestion("");
     setBusy(true);
     track("advisory_asked", { hasCrop: CROP_KEYWORDS.test(q) ? 1 : 0 });
@@ -102,6 +105,7 @@ export default function Advisor() {
       setChat((c) => [
         ...c,
         {
+          id: uuid(),
           role: "ai",
           text: res.answer,
           confidence: res.confidence,
@@ -117,7 +121,7 @@ export default function Advisor() {
       // until a reload (found live 2026-10-19).
       invalidate("advisor-history");
     } catch (err) {
-      setChat((c) => [...c, { role: "ai", text: mapError(err, lang), failed: true }]);
+      setChat((c) => [...c, { id: uuid(), role: "ai", text: mapError(err, lang), failed: true }]);
     } finally {
       setBusy(false);
     }
@@ -255,19 +259,19 @@ export default function Advisor() {
           aria-label={t("advisorTranscriptLabel", lang)}
           className="space-y-3"
         >
-          {chat.map((m, i) =>
+          {chat.map((m) =>
             m.role === "user" ? (
-              <div key={i} className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-sm text-white">
+              <div key={m.id} className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-sm text-white">
                 {m.text}
               </div>
             ) : m.failed ? (
               // A request that never reached the model is an error, not an answer:
               // it must not wear the answer bubble's styling.
-              <div key={i} className="max-w-[90%]">
+              <div key={m.id} className="max-w-[90%]">
                 <ErrorBanner message={m.text} />
               </div>
             ) : (
-              <div key={i} className="max-w-[90%] space-y-1">
+              <div key={m.id} className="max-w-[90%] space-y-1">
                 {/* whitespace-pre-wrap renders structured (multi-section) and plain answers alike*/}
                 <div className="whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-surface-subdued px-4 py-2.5 text-sm text-stone-800">{m.text}</div>
                 {m.refs && m.refs.length > 0 && (

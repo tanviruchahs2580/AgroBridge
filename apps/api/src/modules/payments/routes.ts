@@ -7,7 +7,7 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { notFound, unprocessable, badRequest, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
+import { notFound, unprocessable, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
 import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { refNo } from "../../lib/money.js";
@@ -15,6 +15,7 @@ import { getActiveMembership } from "../../lib/membership.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
+import { logger } from "../../lib/logger.js";
 import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
@@ -23,6 +24,9 @@ import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js"
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
+
+/** Params contract for the /:id routes (AUD-V3 L-3: raw params were unvalidated). */
+const idParams = z.object({ id: z.string().min(1).max(64) });
 export const walletRouter = Router();
 export const membershipRouter = Router();
 
@@ -143,11 +147,18 @@ export async function applyPaymentSideEffects(
       data: { paymentStatus: "PAID" },
     });
   } else if (payment.purposeType === "MEMBERSHIP") {
-    const plan = await prisma.membershipPlan.findUnique({ where: { tier: payment.purposeId } });
+    // Both reads go through the TRANSACTION client (AUD-V3): the outer
+    // client read a different snapshot, so an expiry extension racing this
+    // claim could compute "extend from" on a stale base even though the
+    // writes correctly used tx.
+    const plan = await tx.membershipPlan.findUnique({ where: { tier: payment.purposeId } });
     const durationDays = plan?.durationDays ?? 365;
-    const current = await getActiveMembership(payment.userId);
+    const profile = await tx.farmerProfile.findUnique({
+      where: { userId: payment.userId },
+      select: { membershipExpiresAt: true },
+    });
     // Extend from existing expiry when still active, else from now.
-    const base = current.expiresAt && current.expiresAt > new Date() ? current.expiresAt : new Date();
+    const base = profile?.membershipExpiresAt && profile.membershipExpiresAt > new Date() ? profile.membershipExpiresAt : new Date();
     const expiresAt = new Date(base.getTime() + durationDays * 86_400_000);
     await tx.farmerProfile.upsert({
       where: { userId: payment.userId },
@@ -175,7 +186,10 @@ paymentsRouter.post(
   acceptIdempotencyKeyHeader,
   validate({
     body: z.object({
-      purposeType: z.enum(["ORDER", "BOOKING", "PROCUREMENT", "MEMBERSHIP"]),
+      // PROCUREMENT is deliberately absent: payouts flow through the
+      // procurement /payouts route; advertising it here just to refuse it
+      // made the validation contract lie (AUD-V3 L-7).
+      purposeType: z.enum(["ORDER", "BOOKING", "MEMBERSHIP"]),
       purposeId: z.string().min(5),
     }),
   }),
@@ -212,9 +226,6 @@ paymentsRouter.post(
         const b = await prisma.booking.findFirst({ where: { id: purposeId, userId, paymentStatus: "UNPAID", status: { in: ["REQUESTED", "ASSIGNED"] } } });
         if (!b) throw notFound("Payable booking");
         amountPaisa = b.estimatedPricePaisa;
-      } else if (purposeType === "PROCUREMENT") {
-        // Procurement pays OUT to farmer via wallet credit on COLLECTED -> handled by payout route instead.
-        throw badRequest("Procurement payouts are processed via /payouts by procurement managers");
       } else {
         const plan = await prisma.membershipPlan.findUnique({ where: { tier: purposeId } });
         if (!plan || !plan.isActive) throw notFound("Membership plan");
@@ -358,13 +369,66 @@ export async function claimAndApplyPayment(
 }
 
 /**
+ * Reconciliation rule shared by every live-gateway confirmation path
+ * (`GET /:id/status`, gateway return): the webhook's own standard — a verdict
+ * from the gateway proves the SESSION succeeded, not that it belongs to THIS
+ * charge — applied to the amount before any PENDING→SUCCEEDED claim. A
+ * mismatched, missing, or non-finite amount leaves the payment PENDING (the
+ * signed webhook remains the final authority) and is audited so a partial
+ * payment can be reconciled by an operator instead of silently dropping.
+ */
+export async function reconcileLiveVerdict(
+  payment: { id: string; userId: string; refNo: string; purposeType: string; purposeId: string; amountPaisa: number },
+  verdict: { status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }
+): Promise<{ reconciled: boolean; reason?: "amount_mismatch" }> {
+  if (verdict.status === "FAILED") {
+    await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
+    return { reconciled: false };
+  }
+  if (verdict.status !== "SUCCEEDED") return { reconciled: false };
+
+  if (verdict.amountPaisa !== payment.amountPaisa) {
+    logger.warn(
+      { paymentId: payment.id, refNo: payment.refNo, expectedPaisa: payment.amountPaisa, verdictPaisa: verdict.amountPaisa ?? null },
+      "live-gateway reconciliation amount mismatch — payment left PENDING"
+    );
+    await audit({
+      actorId: payment.userId,
+      action: "PAYMENT_RECONCILE_AMOUNT_MISMATCH",
+      entityType: "Payment",
+      entityId: payment.id,
+      meta: { expectedPaisa: payment.amountPaisa, verdictPaisa: verdict.amountPaisa ?? null },
+    });
+    return { reconciled: false, reason: "amount_mismatch" };
+  }
+
+  const claimed = await claimAndApplyPayment(payment, {
+    mode: env.PAYMENT_PROVIDER,
+    verified: true,
+    amountPaisa: verdict.amountPaisa,
+  });
+  return claimed ? { reconciled: true } : { reconciled: false };
+}
+
+/** Parses a payment's stored metaStr, tolerating null/corrupt JSON. */
+export function paymentMetaOf(metaStr: string | null): Record<string, unknown> {
+  if (!metaStr) return {};
+  try {
+    const parsed = JSON.parse(metaStr) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Sandbox confirm: simulates the gateway return path. Only available when the
  * sandbox provider is actually in use, and — in production — only for a
  * deployment that explicitly opted in (ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION).
  * Live gateways move money exclusively through the verified webhook.
  * Idempotent under concurrency: only the first PENDING->SUCCEEDED claim wins.
  */
-paymentsRouter.post("/:id/confirm", async (req, res, next) => {
+paymentsRouter.post("/:id/confirm", validate({ params: idParams }), async (req, res, next) => {
   try {
     if (env.PAYMENT_PROVIDER !== "sandbox") {
       throw forbidden("Direct confirmation is disabled; complete payment through the gateway");
@@ -391,7 +455,7 @@ paymentsRouter.post("/:id/confirm", async (req, res, next) => {
  * webhook reaching us. Verification is idempotent and only a SUCCEEDED result
  * from the provider can move a payment forward.
  */
-paymentsRouter.get("/:id/status", async (req, res, next) => {
+paymentsRouter.get("/:id/status", validate({ params: idParams }), async (req, res, next) => {
   try {
     const payment = await prisma.payment.findFirst({ where: { id: req.params.id, userId: getAuth(req).userId } });
     if (!payment) throw notFound("Payment");
@@ -408,19 +472,16 @@ paymentsRouter.get("/:id/status", async (req, res, next) => {
 
     let verdict: Awaited<ReturnType<typeof provider.verifyPayment>>;
     try {
-      verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo);
+      verdict = await provider.verifyPayment(payment.providerRef ?? payment.refNo, paymentMetaOf(payment.metaStr));
     } catch (e) {
       throw paymentGatewayUnavailable({ reason: (e as Error).message });
     }
 
-    let reconciled = false;
-    if (verdict.status === "SUCCEEDED") {
-      reconciled = await claimAndApplyPayment(payment, { mode: env.PAYMENT_PROVIDER, verified: true, amountPaisa: verdict.amountPaisa });
-    } else if (verdict.status === "FAILED") {
-      await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
-    }
+    // SUCCEEDED verdicts still face the amount cross-check the signed webhook
+    // enforces (reconcileLiveVerdict) before any PENDING→SUCCEEDED claim.
+    const { reconciled, reason } = await reconcileLiveVerdict(payment, verdict);
     const final = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
-    ok(res, { status: final.status, reconciled, providerMode: env.PAYMENT_PROVIDER, providerVerdict: verdict.status });
+    ok(res, { status: final.status, reconciled, reason, providerMode: env.PAYMENT_PROVIDER, providerVerdict: verdict.status });
   } catch (e) {
     next(e);
   }
@@ -466,7 +527,7 @@ const refundSchema = z.object({
 paymentsRouter.post(
   "/:id/refund",
   requirePermission("payments:refund"),
-  validate({ body: refundSchema }),
+  validate({ params: idParams, body: refundSchema }),
   async (req, res, next) => {
     try {
       // Same provider resolution as /intent (getPaymentProvider). Sandbox: this
@@ -663,36 +724,30 @@ walletRouter.get("/", async (req, res, next) => {
     // X-Total-Count: the ledger body is a capped slice (50); the
     // header is the same user scope's true count so the UI can say "showing
     // 50 of N" without a second query shape.
+    //
+    // A read must not write (AUD-V3): the old upsert created a wallet row on
+    // every first GET. Registration creates the wallet; a missing row here
+    // means zero ever moved, so the balance is derived instead of inserted.
     const txWhere = { userId: getAuth(req).userId };
     const [wallet, transactions, txTotal] = await Promise.all([
-      prisma.wallet.upsert({ where: { userId: getAuth(req).userId }, update: {}, create: { userId: getAuth(req).userId } }),
+      prisma.wallet.findUnique({ where: { userId: getAuth(req).userId } }),
       prisma.walletTransaction.findMany({ where: txWhere, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.walletTransaction.count({ where: txWhere }),
     ]);
     res.setHeader("X-Total-Count", String(txTotal));
-    ok(res, { balancePaisa: wallet.balancePaisa, transactions });
+    ok(res, { balancePaisa: wallet?.balancePaisa ?? 0, transactions });
   } catch (e) {
     next(e);
   }
 });
 
 /**
- * Start of the current calendar month in Asia/Dhaka, as a UTC instant.
- *
- * The wallet "this month" boundary is a business-calendar boundary: farmers and
- * ops read it in Dhaka time. Computing it from the server's local clock (the
- * previous implementation) moved transactions made between 00:00 and 06:00
- * Dhaka into the wrong month on a UTC host. The year/month are read with Intl
- * (never local-time getters) and the instant is built arithmetically: Dhaka is
- * UTC+6 with no DST (Bangladesh dropped DST in 2009), so 00:00 on the 1st is
- * exactly 18:00Z on the last day of the previous UTC month.
+ * Re-exported for existing importers (timezone-boundaries tests): the
+ * implementation moved to shared/utils so the AI budget window can use the
+ * same Dhaka business calendar without importing a payments route module.
  */
-export function dhakaMonthStart(now: Date = new Date()): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).formatToParts(now);
-  const year = Number(parts.find((p) => p.type === "year")?.value);
-  const month = Number(parts.find((p) => p.type === "month")?.value);
-  return new Date(Date.UTC(year, month - 1, 1) - 6 * 60 * 60 * 1000);
-}
+import { dhakaMonthStart } from "../../shared/utils/dhakaMonth.js";
+export { dhakaMonthStart };
 
 /** Financial month-in/out + pending holds + membership snapshot. */
 walletRouter.get("/summary", async (req, res, next) => {

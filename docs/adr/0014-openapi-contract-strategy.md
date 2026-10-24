@@ -1,5 +1,7 @@
 # ADR-0014: API contract strategy — hand-maintained reference + executable shape gate now, OpenAPI 3.1 deferred
 
+> **SUPERSEDED (2026-10-21)** by [ADR-0019](0019-contract-strategy-and-generated-inventories.md), which re-decided this topic with the generated inventories as the contract of record. Kept for the decision trail. (Both were briefly numbered 0014 — the collision is why the 2026-10-21 wave moved to 0017-0021.)
+
 - **Status:** accepted (2026-10-19) — revisit at the trigger points below
 - **Deciders:** engineering (platform phase will re-decide)
 - **Related:** ADR-0007 (schema state in the release contract), ADR-0009 (client-generated idempotency keys), `docs/api.md`, `contracts/api-response-shapes.json`

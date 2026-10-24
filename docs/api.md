@@ -176,6 +176,12 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
   — org ADMIN (or platform admin) manages membership; farm queries for CORPORATE/COOPERATIVE roles
   are scoped to `ownerId` OR organization membership.
 
+## Scheduled operations (`/ops`, platform cron only)
+- `GET /ops/retention` — daily data-retention run triggered by the Vercel cron
+  (`apps/api/vercel.json`); authenticated by the `CRON_SECRET` bearer
+  (constant-time compared) and fail-closed when the secret is unset. Applies
+  the ADR-0011 windows and audits `RETENTION_JOB_RUN`. Not for app clients.
+
 ## Analytics (`/analytics`)
 - `POST /analytics/events` `{events: [{name(lower_snake_case), sessionId?, props?}] ≤ 20}` —
   first-party product analytics ingest (202, fire-and-forget; no PII in props). Feeds the

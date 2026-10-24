@@ -5,6 +5,8 @@ import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
 import { getOrLoadWeather } from "./cache.js";
+import { weatherProviderUnavailable, weatherProviderOverloaded } from "../../shared/errors/index.js";
+import { ResilienceError } from "../../providers/resilience.js";
 
 export const weatherRouter = Router();
 weatherRouter.use(requireAuth);
@@ -52,10 +54,16 @@ weatherRouter.get(
         risks,
       });
     } catch (e) {
-      // Provider failures currently surface as a generic server error (the
-      // adapter throws plain Errors) — never a fake forecast. Mapping them to
-      // an explicit 502/503 is tracked as a deferred improvement.
-      next(e);
+      // Never a fake forecast: provider failures become explicit upstream
+      // errors — 503 when OUR policy refused the call (circuit open after
+      // repeated failures, bulkhead full), 502 for any upstream failure the
+      // retry policy could not rescue. Clients can retry both, and the
+      // weather card's honest error state is what the UI already renders.
+      if (e instanceof ResilienceError) {
+        next(weatherProviderOverloaded({ code: e.code }));
+      } else {
+        next(weatherProviderUnavailable({ reason: (e as Error).message?.slice(0, 120) }));
+      }
     }
   }
 );

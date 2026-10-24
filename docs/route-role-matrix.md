@@ -18,6 +18,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 |---|---|
 | `ALL /payments/gateway/return/:outcome` | hosted-checkout browser return; trusts nothing in the request — the outcome is decided by asking the provider, the webhook remains the primary path |
 | `GET /membership/plans` | public tier catalogue (price/benefits only, no user data); shown before login to drive sign-up |
+| `GET /ops/retention` | scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3) |
 | `POST /auth/login` | credential exchange itself; login limiter plus per-account throttle, uniform error and timing profile |
 | `POST /auth/password/forgot` | self-service recovery for a caller who cannot log in; always-200 response hides account existence |
 | `POST /auth/password/reset` | completes recovery with the OTP issued by /auth/password/forgot; success revokes every refresh token |
@@ -48,6 +49,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 | `/admin` | `adminRouter` | yes | 8 | 0 |
 | `/organizations` | `organizationsRouter` | yes | 6 | 0 |
 | `/analytics` | `analyticsRouter` | no | 1 | 0 |
+| `/ops` | `opsRouter` | no | 1 | 1 |
 
 ### `/payments` → `paymentWebhookRouter`
 
@@ -304,3 +306,13 @@ Source: `src/modules/analytics/routes.ts`
 | Method | Path | Auth | Permission | Roles | Notes |
 |---|---|---|---|---|---|
 | POST | `/analytics/events` | guard: route | — | any authenticated role | — |
+
+### `/ops` → `opsRouter`
+
+Module guard: none — classification is per route.
+
+Source: `src/modules/ops/routes.ts`
+
+| Method | Path | Auth | Permission | Roles | Notes |
+|---|---|---|---|---|---|
+| GET | `/ops/retention` | public | — | — | scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3) |

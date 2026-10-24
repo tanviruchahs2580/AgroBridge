@@ -22,6 +22,8 @@ const fake = vi.hoisted(() => {
     failure: Error | null = null;
     /** Every EXPIRE call, for window assertions. */
     readonly expireCalls: { key: string; seconds: number }[] = [];
+    /** Every EVAL that attached a window (the Lua script's EXPIRE branch). */
+    readonly evalCalls: { key: string; seconds: number }[] = [];
 
     private readonly data = new Map<string, Entry>();
 
@@ -58,6 +60,31 @@ const fake = vi.hoisted(() => {
       return Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000));
     }
 
+    /**
+     * Implements the store's BUMP_AND_TTL Lua script with identical
+     * semantics: INCR, then EXPIRE only on the first hit OR when the key has
+     * no TTL (the orphan-healing branch), returning [count, ttlSeconds].
+     */
+    async eval(script: string, numKeys: number, key: string, windowSec: string): Promise<[number, number]> {
+      void script; // the store sends exactly one script; the fake implements it
+      void numKeys;
+      this.maybeFail();
+      const w = Number(windowSec);
+      const now = Date.now();
+      const entry = this.live(key, now);
+      const count = (entry?.count ?? 0) + 1;
+      const ttlNow = !entry ? -2 : entry.expiresAt === null ? -1 : Math.max(0, Math.floor((entry.expiresAt - now) / 1000));
+      let expiresAt = entry?.expiresAt ?? null;
+      let ttl = ttlNow;
+      if (count === 1 || ttlNow === -1) {
+        expiresAt = now + w * 1000;
+        ttl = w;
+        this.evalCalls.push({ key, seconds: w });
+      }
+      this.data.set(key, { count, expiresAt });
+      return [count, ttl];
+    }
+
     async decr(key: string): Promise<number> {
       this.maybeFail();
       const entry = this.live(key, Date.now());
@@ -74,6 +101,11 @@ const fake = vi.hoisted(() => {
     /** Test helper: current counter value for a redis key, if still live. */
     peek(key: string): number | undefined {
       return this.live(key, Date.now())?.count;
+    }
+
+    /** Test helper: seed a TTL-less counter — the pre-Lua orphan shape. */
+    seedOrphan(key: string, count: number): void {
+      this.data.set(key, { count, expiresAt: null });
     }
 
     private maybeFail(): void {
@@ -122,10 +154,11 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
     // A different key owns an independent counter.
     expect((await store.increment("ip:5.6.7.8")).totalHits).toBe(1);
 
-    // Counters live under the rl: namespace; EXPIRE runs once, on the first hit.
+    // Counters live under the rl: namespace; the window attaches once, on the
+    // first hit (the Lua script's EXPIRE branch — no longer a separate call).
     expect(client.peek("rl:ip:1.2.3.4")).toBe(3);
     expect(client.peek("rl:ip:5.6.7.8")).toBe(1);
-    expect(client.expireCalls.filter((c) => c.key === "rl:ip:1.2.3.4")).toEqual([
+    expect(client.evalCalls.filter((c) => c.key === "rl:ip:1.2.3.4")).toEqual([
       { key: "rl:ip:1.2.3.4", seconds: 60 },
     ]);
 
@@ -138,14 +171,32 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
     await store.init!({ windowMs: 30_000 } as Options);
 
     await store.increment("k");
-    expect(fake.FakeRedis.instances[0]!.expireCalls).toEqual([{ key: "rl:k", seconds: 30 }]);
+    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:k", seconds: 30 }]);
   });
 
   it("falls back to a 15-minute window before init() runs", async () => {
     const store = createRedisStore("redis://unused:6379");
 
     await store.increment("k");
-    expect(fake.FakeRedis.instances[0]!.expireCalls).toEqual([{ key: "rl:k", seconds: 900 }]);
+    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:k", seconds: 900 }]);
+  });
+
+  /**
+   * AUD-V3: a TTL-less key (the crash-between-INCR-and-EXPIRE orphan the old
+   * non-atomic pair could leave) gets a window re-attached on its next hit —
+   * the account is no longer locked out of its own login bucket forever.
+   */
+  it("heals a TTL-less orphan key by re-attaching a window", async () => {
+    const store = createRedisStore("redis://unused:6379", 60_000);
+    const client = fake.FakeRedis.instances[0]!;
+
+    // Simulate the orphan directly: a counter with no expiry.
+    client.seedOrphan("rl:orphan", 5);
+
+    const info = await store.increment("orphan");
+    expect(info.totalHits).toBe(6);
+    expect(info.resetTime?.getTime()).toBe(Date.now() + 60_000); // TTL re-attached
+    expect(client.evalCalls).toEqual([{ key: "rl:orphan", seconds: 60 }]);
   });
 
   it("expires the window: past windowMs the counter restarts at 1 with a fresh TTL", async () => {

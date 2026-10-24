@@ -49,7 +49,9 @@ export default function SellCrop() {
     if (!fd.get("farm")) errs.farm = t("errFieldRequired", lang);
     if (!fd.get("crop")) errs.crop = t("errFieldRequired", lang);
     const qty = Number(fd.get("qty"));
-    if (!qty || qty < 1) errs.qty = t("errQuantityInvalid", lang);
+    // Server zod caps quantity at 1,000,000 kg — mirror it so the error is
+    // instant and localized instead of a server round trip (AUD-V3 L-3).
+    if (!qty || qty < 1 || qty > 1_000_000) errs.qty = t("errQuantityInvalid", lang);
     const moistureRaw = fd.get("moisture") as string;
     if (moistureRaw) {
       // `Number("abc")` is NaN and every comparison against NaN is false, so the old

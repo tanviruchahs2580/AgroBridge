@@ -1,0 +1,4 @@
+{
+  "_notes": "Overrides for scripts/licence-gate.mjs (flat map, checked before failing). npm's --long tree omits the licence field for some nested transitive deps, so the gate cannot read it from the tree; each entry records the licence verified from the installed package.json plus the reason the package is in the production tree.",
+  "magicast": "MIT (unjs/magicast) — production dependency of @prisma/config (c12 → magicast, the Prisma CLI/config loader); licence read from apps/api/node_modules/magicast/package.json. Re-check on Prisma major upgrades."
+}

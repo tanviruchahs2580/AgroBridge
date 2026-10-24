@@ -111,6 +111,8 @@ const schema = z.object({
   SERVER_MAX_CONNECTIONS: z.coerce.number().int().positive().optional(),
   TRUST_PROXY: z.union([z.coerce.number().int().min(0), z.literal("false")]).default(1),
   METRICS_TOKEN: z.string().optional(), // when set, /metrics requires Authorization: Bearer <token> in production
+  /** When set, Vercel cron jobs send it as `Authorization: Bearer <token>`; the ops endpoints fail closed without it. */
+  CRON_SECRET: z.string().optional(),
   /** pino level (debug|info|warn|error|silent); unset = info, silent in tests. */
   LOG_LEVEL: z.string().optional(),
   REDIS_URL: z.string().optional(), // when set, rate limiting uses Redis (multi-instance safe)
@@ -226,6 +228,20 @@ if (parsed.data.NODE_ENV === "production") {
     parsed.data.JWT_REFRESH_SECRET.includes("change-me") ||
     parsed.data.JWT_ACCESS_SECRET.startsWith("dev-");
   if (weak) throw new Error("Refusing to start production with default JWT secrets");
+  // RFC 8725 §3.5: HS256 keys should be ≥ 256 bits. Length is the measurable
+  // proxy (a 32+ char random string is ~192+ bits of entropy; 16 chars of
+  // prose is brute-forceable). The old guard only rejected literal
+  // placeholders, so "agrobridge-prod-2026" booted fine (AUD-V3 security M-2).
+  // Rotation procedure: docs/runbooks/secret-rotation.md — rotate BEFORE
+  // deploying this version if the current value is shorter than 32.
+  const shortSecrets = (["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET"] as const)
+    .filter((k) => (parsed.data[k]?.length ?? 0) < 32);
+  if (shortSecrets.length) {
+    throw new Error(
+      `Refusing to start production: ${shortSecrets.join(", ")} must be at least 32 characters (256-bit key material for HS256). ` +
+      "Rotate via docs/runbooks/secret-rotation.md before deploying.",
+    );
+  }
   //fail-fast — placeholder providers (mock/sandbox/offline/none) abort production
   // startup unless the operator explicitly acknowledges them via ALLOW_PLACEHOLDER_PROVIDERS=1.
   // No silent degradation either way: without the flag the process refuses to boot; with it,

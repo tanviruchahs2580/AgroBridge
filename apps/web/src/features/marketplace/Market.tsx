@@ -131,6 +131,13 @@ export default function Market() {
     if (cartRes.data && cartRes.data.items.length === 0) clearPendingCheckoutKey();
   }, [cartRes.data]);
 
+  // Navigating away with the wizard open (route change, browser back) never
+  // runs closeWizard — without this cleanup the module-level guard stayed set
+  // for the tab's lifetime and api.ts swallowed every later 401: no token
+  // clearing, no redirect to login, on any screen. Unmount releases it the
+  // same way an explicit close does.
+  useEffect(() => () => setCriticalFlow(false), []);
+
   function markBusy(id: string, busy: boolean) {
     setCartBusyIds((prev) => {
       const next = new Set(prev);

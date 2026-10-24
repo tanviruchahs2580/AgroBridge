@@ -57,6 +57,8 @@ export const PUBLIC_ROUTES = {
     "hosted-checkout browser return; trusts nothing in the request — the outcome is decided by asking the provider, the webhook remains the primary path",
   "GET /membership/plans":
     "public tier catalogue (price/benefits only, no user data); shown before login to drive sign-up",
+  "GET /ops/retention":
+    "scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3)",
 };
 
 // ---------------------------------------------------------------------------
