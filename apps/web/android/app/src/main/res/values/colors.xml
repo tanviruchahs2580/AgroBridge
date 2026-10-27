@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_background">#012823</color>
+    <!-- Launch-splash backdrop. Must equal the splash-from token in
+         apps/web/src/tokens.css: the platform paints this colour while the app
+         boots, and the in-app splash then paints it again at the top of its
+         gradient, so the hand-over shows one continuous backdrop.
+
+         1.4.1 carried #012823 here while tokens.css still asserted #0A2F1F — the
+         asset re-brand moved only this side, so the moment the WebView took over
+         the screen the backdrop shifted to a different dark green.
+         ic_launcher_background stays on the owner-sampled #012823: that is
+         launcher-icon art, not the splash. -->
+    <color name="splash_background">#0A2F1F</color>
 </resources>

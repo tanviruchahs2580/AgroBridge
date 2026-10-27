@@ -150,6 +150,20 @@ body,
   background-color: var(--color-surface-bg);
 }
 
+/* Boot frame. Between the Android launch screen and React's first commit the
+   document has no content, and the rule above paints it --color-surface-bg —
+   near-white, i.e. a blank screen in the middle of an otherwise dark-green
+   launch, on the most common path into the app. While #root is empty (React has
+   not committed) paint the splash backdrop instead, so the launch screen hands
+   straight over to the in-app splash. `:empty` stops matching on the very commit
+   that renders the splash overlay, so nothing is left behind. */
+#root:empty::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-splash-from);
+}
+
 /* Theme switch: cross-fade the big surfaces instead of a hard snap.
    Applied only while toggling (class added by JS) to keep initial paint cheap. */
 html.theme-transition,
