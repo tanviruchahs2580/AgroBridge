@@ -4,6 +4,24 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Changed (2026-10-28 splash clock restored to the pacing the shipped build used)
+- **The splash animation runs at its original pacing again: ~2.7s plus a 0.28s exit
+  fade (≈3.1s on screen), measured from the built bundle.** The clock had been
+  compressed to ~1.4s on 2026-10-22 (`fae678c`) to keep the splash's
+  largest-contentful paint inside the Lighthouse budget; the field build predates
+  that compression, so the compiled app a user had was paced at 2.7s and the
+  compressed clock read as the welcome animation being skipped. Only the clock
+  moved — the seed → brand → loading → exit sequence, every visual, and the
+  settle-don't-fade logo hand-over from the fix below are unchanged
+  (`tBrand` 900ms, `tLoading` 1100ms, progress 1100→2600ms, `tExit`/`tDone`
+  2600/2680ms, 280ms hand-off).
+- The splash is the app's largest-contentful paint, so this raises LCP by roughly
+  the added 1.5s. Measured locally against the built bundle with the same
+  Lighthouse settings CI uses (`@lhci/cli` mobile, 3 runs, `apps/web/lighthouserc.json`):
+  median LCP 4.92s against the 5.00s ceiling, median FCP 2.86s against 3.00s —
+  inside the gate, but with little room. The budget was set around the compressed
+  clock; raising the clock again re-raises that cost.
+
 ### Fixed (2026-10-28 Android launch screen — no extra screen before the splash)
 - **Tapping the icon on Android went through two extra screens before the branded
   splash.** Reproduced on an Android 13 image: the platform launch screen held a
