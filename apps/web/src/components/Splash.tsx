@@ -57,23 +57,26 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   useEffect(() => {
     if (shouldReduce || staticOnly) return;
     let cancelled = false;
-    // Phase timing, compressed to ~1.4s total. The splash used to hold the
-    // screen for 2.7s on a fixed clock, which made it the largest-contentful
-    // paint on every cold visit — a self-inflicted LCP above 4s for users and
-    // for the Lighthouse budget. The sequence (seed -> brand -> loading ->
-    // exit) and every visual are unchanged; only the clock is tighter:
-    // seed 0-0.45s, brand 0.35-0.75s (overlap), loading 0.45-1.25s, exit
-    // 1.25-1.45s.
-    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 350);
-    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 450);
-    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 1250);
+    // Phase timing, ~2.7s of splash plus a 0.28s exit fade. This is the clock the
+    // shipped Android build was built against; it was compressed to ~1.4s on
+    // 2026-10-22 (fae678c) to bring the splash's largest-contentful paint under the
+    // Lighthouse budget, and restored on product request 2026-10-28 — the paced
+    // seed -> brand -> loading -> exit sequence reads as the brand's welcome, and
+    // the fast clock was read as the animation being skipped. The sequence and
+    // every visual are unchanged; only the clock moved:
+    // seed 0-1.1s, brand 0.9-2.6s (overlap), loading 1.1-2.6s, exit 2.6-2.96s.
+    // Raising it again re-raises the splash's LCP cost — lighthouserc.json asserts
+    // LCP <= 5000ms against this same bundle.
+    const tBrand = setTimeout(() => !cancelled && setPhase("brand"), 900);
+    const tLoading = setTimeout(() => !cancelled && setPhase("loading"), 1100);
+    const tExit = setTimeout(() => !cancelled && setPhase("exit"), 2600);
 
-    // Progress animation 0→100 across 0.45-1.25s (0.8s) with meaningful status
+    // Progress animation 0→100 across 1.1-2.6s (1.5s) with meaningful status
     let raf = 0;
     let tHandoff: ReturnType<typeof setTimeout> | undefined;
     const start = performance.now();
-    const duration = 800;
-    const startDelay = 450;
+    const duration = 1500;
+    const startDelay = 1100;
     function tick(now: number) {
       if (cancelled) return;
       const elapsed = now - start - startDelay;
@@ -91,12 +94,12 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     const tDone = setTimeout(() => {
       if (cancelled) return;
       setExiting(true);
-      tHandoff = setTimeout(() => onDoneRef.current?.(), 200);
-    }, 1300);
+      tHandoff = setTimeout(() => onDoneRef.current?.(), 280);
+    }, 2680);
 
     return () => {
       cancelled = true;
-      // The 200 ms handoff is cleared with the rest: it was not, so it could call
+      // The 280 ms handoff is cleared with the rest: it was not, so it could call
       // onDone after the effect had been torn down.
       if (tHandoff) clearTimeout(tHandoff);
       clearTimeout(tBrand);
