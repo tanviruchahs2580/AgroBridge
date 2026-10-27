@@ -4,6 +4,33 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-28 Android launch screen — no extra screen before the splash)
+- **Tapping the icon on Android went through two extra screens before the branded
+  splash.** Reproduced on an Android 13 image: the platform launch screen held a
+  ~176dp emblem, then the WebView painted **pure white**, then the document painted
+  its own light surface colour (`#F4F7F2`) — two blank seconds — and only then did
+  `Splash.tsx` draw. Three separate causes, all closed:
+  - the launch icon was a 108dp inset-of-a-bitmap that the platform scaled into its
+    288dp icon box, so the mark landed at 176dp where the in-app splash then drew a
+    64dp one. `res/drawable/splash_icon.xml` is now a bitmap generated at 288dp of
+    *pixels* per density by `scripts/android-splash-icon.py`, carrying the in-app
+    splash's own logo group (120dp ring track, 64dp white disc, 56dp rounded logo
+    tile), so the mark is the same size and shape on both sides of the hand-over;
+  - the WebView's background was unset, i.e. white. `android.backgroundColor` in
+    `capacitor.config.ts` now paints it the splash backdrop;
+  - the document painted `--color-surface-bg` until React's first commit. The
+    `#root:empty` rule in `src/index.css` paints the splash backdrop for exactly
+    that window and stops matching on the commit that renders the splash.
+- **`splash_background` had drifted from the colour tokens.css pins it to.** The
+  1.4.1 asset re-brand moved `res/values/colors.xml` to `#012823` while
+  `--color-splash-from` stayed `#0A2F1F`, so the backdrop shifted green the moment
+  the WebView took over. `splash_background` is back to `#0A2F1F`;
+  `ic_launcher_background` keeps the owner-sampled `#012823` (launcher-icon art).
+- **The splash restarted its own logo.** The mark faded up from `opacity: 0` while
+  the launch screen was showing the same mark on the same backdrop, which read as
+  the logo blinking out and back in. It is now rendered settled; ring progress,
+  shimmer, particles, typography and the exit zoom are unchanged.
+
 ### Fixed (2026-10-24 deep-audit remediation — AUD-V3)
 - **Live payment gateway reconciliation was verifying with the wrong keys.** The SSLCommerz
   Validation API was sent the checkout *session key* as `val_id`, and the Transaction Query API the

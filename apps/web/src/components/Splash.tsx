@@ -148,9 +148,15 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             }}
           />
 
-          {/* Logo + ring container */}
+          {/* Logo + ring container. Rendered already settled rather than faded in
+              from nothing: the Android launch screen shows this same mark on this
+              same backdrop immediately before (drawable/splash_icon), so fading it
+              up from opacity 0 read as the logo blinking out and back in at the
+              hand-over — the second half of the "extra launch screen" report. Every
+              other beat of the animation (ring progress, shimmer, particles,
+              typography, the exit zoom) is unchanged. */}
           <m.div
-            initial={{ opacity: 0, scale: 0.92 }}
+            initial={false}
             animate={phase === "exit" ? { scale: 0.28, x: -140, y: -280, opacity: 0 } : { opacity: 1, scale: 1 }}
             transition={phase === "exit" ? { duration: 0.28, ease: [0.4, 0, 1, 1] } : { duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="relative flex h-[120px] w-[120px] items-center justify-center will-change-transform"
