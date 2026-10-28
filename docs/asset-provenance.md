@@ -56,19 +56,21 @@ Item for the owner: record which tool/version produced the subsets.
 
 ## Unreferenced service images (flagged)
 
-`git ls-files apps/web/public/images/services/` lists eleven files; the UI maps only eight category
-keys (`ServiceCard.tsx:25-33`, duplicated in `Services.tsx:405-414`). These three are tracked but
-referenced by no source file (search across `apps/web/src` and the web config found no reference):
+`git ls-files apps/web/public/images/services/` listed eleven files; the UI maps eight category keys
+(`apps/web/src/components/service/heroImages.ts` — one map, after the duplicate copies in
+`ServiceCard.tsx` and `Services.tsx` were collapsed into it). Three were tracked but referenced by no
+source file, and byte-identical to a file that is used:
 
 | Asset | Status |
 |---|---|
-| `images/services/leveler.jpg` | Unreferenced duplicate of the leveller image (`land-leveller.png` is the file the UI uses). No provenance record. **UNKNOWN — owner must supply licence or the file must be removed.** |
-| `images/services/soil.jpg` | Unreferenced duplicate of the soil-testing image (`soil-test.jpg` is used). No provenance record. **UNKNOWN — owner must supply licence or remove.** |
-| `images/services/tiller.jpg` | Unreferenced duplicate of the power-tiller image (`power-tiller.jpg` is used). No provenance record. **UNKNOWN — owner must supply licence or remove.** |
+| `images/services/leveler.jpg` | **REMOVED 2026-10-28.** Byte-identical to `land-leveller.png` (SHA-256 match) and referenced by no source file. |
+| `images/services/soil.jpg` | **REMOVED 2026-10-28.** Byte-identical to `soil-test.jpg`. |
+| `images/services/tiller.jpg` | **REMOVED 2026-10-28.** Byte-identical to `power-tiller.jpg`. |
 
-Removing them shrinks the tracked asset surface; keeping them requires recording a licence. Either
-is the owner's call, but leaving them unreferenced and undocumented is the one option that stays
-wrong.
+The reference check behind that removal: `git grep --untracked "images/services/<name>"` over
+`apps/web/src`, `apps/web/e2e` and `apps/web/index.html`, plus a check that each remaining file is
+reached through the single hero map. The provenance question for the eight images that remain is
+still open and still the owner's call — their rows above are unchanged.
 
 ## Other public files (not images or fonts)
 
