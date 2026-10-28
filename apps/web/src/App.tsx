@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { otherLang, t } from "./lib/i18n";
@@ -21,6 +21,8 @@ import { onEnqueue as onOfflineEnqueue } from "./lib/offlineQueue";
 import { m } from "framer-motion";
 // Login is eager (critical path); all other pages are code-split via lazy + Suspense.
 import Login from "./features/auth/Login";
+// Route table for the public legal documents (shared with the in-page switcher).
+import { LEGAL_ROUTES } from "./features/legal/routes";
 
 // All non-auth pages are code-split via lazy + Suspense.
 const Register = lazy(() => import("./features/auth/Register"));
@@ -207,9 +209,20 @@ function Shell({ children }: { children: ReactNode }) {
             >
               {t("langToggleButton", lang)}
             </button>
+            {/* Admin entry. One link, two presentations: below `sm` it is an icon
+ carrying the accessible name, at `sm` and above the text label — the panel
+ used to be unreachable by navigation on a phone, which is where this product
+ actually ships. A single anchor keeps the element count stable for the shell's
+ own guard spec. */}
             {(session.role === "ADMIN" || session.role === "SUPER_ADMIN") && (
-              <NavLink to="/admin" className="hidden sm:inline-flex min-h-[44px] items-center rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
-                {t("admin", lang)}
+              <NavLink
+                to="/admin"
+                aria-label={t("admin", lang)}
+                title={t("admin", lang)}
+                className="inline-flex min-h-[44px] items-center rounded-lg border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:px-3"
+              >
+                <ShieldCheck className="h-4 w-4 sm:hidden" aria-hidden />
+                <span className="hidden sm:inline">{t("admin", lang)}</span>
               </NavLink>
             )}
             <button onClick={logout} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-white/25 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -350,10 +363,12 @@ export default function App() {
         <Route path="/onboarding" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><Onboarding /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         <Route path="/settings" element={<Shell><ErrorBoundary key={location.pathname} lang={lang}><Suspense fallback={<PageFallback />}><PageTransition><SettingsPage /></PageTransition></Suspense></ErrorBoundary></Shell>} />
         {/* Public legal pages: must be reachable without an account (Play requires a
- public privacy-policy URL and a public data-deletion URL).*/}
-        <Route path="/privacy" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="privacy" /></Suspense>} />
-        <Route path="/terms" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="terms" /></Suspense>} />
-        <Route path="/account-deletion" element={<Suspense fallback={<PageFallback />}><LegalDoc docId="deletion" /></Suspense>} />
+ public privacy-policy URL and a public data-deletion URL). Paths come from
+ LEGAL_ROUTES — the same table the document switcher links from — so a chip
+ cannot point at a path that was never mounted here.*/}
+        {LEGAL_ROUTES.map((doc) => (
+          <Route key={doc.id} path={doc.path} element={<Suspense fallback={<PageFallback />}><LegalDoc docId={doc.id} /></Suspense>} />
+        ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </UiLangProvider>
