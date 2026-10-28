@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -52,6 +52,11 @@ const PUBLIC_ALLOWLIST: Array<{ match: RegExp; because: string }> = [
     because: "gateway callbacks authenticate via provider signatures, not user tokens",
   },
   { match: /^payments GET \/plans$/, because: "public pricing page feeds the membership upsell UX" },
+  {
+    match: /^ops GET \/retention$/,
+    because:
+      "the scheduled retention job's trigger — no user token exists for a cron, so it compares a constant-time CRON_SECRET bearer and answers 503 when the secret is unset",
+  },
 ];
 
 describe("route matrix (API-01 / ARC-11 / SEC-03)", () => {
@@ -84,5 +89,35 @@ describe("route matrix (API-01 / ARC-11 / SEC-03)", () => {
         ),
     );
     expect(money, "money surfaces must never be PUBLIC").toEqual([]);
+  });
+
+  /**
+   * The guard is only as wide as ROUTE_FILES. A router mounted in app.ts (or a
+   * sub-router mounted by a module's own router) whose file is not listed there
+   * is invisible to both the drift check and the PUBLIC allowlist — exactly how
+   * weather, notifications, organizations and ops went uninventoried, and how
+   * the plots/crops declarations were missed. This assertion makes the next one
+   * fail loudly instead.
+   */
+  it("every mounted router appears in the inventory", () => {
+    const { matrix } = regenerate();
+    const inventoried = new Set(matrix.routes.map((r) => r.router));
+
+    const mounted = new Set<string>();
+    const appTs = readFileSync(path.join(apiRoot, "src", "app.ts"), "utf8");
+    for (const m of appTs.matchAll(/v1\.use\(\s*["'`][^"'`]+["'`]\s*,\s*(\w+)\s*\)/g)) mounted.add(m[1]);
+    const modulesDir = path.join(apiRoot, "src", "modules");
+    for (const entry of readdirSync(modulesDir)) {
+      const file = path.join(modulesDir, entry, "routes.ts");
+      if (!existsSync(file)) continue;
+      for (const m of readFileSync(file, "utf8").matchAll(/\.use\(\s*["'`][^"'`]+["'`]\s*,\s*(\w+)\s*\(/g)) mounted.add(m[1]);
+    }
+
+    const routers = [...mounted].filter((n) => /Router$/.test(n));
+    const missing = routers.filter((r) => !inventoried.has(r));
+    expect(
+      missing,
+      `routers are mounted but absent from the inventory — add their route file to ROUTE_FILES (or teach the parser the declaration style): ${missing.join(", ")}`
+    ).toEqual([]);
   });
 });

@@ -38,10 +38,14 @@ const ROUTE_FILES = [
   ["disease", "disease/routes.ts"],
   ["farms", "farms/routes.ts"],
   ["marketplace", "marketplace/routes.ts"],
+  ["notifications", "notifications/routes.ts"],
+  ["ops", "ops/routes.ts"],
+  ["organizations", "organizations/routes.ts"],
   ["payments", "payments/routes.ts"],
   ["payments-webhook", "payments/webhook.ts"],
   ["procurement", "procurement/routes.ts"],
   ["services", "services/routes.ts"],
+  ["weather", "weather/routes.ts"],
 ];
 
 const HTTP = "(get|post|patch|put|delete)";
@@ -112,6 +116,22 @@ for (const [module, file] of ROUTE_FILES) {
     if (!routePath) continue;
     const routerSym = factoryAt(m.index) ?? (/^\s*(\w+)/.exec(text.slice(m.index))?.[1] ?? "unknown");
     found.push({ symbol: routerSym, method, path: routePath, chain: authChainOf(args) });
+  }
+
+  // Pass 2b: fluent chains. A factory may build its router as one expression —
+  // `return Router({ mergeParams: true }).post("/plots", …).get("/plots", …)` —
+  // so those declarations hang off no identifier and pass 2 cannot see them.
+  // The dot of a fluent call is never preceded by an identifier, which is what
+  // separates this pass from the symbol-based one above.
+  for (const f of factorySpans) {
+    const body = text.slice(f.start, f.end);
+    for (const m of body.matchAll(/(?:^|[^\w$.])\.(get|post|patch|put|delete)\(\s*[`'"]/gm)) {
+      const openParen = f.start + m.index + m[0].lastIndexOf("(");
+      const args = sliceCall(text, openParen);
+      const routePath = firstPathArg(args);
+      if (!routePath) continue;
+      found.push({ symbol: f.name, method: m[1].toUpperCase(), path: routePath, chain: authChainOf(args) });
+    }
   }
 
   // Pass 3: sub-router factories mounted from an authed parent inherit its scope
