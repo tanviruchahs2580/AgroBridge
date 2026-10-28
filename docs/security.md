@@ -63,6 +63,17 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   `apps/api/tests/territory-unassigned.test.ts`, and awaiting an owner decision on the default
   (ODL-007) — this run did not change a permission boundary on its own authority. Operators should
   assign a region whenever they assign a territory role.
+- **Two boundaries that are deliberate, and why (reviewed 2026-10-28, unchanged):**
+  - `POST /api/v1/payments/:id/refund` is the one payments route with no ownership filter — it is
+    permission-gated (`payments:refund`, held only by ADMIN/SUPER_ADMIN), takes a `gatewayRef` for
+    live refunds, refuses MEMBERSHIP refunds and writes a compensating wallet debit. It is an
+    operator action on someone else's payment by design; the scoping every sibling has would make
+    operator-initiated refunds impossible. `payments/routes.ts:527-620`.
+  - `POST /api/v1/farms/:id/events` is **owner-only**, while the farm's other mutations admit
+    organisation members (`assertFarmAccess`). So an organisation member can read an org farm's
+    event log but not append to it. That asymmetry is fail-closed (it grants less, never more); it is
+    recorded rather than "fixed" because widening a write path is a permission decision, not a
+    maintenance one. `farms/routes.ts:37-47` vs `:418`.
 - **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
   `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
   immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare
