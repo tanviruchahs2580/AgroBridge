@@ -44,7 +44,6 @@ export default function Onboarding() {
         // the booking dialog, the sell form) — they all read RESOURCE_KEYS.farms.
         invalidate(RESOURCE_KEYS.farms);
       }
-      localStorage.setItem("ab_onboarded", "1");
       nav("/");
     } catch (e) {
       setError(mapError(e, lang));
@@ -67,7 +66,7 @@ export default function Onboarding() {
         {t("obStepOf", lang, { step: step + 1, total })} ·{" "}
         <button
           type="button"
-          onClick={() => { localStorage.setItem("ab_onboarded", "1"); nav("/"); }}
+          onClick={() => nav("/")}
           className="inline-flex min-h-[44px] items-center px-1 font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
         >
           {t("skipForNow", lang)}
