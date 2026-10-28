@@ -35,7 +35,7 @@ paymentsRouter.use(requireAuth);
 // Financial hot paths get stricter limits than the global one.
 // Keyed by authenticated user so one busy user cannot exhaust another's quota.
 // (Defined at module top: used by both paymentsRouter and walletRouter.)
-const financialStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+const financialStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000, "financial") : undefined;
 const financialLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 20,

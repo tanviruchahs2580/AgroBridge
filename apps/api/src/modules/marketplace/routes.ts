@@ -27,7 +27,7 @@ export const ordersRouter = Router();
 // Keyed by authenticated user (falls back to IP pre-auth) so one busy user
 // cannot exhaust another's quota behind a shared NAT/127.0.0.1. Shared helper
 // since F-04 collapsed four copies of this rule into rateLimitKeys.ts.
-const checkoutStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
+const checkoutStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000, "orders-checkout") : undefined;
 const checkoutLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 40,

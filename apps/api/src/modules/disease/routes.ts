@@ -31,7 +31,7 @@ export const DISEASE_UPLOAD_LIMIT_PER_HOUR = 20;
 // Shared window store when Redis is configured — same multi-instance-safe
 // pattern as the auth limiters (a per-instance window could be multiplied by
 // the number of pods).
-const uploadStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+const uploadStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000, "disease-upload") : undefined;
 
 /**
  * Per-user upload limiter (SEC-11): each accepted photo writes a file

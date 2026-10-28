@@ -9,6 +9,7 @@ import { audit } from "../../middleware/audit.js";
 import { isDev, isProd, isTest, env } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
+import type { Store } from "express-rate-limit";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { logger } from "../../lib/logger.js";
@@ -22,10 +23,24 @@ import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./ac
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
 import { getAuth } from "../../shared/auth-context.js";
 
-// Multi-instance-safe limiter stores — separate per window to avoid windowMs drift.
-const loginStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000) : undefined;
-const otpStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
-const registerStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+// Multi-instance-safe limiter stores. One instance per limiter, each with its own
+// Redis key namespace: express-rate-limit refuses a store shared by two limiters
+// (ERR_ERL_STORE_REUSE, raised on the first request through the second one), and
+// the counter key it hands the store comes only from the request — so without a
+// prefix every limiter on the same Redis would write the same key and share one
+// budget. Four of the limiters below used to share `otpStore`, which meant OTP
+// request, OTP verify, password forgot and password reset each returned 500 as
+// soon as REDIS_URL was configured. Locally (no Redis) none of it was visible.
+const redisStoreFor = (prefix: string, windowMs: number) =>
+  env.REDIS_URL ? createRedisStore(env.REDIS_URL, windowMs, prefix) : undefined;
+
+const loginStore = redisStoreFor("auth-login", 15 * 60 * 1000);
+const otpRequestStore = redisStoreFor("auth-otp-request", 60 * 60 * 1000);
+const otpVerifyStore = redisStoreFor("auth-otp-verify", 60 * 60 * 1000);
+const forgotStore = redisStoreFor("auth-pw-forgot", 60 * 60 * 1000);
+const resetStore = redisStoreFor("auth-pw-reset", 60 * 60 * 1000);
+const registerStore = redisStoreFor("auth-register", 60 * 60 * 1000);
+const exportStore = redisStoreFor("auth-me-export", 60 * 60 * 1000);
 
 export const authRouter = Router();
 
@@ -60,7 +75,7 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
   skip: () => isDev || isTest,
-  store: otpStore,
+  store: otpRequestStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many OTP requests. Please try again later." } },
   handler: rateLimitHandler,
 });
@@ -73,20 +88,23 @@ const otpVerifyLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
-  store: otpStore,
+  store: otpVerifyStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many verification attempts. Please try again later." } },
   handler: rateLimitHandler,
 });
 
 // Data-export limiter: an export walks every table for one user, so it is
 // deliberately rarer than login/OTP traffic (per-user key; requireAuth runs
-// before it, like otpVerifyLimiter).
+// before it, like otpVerifyLimiter). It carries a store like every sibling: an
+// in-memory window is per process, so a multi-instance deployment would serve
+// five exports per user per instance instead of the documented five per hour.
 const exportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
+  store: exportStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many data export requests. Please try again later." } },
   handler: rateLimitHandler,
 });
@@ -112,21 +130,21 @@ const registerLimiter = rateLimit({
 // single source nor a single account can pump reset SMS or grind codes. The
 // phone in the key is the RAW body value — normalisation happens after the
 // limiter, and keying on the raw string is what a caller controls.
-function phoneKeyedLimiter(limit: number, message: string) {
+function phoneKeyedLimiter(limit: number, message: string, store: Store | undefined) {
   return rateLimit({
     windowMs: 60 * 60 * 1000,
     limit,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => `${req.ip ?? "unknown"}:${typeof (req.body as { phone?: unknown })?.phone === "string" ? (req.body as { phone: string }).phone : ""}`,
-    store: otpStore,
+    store,
     message: { ok: false, error: { code: "RATE_LIMITED", message } },
     handler: rateLimitHandler,
   });
 }
 
-const forgotLimiter = phoneKeyedLimiter(5, "Too many reset requests. Please try again later.");
-const resetLimiter = phoneKeyedLimiter(10, "Too many reset attempts. Please try again later.");
+const forgotLimiter = phoneKeyedLimiter(5, "Too many reset requests. Please try again later.", forgotStore);
+const resetLimiter = phoneKeyedLimiter(10, "Too many reset attempts. Please try again later.", resetStore);
 
 /**
  * Canonical Bangladeshi phone or 400. The transform normalises Bengali

@@ -108,6 +108,12 @@ const fake = vi.hoisted(() => {
       this.data.set(key, { count, expiresAt: null });
     }
 
+    /** Test helper: every live key this client holds — used to prove two
+     *  limiters' key sets are disjoint. */
+    keys(): string[] {
+      return [...this.data.keys()].filter((k) => this.live(k, Date.now()));
+    }
+
     private maybeFail(): void {
       if (this.failure) throw this.failure;
     }
@@ -156,10 +162,10 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
 
     // Counters live under the rl: namespace; the window attaches once, on the
     // first hit (the Lua script's EXPIRE branch — no longer a separate call).
-    expect(client.peek("rl:ip:1.2.3.4")).toBe(3);
-    expect(client.peek("rl:ip:5.6.7.8")).toBe(1);
-    expect(client.evalCalls.filter((c) => c.key === "rl:ip:1.2.3.4")).toEqual([
-      { key: "rl:ip:1.2.3.4", seconds: 60 },
+    expect(client.peek("rl:default:ip:1.2.3.4")).toBe(3);
+    expect(client.peek("rl:default:ip:5.6.7.8")).toBe(1);
+    expect(client.evalCalls.filter((c) => c.key === "rl:default:ip:1.2.3.4")).toEqual([
+      { key: "rl:default:ip:1.2.3.4", seconds: 60 },
     ]);
 
     const first = await store.increment("ip:9.9.9.9");
@@ -171,14 +177,14 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
     await store.init!({ windowMs: 30_000 } as Options);
 
     await store.increment("k");
-    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:k", seconds: 30 }]);
+    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:default:k", seconds: 30 }]);
   });
 
   it("falls back to a 15-minute window before init() runs", async () => {
     const store = createRedisStore("redis://unused:6379");
 
     await store.increment("k");
-    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:k", seconds: 900 }]);
+    expect(fake.FakeRedis.instances[0]!.evalCalls).toEqual([{ key: "rl:default:k", seconds: 900 }]);
   });
 
   /**
@@ -191,12 +197,12 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
     const client = fake.FakeRedis.instances[0]!;
 
     // Simulate the orphan directly: a counter with no expiry.
-    client.seedOrphan("rl:orphan", 5);
+    client.seedOrphan("rl:default:orphan", 5);
 
     const info = await store.increment("orphan");
     expect(info.totalHits).toBe(6);
     expect(info.resetTime?.getTime()).toBe(Date.now() + 60_000); // TTL re-attached
-    expect(client.evalCalls).toEqual([{ key: "rl:orphan", seconds: 60 }]);
+    expect(client.evalCalls).toEqual([{ key: "rl:default:orphan", seconds: 60 }]);
   });
 
   it("expires the window: past windowMs the counter restarts at 1 with a fresh TTL", async () => {
@@ -224,11 +230,48 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
     await store.increment("k");
     await store.increment("k");
     await store.decrement("k");
-    expect(client.peek("rl:k")).toBe(1);
+    expect(client.peek("rl:default:k")).toBe(1);
 
     await store.resetKey("k");
-    expect(client.peek("rl:k")).toBeUndefined();
+    expect(client.peek("rl:default:k")).toBeUndefined();
     expect((await store.increment("k")).totalHits).toBe(1);
+  });
+
+  /**
+   * Two limiters on the same Redis must not share a counter. express-rate-limit
+   * derives the store key only from the request, so without a namespace per
+   * limiter the tighter budget silently governs the looser one — that is what
+   * made four auth limiters share a single bucket before this was fixed.
+   *
+   * The fake gives each store its own client, so this asserts the property that
+   * actually differs between the two limiters: the Redis key they write. Same
+   * logical key, same server, different namespaces — hence different counters.
+   */
+  it("namespaces counters per limiter, so two limiters never share a bucket", async () => {
+    const otpRequest = createRedisStore("redis://unused:6379", 60_000, "auth-otp-request");
+    const otpVerify = createRedisStore("redis://unused:6379", 60_000, "auth-otp-verify");
+    const requestClient = fake.FakeRedis.instances[0]!;
+    const verifyClient = fake.FakeRedis.instances[1]!;
+
+    // The same logical key, counted by two limiters.
+    expect((await otpRequest.increment("u:42")).totalHits).toBe(1);
+    expect((await otpRequest.increment("u:42")).totalHits).toBe(2);
+    expect((await otpVerify.increment("u:42")).totalHits).toBe(1);
+
+    expect(requestClient.peek("rl:auth-otp-request:u:42")).toBe(2);
+    expect(verifyClient.peek("rl:auth-otp-verify:u:42")).toBe(1);
+
+    // The verify limiter never touches the request limiter's key, and the two
+    // key sets are disjoint — the collision the prefix exists to prevent.
+    expect(verifyClient.peek("rl:auth-otp-request:u:42")).toBeUndefined();
+    const requestKeys = requestClient.keys().filter((k) => k.endsWith(":u:42"));
+    const verifyKeys = verifyClient.keys().filter((k) => k.endsWith(":u:42"));
+    expect(requestKeys.filter((k) => verifyKeys.includes(k))).toEqual([]);
+
+    // Resetting one limiter's window leaves the other's counter intact.
+    await otpRequest.resetKey("u:42");
+    expect(requestClient.peek("rl:auth-otp-request:u:42")).toBeUndefined();
+    expect(verifyClient.peek("rl:auth-otp-verify:u:42")).toBe(1);
   });
 
   it("fails open on Redis errors instead of throwing into the request path", async () => {

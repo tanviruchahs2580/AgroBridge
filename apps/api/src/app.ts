@@ -17,7 +17,7 @@ import { readSchemaState } from "./infrastructure/schemaState.js";
 import { storageReadiness } from "./providers/storage/index.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
-const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL) : undefined;
+const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, undefined, "global") : undefined;
 if (sharedStore) logger.info("rate limiting backed by Redis");
 /**
  * Which store the limiters actually use. Reported by `/ready` because it is a
