@@ -29,7 +29,16 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   Policy: login 20/15 min per **account** (uniform error path, no enumeration), OTP request 5/h per
   user, OTP verify 20/h per user, registration 10/h per **address** (deliberate: it is the
   mass-account-creation control and the key would otherwise be attacker-supplied), checkout
-  40/15 min per user, financial actions 20/h per user, AI 30/h per user, plus a global cap.
+  40/15 min per user, financial actions 20/h per user, AI `AI_HOURLY_LIMIT`/h per user (default 30),
+  plus a global cap.
+  **Each limiter owns its store instance and its Redis key namespace.** Both halves are load-bearing
+  and neither is visible without `REDIS_URL`: express-rate-limit refuses a Store shared by two
+  limiters (ERR_ERL_STORE_REUSE, raised as a 500 on the second limiter's first request), and the
+  counter key it passes comes only from the request — so two limiters on the same Redis without a
+  prefix write the same key and enforce one budget between them. Four auth limiters shared one store
+  until 2026-10-28, which would have 500'd OTP request/verify and password forgot/reset in any
+  Redis-enabled deployment; `apps/api/tests/rate-limit-store-wiring.test.ts` now fails if either
+  invariant is broken again.
   **Known limitation:** windows are shared only when `REDIS_URL` is set. On serverless without
   Redis each instance counts its own window, so the effective quota is *(instances × limit)* —
   the Redis store also fails **open** during an outage. Both are accepted for now (an outage must
@@ -44,6 +53,16 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   Redis is provisioned, the store's window arithmetic is atomic (one Lua round trip for
   INCR+EXPIRE+TTL, with orphan-key healing — `infrastructure/rateLimitRedis.ts`), so a crash
   between operations can no longer leave a TTL-less counter locking an account's bucket forever.
+- **Territory scoping (BR-23):** a territory role (REGIONAL/AREA/PROCUREMENT/COLLECTION_MANAGER)
+  whose `region` column is empty is **unrestricted** today: `GET /api/v1/procurement` returns every
+  region's offers — each row carrying the farmer's name and phone — and the review/payout guards
+  treat a null region as "no limit", so such a manager can act on another region's records. An
+  operator creates that state with one `PATCH /admin/users/:id` (role set, region omitted), so it is
+  a configuration omission rather than an attack. It is deliberately fail-open in
+  `lib/territory.ts`, logged as `territory.unassigned`, pinned by
+  `apps/api/tests/territory-unassigned.test.ts`, and awaiting an owner decision on the default
+  (ODL-007) — this run did not change a permission boundary on its own authority. Operators should
+  assign a region whenever they assign a territory role.
 - **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
   `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
   immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare
