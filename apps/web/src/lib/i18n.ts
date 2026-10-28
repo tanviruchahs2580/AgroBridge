@@ -59,19 +59,14 @@ export const dict = {
   errorGeneric: { bn: "এই মুহূর্তে সেবাটি পাওয়া যাচ্ছে না। কিছুক্ষণ পরে আবার চেষ্টা করুন।", en: "Service unavailable right now. Please try again shortly." },
 
   // ── Auth pages ──
-  loginTitle: { bn: "লগইন করুন", en: "Log in" },
   registerTitle: { bn: "অ্যাকাউন্ট খুলুন", en: "Create your account" },
-  welcomeBack: { bn: "আবার স্বাগতম!", en: "Welcome back!" },
   welcomeName: { bn: "স্বাগতম, {name}!", en: "Welcome, {name}!" },
   phonePlaceholder: { bn: "01XXXXXXXXX", en: "01XXXXXXXXX" },
   passwordPlaceholder: { bn: "আপনার পাসওয়ার্ড", en: "Your password" },
   fullNamePlaceholder: { bn: "যেমনঃ করিম উদ্দিন", en: "e.g. Karim Uddin" },
   confirmPassword: { bn: "পাসওয়ার্ড নিশ্চিত করুন", en: "Confirm password" },
-  confirmPasswordPlaceholder: { bn: "আবার পাসওয়ার্ড লিখুন", en: "Re-enter password" },
   signIn: { bn: "প্রবেশ করুন", en: "Sign in" },
   signUp: { bn: "অ্যাকাউন্ট তৈরি করুন", en: "Create account" },
-  haveAccount: { bn: "অ্যাকাউন্ট আছে? লগইন করুন", en: "Have an account? Log in" },
-  noAccount: { bn: "অ্যাকাউন্ট নেই? রেজিস্ট্রেশন করুন", en: "No account yet? Register" },
   // Auth footers render the sentence split around a <Link>, so the lead-in and
   // the link text are separate keys (the combined noAccount/haveAccount keys
   // above stay for callers that render the whole sentence as one string).
@@ -91,7 +86,6 @@ export const dict = {
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
   // ── Consent capture (registration, PRD-05/AUD-150) ──
-  consentLabel: { bn: "আমি ব্যবহারের শর্তাবলি ও গোপনীয়তা নীতিতে সম্মত আছি", en: "I agree to the Terms of Service and Privacy Policy" },
   consentLead: { bn: "আমি সম্মত আছি", en: "I agree to the" },
   consentJoin: { bn: "এবং", en: "and" },
   errConsentRequired: { bn: "চালিয়ে যেতে ব্যবহারের শর্তাবলি ও গোপনীয়তা নীতিতে সম্মতি দিন।", en: "Please accept the Terms of Service and Privacy Policy to continue." },
@@ -114,7 +108,6 @@ export const dict = {
   aiFarmAttention: { bn: "মাঠে মনোযোগ দরকার", en: "Your field needs attention" },
   aiFarmAttentionSub: { bn: "আবহাওয়ার ঝুঁকি শনাক্ত হয়েছে — আগাম ব্যবস্থা নিন।", en: "Weather risks detected — take precautionary action." },
   aiFarmHealthySub: { bn: "আপনার জমি, ফসল ও আবহাওয়া অনুকূল পর্যায়ে আছে।", en: "Your land, crops and weather are in favorable condition." },
-  farmCareTitle: { bn: "খেতের পরামর্শ", en: "Farm care" },
   noActiveCrops: { bn: "কোনো সক্রিয় ফসল নেই", en: "No active crops" },
   addFirstCropHint: { bn: "প্রথম ফসল যোগ করুন — পর্যায় অনুযায়ী পরামর্শ এখানে দেখা যাবে।", en: "Add your first crop — stage-based care suggestions will appear here." },
   askNow: { bn: "প্রশ্ন করুন", en: "Ask now" },
@@ -124,7 +117,6 @@ export const dict = {
   totalLand: { bn: "মোট জমি (বিঘা)", en: "Total land (bigha)" },
   themeToggleAria: { bn: "ডার্ক / লাইট মোড বদলান", en: "Toggle dark mode" },
   langToggleAria: { bn: "ভাষা বদলান", en: "Switch language" },
-  activeLabel: { bn: "সক্রিয়", en: "Active" },
   errInvalidCredentials: { bn: "মোবাইল নম্বর বা পাসওয়ার্ড সঠিক নয়।", en: "Wrong mobile number or password." },
   errPhoneTaken: { bn: "এই নম্বরে একটি অ্যাকাউন্ট আছে — লগইন করুন।", en: "An account with this number already exists — log in." },
   errWeakPassword: { bn: "পাসওয়ার্ড দুর্বল — কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", en: "Weak password — use at least 8 strong characters." },
@@ -146,18 +138,13 @@ export const dict = {
   previous: { bn: "আগের", en: "Previous" },
   confirmAction: { bn: "নিশ্চিত করুন", en: "Confirm" },
   done: { bn: "সম্পন্ন", en: "Done" },
-  yes: { bn: "হ্যাঁ", en: "Yes" },
   no: { bn: "না", en: "No" },
   refresh: { bn: "রিফ্রেশ", en: "Refresh" },
   search: { bn: "খুঁজুন", en: "Search" },
-  optionalField: { bn: "ঐচ্ছিক", en: "Optional" },
   viewAll: { bn: "সব দেখুন", en: "View all" },
 
   // ── Toasts / system messages ──
   saved: { bn: "সংরক্ষিত হয়েছে ✓", en: "Saved ✓" },
-  toastError: { bn: "সমস্যা হয়েছে — আবার চেষ্টা করুন।", en: "Something went wrong — please try again." },
-  networkOffline: { bn: "আপনি অফলাইনে আছেন", en: "You are offline" },
-  networkBackOnline: { bn: "ইন্টারনেট ফিরে এসেছে ✓", en: "Back online ✓" },
   sessionExpired: { bn: "সেশনের মেয়াদ শেষ — আবার লগইন করুন।", en: "Session expired — please log in again." },
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
   // Honest about what the queue actually covers (ADR-0009): only cart writes
@@ -187,8 +174,6 @@ export const dict = {
   statusPENDING: { bn: "অপেক্ষমাণ", en: "Pending" },
   statusAPPROVED: { bn: "অনুমোদিত", en: "Approved" },
   statusREJECTED: { bn: "প্রত্যাখ্যাত", en: "Rejected" },
-  statusQC_HOLD: { bn: "গুণগত যাচাইয়ে আটকে আছে", en: "On QC hold" },
-  statusSETTLED: { bn: "নিষ্পত্তি হয়েছে", en: "Settled" },
   statusPAID: { bn: "পরিশোধিত", en: "Paid" },
   statusCANCELLED: { bn: "বাতিল", en: "Cancelled" },
   statusCONFIRMED: { bn: "নিশ্চিত হয়েছে", en: "Confirmed" },
@@ -204,7 +189,6 @@ export const dict = {
   walletSALE_PROCEEDS: { bn: "বিক্রয়ের অর্থ", en: "Sale proceeds" },
   walletMEMBERSHIP_FEE: { bn: "মেম্বারশিপ ফি", en: "Membership fee" },
   walletREFUND: { bn: "ফেরত", en: "Refund" },
-  walletADJUSTMENT: { bn: "সমন্বয়", en: "Adjustment" },
 
   // ── User roles ──
   // One label per role in contracts/roles.json. Nine of these roles are issued by
@@ -231,22 +215,8 @@ export const dict = {
   notifCategoryINFO: { bn: "তথ্য", en: "Info" },
 
   // ── Weather advisory types → action lines ──
-  weatherSPRAY_RAIN: { bn: "বৃষ্টির কারণে স্প্রে পিছিয়ে দিন", en: "Postpone spraying due to rain" },
-  weatherIRRIGATION_RAIN: { bn: "আসন্ন বৃষ্টির কারণে সেচ বন্ধ রাখুন", en: "Hold off irrigation — rain is coming" },
-  weatherHAIL: { bn: "শিলাবৃষ্টির সতর্কতা — ফসল ঢেকে রাখুন ও জরুরি সংবাদ রাখুন", en: "Hail alert — cover crops and stay tuned for updates" },
-  weatherDRAINAGE: { bn: "জমা পানি সরান — জমির আড়া পরিষ্কার রাখুন", en: "Drain standing water — clear field channels" },
-  weatherHEAT_STRESS: { bn: "তীব্র গরম — সকাল-বিকেলে হালকা সেচ দিন", en: "Heat stress — apply light irrigation in morning/late afternoon" },
-  weatherSTRONG_WIND: { bn: "দমকা হাওয়া — ঝুঁকিপূর্ণ ফসলে বেষ্টনী দিন", en: "Strong wind — stake or shelter vulnerable crops" },
-  weatherFOG: { bn: "কুয়াশা — ছত্রাকনাশক স্প্রেয়ের উপযুক্ত সময় নয়", en: "Foggy conditions — avoid fungicide spraying now" },
-  weatherDROUGHT: { bn: "খরার ঝুঁকি — মালচিং করুন ও পানি সংরক্ষণ করুন", en: "Drought risk — mulch and conserve soil moisture" },
-  weatherCOLD_WAVE: { bn: "শৈত্যপ্রবাহ — বীজতলা পলি দিয়ে ঢেকে রাখুন", en: "Cold wave — cover seedbeds with polythene" },
-  weatherGENERAL: { bn: "আবহাওয়া অনুযায়ী ফার্ম পরিদর্শন করুন", en: "Inspect your farm as conditions change" },
 
   // ── Structured advisor sections ──
-  advisorCause: { bn: "কারণ", en: "Cause" },
-  advisorWhy: { bn: "কেন", en: "Why" },
-  advisorDoNow: { bn: "এখন যা করবেন", en: "What to do now" },
-  advisorCaution: { bn: "সতর্কতা", en: "Caution" },
   advisorSource: { bn: "তথ্যসূত্র", en: "Source" },
 
   // ── Checkout wizard steps ──
@@ -258,11 +228,6 @@ export const dict = {
   checkoutOrderPlaced: { bn: "অর্ডার সফলভাবে জমা হয়েছে ✓", en: "Order placed successfully ✓" },
 
   // ── Sell-crop pipeline (stepper) ──
-  sellStepOffer: { bn: "অফার জমা", en: "Offer submitted" },
-  sellStepQc: { bn: "গুণগত যাচাই", en: "Quality check" },
-  sellStepPrice: { bn: "দর নির্ধারণ", en: "Pricing" },
-  sellStepPayment: { bn: "পেমেন্ট", en: "Payment" },
-  sellStepSettled: { bn: "নিষ্পত্তি", en: "Settled" },
 
   // ── Withdrawal ──
   withdrawTitle: { bn: "টাকা তুলুন", en: "Withdraw money" },
@@ -272,7 +237,6 @@ export const dict = {
   withdrawMethodNAGAD: { bn: "নগদ", en: "Nagad" },
   withdrawMethodBANK: { bn: "ব্যাংক অ্যাকাউন্ট", en: "Bank account" },
   withdrawMinNote: { bn: "সর্বনিম্ন উত্তোলন ৳১০০", en: "Minimum withdrawal ৳100" },
-  withdrawFeeLabel: { bn: "উত্তোলন চার্জ", en: "Withdrawal fee" },
   withdrawAvailable: { bn: "উত্তোলনযোগ্য ব্যালেন্স", en: "Available balance" },
   withdrawRequestBtn: { bn: "উত্তোলনের অনুরোধ", en: "Request withdrawal" },
   withdrawRequestedToast: { bn: "উত্তোলনের অনুরোধ জমা হয়েছে — ১-৩ কার্যদিবসে প্রক্রিয়া হবে।", en: "Withdrawal request submitted — processed within 1–3 business days." },
@@ -284,21 +248,10 @@ export const dict = {
   prefCategoryCritical: { bn: "অত্যন্ত গুরুত্বপূর্ণ সতর্কতা", en: "Critical alerts" },
   prefCategoryAction: { bn: "পদক্ষেপ প্রয়োজন এমন বার্তা", en: "Action-needed messages" },
   prefCategoryInfo: { bn: "সাধারণ তথ্য", en: "General info" },
-  prefChannelPush: { bn: "অ্যাপ নোটিফিকেশন", en: "App push" },
-  prefChannelSms: { bn: "এসএমএস", en: "SMS" },
-  prefChannelEmail: { bn: "ইমেইল", en: "Email" },
   prefsSavedToast: { bn: "নোটিফিকেশন সেটিংস সংরক্ষিত ✓", en: "Notification preferences saved ✓" },
 
   // ── Admin regions ──
-  adminRegionsTitle: { bn: "অঞ্চল ব্যবস্থাপনা", en: "Region management" },
-  adminAddRegion: { bn: "নতুন অঞ্চল যোগ করুন", en: "Add region" },
-  adminEditRegion: { bn: "অঞ্চল সম্পাদনা", en: "Edit region" },
-  adminRegionNameBn: { bn: "অঞ্চলের নাম (বাংলা)", en: "Region name (Bengali)" },
-  adminRegionNameEn: { bn: "অঞ্চলের নাম (ইংরেজি)", en: "Region name (English)" },
-  adminDistrictsLabel: { bn: "জেলাসমূহ (কমা দিয়ে আলাদা করুন)", en: "Districts (comma-separated)" },
   regionSavedToast: { bn: "অঞ্চল সংরক্ষিত হয়েছে ✓", en: "Region saved ✓" },
-  regionDeletedToast: { bn: "অঞ্চল মুছে ফেলা হয়েছে", en: "Region deleted" },
-  deleteRegionConfirmBody: { bn: "এই অঞ্চলটি মুছে ফেললে এর সাথে যুক্ত কভারেজও সরে যাবে।", en: "Deleting this region also removes its coverage mapping." },
 
   // ── Misc pages ──
   onboarding: { bn: "প্রোফাইল সেটআপ", en: "Profile setup" },
@@ -347,8 +300,6 @@ export const dict = {
   // Bengali font faces. The greeting itself is warm enough.
   greeting: { bn: "আসসালামু আলাইকুম, {name}", en: "Hello, {name}" },
   todayTasks: { bn: "আজকের কাজ", en: "Today's tasks" },
-  taskWaterCheck: { bn: "জমিতে পানি পরীক্ষা করুন", en: "Check field water level" },
-  taskPestScout: { bn: "পোকা/রোগ পর্যবেক্ষণ", en: "Scout for pests/disease" },
   weatherFavorable: { bn: "আবহাওয়া অনুকূল", en: "Weather favorable" },
   // A failed weather read is its own state, not an empty one: the dashboard used
   // to print a bare "—", which is indistinguishable from "no reading available".
@@ -381,8 +332,6 @@ export const dict = {
   notifUnread: { bn: "না পড়া", en: "Unread" },
   regularFarmVisit: { bn: "নিয়মিত ফার্ম পরিদর্শন করুন", en: "Regular farm visit" },
   viewDetails: { bn: "বিস্তারিত দেখুন", en: "View details" },
-  viewTransactions: { bn: "লেনদেন দেখুন", en: "View transactions" },
-  growthStage: { bn: "বৃদ্ধি পর্যায়ে", en: "Growth stage" },
   quickAiSub: { bn: "প্রশ্ন করুন, সমাধান পান", en: "Ask, get solutions" },
   quickServiceSub: { bn: "ড্রোন, ট্র্যাক্টর, হারভেস্টার", en: "Drone, Tractor, Harvester" },
   quickSellSub: { bn: "আপনার ফসল বিক্রি করুন", en: "Sell your crops" },
@@ -404,22 +353,11 @@ export const dict = {
   deleteOrder: { bn: "অর্ডার মুছুন", en: "Delete order" },
   deleteOrderConfirm: { bn: "এই অর্ডারটি আপনার তালিকা থেকে মুছে ফেলা হবে।", en: "This order will be removed from your list." },
   orderDeletedToast: { bn: "অর্ডার মুছে ফেলা হয়েছে", en: "Order deleted" },
-  alertRain: { bn: "আগামীকাল ভারী বৃষ্টির সম্ভাবনা — কীটনাশক আজ এড়িয়ে চলুন", en: "Heavy rain tomorrow — avoid pesticide today" },
-  alertPest: { bn: "পোকা ঝুঁকি বাড়ছে — প্রতিরোধমূলক ব্যবস্থা নিন", en: "Pest risk rising — take preventive action" },
-  setupBanner: { bn: "শুরু করতে ১ মিনিটের সেটআপ করুন", en: "Get set up in 1 minute" },
   getStarted: { bn: "শুরু করুন", en: "Get started" },
   activeCropsTitle: { bn: "চলমান ফসল", en: "Active crops" },
-  noCropsYet: { bn: "কোনো ফসল নেই।", en: "No crops yet." },
-  availableBalance: { bn: "উপলব্ধ ব্যালেন্স", en: "Available balance" },
   humidityLabel: { bn: "আর্দ্রতা", en: "Humidity" },
   windLabel: { bn: "বাতাস", en: "Wind" },
   quickActions: { bn: "দ্রুত সেবা", en: "Quick services" },
-  farmOverview: { bn: "ফার্ম সারসংক্ষেপ", en: "Farm overview" },
-  kpiActiveCrops: { bn: "চলমান ফসল", en: "Active crops" },
-  kpiUnreadNotif: { bn: "অপঠিত বার্তা", en: "Unread alerts" },
-  kpiFarms: { bn: "ফার্ম", en: "Farms" },
-  weatherSpotlight: { bn: "আজকের আবহাওয়া ও সতর্কতা", en: "Today's weather & advisories" },
-  noAdvisory: { bn: "কোনো গুরুত্বপূর্ণ সতর্কতা নেই।", en: "No active advisories." },
   stageSEED: { bn: "বীজ", en: "Seed" },
   stageGERMINATION: { bn: "অঙ্কুরোদগম", en: "Germination" },
   stageVEGETATIVE: { bn: "বৃদ্ধি", en: "Vegetative" },
@@ -464,7 +402,6 @@ export const dict = {
   orderDeliveryFee: { bn: "ডেলিভারি চার্জ", en: "Delivery fee" },
   freeLabel: { bn: "ফ্রি", en: "Free" },
   cartItemsCount: { bn: "কার্ট ({n})", en: "Cart ({n})" },
-  qtyShort: { bn: "পরিমাণ", en: "Qty" },
   checkoutOrderNo: { bn: "অর্ডার নং: {no}", en: "Order no.: {no}" },
   deliveryAddressLabel: { bn: "ডেলিভারি ঠিকানা", en: "Delivery address" },
   addressLabel: { bn: "ঠিকানা", en: "Address" },
@@ -505,7 +442,6 @@ export const dict = {
   advisoryDisclaimer: { bn: "এআই উত্তর পরামর্শমূলক — ওষুধ/সার প্রয়োগের আগে কৃষি কর্মকর্তার সাথে যাচাই করুন।", en: "AI answers are advisory — verify treatments with an agronomist before applying." },
   imageTooLarge: { bn: "ছবি ৮MB-এর কম হতে হবে।", en: "Image must be under 8MB." },
   exampleQuestion: { bn: "যেমনঃ “ধানের পাতায় blast রোগ দেখছে, কী করব?”", en: 'Try: "Rice leaves show blast lesions, what should I do?"' },
-  groundedAnswer: { bn: "গ্রাউন্ডেড উত্তর", en: "Grounded answer" },
   supportHigh: { bn: "উৎস মিল: ভালো", en: "Source match: good" },
   supportModerate: { bn: "উৎস মিল: মাঝারি", en: "Source match: moderate" },
   myCases: { bn: "আমার রোগের ছবি", en: "My disease photos" },
@@ -624,7 +560,6 @@ export const dict = {
   myFarmListTitle: { bn: "আমার খামার তালিকা", en: "My farms" },
   myFarmStatusActive: { bn: "সচল", en: "Active" },
   myFarmNeedsAttention: { bn: "নজর দিন", en: "Needs attention" },
-  myFarmDetails: { bn: "বিস্তারিত", en: "Details" },
   myFarmViewPlots: { bn: "প্লট দেখুন", en: "View plots" },
 
   // ── Farm-care suggestion tasks (lib/labels.ts) ──
@@ -674,8 +609,6 @@ export const dict = {
   roleSERVICE_PROVIDER: { bn: "সেবা প্রদানকারী", en: "Service Provider" },
 
   // ── Auth extras ──
-  demoCredentialsTitle: { bn: "ডেমো অ্যাকাউন্ট", en: "Demo accounts" },
-  demoCredentialsBody: { bn: "কৃষক: 01700000002 · অ্যাডমিন: 01700000001 · পাসওয়ার্ড: Demo@1234", en: "Farmer: 01700000002 · Admin: 01700000001 · Password: Demo@1234" },
   passwordHint: { bn: "(কমপক্ষে ৮ অক্ষর)", en: "(min. 8 characters)" },
   langSelectLabel: { bn: "ভাষা", en: "Language" },
 
@@ -694,7 +627,6 @@ export const dict = {
   splashStatusAi: { bn: "আপনার তথ্য প্রস্তুত হচ্ছে...", en: "Preparing your data..." },
   splashStatusReady: { bn: "আপনার ফার্ম প্রস্তুত", en: "Your farm is ready" },
   splashTagline: { bn: "কৃষি তথ্য ও পরামর্শ", en: "Farm information and advice" },
-  splashLoadingLabel: { bn: "এগ্রোব্রিজ লোড হচ্ছে", en: "AgroBridge loading" },
   // The splash's screen-reader progress announcement. `{status}` is already
   // localized by statusFor(); the sentence around it used to be a hardcoded
   // English literal inside an aria-live region, so Bengali users heard English.
