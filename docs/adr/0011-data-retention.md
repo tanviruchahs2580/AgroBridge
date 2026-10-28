@@ -32,8 +32,11 @@ ADR records the decision next to the implementation).
    anonymizes the user row — `fullName: "Deleted User"`, `email: null`, `phone: DEL-<userId>`,
    random password hash, `status: DISABLED`, notification preferences cleared. Support cannot
    "un-delete"; re-registration with the same phone number creates a fresh id.
-4. **Backups are not rewritten.** Deletion does not propagate into existing dumps; they expire on
-   their own 30-day schedule, and the privacy policy discloses "up to 30 days in backups".
+4. **Backups are not rewritten.** Deletion does not propagate into existing dumps. On the compose
+   deployment those dumps expire on their own 30-day schedule; on the live deployment (managed
+   PostgreSQL) the snapshot window belongs to the provider. The privacy policy states the second
+   case, and promises no fixed day-count ("as long as our database provider retains its snapshots
+   (platform-managed); we do not operate our own backup jobs").
 5. **Known gaps are named, not implied.** As of this ADR the implementation does **not** purge
    uploaded disease photos from `uploads/`/object storage, does not clear profile
    address/location fields, does not withdraw marketplace listings, and offers no data-export

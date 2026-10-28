@@ -82,19 +82,21 @@ scans history for committed secrets, Trivy fails the image build on HIGH/CRITICA
 `.trivyignore`, each cross-referenced to `SECURITY_WAIVERS.md` with an expiry), and CodeQL runs on
 every push and PR. Action pins are full SHAs with the version in a trailing comment.
 
-## Status notes (2026-10-19): DAST, attestation, headers
+## Status notes (re-verified against the tree 2026-10-28): DAST, attestation, headers
 
 Code facts only — status statements, not claims of coverage:
 
-- **DAST:** no dynamic application security testing runs in CI. `.github/workflows/` has CodeQL
-  (SAST, `codeql.yml`), Trivy image and config scanning plus CycloneDX SBOM generation
-  (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline test suites, and the
-  deploy gate's live-header assertions — but no ZAP/Nuclei/equivalent DAST job or config exists in
-  the repository.
-- **Build attestation:** no provenance attestation is produced (no `attest-build-provenance`/SLSA
-  step in any workflow). Release integrity rests on SHA-pinned actions, the SBOM artifact, the
-  apksigner/jarsigner signature checks (`android-release.yml:115-144`), and the deploy gate that
-  compares the running commit and applied schema with the repository (ADR-0007).
+- **DAST:** `.github/workflows/dast.yml` ("Security — DAST baseline (ZAP)") runs a live ZAP
+  baseline scan against a locally composed `db + api` stack on pull requests to `main` and on
+  manual dispatch, alongside CodeQL (SAST, `codeql.yml`), Trivy image and config scanning plus
+  CycloneDX SBOM generation (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline
+  test suites, and the deploy gate's live-header assertions. A baseline scan is a smoke-level pass
+  over the classes it covers — not a penetration test, and not a coverage claim.
+- **Build attestation:** `ci.yml`'s `docker-build` job calls `actions/attest-build-provenance` for
+  the built API image, so provenance attestation IS produced for that artefact. Release integrity
+  otherwise rests on SHA-pinned actions, the SBOM artifact, the apksigner/jarsigner signature checks
+  (`android-release.yml:115-144`), and the deploy gate that compares the running commit and applied
+  schema with the repository (ADR-0007).
 - **Headers:** the API helmet policy and the static-site edge policy are described above; the live
   assertions run in `deploy-verify.yml`, and the web build fails if the two Vercel configs'
   policies diverge or if the CSP hash drifts from the built HTML

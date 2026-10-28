@@ -3,10 +3,14 @@
 One page, current as of **2026-10-24 (+06:00)**. What is actually live, what is pilot-grade
 simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
 roadmap and no marketing: if a line here disagrees with the running system, the system is right and
-this page is a bug. Production is `main`; the AUD-V3 deep-audit remediation described in its own
-section below lives on branch `audit/v3-remediation` and is **not deployed** until it is merged and
-released. (The previous remediation wave, `audit/v2-remediation` / PR #40, is deployed — its
-content now lives in the "Live in production" rows.)
+this page is a bug. Production is `main`.
+
+> **Repository fact corrected 2026-10-28.** The AUD-V3 deep-audit remediation is no longer
+> undeployed work on a side branch: it was merged into `main` as PR #70 (`5583d7b`), and `main` has
+> since moved on through #75, #76 and #78 (HEAD `6f1efac` at the time of writing). The rows below
+> that describe *production* are the live probes taken on 2026-10-24 and were **not re-probed** in
+> that pass — treat their "deployed at `1d96534`" stamps as that date's observation, not as today's
+> state. Re-run the probes in `docs/runbooks/live-deployment.md` before quoting them.
 
 ## Live in production
 
