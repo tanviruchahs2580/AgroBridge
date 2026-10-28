@@ -9,7 +9,7 @@ import { ok } from "../../middleware/context.js";
 import { refNo, calcProcurement } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
-import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
+import { actorRegionLimit, assertSubjectInRegion, isTerritoryScopedRole } from "../../lib/territory.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const procurementRouter = Router();
@@ -87,16 +87,18 @@ procurementRouter.post(
 
 procurementRouter.get("/", async (req, res, next) => {
   try {
-    // Queue visibility: admins see all; procurement/area/collection managers
-    // see their territory (user.region) or everything while unassigned;
-    // farmers see only their own offers.
+    // Queue visibility: admins see all; a territory-scoped manager sees its own
+    // region (and, until a region is assigned, everything — a configuration
+    // omission that actorRegionLimit logs and ODL-007 owns); farmers see only
+    // their own offers. The predicate lives in lib/territory so this list and the
+    // mutation guards cannot drift apart about who counts as scoped.
     const role = getAuth(req).role;
     let where: Record<string, unknown>;
     if (["ADMIN", "SUPER_ADMIN"].includes(role)) {
       where = {};
-    } else if (["PROCUREMENT_MANAGER", "AREA_MANAGER", "COLLECTION_MANAGER", "REGIONAL_MANAGER"].includes(role)) {
-      const me = await prisma.user.findUnique({ where: { id: getAuth(req).userId }, select: { region: true } });
-      where = me?.region ? { user: { region: me.region } } : {};
+    } else if (isTerritoryScopedRole(role)) {
+      const region = await actorRegionLimit(getAuth(req).userId, role);
+      where = region ? { user: { region } } : {};
     } else {
       where = { userId: getAuth(req).userId };
     }
