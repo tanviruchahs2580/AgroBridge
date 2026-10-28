@@ -1,0 +1,21 @@
+{
+  "_comment": "The role vocabulary this product must agree on. The server is authoritative: apps/api/src/middleware/rbac.ts PERMISSIONS decides what a role may do, and apps/api/src/modules/admin/routes.ts VALID_ROLES decides which values can be assigned. Both are asserted against this list by apps/api/tests/role-contract.test.ts; the web app asserts that every role here has a user-facing label (apps/web/src/lib/labels.roles.test.ts). A role added on one side without the other fails a test instead of rendering as a raw enum string.",
+  "roles": [
+    "SUPER_ADMIN",
+    "ADMIN",
+    "REGIONAL_MANAGER",
+    "AREA_MANAGER",
+    "PROCUREMENT_MANAGER",
+    "WAREHOUSE_MANAGER",
+    "COLLECTION_MANAGER",
+    "FIELD_AGENT",
+    "SERVICE_PROVIDER",
+    "DEALER",
+    "CORPORATE",
+    "COOPERATIVE",
+    "FARMER"
+  ],
+  "legacy_labels": {
+    "QC_OFFICER": "Labelled in the UI but not issuable by the server today (no PERMISSIONS entry, absent from VALID_ROLES). Kept as a label so a historical row that carries it still renders as words rather than as QCOFFICER; the tests assert labels for the roles above, and tolerate this one."
+  }
+}

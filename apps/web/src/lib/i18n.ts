@@ -207,10 +207,23 @@ export const dict = {
   walletADJUSTMENT: { bn: "সমন্বয়", en: "Adjustment" },
 
   // ── User roles ──
+  // One label per role in contracts/roles.json. Nine of these roles are issued by
+  // the server but had no label, so an operator table or an audit row showing one
+  // rendered the raw enum ("REGIONAL_MANAGER"). The vocabulary guard test keeps
+  // this list in step with the contract.
   roleFARMER: { bn: "কৃষক", en: "Farmer" },
   roleQC_OFFICER: { bn: "গুণগত পরিদর্শক", en: "QC Officer" },
   roleADMIN: { bn: "অ্যাডমিন", en: "Admin" },
   roleSUPER_ADMIN: { bn: "সুপার অ্যাডমিন", en: "Super Admin" },
+  roleREGIONAL_MANAGER: { bn: "আঞ্চলিক ব্যবস্থাপক", en: "Regional Manager" },
+  roleAREA_MANAGER: { bn: "এলাকা ব্যবস্থাপক", en: "Area Manager" },
+  rolePROCUREMENT_MANAGER: { bn: "ক্রয় ব্যবস্থাপক", en: "Procurement Manager" },
+  roleWAREHOUSE_MANAGER: { bn: "গুদাম ব্যবস্থাপক", en: "Warehouse Manager" },
+  roleCOLLECTION_MANAGER: { bn: "সংগ্রহ ব্যবস্থাপক", en: "Collection Manager" },
+  roleFIELD_AGENT: { bn: "মাঠকর্মী", en: "Field Agent" },
+  roleDEALER: { bn: "ডিলার", en: "Dealer" },
+  roleCORPORATE: { bn: "কর্পোরেট", en: "Corporate" },
+  roleCOOPERATIVE: { bn: "সমবায়", en: "Cooperative" },
 
   // ── Notification categories ──
   notifCategoryCRITICAL: { bn: "অত্যন্ত গুরুত্বপূর্ণ", en: "Critical" },
@@ -704,7 +717,11 @@ export const dict = {
   svcBookingEmptyHint: { bn: "উপরে যেকোনো সেবা থেকে বুক করুন — ফিল্ডে কাজ দ্রুত শুরু হবে।", en: "Book any service above — field work starts fast." },
 
   // ── Services page (hero / mini-cards / how-it-works / trust / CTA) ──
-  svcBadgeVerified: { bn: "মাঠের সেবা • যাচাইকৃত", en: "Field services • Verified" },
+  // "Platform-listed", not "Verified": the platform onboards service providers
+  // (providers:manage is an operator permission) and lists only active rows, but
+  // ServiceProvider carries no verification field, so "Verified" was a trust signal
+  // the product could not evidence. The body below says what is actually true.
+  svcBadgeVerified: { bn: "মাঠের সেবা • প্ল্যাটফর্মে তালিকাভুক্ত", en: "Field services • Platform-listed" },
   svcHeroTitle: { bn: "আপনার জমির জন্য সঠিক সেবা, এক ক্লিকে", en: "The right service for your field, in one tap" },
   svcHeroSub: { bn: "যন্ত্রপাতি, স্মার্ট ফার্মিং ও মাটি পরীক্ষা — স্বচ্ছ মূল্য, স্থানীয় প্রদানকারী, দ্রুত বুকিং।", en: "Machinery, smart farming and soil testing — transparent pricing, local providers, fast booking." },
   svcFindService: { bn: "সেবা খুঁজুন", en: "Find a service" },
@@ -722,7 +739,7 @@ export const dict = {
   svcHowStep3Title: { bn: "৩. নিশ্চিত করুন", en: "3. Confirm" },
   svcHowStep3Body: { bn: "বুক করুন — প্রদানকারী নির্ধারিত হবে।", en: "Book — a provider will be assigned." },
   svcWhyTitle: { bn: "কেন এগ্রোব্রিজ", en: "Why AgroBridge" },
-  svcTrustVerifiedTitle: { bn: "যাচাইকৃত সেবা", en: "Verified services" },
+  svcTrustVerifiedTitle: { bn: "তালিকাভুক্ত সেবা ও প্রদানকারী", en: "Listed services and providers" },
   svcTrustVerifiedBody: { bn: "সক্রিয় সেবা ও প্রদানকারী তালিকা।", en: "Active services and providers." },
   svcTrustPriceTitle: { bn: "স্বচ্ছ মূল্য", en: "Transparent pricing" },
   svcTrustPriceBody: { bn: "প্রতি বিঘা/ঘণ্টা/দিন হিসাব।", en: "Per bigha/hour/day." },
