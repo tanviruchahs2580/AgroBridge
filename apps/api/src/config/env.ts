@@ -221,6 +221,20 @@ export function hostedAiCostProblem(cfg: { AI_PROVIDER?: string; AI_COST_PER_1K_
   return "AI_COST_PER_1K_TOKENS_PAISA must be > 0 with AI_PROVIDER=openai-compatible in production — the monthly spend breaker cannot trip otherwise (set the provider's real per-1K-token price in paisa)";
 }
 
+/**
+ * The SSLCommerz adapter treats every value except the literal "false" as the
+ * sandbox host, so a production deployment that configures live-looking
+ * credentials but omits `SSLCOMMERZ_SANDBOX=false` would run against
+ * sandbox.sslcommerz.com — where payments succeed without real money — while
+ * the API reports a live provider and the UI shows no sandbox notice
+ * (AUD-103: a false-paid state). Extracted for unit testing, like
+ * placeholderManifest and hostedAiCostProblem.
+ */
+export function paymentSandboxProblem(cfg: { SSLCOMMERZ_SANDBOX?: string }): string | null {
+  if (cfg.SSLCOMMERZ_SANDBOX === "false") return null;
+  return 'SSLCOMMERZ_SANDBOX must be the literal "false" with PAYMENT_PROVIDER=sslcommerz in production — any other value routes payments to the SSLCommerz sandbox, where orders are confirmed PAID without real money moving';
+}
+
 // Warn loudly if running with development defaults outside development.
 if (parsed.data.NODE_ENV === "production") {
   const weak =
@@ -271,6 +285,8 @@ if (parsed.data.NODE_ENV === "production") {
     if (!parsed.data.SSLCOMMERZ_STORE_ID || !parsed.data.SSLCOMMERZ_STORE_PASSWORD) {
       throw new Error("SSLCOMMERZ_STORE_ID/PASSWORD missing for PAYMENT_PROVIDER=sslcommerz in production — startup aborted");
     }
+    const sandboxProblem = paymentSandboxProblem(parsed.data);
+    if (sandboxProblem) throw new Error(`${sandboxProblem} — startup aborted`);
   }
   if (parsed.data.SMS_PROVIDER === "http" && (!parsed.data.SMS_API_URL || !parsed.data.SMS_API_KEY)) {
     throw new Error("SMS_API_URL/SMS_API_KEY missing for SMS_PROVIDER=http in production — startup aborted");

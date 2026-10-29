@@ -26,12 +26,35 @@ function requireCredential(value: string | undefined, name: string): string {
  *
  * Until credentials are present the provider is not instantiated (sandbox remains).
  */
+/**
+ * The sandbox/live decision for SSLCommerz, as one pure function so the
+ * adapter's reported `mode` and its host selection can never disagree — and so
+ * the mapping is testable without credentials. Only the literal "false"
+ * selects the live host; anything else (unset, "", "FALSE") is the sandbox.
+ */
+export function sslcommerzMode(sandboxFlag: string | undefined): "sandbox" | "live" {
+  return sandboxFlag === "false" ? "live" : "sandbox";
+}
+
 export class SSLCommerzProvider implements PaymentProvider {
   readonly name = "sslcommerz";
-  readonly mode = "live" as const;
   private storeId = requireCredential(env.SSLCOMMERZ_STORE_ID, "SSLCOMMERZ_STORE_ID");
   private storePass = requireCredential(env.SSLCOMMERZ_STORE_PASSWORD, "SSLCOMMERZ_STORE_PASSWORD");
-  private isSandbox = env.SSLCOMMERZ_SANDBOX !== "false";
+  private isSandbox = sslcommerzMode(env.SSLCOMMERZ_SANDBOX) === "sandbox";
+
+  /**
+   * Which SSLCommerz host this instance actually talks to — reported honestly,
+   * because `mode` decides whether a payment is labelled a sandbox payment and
+   * whether `/ready` says real money can move. A hard-coded "live" here let a
+   * deployment holding sandbox credentials confirm orders as PAID with no money
+   * collected, while telling the buyer nothing (AUD-103). Production
+   * additionally refuses to boot with `SSLCOMMERZ_SANDBOX` unset
+   * (config/env.ts), so "sandbox" in production now means the operator opted
+   * into a sandbox deployment on purpose.
+   */
+  get mode(): "sandbox" | "live" {
+    return this.isSandbox ? "sandbox" : "live";
+  }
 
   private baseUrl() {
     return this.isSandbox

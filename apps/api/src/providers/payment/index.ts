@@ -16,3 +16,18 @@ export function getPaymentProvider(): PaymentProvider {
   }
   return new SandboxPaymentProvider();
 }
+
+/**
+ * Payment readiness for `/ready`: which gateway is active and whether it is the
+ * sandbox. Mirrors `storageReadiness` — a property that decides whether real
+ * money can move should be readable from a deployment's own state, not inferred
+ * from an environment file.
+ */
+export function paymentsReadiness(): { provider: string; sandbox: boolean } {
+  try {
+    const provider = getPaymentProvider();
+    return { provider: provider.name, sandbox: provider.mode === "sandbox" };
+  } catch {
+    return { provider: "unconfigured", sandbox: true };
+  }
+}
