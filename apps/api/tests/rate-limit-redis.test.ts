@@ -250,8 +250,9 @@ describe("createRedisStore — Redis-backed rate-limit store", () => {
   it("namespaces counters per limiter, so two limiters never share a bucket", async () => {
     const otpRequest = createRedisStore("redis://unused:6379", 60_000, "auth-otp-request");
     const otpVerify = createRedisStore("redis://unused:6379", 60_000, "auth-otp-verify");
-    const requestClient = fake.FakeRedis.instances[0]!;
-    const verifyClient = fake.FakeRedis.instances[1]!;
+    const requestClient = fake.FakeRedis.instances[0];
+    const verifyClient = fake.FakeRedis.instances[1];
+    if (!requestClient || !verifyClient) throw new Error("expected one fake Redis client per store");
 
     // The same logical key, counted by two limiters.
     expect((await otpRequest.increment("u:42")).totalHits).toBe(1);

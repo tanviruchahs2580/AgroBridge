@@ -29,14 +29,16 @@ const declared = [...contract.roles].sort();
 
 function validRolesFromSource(): string[] {
   const line = /const VALID_ROLES = \[([^\]]+)\]/.exec(adminRoutes);
-  if (!line) throw new Error("VALID_ROLES not found — update this guard with the new shape");
-  return [...line[1]!.matchAll(/"([A-Z_]+)"/g)].map((m) => m[1]!).sort();
+  const body = line?.[1];
+  if (!body) throw new Error("VALID_ROLES not found — update this guard with the new shape");
+  return [...body.matchAll(/"([A-Z_]+)"/g)].flatMap((m) => (m[1] ? [m[1]] : [])).sort();
 }
 
 function rolesFromSchemaComment(): string[] {
   const line = /role\s+String\s+@default\("FARMER"\)\s*\/\/\s*([^\n]+)/.exec(schema);
-  if (!line) throw new Error("the role column comment not found — update this guard with the new shape");
-  return [...new Set(line[1]!.trim().split("|").map((r) => r.trim()).filter(Boolean))].sort();
+  const comment = line?.[1];
+  if (!comment) throw new Error("the role column comment not found — update this guard with the new shape");
+  return [...new Set(comment.trim().split("|").map((r) => r.trim()).filter(Boolean))].sort();
 }
 
 describe("role vocabulary contract", () => {
