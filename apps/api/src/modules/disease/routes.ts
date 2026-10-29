@@ -92,7 +92,14 @@ diseaseRouter.post(
         buf.length >= 8 &&
         buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
         buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a;
-      if (!(isJpeg || isWebp || isPng)) throw badRequest("File content is not a valid image");
+      // The format is what the BYTES are, not what the client declared. The
+      // declared Content-Type is attacker-controlled, so deciding whether to
+      // strip metadata from it let a real JPEG labelled image/png keep its
+      // APP1/EXIF (GPS, device) segments and be stored under a .png name
+      // (AUD-104). One sniffed value now drives the stripping, the extension
+      // and the stored content type, so the three cannot disagree.
+      const format: "jpeg" | "png" | "webp" | null = isJpeg ? "jpeg" : isPng ? "png" : isWebp ? "webp" : null;
+      if (!format) throw badRequest("File content is not a valid image");
 
       let cropCycleIdValidated: string | undefined;
       if (cropCycleId) {
@@ -106,12 +113,12 @@ diseaseRouter.post(
       if (cropGuess && cropGuess.length > 120) throw badRequest("cropGuess too long");
 
       // strip EXIF (APP1 — GPS/device/timestamps) from JPEGs before the
-      // bytes are stored. PNG/WebP pass through unchanged this iteration: the
-      // audit-flagged leak is the camera EXIF in JPEGs, and neither format can
-      // carry APP1 segments; their metadata chunks are recorded as a residual.
+      // bytes are stored. PNG/WebP pass through unchanged: the audit-flagged
+      // leak is the camera EXIF in JPEGs, and neither format can carry APP1
+      // segments; their own metadata chunks are a recorded residual.
       // A JPEG that cannot be parsed is rejected rather than stored unclean.
       let upload = imagePart.data;
-      if (imagePart.mime === "image/jpeg") {
+      if (format === "jpeg") {
         try {
           upload = stripJpegMetadata(imagePart.data);
         } catch {
@@ -120,10 +127,11 @@ diseaseRouter.post(
       }
 
       // Storage abstraction: local disk in dev, S3-compatible in production.
-      const ext = imagePart.mime === "image/png" ? ".png" : imagePart.mime === "image/webp" ? ".webp" : ".jpg";
+      const ext = format === "png" ? ".png" : format === "webp" ? ".webp" : ".jpg";
+      const storedContentType = format === "png" ? "image/png" : format === "webp" ? "image/webp" : "image/jpeg";
       const fileName = `${randomUUID()}${ext}`;
       const imagePath = `uploads/disease/${fileName}`;
-      await getStorageProvider().save(fileName, upload, imagePart.mime);
+      await getStorageProvider().save(fileName, upload, storedContentType);
 
       // orphan cleanup: if persisting the case fails, the just-stored
       // bytes have no DB row referencing them — remove them best-effort so a

@@ -79,7 +79,16 @@ describe("Journey 1 — Auth & profile", () => {
 
   it("logout revokes session", async () => {
     const f = await registerFarmer();
-    await request(app).post("/api/v1/auth/logout").set("Authorization", `Bearer ${f.accessToken}`).send({});
-    expect(true).toBe(true); // logout is best-effort token revoke
+    const logout = await request(app)
+      .post("/api/v1/auth/logout")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ refreshToken: f.refreshToken });
+    expect(logout.status).toBe(200);
+    expect(logout.body.data.loggedOut).toBe(true);
+
+    // The presented refresh token is revoked, so it can no longer mint a
+    // session — the assertion this test previously skipped with `expect(true)`.
+    const replay = await request(app).post("/api/v1/auth/refresh").send({ refreshToken: f.refreshToken });
+    expect(replay.status).toBe(401);
   });
 });

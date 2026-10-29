@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { badRequest } from "../../shared/errors/index.js";
-import { ok } from "../../middleware/context.js";
+import { ok, fail } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
@@ -36,8 +36,12 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     const expectedBuf = Buffer.from(expected, "utf8");
     const providedBuf = Buffer.from(provided, "utf8");
     if (expectedBuf.length !== providedBuf.length || !timingSafeEqual(expectedBuf, providedBuf)) {
-      // Log minimal info; never echo payload internals on failure.
-      return res.status(401).json({ ok: false, error: { code: "INVALID_SIGNATURE", message: "Webhook signature verification failed" } });
+      // Log minimal info; never echo payload internals on failure. Routed through
+      // fail() so the callback carries the requestId and AB- reference every
+      // other error envelope has — this path is where payment incidents land
+      // (AUD-121).
+      fail(res, 401, "INVALID_SIGNATURE", "Webhook signature verification failed");
+      return;
     }
 
     const tranId = params.tran_id ?? "";
@@ -50,7 +54,8 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     // tran_id convention: our Payment.refNo (set at gateway session creation).
     const payment = await prisma.payment.findFirst({ where: { refNo: tranId } });
     if (!payment) {
-      return res.status(404).json({ ok: false, error: { code: "PAYMENT_NOT_FOUND", message: "Unknown transaction reference" } });
+      fail(res, 404, "PAYMENT_NOT_FOUND", "Unknown transaction reference");
+      return;
     }
     if (payment.status === "SUCCEEDED" || payment.status === "REFUNDED") {
       return ok(res, { received: true, processed: false, reason: "already_final" });

@@ -19,3 +19,15 @@ export function dhakaMonthStart(now: Date = new Date()): Date {
   const month = Number(parts.find((p) => p.type === "month")?.value);
   return new Date(Date.UTC(year, month - 1, 1) - 6 * 60 * 60 * 1000);
 }
+
+/**
+ * A calendar date as an Asia/Dhaka reader would say it.
+ *
+ * User-visible dates must not be formatted in the host's zone: the API runs on
+ * UTC, so `toDateString()` on a visit scheduled for 06:00 Dhaka announced the
+ * previous day in a booking confirmation (AUD-119). Same reasoning as
+ * `dhakaMonthStart` — read the calendar with Intl, never with local getters.
+ */
+export function dhakaDateLabel(when: Date, locale: "bn-BD" | "en-GB" = "en-GB"): string {
+  return new Intl.DateTimeFormat(locale, { timeZone: "Asia/Dhaka", dateStyle: "medium" }).format(when);
+}

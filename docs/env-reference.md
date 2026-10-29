@@ -42,9 +42,9 @@ The first table is the API's contract: every variable is parsed and validated by
 | `OPENAI_API_KEY` | string | — (optional) | no | — | `` |
 | `OPENAI_BASE_URL` | string (url) | `"https://api.openai.com/v1"` | no | — | `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | string | `"gpt-4o-mini"` | no | — | `gpt-4o-mini` |
-| `AI_MONTHLY_BUDGET_PAISA` | number | `500_00` | no | AI spend guard: monthly soft budget + cost model. | repeated: `500000`, `50000` |
+| `AI_MONTHLY_BUDGET_PAISA` | number | `500_00` | no | — | `500000` |
 | `AI_HOURLY_LIMIT` | number | `30` | no | Advisory requests per hour PER USER (F-03). The quota is now charged to the account rather than to the caller's address, so the fleet-wide ceiling is (active users x this) — the monthly budget breaker above guards spend, and this is the per-user fairness knob. | `30` |
-| `AI_COST_PER_1K_TOKENS_PAISA` | number | `0` | no | REQUIRED (> 0) when AI_PROVIDER=openai-compatible in production: the monthly spend breaker multiplies usage by this price, so 0 makes the guard inert and production startup refuses to boot (A7-05). Set the provider's real per-1K-token price in paisa. | repeated: `0` |
+| `AI_COST_PER_1K_TOKENS_PAISA` | number | `0` | no | REQUIRED (> 0) when AI_PROVIDER=openai-compatible in production: the monthly spend breaker multiplies usage by this price, so 0 makes the guard inert and production startup refuses to boot (A7-05). Set the provider's real per-1K-token price in paisa. | `0` |
 | `PAYMENT_PROVIDER` | enum(sandbox \| sslcommerz) | `"sandbox"` | no | sandbox \| sslcommerz | `sandbox` |
 | `SSLCOMMERZ_STORE_ID` | string | — (optional) | no | — | `` |
 | `SSLCOMMERZ_STORE_PASSWORD` | string | — (optional) | no | — | `` |

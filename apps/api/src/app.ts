@@ -15,6 +15,7 @@ import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 import { readSchemaState } from "./infrastructure/schemaState.js";
 import { storageReadiness } from "./providers/storage/index.js";
+import { paymentsReadiness } from "./providers/payment/index.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
 const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, undefined, "global") : undefined;
@@ -125,8 +126,10 @@ export function createApp() {
       // migration (ADR-0007).
       const schema = await readSchemaState();
       // Storage durability is release-blocking, like the schema: production
-      // must outlive its instances (deploy-verify.yml enforces it).
-      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness() });
+      // must outlive its instances (deploy-verify.yml enforces it). The payment
+      // provider joins them so "can this release take real money?" is answerable
+      // from the deployment's own state (AUD-103).
+      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness(), payments: paymentsReadiness() });
     } catch {
       dbUp.set(0);
       res.status(503).json({ ok: false, ready: false, db: false });

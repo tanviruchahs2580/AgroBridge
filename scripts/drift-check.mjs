@@ -8,9 +8,20 @@
  */
 import { execFileSync } from "node:child_process";
 import { rmSync } from "node:fs";
+import path from "node:path";
 
-const shadow = "drift-shadow.db";
+// The shadow database lives beside the schema, because `prisma migrate diff`
+// resolves `--shadow-database-url file:./drift-shadow.db` against ITS OWN cwd
+// (`apps/api`), not this process's. Cleanup has to use the same base: deleting
+// the bare name from the repo root left the real file behind, so the second
+// local run replayed the chain into a populated shadow database and died with
+// "Migration `…_init` failed to apply cleanly to the shadow database" (P3006).
+// CI never saw it — every run there gets a fresh checkout. Removing any stale
+// file first makes the gate repeatable on a developer machine too.
+const shadow = path.join("apps", "api", "drift-shadow.db");
 const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
+
+rmSync(shadow, { force: true });
 
 let out = "";
 try {
@@ -18,7 +29,7 @@ try {
     "prisma", "migrate", "diff",
     "--from-migrations", "prisma/migrations",
     "--to-schema-datamodel", "prisma/schema.prisma",
-    "--shadow-database-url", `file:./${shadow}`,
+    "--shadow-database-url", "file:./drift-shadow.db",
     "--script",
   ], { cwd: "apps/api", encoding: "utf8", maxBuffer: 32 * 1024 * 1024, shell: process.platform === "win32" });
 } catch (e) {

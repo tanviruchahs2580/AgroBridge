@@ -59,12 +59,17 @@ describe("Refund endpoint — sandbox-only, honest copy", () => {
     const admin = await getAdmin();
 
     // Mirror the configuration that activates the live gateway for
-    // getPaymentProvider() (PAYMENT_PROVIDER + SSLCommerz credentials).
+    // getPaymentProvider() (PAYMENT_PROVIDER + SSLCommerz credentials + the
+    // explicit SSLCOMMERZ_SANDBOX=false that selects the live host — without it
+    // the adapter is a sandbox adapter, and the refund flow would take the
+    // sandbox branch; AUD-103).
     const prevProvider = env.PAYMENT_PROVIDER;
     const prevStoreId = env.SSLCOMMERZ_STORE_ID;
+    const prevSandbox = env.SSLCOMMERZ_SANDBOX;
     try {
       env.PAYMENT_PROVIDER = "sslcommerz";
       env.SSLCOMMERZ_STORE_ID = "test-store-id";
+      env.SSLCOMMERZ_SANDBOX = "false";
       const refund = await request(app)
         .post(`/api/v1/payments/${paymentId}/refund`)
         .set("Authorization", `Bearer ${admin.accessToken}`)
@@ -75,6 +80,7 @@ describe("Refund endpoint — sandbox-only, honest copy", () => {
     } finally {
       env.PAYMENT_PROVIDER = prevProvider;
       env.SSLCOMMERZ_STORE_ID = prevStoreId;
+      env.SSLCOMMERZ_SANDBOX = prevSandbox;
     }
 
     // No rows changed: payment still SUCCEEDED, order still PAID, no ledger entry.
@@ -99,11 +105,15 @@ describe("Refund endpoint — sandbox-only, honest copy", () => {
 
     const prevProvider = env.PAYMENT_PROVIDER;
     const prevStoreId = env.SSLCOMMERZ_STORE_ID;
+    const prevSandbox = env.SSLCOMMERZ_SANDBOX;
     let refundStatus = 0;
     let refundRef: string | null = null;
     try {
       env.PAYMENT_PROVIDER = "sslcommerz";
       env.SSLCOMMERZ_STORE_ID = "test-store-id";
+      // The live host is selected by the explicit flag, not by credentials
+      // alone (AUD-103) — see the sibling test above.
+      env.SSLCOMMERZ_SANDBOX = "false";
       const refund = await request(app)
         .post(`/api/v1/payments/${paymentId}/refund`)
         .set("Authorization", `Bearer ${admin.accessToken}`)
@@ -113,6 +123,7 @@ describe("Refund endpoint — sandbox-only, honest copy", () => {
     } finally {
       env.PAYMENT_PROVIDER = prevProvider;
       env.SSLCOMMERZ_STORE_ID = prevStoreId;
+      env.SSLCOMMERZ_SANDBOX = prevSandbox;
     }
 
     // Simulated money moved: payment REFUNDED under the SUPPLIED reference —

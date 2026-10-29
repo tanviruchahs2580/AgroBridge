@@ -17,7 +17,10 @@ describe("Observability & security baseline", () => {
   it("/ready checks database connectivity", async () => {
     const res = await request(app).get("/ready");
     expect(res.status).toBe(200);
-    expect(res.body.data?.db ?? res.body.ready ?? true).toBeTruthy();
+    // Assert the fields themselves: `?? true` made this pass when /ready
+    // answered 200 without the connectivity verdict it exists to report.
+    expect(res.body.db).toBe(true);
+    expect(res.body.ready).toBe(true);
   });
 
   it("/ready reports the schema state and limiter store the release gate reads", async () => {

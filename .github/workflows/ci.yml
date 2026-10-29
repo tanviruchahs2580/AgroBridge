@@ -92,8 +92,23 @@ jobs:
         run: npx jscpd --silent --threshold 3 apps/api/src apps/web/src
       - name: licence allow-list
         run: node scripts/licence-gate.mjs
-      - name: commitlint (push range)
-        run: npx commitlint --from=HEAD~1 --to=HEAD
+      # Lint every commit the change introduces, not just the tip: with
+      # `--from=HEAD~1` a multi-commit branch carried malformed messages as long
+      # as its last commit was well-formed (AUD-110). The base is the PR's base
+      # on a pull request, or the pushed-from commit on a branch update; a new
+      # branch (all-zero `before`) or an unknown base falls back to the tip.
+      - name: commitlint (whole change range)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && ! printf '%s' "$BASE_SHA" | grep -qE '^0+$' && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            FROM=$(git merge-base "$BASE_SHA" HEAD)
+          else
+            FROM=HEAD~1
+          fi
+          echo "commitlint range: $FROM..HEAD"
+          npx commitlint --from="$FROM" --to=HEAD
       - name: migration drift
         run: node scripts/drift-check.mjs
       - name: no TODO/FIXME markers in shipped source

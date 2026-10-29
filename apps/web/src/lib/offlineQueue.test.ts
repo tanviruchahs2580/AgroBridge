@@ -598,6 +598,34 @@ describe("lib/offlineQueue — session scoping, expiry and storage honesty", () 
     expect(storageDegraded()).toBe(false);
     purgeQueue("test cleanup");
   });
+
+  // AUD-107: the purge used to report only to console.warn, so a logout silently
+  // discarded queued field work that the offline badge was counting seconds
+  // earlier — the one outcome this queue exists to prevent.
+  it("purging an own-session queue tells the user what was dropped, and an identity switch does not", () => {
+    const seen: { url: string; outcome: DropOutcome }[] = [];
+    const unsub = onDrop((entry, _status, outcome) => seen.push({ url: entry.url, outcome }));
+
+    enqueue({ url: "/farms/1/events", method: "POST", body: { a: 1 } });
+    enqueue({ url: "/cart/items/9", method: "DELETE" });
+    expect(size()).toBe(2);
+
+    purgeQueue("session ended");
+    expect(size()).toBe(0);
+    expect(seen).toEqual([
+      { url: "/farms/1/events", outcome: "discarded" },
+      { url: "/cart/items/9", outcome: "discarded" },
+    ]);
+
+    // A different person is now looking at the screen: their predecessor's
+    // pending work must not be described to them.
+    seen.length = 0;
+    enqueue({ url: "/farms/2/events", method: "POST", body: { b: 2 } });
+    purgeQueue("a different user signed in", false);
+    expect(size()).toBe(0);
+    expect(seen).toEqual([]);
+    unsub();
+  });
 });
 
 describe("lib/offlineQueue — OFFLINE BARRIER GAP (characterization — documents current limitation)", () => {

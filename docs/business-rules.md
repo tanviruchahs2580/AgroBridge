@@ -24,20 +24,21 @@ prices/durations/benefits; the percentage that checkout applies comes from this 
 |---|---|---|---|
 | BR-5 | Discount by tier: BRONZE 0, SILVER 3, GOLD 5; an unknown tier gets 0 | `apps/api/src/shared/utils/money.ts:11-18` | `apps/api/tests/unit-core.test.ts:33` |
 | BR-6 | An expired membership degrades to BRONZE (0%) without mutating the stored profile; renewal refreshes the row | `apps/api/src/modules/membership/service.ts` (`getActiveMembership`) | `apps/api/tests/unit-core.test.ts:33` covers the map; expiry degradation has no dedicated test |
-| BR-7 | Buying a plan extends from the current expiry when still active, otherwise from now; duration is the plan's `durationDays` or 365 days when unknown | `apps/api/src/modules/payments/routes.ts:78-95` | `apps/api/tests/journey-services-procurement.test.ts:132` covers sandbox activation for bookings; extension arithmetic has no dedicated test |
-| BR-8 | Membership purchases are non-refundable while the membership is active | `apps/api/src/modules/payments/routes.ts:382-384` | `apps/api/tests/payments-integrity.test.ts:275` |
+| BR-7 | Buying a plan extends from the current expiry when still active, otherwise from now; duration is the plan's `durationDays` or 365 days when unknown | `apps/api/src/modules/payments/routes.ts:196-206` | `apps/api/tests/journey-services-procurement.test.ts:132` covers sandbox activation for bookings; extension arithmetic has no dedicated test |
+| BR-8 | Membership purchases are non-refundable while the membership is active | `apps/api/src/modules/payments/routes.ts:592-596` | `apps/api/tests/payments-integrity.test.ts:275` |
 
 ## 3. Order state machine
 
 Schema comment declares `PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED`
-(`apps/api/prisma/schema.prisma:253`); `paymentStatus` is `UNPAID|PAID|REFUNDED` (`:258`).
+(`apps/api/prisma/schema.prisma:253`); `paymentStatus` is `UNPAID|PAID|REFUNDED` (`:258`) — note `REFUNDED` is also written to
+`Order.status` by the refund path, which the comment above `:253` does not list.
 
 | From | Trigger | To | Source |
 |---|---|---|---|
 | — | Checkout creates the order directly | `CONFIRMED` (payment `UNPAID`) | `apps/api/src/modules/marketplace/routes.ts:417-419` |
 | `PENDING`/`CONFIRMED` | Payment success side effect sets `PAID` + `paymentStatus PAID` | `PAID` | `apps/api/src/modules/payments/routes.ts:71-76` |
 | `CONFIRMED` + `UNPAID` | Owner cancels | `CANCELLED` (stock restocked once) | `apps/api/src/modules/marketplace/routes.ts:282-295` |
-| `PAID` | Platform refund | `REFUNDED` + `paymentStatus REFUNDED` | `apps/api/src/modules/payments/routes.ts:397-401` |
+| `PAID` | Platform refund | `REFUNDED` + `paymentStatus REFUNDED` | `apps/api/src/modules/payments/routes.ts:614-618` |
 
 Rules:
 
@@ -91,8 +92,8 @@ Transitions are a table in code (`apps/api/src/modules/procurement/routes.ts:132
 | BR-22 | Transitions are claim-atomic; two reviewers racing leave exactly one winner | `apps/api/src/modules/procurement/routes.ts:139-152` | `apps/api/tests/rbac-fixes.test.ts:120` |
 | BR-23 | Reviewers and payers are region-scoped: a territory manager may only act on offers whose owner is in their region | `apps/api/src/modules/procurement/routes.ts:88-101`; `apps/api/src/lib/territory.ts` | `apps/api/tests/rbac-fixes.test.ts:147,183`; `apps/api/tests/territory-unassigned.test.ts` |
 | BR-23a | **The unassigned case:** a territory manager whose `region` is empty is currently *unrestricted* — the queue returns every region's offers (each row carrying the farmer's name and phone) and the mutation guards let it act on any of them. That is a configuration omission an operator can create in one PATCH, and it contradicts how BR-23 reads. The behaviour is deliberate in `lib/territory.ts` (it fails open) but is not an owner-approved policy: it is logged as `territory.unassigned`, pinned by `apps/api/tests/territory-unassigned.test.ts`, and awaiting a decision as ODL-007. Operators should assign a region with every territory role. | `apps/api/src/lib/territory.ts:19-40` | `apps/api/tests/territory-unassigned.test.ts` |
-| BR-24 | Payout requires `status = COLLECTED` and `netPayablePaisa > 0`; it credits the wallet via `WALLET_CREDIT` plus a ledger row, atomically | `apps/api/src/modules/payments/routes.ts:480-519` | `apps/api/tests/journey-services-procurement.test.ts:175`; `apps/api/tests/concurrency.test.ts:53` |
-| BR-25 | In production, a payout to an unverified phone is refused | `apps/api/src/modules/payments/routes.ts:479` | No dedicated test (production-gated path; the OTP flow itself is covered by `apps/api/tests/auth-hardening.test.ts:48`) |
+| BR-24 | Payout requires `status = COLLECTED` and `netPayablePaisa > 0`; it credits the wallet via `WALLET_CREDIT` plus a ledger row, atomically | `apps/api/src/modules/payments/routes.ts:683-733` | `apps/api/tests/journey-services-procurement.test.ts:175`; `apps/api/tests/concurrency.test.ts:53` |
+| BR-25 | In production, a payout to an unverified phone is refused | `apps/api/src/modules/payments/routes.ts:691` | No dedicated test (production-gated path; the OTP flow itself is covered by `apps/api/tests/auth-hardening.test.ts:48`) |
 
 ## 7. Procurement QC price formula
 
@@ -108,25 +109,25 @@ Transitions are a table in code (`apps/api/src/modules/procurement/routes.ts:132
 | # | Rule | Source | Test |
 |---|---|---|---|
 | BR-26 | The five steps above, including the unknown-grade rejection | `apps/api/src/shared/utils/money.ts:32-44` | `apps/api/tests/unit-core.test.ts:8,15,20,27` |
-| BR-27 | The offer records the computed values and the pipeline applies them end to end (offer → payout uses `netPayablePaisa`) | `apps/api/src/modules/procurement/routes.ts` (create/detail); `apps/api/src/modules/payments/routes.ts:498` | `apps/api/tests/journey-services-procurement.test.ts:175` |
+| BR-27 | The offer records the computed values and the pipeline applies them end to end (offer → payout uses `netPayablePaisa`) | `apps/api/src/modules/procurement/routes.ts` (create/detail); `apps/api/src/modules/payments/routes.ts:710` | `apps/api/tests/journey-services-procurement.test.ts:175` |
 
 ## 8. Wallet withdrawal holds
 
 | # | Rule | Source | Test |
 |---|---|---|---|
-| BR-28 | Minimum withdrawal is BDT 100 (`10_000` paisa); channel is `BKASH` (default), `NAGAD` or `BANK`; the destination is stored masked | `apps/api/src/modules/payments/routes.ts:46-49,617-621` | `apps/api/tests/wallet-withdrawals.test.ts:28` |
+| BR-28 | Minimum withdrawal is BDT 100 (`10_000` paisa); channel is `BKASH` (default), `NAGAD` or `BANK`; the destination is stored masked | `apps/api/src/modules/payments/routes.ts:824-828,853-861` | `apps/api/tests/wallet-withdrawals.test.ts:28` |
 | BR-29 | A request holds the amount: `heldPaisa` is incremented under the wallet row lock and availability is `balancePaisa − heldPaisa`; a request above availability is refused | `apps/api/src/modules/payments/routes.ts:632-662` | `apps/api/tests/wallet-withdrawals.test.ts:28,61`; race coverage `apps/api/tests/withdrawal-race.test.ts:28,50` |
 | BR-30 | Approval debits the wallet exactly once and releases the hold; rejection releases the hold without debiting; double-approve is refused | `apps/api/src/modules/admin/routes.ts:221-290` | `apps/api/tests/wallet-withdrawals.test.ts:72,116,134`; `apps/api/tests/withdrawal-race.test.ts:72,99` |
 | BR-31 | In production, withdrawal requires a verified phone | `apps/api/src/modules/payments/routes.ts:628` | No dedicated test (production-gated); the OTP flow is covered by `apps/api/tests/auth-hardening.test.ts:48` |
-| BR-32 | Wallet month boundaries use Asia/Dhaka calendar months (no DST since 2009), computed as 18:00Z on the last UTC day of the previous month | `apps/api/src/modules/payments/routes.ts:552-581` | `apps/api/tests/timezone-boundaries.test.ts` |
+| BR-32 | Wallet month boundaries use Asia/Dhaka calendar months (no DST since 2009), computed as 18:00Z on the last UTC day of the previous month | `apps/api/src/modules/payments/routes.ts:786-792` | `apps/api/tests/timezone-boundaries.test.ts` |
 
 ## 9. Refunds
 
 | # | Rule | Source | Test |
 |---|---|---|---|
-| BR-33 | Refunds are platform-initiated, require the `payments:refund` permission, and only `ORDER` payments are refundable in v1 | `apps/api/src/modules/payments/routes.ts:351-387` | `apps/api/tests/payments-integrity.test.ts:208` |
-| BR-34 | With a live gateway the refund must already have been issued in the gateway dashboard and the operator supplies `gatewayRef`; without it the request is refused | `apps/api/src/modules/payments/routes.ts:363-373` | `apps/api/tests/payments-refund-provider-mode.test.ts` (provider-mode cases) |
-| BR-35 | Refund transitions `SUCCEEDED → REFUNDED` atomically, writes a compensating `DEBIT` ledger row, and may make the wallet balance negative — a documented ops behaviour | `apps/api/src/modules/payments/routes.ts:388-421` | `apps/api/tests/payments-integrity.test.ts:245` |
+| BR-33 | Refunds are platform-initiated, require the `payments:refund` permission, and only `ORDER` payments are refundable in v1 | `apps/api/src/modules/payments/routes.ts:569-576` | `apps/api/tests/payments-integrity.test.ts:208` |
+| BR-34 | With a live gateway the refund must already have been issued in the gateway dashboard and the operator supplies `gatewayRef`; without it the request is refused | `apps/api/src/modules/payments/routes.ts:583-589` | `apps/api/tests/payments-refund-provider-mode.test.ts` (provider-mode cases) |
+| BR-35 | Refund transitions `SUCCEEDED → REFUNDED` atomically, writes a compensating `DEBIT` ledger row, and may make the wallet balance negative — a documented ops behaviour | `apps/api/src/modules/payments/routes.ts:604-638` | `apps/api/tests/payments-integrity.test.ts:245` |
 | BR-36 | A payment can be claimed once: `PENDING → SUCCEEDED` is the single gate shared by sandbox confirm, webhook and status reconciliation | `apps/api/src/modules/payments/routes.ts:217-251` | `apps/api/tests/payment-confirm-webhook-race.test.ts:45`; `apps/api/tests/payments-integrity.test.ts:122` |
 
 ## Rules that are documented from code with no test
