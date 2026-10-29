@@ -34,7 +34,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "rice-blast",
     crop: "rice",
-    keywords: ["rice", "ধান", "blast", "blight", "পাতা মোড়ানো", "মড়ানো", "fungus on rice", "brown spot", "দাগ", "সিগার", "ধূসর"],
+    keywords: ["rice", "ধান", "blast", "ব্লাস্ট", "blight", "ব্লাইট", "পাতা মোড়ানো", "মড়ানো", "fungus on rice", "brown spot", "দাগ", "সিগার", "ধূসর"],
     titleEn: "Rice blast / fungal leaf disease management",
     answerEn:
       "Rice blast appears as spindle-shaped lesions with grey centres on leaves. Management: 1) Keep fields drained rather than continuously flooded when infection appears. 2) Avoid excess nitrogen fertiliser which worsens blast. 3) Use recommended fungicides (e.g., tricyclazole or isoprothiolane group) applied at early lesion stage — confirm product choice with a licensed dealer or DAE agronomist. 4) Remove and burn infected stubble after harvest.",
@@ -64,7 +64,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "wheat-rust",
     crop: "wheat",
-    keywords: ["wheat", "গম", "rust", "মরিচা", "yellow leaves wheat"],
+    keywords: ["wheat", "গম", "rust", "রাস্ট", "মরিচা", "yellow leaves wheat"],
     titleEn: "Wheat rust disease",
     answerEn:
       "Yellow/orange powdery pustules on wheat leaves indicate rust. Severity rises with warm humid spells. Action: scout weekly, apply a triazole-group fungicide at first sign if coverage >5% of leaf area (confirm locally registered products), and prefer rust-tolerant varieties (e.g., BARI Gom series noted as tolerant) next season.",
