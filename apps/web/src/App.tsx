@@ -5,6 +5,7 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-route
 import { useSession } from "./lib/session";
 import { otherLang, t } from "./lib/i18n";
 import type { DictKey, Lang } from "./lib/i18n";
+import { usePublicLang } from "./lib/publicLanguage";
 import { isOnline, onOnlineStatusChange, wakeBackend } from "./lib/api";
 import { flushAll, onDrop as onQueueDrop, onSync as onQueueSync, onStorageError as onQueueStorageError, dropToastMessage, syncToastMessage, size as queuedMutations, subscribe as subscribeQueue } from "./lib/offlineQueue";
 import { track } from "./lib/analytics";
@@ -96,8 +97,9 @@ function PageFallback() {
 }
 
 function NotFound() {
-  const { session } = useSession();
-  const lang: Lang = session?.lang ?? "bn";
+  // Public route: an anonymous visitor gets the language they chose on the public
+  // screens rather than Bengali (same rule as the legal documents).
+  const [lang] = usePublicLang();
   return (
     <main id="main" className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center gap-3 rounded-xl border border-surface-border bg-surface-card p-4 py-10 text-center shadow-sm">

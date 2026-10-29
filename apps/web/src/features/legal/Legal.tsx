@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileText, ShieldCheck, Trash2 } from "lucide-react";
-import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
+import { LangToggle, usePublicLang } from "../../lib/publicLanguage";
 import { LEGAL_DOCS, LEGAL_META } from "./content";
 import { LEGAL_ROUTES } from "./routes";
 import type { LegalDoc } from "./content";
@@ -51,20 +51,28 @@ function withLinks(text: string, keyPrefix: string) {
  * must still be able to read how to delete their data.
  */
 export default function Legal({ docId }: { docId: LegalDoc["id"] }) {
-  const { session } = useSession();
-  const lang = session?.lang ?? "bn";
+  // The visitor's own choice, not the account's: this page is public, and reading a
+  // policy in the other language is a reading preference. It used to render Bengali
+  // for every anonymous visitor — including one who had just switched to English on
+  // the login page — with no control on the page to change it.
+  const [lang, setLang] = usePublicLang();
   const doc = LEGAL_DOCS[docId];
   const Icon = ICONS[doc.id];
 
   return (
     <main id="main" className="mx-auto max-w-3xl px-4 py-6">
-      <Link
-        to="/"
-        className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        {t("backHome", lang)}
-      </Link>
+      {/* The language control has to live on the page itself: a visitor reaching a
+          policy URL directly has no other screen to change it from. */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          to="/"
+          className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          {t("backHome", lang)}
+        </Link>
+        <LangToggle lang={lang} onChange={setLang} />
+      </div>
 
       <header className="mt-3 flex items-start gap-3">
         <span
