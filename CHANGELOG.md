@@ -4,6 +4,126 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-29 four auth rate limiters shared one store — a Redis deployment would 500 the recovery path)
+- **`otpStore` was passed to four limiters** (OTP request, OTP verify, password forgot, password
+  reset). `express-rate-limit` refuses a store used by two limiters — `unsharedStore()` raises
+  `ERR_ERL_STORE_REUSE` on the second limiter's first request, which the error handler turns into a
+  500 — and the counter key it hands the store comes only from the request, so even separate
+  instances would have written the same Redis key and enforced one budget between four routes.
+  Both halves are invisible without `REDIS_URL`: locally and in CI every limiter quietly gets its
+  own in-memory store, which is why a 514-test suite and a 52-spec browser run never saw it. With
+  Redis configured — the shape `docs/security.md` itself recommends for multi-instance correctness
+  — the whole account-recovery path would have failed.
+- Fixed: one store instance per limiter, each with its own key namespace
+  (`createRedisStore(url, windowMs, prefix)` → `rl:<limiter>:<key>`, used by `decrement`/`resetKey`
+  too). The data-export limiter gains a store like its siblings; its memory-only window meant the
+  documented "5 exports/hour" was really "5 per instance" in production.
+- Guards, because a rule nothing checks drifts back: `tests/rate-limit-store-wiring.test.ts` reads
+  the source and fails if any store is referenced twice, if a prefix is missing or duplicated, or if
+  a limiter with a window declares no store; `tests/rate-limit-redis.test.ts` gains a
+  namespace-isolation case. Run against the pre-fix file the guard reports `otpStore` ×3; against
+  the fixed one, nothing. No rate-limit value changed — the policy numbers are identical.
+
+### Fixed (2026-10-29 the generated route inventory could not see 18 endpoints it was meant to guard)
+- `apps/api/scripts/route-matrix.mjs` listed 11 module files while `app.ts` mounts 20 routers, so
+  `weather`, `notifications`, `organizations` and `ops` were never inventoried — including
+  `GET /ops/retention`, the one route among them that is public. A second cause: the parser
+  attributed a declaration to the router symbol in front of it, so `plotsRouter()` and
+  `cropsRouter()`, which build their routers as a fluent chain off `Router({ mergeParams: true })`,
+  were invisible — an entire resource family. The drift check and the deny-by-default PUBLIC
+  allowlist were both narrower than the API they guard.
+- Inventory 67 → 85 routes. The ops retention trigger is added to the PUBLIC allowlist with its
+  justification (constant-time `CRON_SECRET` bearer, 503 when unset) — it already shipped; the entry
+  makes it visible rather than relaxing anything. A new test asserts every router mounted in
+  `app.ts`, or by a module's own router, appears in the inventory. Every recovered endpoint was
+  probed on a running build: `/weather`, `/notifications`, `/organizations`, `/farms/:id/plots` and
+  `/farms/crops` answer 401, `/ops/retention` 403, `/membership/plans` 200, an unknown path 404.
+
+### Fixed (2026-10-29 the legal switcher's chip led to a page that does not exist, and admins had no mobile entry)
+- The document switcher on the public legal pages built its links as `/${docId}`, so the third chip
+  pointed at `/deletion` — no route serves it; the route is `/account-deletion`. Fixed at the
+  source: the id → path pairs live in one table (`features/legal/routes.ts`) that the router renders
+  its routes from and the switcher links from, with two unit tests pinning the agreement.
+- The `/admin` link carried `hidden sm:inline-flex`, so an administrator on a phone — the platform
+  this product actually ships on — had no navigation path to the panel. One anchor now serves both
+  widths: an icon with the accessible name below `sm`, the text label above.
+
+### Fixed (2026-10-29 nine of thirteen roles rendered as raw enum strings)
+- The server assigns thirteen roles; the UI labelled five, one of which (`QC_OFFICER`) the server
+  cannot issue at all. Anywhere a role rendered — the admin user table, the audit-log actor — the
+  other nine printed as `REGIONAL_MANAGER` inside Bengali copy.
+- `contracts/roles.json` now declares the vocabulary. `apps/api/tests/role-contract.test.ts` asserts
+  `PERMISSIONS`, `VALID_ROLES` and the schema's own column comment all equal it;
+  `apps/web/src/lib/labels.roles.test.ts` asserts every role has a real Bengali and English label,
+  that the Bengali one is actually Bengali, and that an unknown role still falls back to the raw
+  string. The nine missing labels are added; `QC_OFFICER` stays as a documented legacy label so a
+  historical row still renders as words.
+
+### Fixed (2026-10-29 user-facing claims that the product cannot evidence)
+- **Services:** the hero badged "Verified" over a line saying only "Active services and providers",
+  and `ServiceProvider` carries no verification field — providers are operator-onboarded through
+  `providers:manage` and listed when `isActive`. Both strings now read "Platform-listed" in Bengali
+  and English, which is true and still tells a farmer these are not anonymous listings.
+- **Privacy policy:** the Bengali retention row promised automatic backup deletion within 30 days;
+  nothing implements that, and the English row had already been corrected to "platform-managed".
+  Both languages, `features/legal/content.ts` (both strings) and the two engineering documents that
+  cited the old sentence now state the verified position. No legal wording was invented — the text
+  was aligned to the claim the earlier correction established.
+- **`AI_HOURLY_LIMIT`** was documented in `.env.example` and `docs/env-reference.md`, parsed into the
+  validated env, and then ignored: the limiter hardcoded 30. It now reads the variable. And
+  `JWT_REFRESH_SECRET`, which is validated but unused (refresh tokens are opaque random values
+  stored as SHA-256 hashes, never JWTs), is documented as reserved in both places rather than left
+  looking load-bearing.
+
+### Changed (2026-10-29 one territory predicate; the unassigned case is no longer silent)
+- `GET /api/v1/procurement` re-listed the territory roles inline and re-read the region by hand,
+  duplicating the rule `lib/territory.ts` already owns. The queue now asks the library, so the list
+  and the mutation guards cannot disagree.
+- A territory manager with **no region assigned** is unrestricted: the queue returns every region's
+  offers — each row carrying the farmer's name and phone — and the review/payout guards treat a null
+  region as no limit, so the same account can act on another region's record. That state is one
+  `PATCH /admin/users/:id` away (role set, region omitted) and it contradicts how BR-23 reads.
+  Tightening a permission boundary is an owner decision, so the default is unchanged; what changed
+  is that it is now logged (`territory.unassigned`), documented as BR-23a in
+  `docs/business-rules.md` and in `docs/security.md`, and pinned in both directions by
+  `apps/api/tests/territory-unassigned.test.ts` — a decision-pinning test whose failure message
+  names the four places to update together.
+- Docs: five statements that had drifted from the tree are corrected (`security.md` claimed no DAST
+  job and no build attestation — both exist; `STATUS.md` said the AUD-V3 work was undeployed — it
+  merged as #70; the compliance checklist said consent capture was absent — it is required and
+  audited; README/testing carried test totals that disagreed with each other for the same date).
+  Volatile counts are replaced by the command that produces them. Two deliberate boundaries that
+  look like oversights (the operator refund route's missing ownership filter, owner-only farm-event
+  writes) are recorded in `docs/security.md` so they are not "fixed" by mistake later.
+
+### Removed (2026-10-29 dead weight)
+- **68 dictionary keys nothing references** — 5,412 bytes of Bengali and English copy, mostly
+  leftovers from earlier copy revisions. The dictionary ships inside the entry bundle, so this is
+  weight on every page load. Removed by a mechanical criterion (a key's identifier must appear
+  somewhere in `apps/web/src` outside the dictionary, which covers indirect map lookups) and checked
+  by hand for the one blind spot, string-built keys; `src/lib/i18n.deadkeys.test.ts` is a hard-zero
+  ratchet in the style of the existing inline-ternary one.
+- **Three tracked images** (`leveler.jpg`, `soil.jpg`, `tiller.jpg`) that no source file referenced
+  and that were byte-identical to a file that is used — 671 kB out of the shipped asset set. The
+  reference check and the SHA-256 matches are recorded in `docs/asset-provenance.md`.
+- **The write-only `localStorage.ab_onboarded` key**, which the onboarding flow set and nothing ever
+  read — including `docs/ui-ux-renovation/feature-preservation-matrix.md` describing it as the
+  mechanism behind the skip action. Every observable behaviour (the flow, the skip button, the
+  redirect home) is unchanged; remembering onboarding completion would be a deliberate small feature,
+  not a restoration.
+- **A duplicated eight-entry hero-image map** (one copy inline in JSX inside the booking dialog) —
+  now one module, `components/service/heroImages.ts`.
+
+### Measured (2026-10-29)
+- Entry bundle 131.3 → **130.2 kB gzip** against the 132 kB budget, and all JS 213.7 → **211.8 kB**
+  (budget 225), CSS 11.9 (budget 15), fonts 486.3 (budget 520). The preflight caught this work's own
+  growth at 132.0 kB; the weight came out of the dictionary rather than out of the budget, so the
+  entry bundle is now below both the budget and the pre-change baseline with nine new bilingual role
+  labels included. Images shipped 2,428 → 1,771 kB (budget 2,600).
+- API suite **526 passed / 1 skipped** (95 files); web unit **205 passed**; the browser suite
+  **52 passed / 52** against the production build; typecheck, lint, i18n, knip, jscpd, licences,
+  versioncode, route-matrix drift, preflight and the docs gates all green.
+
 ### Changed (2026-10-28 splash clock restored to the pacing the shipped build used)
 - **The splash animation runs at its original pacing again: ~2.7s plus a 0.28s exit
   fade (≈3.1s on screen), measured from the built bundle.** The clock had been
