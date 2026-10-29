@@ -196,9 +196,16 @@ function save(list: QueuedMutation[]) {
  * session it was queued in: on a shared phone (the common case in the markets
  * this app targets) the next person to sign in would otherwise have the
  * previous user's writes replayed under their own account.
+ *
+ * `notifyUser` decides whether the person still looking at the screen is told
+ * what was dropped. It is true when the queue's owner is still the reader (their
+ * own logout — the badge was counting those changes seconds earlier, so a silent
+ * discard is data loss the user never hears about), and false when someone else
+ * is now signed in: telling the new user what the previous one had pending would
+ * leak it, so that path keeps the console warning only.
  */
-export function purgeQueue(reason: string): void {
-  const dropped = size();
+export function purgeQueue(reason: string, notifyUser: boolean = true): void {
+  const dropped = load();
   try {
     localStorage.removeItem(KEY);
   } catch {
@@ -206,7 +213,8 @@ export function purgeQueue(reason: string): void {
   }
   memoryOnly = null;
   attempts.clear();
-  if (dropped > 0) console.warn(`[offlineQueue] discarded ${dropped} queued mutation(s): ${reason}`);
+  if (dropped.length > 0) console.warn(`[offlineQueue] discarded ${dropped.length} queued mutation(s): ${reason}`);
+  if (notifyUser) for (const entry of dropped) notifyDrop(entry, 0, "discarded");
   emit();
 }
 
@@ -238,7 +246,7 @@ function ensureSessionWatch(): void {
       purgeQueue("session ended");
       return;
     }
-    if (lastOwnerId !== "" && lastOwnerId !== nextId) purgeQueue("a different user signed in");
+    if (lastOwnerId !== "" && lastOwnerId !== nextId) purgeQueue("a different user signed in", false);
     lastOwnerId = nextId;
   });
 }
