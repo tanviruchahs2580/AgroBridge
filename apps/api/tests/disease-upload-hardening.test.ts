@@ -149,3 +149,47 @@ describe("disease upload — deep magic-byte signatures (AUD-V3)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+/**
+ * AUD-104: the metadata-stripping decision followed the client-declared
+ * Content-Type, so a real JPEG uploaded as `image/png` passed both the MIME
+ * allow-list and the magic-byte check, then skipped stripJpegMetadata — and was
+ * stored under a `.png` name with `image/png` as its type. The format now comes
+ * from the sniffed bytes, which is the only value a caller cannot choose, and it
+ * drives the stripping, the extension and the stored content type together.
+ */
+describe("disease upload — stripping follows the bytes, not the declared type (AUD-104)", () => {
+  it("a JPEG declared as image/png still loses its EXIF and is stored as .jpg", async () => {
+    const f = await registerFarmer();
+    const res = await uploadImage(f.accessToken, jpegWithExif(), "image/png", "lie.png");
+    expect(res.status).toBe(201);
+
+    const imagePath = res.body.data.imagePath as string;
+    // The extension follows the bytes, so the stored name cannot claim a format
+    // the content is not.
+    expect(imagePath).toMatch(/\.jpg$/);
+    const stored = readFileSync(path.resolve(imagePath));
+    expect(stored.includes(EXIF_SECRET_MARKER)).toBe(false);
+    expect(stored.indexOf(Buffer.from([0xff, 0xe1]))).toBe(-1);
+    expect(stored.toString("latin1")).not.toContain("Exif");
+    rmSync(path.resolve(imagePath), { force: true });
+  });
+
+  it("a PNG declared as image/jpeg is stored as a PNG and passes through unchanged", async () => {
+    const f = await registerFarmer();
+    const png = tinyPng();
+    const res = await uploadImage(f.accessToken, png, "image/jpeg", "lie.jpg");
+    expect(res.status).toBe(201);
+
+    const imagePath = res.body.data.imagePath as string;
+    expect(imagePath).toMatch(/\.png$/);
+    expect(readFileSync(path.resolve(imagePath)).equals(png)).toBe(true);
+    rmSync(path.resolve(imagePath), { force: true });
+  });
+
+  it("the declared type is still constrained to the image allow-list", async () => {
+    const f = await registerFarmer();
+    const res = await uploadImage(f.accessToken, jpegWithExif(), "text/plain", "not-an-image.jpg");
+    expect(res.status).toBe(400);
+  });
+});
