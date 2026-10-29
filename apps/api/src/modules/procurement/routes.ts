@@ -10,6 +10,7 @@ import { refNo, calcProcurement } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
 import { actorRegionLimit, assertSubjectInRegion, isTerritoryScopedRole } from "../../lib/territory.js";
+import { assertNotSelfDealing } from "../../lib/separationOfDuties.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const procurementRouter = Router();
@@ -130,6 +131,9 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
       po.userId,
       "This procurement order"
     );
+    // The offer's grade/moisture are self-declared and fix its payout, and QC
+    // never re-measures them — so acting on your own offer is self-dealing.
+    assertNotSelfDealing(getAuth(req).userId, po.userId, getAuth(req).role, "This procurement offer");
     const { action, qcNotes } = req.body as z.infer<typeof reviewSchema>;
 
     const transitions: Record<string, { from: string[]; to: string }> = {

@@ -21,6 +21,7 @@ import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
+import { assertNotSelfDealing } from "../../lib/separationOfDuties.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
@@ -692,6 +693,10 @@ paymentsRouter.post(
         po.userId,
         "This procurement order"
       );
+      // …and paying out your own offer is self-dealing. `procurement:pay` and
+      // `procurement:review` can be held by the same role, so without this one
+      // account could approve its own self-graded offer and credit itself.
+      assertNotSelfDealing(getAuth(req).userId, po.userId, getAuth(req).role, "This procurement offer");
       if (!po.user.phoneVerified && isProd) throw phoneNotVerified();
       if (po.status !== "COLLECTED") throw unprocessable(`Cannot pay out PO in status ${po.status}`);
       if (po.netPayablePaisa <= 0) throw unprocessable("Nothing payable");
