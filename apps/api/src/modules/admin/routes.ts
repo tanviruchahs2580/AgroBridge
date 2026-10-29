@@ -304,7 +304,11 @@ adminRouter.post(
 
 adminRouter.get("/analytics/summary", requirePermission("admin:metrics"), async (req, res, next) => {
   try {
-    const days = Math.min(90, Math.max(1, Number(req.query.days ?? 30)));
+    // `|| 30` belongs there: without it a non-numeric ?days=abc made the clamp
+    // return NaN, which became an Invalid Date and reached Prisma as a filter
+    // value — a 500 on an admin endpoint from a query string (AUD-120). Same
+    // clamp-and-fall-back the audit-logs route below uses.
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
     const since = new Date(Date.now() - days * 86_400_000);
 
     const [byName, dau] = await Promise.all([

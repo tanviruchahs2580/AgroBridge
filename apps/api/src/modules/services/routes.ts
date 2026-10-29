@@ -11,6 +11,7 @@ import { notify } from "../../providers/notification/service.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 import { getAuth } from "../../shared/auth-context.js";
 import { voidPendingIntents } from "../../lib/pendingIntents.js";
+import { dhakaDateLabel } from "../../shared/utils/dhakaMonth.js";
 
 export const servicesRouter = Router();
 export const bookingsRouter = Router();
@@ -143,8 +144,11 @@ bookingsRouter.post(
         type: "BOOKING",
         titleBn: `সার্ভিস বুকিং গৃহীত (${booking.bookingNo})`,
         titleEn: `Service booking received (${booking.bookingNo})`,
-        bodyBn: `${service.name} — তারিখ: ${booking.scheduledFor.toLocaleDateString("bn-BD")}`,
-        bodyEn: `${service.name} on ${booking.scheduledFor.toDateString()}`,
+        // Both lines format in Asia/Dhaka, not the server's zone: the API runs
+        // on UTC, so a visit scheduled for 06:00 Dhaka was announced as the
+        // previous day (AUD-119).
+        bodyBn: `${service.name} — তারিখ: ${dhakaDateLabel(booking.scheduledFor, "bn-BD")}`,
+        bodyEn: `${service.name} on ${dhakaDateLabel(booking.scheduledFor, "en-GB")}`,
         refType: "BOOKING",
         refId: booking.id,
       });
