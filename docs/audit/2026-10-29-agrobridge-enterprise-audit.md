@@ -36,7 +36,7 @@ Report date: 2026-10-29. Prompt: *Master Prompt V3* (catalog v3, 185 items).
 | Caps applied | **none** — all 15 §7.3 conditions evaluated with evidence in `.audit/score-caps.csv` |
 | Final score (capped) | **83.78 / 100** → band **80–89: production-ready with explicit minor gaps and owner actions** |
 | Score confidence | **Medium** — 119/180 applicable items (66.1%) carry verification-backed PASS evidence |
-| Findings | 36 total: **3 S1 (all fixed)**, 11 S2, 22 S3; 18 verified-fixed, 4 deferred to owner, 14 open (none S0/S1) |
+| Findings | 37 total: **3 S1 (all fixed)**, 11 S2, 23 S3; 18 verified-fixed, 5 deferred to owner, 14 open (none S0/S1) |
 | Pull request | https://github.com/tanviruchahs2580/AgroBridge/pull/85 — `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN` |
 | Production deployment performed | **No.** Merging is an owner action (see §11) |
 
@@ -231,12 +231,22 @@ Full diagrams with file:line citations: `.audit/reports/architecture-as-built.md
   Dependabot still flags them. None is production-reachable; all four highs have
   same-major patched versions that the consumers' own ranges already allow. AUD-140
   (not fixed here; recipe in Owner Actions).
+- **Evidence hygiene (this run's own finding).** Scanning the evidence tree for secrets and
+  personal data found that a prior session's live-production acceptance run had left a full
+  account export (phone, name, one farm, one order, two notifications) plus 17 screenshots in
+  `.audit/acceptance/live-prod/`, 3 MB, created 2026-10-19 against the production API. It is
+  untracked by git, absent from this audit's bundle, and its record counts and creation
+  timestamp point to a synthetic account the prior session registered itself — but it is not
+  needed and should not persist (AUD-141). The same scan cleared the 20+
+  `apps/api/prisma/audit-*.db` files as test residue (5 to 820 synthetic users each, tracking
+  suite runs) and confirmed the only credential-shaped strings in the bundle are the
+  documented CI/test placeholders and sha256 digests.
 - **Waivers.** Every Trivy/gitleaks suppression carries an owner, a reason and an
   expiry in `SECURITY_WAIVERS.md`; no new suppression was added by this branch.
 
 ## 8. Findings
 
-36 findings, each with evidence, impact, root cause, fix commit, regression test,
+37 findings, each with evidence, impact, root cause, fix commit, regression test,
 independent verification, residual risk and owner decision in `.audit/findings.csv`
 and `.audit/findings.json`.
 
@@ -245,7 +255,7 @@ and `.audit/findings.json`.
 | S0 | 0 | — |
 | S1 | 3 | all `VERIFIED_FIXED` |
 | S2 | 11 | 4 fixed, 4 deferred to owner, 3 open |
-| S3 | 22 | 11 fixed, 9 open, 2 deferred |
+| S3 | 23 | 11 fixed, 9 open, 3 deferred |
 
 Top findings by risk (the full register has the rest):
 
@@ -441,6 +451,10 @@ Ordered by risk. The first three are the ones that matter.
 10. **Governance:** consider requiring at least one approving review (currently 0) and
     turning on code-owner review, and add a tag ruleset so a `v*` tag cannot publish
     images before any guard runs.
+11. **Clean up the working directory:** delete `.audit/acceptance/live-prod/` (a prior
+    session's production account export and screenshots) and, if that account was created
+    on the production database, delete the account itself; the `audit-*.db` test residue can
+    go with it (AUD-141).
 
 ## 14. Roadmap (30 / 60 / 90 days)
 
