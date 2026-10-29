@@ -4,6 +4,22 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Deployed (2026-10-29 production at 3e8b5c4)
+- **Production runs the enterprise-audit remediation and the public-language fix.** Web and API both
+  report `3e8b5c4`; `/ready` reports `db: true` with the schema applied 11/11; the
+  deploy-verification gate passed on the merge, and the observed web bundle was built at
+  2026-10-29T04:48Z. Both release PRs passed 19/19 checks before merge — the 14 CI jobs (including
+  the SQLite and PostgreSQL suites and the 52-spec browser suite), CodeQL, the ZAP DAST baseline,
+  Docker build and compose smoke, Trivy, gitleaks, and both Vercel previews.
+- Verified in a browser against the live site after the deploy: the public legal pages in both
+  languages with the language control that had been missing, the not-found page following the
+  visitor's choice, registration with its consent gate (submit disabled until the box is ticked),
+  twelve authenticated screens with no console errors and no horizontal overflow, the admin route
+  denied to a farmer, the personal-data export, and account deletion ending with the deleted
+  credentials refused (`401`). The throwaway account used for that pass was deleted at the end of it.
+- No schema, migration, dependency, environment-variable or workflow change is part of this release;
+  no migration was pending or applied.
+
 ### Fixed (2026-10-29 the public legal pages ignored the visitor's language)
 - **Read the policy as an English-speaking visitor on the deployed site and you got Bengali —
   whatever you had chosen.** Switching to English on the login page correctly stores the choice

@@ -1,45 +1,50 @@
 # STATUS
 
-One page, current as of **2026-10-24 (+06:00)**. What is actually live, what is pilot-grade
+One page, current as of **2026-10-29 (+06:00)**. What is actually live, what is pilot-grade
 simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
 roadmap and no marketing: if a line here disagrees with the running system, the system is right and
 this page is a bug. Production is `main`.
 
-> **Repository fact corrected 2026-10-28.** The AUD-V3 deep-audit remediation is no longer
-> undeployed work on a side branch: it was merged into `main` as PR #70 (`5583d7b`), and `main` has
-> since moved on through #75, #76 and #78 (HEAD `6f1efac` at the time of writing). The rows below
-> that describe *production* are the live probes taken on 2026-10-24 and were **not re-probed** in
-> that pass — treat their "deployed at `1d96534`" stamps as that date's observation, not as today's
-> state. Re-run the probes in `docs/runbooks/live-deployment.md` before quoting them.
+> **Released 2026-10-29: production runs `3e8b5c4`, and every live row below was re-probed.** The
+> enterprise-audit remediation (PR #81) and the public-language fix (PR #83) are deployed: web and
+> API both report `3e8b5c4`, the deploy-verification gate passed on the merge, and a browser pass
+> exercised the public pages, registration with its consent gate, twelve authenticated screens, the
+> data export and account deletion against the live site. Highlights are in the CHANGELOG's
+> 2026-10-29 entries. The previous revision of this page described 2026-10-24 probes; they are
+> superseded.
 
 ## Live in production
 
 | Thing | State | Evidence |
 |---|---|---|
-| Repository | Branch `main` at `1d96534` (the 2026-10-23 deep-audit release record) | git log; `docs/ui-ux-renovation/verification-report.md` §7c |
-| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `1d96534`, built 2026-10-23T10:13Z | live probe (curl, 2026-10-24) |
-| API | Deployed; `/health` reports commit `1d96534`, `env: production` | live probe (curl, 2026-10-24) |
-| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 8/8, latest migration `20261019140000_login_attempt_throttle` | live probe (curl, 2026-10-24) |
+| Repository | Branch `main` at `3e8b5c4` (the 2026-10-29 release: #81, #83) | `git log origin/main` |
+| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3e8b5c4`, built 2026-10-29T04:48Z | live probe (curl, 2026-10-29) |
+| API | Deployed; `/health` reports commit `3e8b5c4`, `env: production` | live probe (curl, 2026-10-29) |
+| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-10-29) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
-| Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers in the probe file |
+| Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers; the build fails if the two Vercel configs diverge |
 | API error contract | Unknown routes return the structured envelope with `requestId` | live probe (`ROUTE_NOT_FOUND` example) |
-| CI | 10/10 jobs green on `0ce54b5` (SQLite + PostgreSQL suites, web build/e2e, APK, docker, secret and container scans) | `.audit/v2/BASELINE.md` G1 |
+| CI | Both release PRs passed **19/19 checks** (14 CI jobs incl. the SQLite + PostgreSQL suites and the 52-spec browser suite, CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI, CodeQL and Deploy verification are green on `3e8b5c4` | `gh pr checks 81`, `gh pr checks 83`, Actions runs for `main` |
 
 Known production properties that are not defects but are easy to misread:
 
 - `limiterStore: "memory"` — no `REDIS_URL` is set, so rate-limit windows are per function instance
-  and fail open (`/ready`, `apps/api/src/app.ts:26-39`; documented in `docs/security.md`).
+  and fail open (`/ready`; `docs/security.md`). **Provisioning Redis is now safe for the
+  account-recovery path**: until 2026-10-29 four auth limiters shared one store instance, which
+  Redis would have turned into a 500 on OTP request/verify and password forgot/reset (PR #81).
 - API functions execute in `iad1` while the web edge answers from `bom1`; the function region is
   not pinned in the repository (`docs/runtime-contract.md`).
 - `/metrics` requires `METRICS_TOKEN` in production — the private-address allowance was an
   allow-everything rule behind the platform LB (verified live 2026-10-23; fixed on
   `audit/v3-remediation` with a fail-closed token guard).
 
-## On the remediation branch — verified, not yet deployed (2026-10-24)
+## Earlier remediations — now deployed, kept as the record (2026-10-24)
 
-Branch `audit/v3-remediation` — the AUD-V3 deep-audit remediation (full report in the PR). The
-live/pilot rows above keep describing production until this is merged and released; the highlights
-landing with it (the complete list is the CHANGELOG's 2026-10-24 entries):
+The section that follows describes the AUD-V3 deep-audit remediation. It is **historical**: that
+work reached `main` (PR #70) and is part of what production runs today, so nothing here is pending.
+It is kept because the table is the only one-page account of what that wave changed and why; the
+"owner actions when releasing this branch" note below it is satisfied (the secrets are set, the boot
+gate enforces entropy, the cron and metrics guards are live).
 
 | Change | What it fixes | Evidence |
 |---|---|---|
@@ -64,7 +69,7 @@ release on). The go-live cutover order remains `docs/play/launch-checklist.md`.
 | Payment gateway webhook | Implemented and signature-verified, but the live SSLCommerz adapter is not activated | `docs/runbooks/live-deployment.md`; decision OD-07 |
 | Weather | Placeholder provider accepted in production (`ALLOW_PLACEHOLDER_PROVIDERS=1`) | Weather cards render provider data with provenance fields; live OpenWeather requires credentials (`docs/runbooks/live-deployment.md` env table) |
 | AI advisory | Offline grounded engine; hosted OpenAI-compatible provider requires credentials | Answers are grounded in the in-repo knowledge base with a KB version and disclaimer (`docs/ai.md`) |
-| SMS / OTP delivery | `SMS_PROVIDER=sandbox`: codes are logged, not delivered (a real HTTP gateway path is wired on the remediation branch; it needs owner credentials — see that section) | Phone verification cannot complete for real users (OD-15) |
+| SMS / OTP delivery | `SMS_PROVIDER=sandbox`: codes are logged, not delivered (the real HTTP gateway path is wired and deployed; it needs owner credentials) | Phone verification cannot complete for real users (OD-15) |
 | Disease photo review | Uploads are stored durably in the database and queued as `PENDING_REVIEW`; there is no classifier and no agronomist queue UI for reviewers | `apps/api/src/modules/disease/routes.ts`; `docs/play/data-safety.md` |
 | Storage | `STORAGE_PROVIDER=db` — uploads survive redeploys; `local` disk is rejected for production | `apps/api/src/providers/storage/index.ts`; ADR-0012 |
 
