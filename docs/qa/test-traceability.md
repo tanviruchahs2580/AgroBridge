@@ -58,7 +58,7 @@ supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`.
 | api (SQLite) | `npx vitest run` in `apps/api` | fresh `prisma/test.db` per run | default profile; one PostgreSQL-gated test skips by design |
 | api (PostgreSQL) | `npm run test:pg` in `apps/api` | real PostgreSQL 17, provisioned from the production schema + migration chain | concurrency and race tests run here |
 | web unit | `npm run test:unit` in `apps/web` | none | vitest + jsdom |
-| web e2e | `npm run test:e2e` in `apps/web` | seeded SQLite via the running API | Playwright chromium only |
+| web e2e | `npm run test:e2e` in `apps/web` | seeded SQLite via the running API | Playwright chromium (all specs) + firefox/webkit smoke subset |
 
 ## Gaps this map keeps visible
 

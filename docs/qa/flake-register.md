@@ -1,9 +1,12 @@
 # E2E flake register
 
 Failures that are not reproducible on a re-run, with the evidence and the
-action taken. The suite runs with `retries: 0` deliberately (a retry that hides
-a flake also hides the diagnosis), so every flake costs a run — this register
-is where they are accounted for instead of being quietly re-run away.
+action taken. Locally the suite runs with `retries: 0` deliberately (a retry
+that hides a flake also hides the diagnosis), and CI allows 2 retries so a
+genuine regression is not masked by an unrelated infrastructure blip — a
+retried-but-passing test is reported as *flaky* by Playwright, and this register
+is where those are accounted for instead of being quietly re-run away
+(`apps/web/playwright.config.ts`).
 
 | Date | Spec | Symptom | Evidence | Assessment / action |
 |---|---|---|---|---|

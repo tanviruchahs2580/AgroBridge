@@ -15,7 +15,7 @@ not a user's connection.
 
 | Budget | Limit | Measured against |
 |---|---|---|
-| Entry bundle (gzip) | **150 kB** | `dist/index.html`'s `assets/index-*.js` |
+| Entry bundle (gzip) | **132 kB** | `dist/index.html`'s `assets/index-*.js` |
 | All JS (gzip) | **225 kB** | every `dist/assets/*.js` |
 | All CSS (gzip) | **15 kB** | every `dist/assets/*.css` |
 | Fonts | **520 kB** | `dist/fonts/` raw bytes |
@@ -29,8 +29,10 @@ Notes:
 - The same preflight also checks the CSP hash of the inline theme script and that the API origin
   baked into the bundle is allowed by `connect-src` — both are performance/availability traps, not
   cosmetics.
-- The repo's Lighthouse config (`apps/web/lighthouserc.json`, `lighthouse.yml`) is
-  `workflow_dispatch`-only and has not been the enforcing gate; the byte budgets are.
+- Lighthouse *does* gate CI: `web-quality` runs `@lhci/cli autorun` against the built bundle,
+  and `apps/web/lighthouserc.json` makes the accessibility floor (0.9) an **error** while the
+  performance and best-practices budgets warn (there is no `lighthouse.yml` — that workflow was
+  removed). The byte budgets above stay the hard failure, because they are deterministic.
 
 ## API point-in-time measurement (local, recorded 2026-09 local hardware)
 

@@ -13,7 +13,7 @@ docs/slo.md (availability/latency) and docs/threat-model.md (STRIDE rows).*
 | Orders: cancel-restock, money lists capped with X-Total-Count | `order-cancel-restock`, `money-list-total-count` | `modules/marketplace/routes.ts` |
 | Payments: server-side amounts, webhook signature+amount, intent trail | `payments-webhook-amount`, `payment-confirm-webhook-race`, `payments-integrity`, `hardening-round11` | `modules/payments/routes.ts` |
 | Refunds: provider-mode honest, wallet ledger legs | `payments-refund-provider-mode`, `wallet-withdrawals`, `withdrawal-race` | `modules/payments/routes.ts` |
-| Wallet invariant: ledger == balance, held == pending withdrawals | `wallet-reconciliation` (+ ops script `scripts/reconcile-wallet.mjs`) | `scripts/reconcile-wallet.mjs` |
+| Wallet invariant: ledger == balance, held == pending withdrawals | `wallet-reconciliation` (+ ops script `apps/api/scripts/reconcile-wallet.mjs`) | `apps/api/scripts/reconcile-wallet.mjs` |
 | Services market: pricing, provider assignment, rating aggregation | `services-pricing-rating`, `journey-services-procurement` | `modules/services/routes.ts` |
 | Procurement pipeline: QC state, payout credits wallet | `journey-services-procurement` | `modules/procurement/routes.ts` |
 | Weather advisories: provenance, caching, single-flight | `journey-weather-ai-disease`, `weather-provenance`, `weather-cache`, `weather-single-flight` | `modules/weather/routes.ts` |
