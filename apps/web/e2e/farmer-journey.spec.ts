@@ -14,11 +14,23 @@ test.describe("Farmer journey", () => {
     await page.fill("#phone", "01700000002");
     await page.fill("#password", "Demo@1234");
     await page.click('button:has-text("Sign in"), button:has-text("প্রবেশ করুন")');
-    // After login, should land on home
-    await page.waitForURL(/.*\/$/, { timeout: 10_000 });
+    // After login, should land on home. 20 s, not 10: the post-login redirect
+    // waits for /auth/me plus the shell's first paint, and WebKit on a loaded
+    // runner has exceeded 10 s here (instance 47, run 40853537815 — chromium and
+    // firefox ran the same spec in 2.1 s and 3.5 s). The assertion below is what
+    // proves the shell rendered; this wait only has to not race it.
+    await page.waitForURL(/.*\/$/, { timeout: 20_000 });
     // The brand must be visible after login; this used to be swallowed with
     // `.catch(() => {})`, which turned a broken shell into a silent pass.
-    await expect(page.getByText("এগ্রোব্রিজ").first()).toBeVisible({ timeout: 10_000 });
+    // Either language is accepted deliberately: which one renders is the
+    // account's persisted `langPref`, and this suite mutates that preference
+    // through the toggle below. Asserting Bangla specifically made this spec
+    // depend on whatever ran before it, so an interrupted or reordered run left
+    // the account in English and every retry replayed against the same database
+    // and failed identically (found 2026-10-29). The language behaviour itself
+    // is verified by english-mode.spec.ts, which normalizes first and asserts
+    // the server-side value.
+    await expect(page.getByText(/এগ্রোব্রিজ|AgroBridge/).first()).toBeVisible({ timeout: 10_000 });
     // Bilingual toggle
     // Language smoke check. The second click must not just repaint the UI: it PATCHes
     // the account's language, and every later spec hydrates from that value. Ending the
