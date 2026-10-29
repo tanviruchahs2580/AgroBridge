@@ -10,6 +10,7 @@ import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 import { getAuth } from "../../shared/auth-context.js";
+import { voidPendingIntents } from "../../lib/pendingIntents.js";
 
 export const servicesRouter = Router();
 export const bookingsRouter = Router();
@@ -267,17 +268,31 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
     // history (completedAt / cancelReason) as a side effect of moving on.
     // Claim-atomic: the expected current status is part of the WHERE clause, so
     // two racing transitions cannot both apply — the loser updates 0 rows.
-    const claimed = await prisma.booking.updateMany({
-      where: { id: booking.id, status: booking.status },
-      data:
-        status === "CANCELLED"
-          ? { status, cancelReason: reason ?? null }
-          : status === "COMPLETED"
-            ? { status, completedAt: new Date() }
-            : { status },
-    });
-    if (claimed.count !== 1) throw conflict("Booking status changed concurrently — reload and retry");
-    const updated = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
+    const updated = await prisma.$transaction(async (tx) => {
+      // Cancelling voids a live payment intent for this booking first: the buyer
+      // may still be on the gateway's checkout page, and the void and the
+      // gateway's PENDING->SUCCEEDED claim are mutually exclusive on the same
+      // row, so a payment that already settled keeps the cancel from applying.
+      if (status === "CANCELLED") {
+        await voidPendingIntents(tx, {
+          purposeType: "BOOKING",
+          purposeId: booking.id,
+          userId: booking.userId,
+          reason: "booking_cancelled",
+        });
+      }
+      const claimed = await tx.booking.updateMany({
+        where: { id: booking.id, status: booking.status },
+        data:
+          status === "CANCELLED"
+            ? { status, cancelReason: reason ?? null }
+            : status === "COMPLETED"
+              ? { status, completedAt: new Date() }
+              : { status },
+      });
+      if (claimed.count !== 1) throw conflict("Booking status changed concurrently — reload and retry");
+      return tx.booking.findUniqueOrThrow({ where: { id: booking.id } });
+    }, { timeout: 15000, maxWait: 8000 });
 
     await notify({
       userId: booking.userId,

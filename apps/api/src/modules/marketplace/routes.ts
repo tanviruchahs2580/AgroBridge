@@ -18,6 +18,7 @@ import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
 import { getAuth } from "../../shared/auth-context.js";
 import { ciContains } from "../../shared/utils/ciContains.js";
+import { voidPendingIntents } from "../../lib/pendingIntents.js";
 
 export const productsRouter = Router();
 export const cartRouter = Router();
@@ -281,6 +282,19 @@ ordersRouter.post("/:id/cancel", validate({ body: cancelOrderBodySchema }), asyn
     const { reason } = req.body as z.infer<typeof cancelOrderSchema>;
 
     const cancelled = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
+      // A live payment intent outlives this cancellation unless it is voided
+      // here: the buyer can still be sitting on the gateway's checkout page. The
+      // void and the gateway's PENDING->SUCCEEDED claim are mutually exclusive on
+      // the same row, so a payment that has already settled keeps the order
+      // un-cancellable (the claim below then updates 0 rows) instead of letting
+      // the stock be released under a payment that is about to confirm.
+      await voidPendingIntents(tx, {
+        purposeType: "ORDER",
+        purposeId: order.id,
+        userId: getAuth(req).userId,
+        reason: "order_cancelled",
+      });
+
       const claimed = await tx.order.updateMany({
         where: { id: order.id, userId: getAuth(req).userId, status: "CONFIRMED", paymentStatus: "UNPAID" },
         data: { status: "CANCELLED", cancelReason: reason ?? null },

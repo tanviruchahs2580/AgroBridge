@@ -130,22 +130,63 @@ function apiPublicBaseUrl(req: import("express").Request): string {
 /**
  * Business side effects of a successful payment. Called exactly once per
  * payment because callers must first win the PENDING->SUCCEEDED claim.
- * Side effects themselves are conditional where possible (defense in depth).
+ * Side effects themselves are conditional where possible (defense in depth):
+ * each predicate re-asserts the target is still PAYABLE, so a payment that
+ * settles against an object someone already cancelled or refunded cannot
+ * resurrect it.
+ *
+ * When a side effect finds nothing payable the money is at the gateway while
+ * the object is closed. That is not an error to swallow — it is the
+ * reconciliation case, so it is audited with the payment reference and left for
+ * support (the refund endpoint accepts a SUCCEEDED ORDER payment for exactly
+ * this shape).
  */
 export async function applyPaymentSideEffects(
   tx: Prisma.TransactionClient,
-  payment: { purposeType: string; purposeId: string; userId: string },
+  payment: { purposeType: string; purposeId: string; userId: string; id?: string; refNo?: string },
 ) {
   if (payment.purposeType === "ORDER") {
-    await tx.order.updateMany({
-      where: { id: payment.purposeId, paymentStatus: "UNPAID" },
+    // CONFIRMED is part of the predicate, not decoration: cancellation sets
+    // CANCELLED and returns the stock to the pool, so flipping a cancelled
+    // order to PAID would leave the buyer's money captured against goods that
+    // are no longer committed to them.
+    const applied = await tx.order.updateMany({
+      where: { id: payment.purposeId, status: "CONFIRMED", paymentStatus: "UNPAID" },
       data: { status: "PAID", paymentStatus: "PAID" },
     });
+    if (applied.count !== 1) {
+      await audit({
+        actorId: null,
+        action: "PAYMENT_NOT_PAYABLE",
+        entityType: "Payment",
+        entityId: payment.id ?? payment.purposeId,
+        meta: {
+          refNo: payment.refNo ?? null,
+          purposeType: payment.purposeType,
+          purposeId: payment.purposeId,
+          reason: "order no longer CONFIRMED+UNPAID when the payment settled — captured money needs a refund decision",
+        },
+      });
+    }
   } else if (payment.purposeType === "BOOKING") {
-    await tx.booking.updateMany({
-      where: { id: payment.purposeId, paymentStatus: "UNPAID" },
+    const applied = await tx.booking.updateMany({
+      where: { id: payment.purposeId, status: { in: ["REQUESTED", "ASSIGNED"] }, paymentStatus: "UNPAID" },
       data: { paymentStatus: "PAID" },
     });
+    if (applied.count !== 1) {
+      await audit({
+        actorId: null,
+        action: "PAYMENT_NOT_PAYABLE",
+        entityType: "Payment",
+        entityId: payment.id ?? payment.purposeId,
+        meta: {
+          refNo: payment.refNo ?? null,
+          purposeType: payment.purposeType,
+          purposeId: payment.purposeId,
+          reason: "booking was cancelled or already settled when the payment settled — captured money needs a refund decision",
+        },
+      });
+    }
   } else if (payment.purposeType === "MEMBERSHIP") {
     // Both reads go through the TRANSACTION client (AUD-V3): the outer
     // client read a different snapshot, so an expiry extension racing this
