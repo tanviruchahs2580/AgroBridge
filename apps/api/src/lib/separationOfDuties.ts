@@ -1,4 +1,5 @@
 import { forbidden } from "../shared/errors/index.js";
+import { actorRegionLimit, assertSubjectInRegion } from "./territory.js";
 
 /**
  * Separation of duties for money-moving review steps.
@@ -22,4 +23,21 @@ export function assertNotSelfDealing(actorId: string, subjectId: string, actorRo
   if (actorId !== subjectId) return;
   if (actorRole === BREAK_GLASS_ROLE) return;
   throw forbidden(`${what} was submitted by your own account — a different reviewer must handle it (separation of duties)`);
+}
+
+/**
+ * The complete "may this actor act on this procurement offer?" predicate:
+ * region scoping first (a territory manager is confined to its own region),
+ * then separation of duties. Kept as one function because the two guards only
+ * mean something together — the region check passes trivially for your own
+ * offer (your region is your region), so on its own it never prevents
+ * self-dealing. Every procurement mutation that moves money uses this.
+ */
+export async function assertMayActOnProcurementOffer(
+  actor: { userId: string; role: string },
+  subjectUserId: string,
+  what = "This procurement order"
+): Promise<void> {
+  await assertSubjectInRegion(await actorRegionLimit(actor.userId, actor.role), subjectUserId, what);
+  assertNotSelfDealing(actor.userId, subjectUserId, actor.role, what);
 }

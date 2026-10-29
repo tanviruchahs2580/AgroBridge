@@ -20,8 +20,7 @@ import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
-import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
-import { assertNotSelfDealing } from "../../lib/separationOfDuties.js";
+import { assertMayActOnProcurementOffer } from "../../lib/separationOfDuties.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
@@ -686,17 +685,9 @@ paymentsRouter.post(
     try {
       const po = await prisma.procurementOrder.findUnique({ where: { id: (req.body as { poId: string }).poId }, include: { user: { select: { phoneVerified: true } } } });
       if (!po) throw notFound("Procurement order");
-      // Payouts are money leaving the platform: a territory-scoped procurement
-      // manager may only pay farmers in their own region.
-      await assertSubjectInRegion(
-        await actorRegionLimit(getAuth(req).userId, getAuth(req).role),
-        po.userId,
-        "This procurement order"
-      );
-      // …and paying out your own offer is self-dealing. `procurement:pay` and
-      // `procurement:review` can be held by the same role, so without this one
-      // account could approve its own self-graded offer and credit itself.
-      assertNotSelfDealing(getAuth(req).userId, po.userId, getAuth(req).role, "This procurement offer");
+      // Money leaving the platform: confined to the actor's region, and never
+      // the actor's own offer (one role holds both review and pay).
+      await assertMayActOnProcurementOffer({ userId: getAuth(req).userId, role: getAuth(req).role }, po.userId);
       if (!po.user.phoneVerified && isProd) throw phoneNotVerified();
       if (po.status !== "COLLECTED") throw unprocessable(`Cannot pay out PO in status ${po.status}`);
       if (po.netPayablePaisa <= 0) throw unprocessable("Nothing payable");

@@ -9,8 +9,8 @@ import { ok } from "../../middleware/context.js";
 import { refNo, calcProcurement } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
-import { actorRegionLimit, assertSubjectInRegion, isTerritoryScopedRole } from "../../lib/territory.js";
-import { assertNotSelfDealing } from "../../lib/separationOfDuties.js";
+import { actorRegionLimit, isTerritoryScopedRole } from "../../lib/territory.js";
+import { assertMayActOnProcurementOffer } from "../../lib/separationOfDuties.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const procurementRouter = Router();
@@ -125,15 +125,10 @@ procurementRouter.post("/:id/review", requirePermission("procurement:review"), v
   try {
     const po = await prisma.procurementOrder.findUnique({ where: { id: req.params.id } });
     if (!po) throw notFound("Procurement order");
-    // A territory-scoped reviewer may only act on offers from their own region.
-    await assertSubjectInRegion(
-      await actorRegionLimit(getAuth(req).userId, getAuth(req).role),
-      po.userId,
-      "This procurement order"
-    );
-    // The offer's grade/moisture are self-declared and fix its payout, and QC
-    // never re-measures them — so acting on your own offer is self-dealing.
-    assertNotSelfDealing(getAuth(req).userId, po.userId, getAuth(req).role, "This procurement offer");
+    // Who may act on this offer: the actor's region, and never their own offer
+    // (the grade/moisture that fix the payout are self-declared and QC never
+    // re-measures them, so a self-review would be self-dealing).
+    await assertMayActOnProcurementOffer({ userId: getAuth(req).userId, role: getAuth(req).role }, po.userId);
     const { action, qcNotes } = req.body as z.infer<typeof reviewSchema>;
 
     const transitions: Record<string, { from: string[]; to: string }> = {
