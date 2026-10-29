@@ -21,10 +21,13 @@ aiRouter.use(requireAuth);
 // AI endpoints are expensive -> stricter limit than global. The custom handler
 // keeps this limiter's message but wraps it in the standard error envelope with
 // the request id, so a throttled caller is still correlatable.
-const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000) : undefined;
+const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000, "ai-advisory") : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 30,
+  // Operator-tunable, and documented as such in .env.example: the value was
+  // hardcoded here while AI_HOURLY_LIMIT sat unread beside it, so an operator who
+  // lowered the quota to control provider spend changed nothing.
+  limit: env.AI_HOURLY_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
   store: aiStore,

@@ -5,7 +5,12 @@ and the `quality-gates` CI job. `auth` values: `requireAuth`, `requirePermission
 `requireAuth (file-level use on …)` (module declares `router.use(requireAuth)` for that router),
 or `PUBLIC` (rate-limited and validated, but unauthenticated by design — see docs/api.md).
 
-Total: 67 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":9,"PUBLIC":7,"requirePermission:disease:review":1,"requireAuth (file-level use on diseaseRouter)":3,"requireAuth (file-level use on farmsRouter)":4,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on ordersRouter)":5,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requirePermission:procurement:pay":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1}
+`path` is **router-relative**. The prefix each router is mounted on lives in `src/app.ts`
+(`v1.use("<prefix>", <router>)`), and a module may mount a sub-router on a further segment
+(`farmsRouter.use("/:id", eventsRouter())`), so `eventsRouter POST /events` is served at
+`/api/v1/farms/:id/events`. Resolve the prefix from app.ts, not from this column.
+
+Total: 85 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":9,"PUBLIC":8,"requirePermission:disease:review":1,"requireAuth (file-level use on diseaseRouter)":3,"requireAuth (file-level use on farmsRouter)":4,"requireAuth (file-level use on cropsRouter)":3,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on plotsRouter)":3,"requireAuth (file-level use on ordersRouter)":5,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on notificationsRouter)":4,"requireAuth (file-level use on organizationsRouter)":6,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:pay":1,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1,"requireAuth (file-level use on weatherRouter)":1}
 
 | module | method | path | auth |
 |---|---|---|---|
@@ -39,28 +44,45 @@ Total: 67 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | disease | GET | /cases | requireAuth (file-level use on diseaseRouter) |
 | farms | PATCH | /:id | requireAuth (file-level use on farmsRouter) |
 | farms | DELETE | /:id | requireAuth (file-level use on farmsRouter) |
+| farms | PATCH | /crops/:cropId | requireAuth (file-level use on cropsRouter) |
+| farms | POST | /crops | requireAuth (file-level use on cropsRouter) |
+| farms | GET | /crops | requireAuth (file-level use on cropsRouter) |
 | farms | GET | /events | requireAuth (file-level use on eventsRouter) |
 | farms | POST | /events | requireAuth (file-level use on eventsRouter) |
+| farms | PATCH | /plots/:plotId | requireAuth (file-level use on plotsRouter) |
+| farms | POST | /plots | requireAuth (file-level use on plotsRouter) |
 | farms | GET | / | requireAuth (file-level use on farmsRouter) |
 | farms | POST | / | requireAuth (file-level use on farmsRouter) |
+| farms | GET | /plots | requireAuth (file-level use on plotsRouter) |
 | marketplace | POST | /:id/cancel | requireAuth (file-level use on ordersRouter) |
 | marketplace | GET | /:id | requireAuth (file-level use on ordersRouter) |
 | marketplace | DELETE | /:id | requireAuth (file-level use on ordersRouter) |
 | marketplace | POST | /checkout | requireAuth (file-level use on ordersRouter) |
-| marketplace | POST | /items | requireAuth (file-level use on cartRouter) |
 | marketplace | GET | / | requireAuth (file-level use on productsRouter) |
 | marketplace | POST | / | requireAuth,requirePermission:products:manage |
 | marketplace | GET | / | requireAuth (file-level use on cartRouter) |
 | marketplace | GET | / | requireAuth (file-level use on ordersRouter) |
 | marketplace | DELETE | /items/:productId | requireAuth (file-level use on cartRouter) |
+| marketplace | POST | /items | requireAuth (file-level use on cartRouter) |
+| notifications | GET | / | requireAuth (file-level use on notificationsRouter) |
+| notifications | GET | /preferences | requireAuth (file-level use on notificationsRouter) |
+| notifications | PATCH | /preferences | requireAuth (file-level use on notificationsRouter) |
+| notifications | POST | /read | requireAuth (file-level use on notificationsRouter) |
+| ops | GET | /retention | PUBLIC |
+| organizations | GET | /:id/farms | requireAuth (file-level use on organizationsRouter) |
+| organizations | DELETE | /:id/members/:userId | requireAuth (file-level use on organizationsRouter) |
+| organizations | POST | /:id/members | requireAuth (file-level use on organizationsRouter) |
+| organizations | GET | /:id | requireAuth (file-level use on organizationsRouter) |
+| organizations | POST | / | requireAuth (file-level use on organizationsRouter) |
+| organizations | GET | / | requireAuth (file-level use on organizationsRouter) |
 | payments-webhook | POST | /webhook/sslcommerz | PUBLIC |
 | payments | POST | /:id/confirm | requireAuth (file-level use on paymentsRouter) |
 | payments | POST | /:id/refund | requirePermission:payments:refund |
 | payments | GET | /:id/status | requireAuth (file-level use on paymentsRouter) |
-| payments | POST | /payouts | requirePermission:procurement:pay |
 | payments | GET | / | requireAuth (file-level use on paymentsRouter) |
 | payments | GET | / | requireAuth (file-level use on walletRouter) |
 | payments | POST | /intent | requireAuth (file-level use on paymentsRouter) |
+| payments | POST | /payouts | requirePermission:procurement:pay |
 | payments | GET | /plans | PUBLIC |
 | payments | GET | /summary | requireAuth (file-level use on walletRouter) |
 | payments | POST | /withdrawals | requireAuth (file-level use on walletRouter) |
@@ -76,3 +98,4 @@ Total: 67 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | services | POST | / | requireAuth (file-level use on bookingsRouter) |
 | services | GET | / | requireAuth (file-level use on bookingsRouter) |
 | services | POST | /providers | requirePermission:providers:manage |
+| weather | GET | / | requireAuth (file-level use on weatherRouter) |

@@ -29,7 +29,16 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   Policy: login 20/15 min per **account** (uniform error path, no enumeration), OTP request 5/h per
   user, OTP verify 20/h per user, registration 10/h per **address** (deliberate: it is the
   mass-account-creation control and the key would otherwise be attacker-supplied), checkout
-  40/15 min per user, financial actions 20/h per user, AI 30/h per user, plus a global cap.
+  40/15 min per user, financial actions 20/h per user, AI `AI_HOURLY_LIMIT`/h per user (default 30),
+  plus a global cap.
+  **Each limiter owns its store instance and its Redis key namespace.** Both halves are load-bearing
+  and neither is visible without `REDIS_URL`: express-rate-limit refuses a Store shared by two
+  limiters (ERR_ERL_STORE_REUSE, raised as a 500 on the second limiter's first request), and the
+  counter key it passes comes only from the request — so two limiters on the same Redis without a
+  prefix write the same key and enforce one budget between them. Four auth limiters shared one store
+  until 2026-10-28, which would have 500'd OTP request/verify and password forgot/reset in any
+  Redis-enabled deployment; `apps/api/tests/rate-limit-store-wiring.test.ts` now fails if either
+  invariant is broken again.
   **Known limitation:** windows are shared only when `REDIS_URL` is set. On serverless without
   Redis each instance counts its own window, so the effective quota is *(instances × limit)* —
   the Redis store also fails **open** during an outage. Both are accepted for now (an outage must
@@ -44,6 +53,27 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   Redis is provisioned, the store's window arithmetic is atomic (one Lua round trip for
   INCR+EXPIRE+TTL, with orphan-key healing — `infrastructure/rateLimitRedis.ts`), so a crash
   between operations can no longer leave a TTL-less counter locking an account's bucket forever.
+- **Territory scoping (BR-23):** a territory role (REGIONAL/AREA/PROCUREMENT/COLLECTION_MANAGER)
+  whose `region` column is empty is **unrestricted** today: `GET /api/v1/procurement` returns every
+  region's offers — each row carrying the farmer's name and phone — and the review/payout guards
+  treat a null region as "no limit", so such a manager can act on another region's records. An
+  operator creates that state with one `PATCH /admin/users/:id` (role set, region omitted), so it is
+  a configuration omission rather than an attack. It is deliberately fail-open in
+  `lib/territory.ts`, logged as `territory.unassigned`, pinned by
+  `apps/api/tests/territory-unassigned.test.ts`, and awaiting an owner decision on the default
+  (ODL-007) — this run did not change a permission boundary on its own authority. Operators should
+  assign a region whenever they assign a territory role.
+- **Two boundaries that are deliberate, and why (reviewed 2026-10-28, unchanged):**
+  - `POST /api/v1/payments/:id/refund` is the one payments route with no ownership filter — it is
+    permission-gated (`payments:refund`, held only by ADMIN/SUPER_ADMIN), takes a `gatewayRef` for
+    live refunds, refuses MEMBERSHIP refunds and writes a compensating wallet debit. It is an
+    operator action on someone else's payment by design; the scoping every sibling has would make
+    operator-initiated refunds impossible. `payments/routes.ts:527-620`.
+  - `POST /api/v1/farms/:id/events` is **owner-only**, while the farm's other mutations admit
+    organisation members (`assertFarmAccess`). So an organisation member can read an org farm's
+    event log but not append to it. That asymmetry is fail-closed (it grants less, never more); it is
+    recorded rather than "fixed" because widening a write path is a permission decision, not a
+    maintenance one. `farms/routes.ts:37-47` vs `:418`.
 - **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
   `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
   immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare
@@ -82,19 +112,21 @@ scans history for committed secrets, Trivy fails the image build on HIGH/CRITICA
 `.trivyignore`, each cross-referenced to `SECURITY_WAIVERS.md` with an expiry), and CodeQL runs on
 every push and PR. Action pins are full SHAs with the version in a trailing comment.
 
-## Status notes (2026-10-19): DAST, attestation, headers
+## Status notes (re-verified against the tree 2026-10-28): DAST, attestation, headers
 
 Code facts only — status statements, not claims of coverage:
 
-- **DAST:** no dynamic application security testing runs in CI. `.github/workflows/` has CodeQL
-  (SAST, `codeql.yml`), Trivy image and config scanning plus CycloneDX SBOM generation
-  (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline test suites, and the
-  deploy gate's live-header assertions — but no ZAP/Nuclei/equivalent DAST job or config exists in
-  the repository.
-- **Build attestation:** no provenance attestation is produced (no `attest-build-provenance`/SLSA
-  step in any workflow). Release integrity rests on SHA-pinned actions, the SBOM artifact, the
-  apksigner/jarsigner signature checks (`android-release.yml:115-144`), and the deploy gate that
-  compares the running commit and applied schema with the repository (ADR-0007).
+- **DAST:** `.github/workflows/dast.yml` ("Security — DAST baseline (ZAP)") runs a live ZAP
+  baseline scan against a locally composed `db + api` stack on pull requests to `main` and on
+  manual dispatch, alongside CodeQL (SAST, `codeql.yml`), Trivy image and config scanning plus
+  CycloneDX SBOM generation (`ci.yml:415-434`, `:487-541`), secret scanning, the security-baseline
+  test suites, and the deploy gate's live-header assertions. A baseline scan is a smoke-level pass
+  over the classes it covers — not a penetration test, and not a coverage claim.
+- **Build attestation:** `ci.yml`'s `docker-build` job calls `actions/attest-build-provenance` for
+  the built API image, so provenance attestation IS produced for that artefact. Release integrity
+  otherwise rests on SHA-pinned actions, the SBOM artifact, the apksigner/jarsigner signature checks
+  (`android-release.yml:115-144`), and the deploy gate that compares the running commit and applied
+  schema with the repository (ADR-0007).
 - **Headers:** the API helmet policy and the static-site edge policy are described above; the live
   assertions run in `deploy-verify.yml`, and the web build fails if the two Vercel configs'
   policies diverge or if the CSP hash drifts from the built HTML

@@ -22,8 +22,8 @@ for upload and log-exposure controls.
 | Disease-case metadata rows | PostgreSQL | account lifetime | retained after deletion (no file bytes; advisory record) |
 | Transaction/wallet ledger rows | PostgreSQL | **5 years** | legal retention — never anonymized early |
 | Application logs (pino stdout) | log platform | operator-configured (suggest 30d) | log platform retention |
-| Backups (`pg_dump`, snapshots) | backup storage | **30 days**, then auto-expire | backup job retention policy |
-| Upload backups | secondary storage | 30 days | same |
+| Backups (`pg_dump`, snapshots) | backup storage | compose deployment: **30 days**, then auto-expire; production runs on managed PostgreSQL (Neon) and follows **the provider's snapshot schedule** | backup job retention policy / provider plan |
+| Upload backups | secondary storage | 30 days (compose deployment only) | same |
 
 ## Account deletion mechanics
 
@@ -50,9 +50,12 @@ revision of this document described behaviour that was never built):
 7. **Financial/ledger rows are retained unmodified** (orders, payments, wallet entries,
    procurement orders, bookings) for legal integrity and accounting audit — they reference
    the anonymized user id only.
-8. Backup interaction: deletion is *not* propagated into existing dumps. Backups expire on
-   their own **30-day** schedule — worst case, a pre-deletion copy survives ≤30 days.
-   This is disclosed in the privacy policy ("up to 30 days in backups").
+8. Backup interaction: deletion is *not* propagated into existing dumps. On the compose
+   deployment, backups expire on their own **30-day** schedule — worst case, a pre-deletion
+   copy survives ≤30 days. On the live deployment (managed PostgreSQL) the snapshot window is
+   the provider's, not ours; the privacy policy states exactly that ("as long as our database
+   provider retains its snapshots (platform-managed; we do not operate our own backup jobs)")
+   and no fixed day-count is promised to users.
 
 **Known residuals** (verified against the code on 2026-10-18 — do not claim more):
 

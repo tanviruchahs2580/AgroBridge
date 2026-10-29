@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/modules/**/routes.ts",
-  "total": 67,
+  "total": 85,
   "summary": {
     "requirePermission:admin:metrics": 3,
     "requirePermission:audit:read": 1,
@@ -9,25 +9,30 @@
     "requirePermission:finance:withdrawals": 2,
     "requireAuth (file-level use on aiRouter)": 3,
     "requireAuth": 9,
-    "PUBLIC": 7,
+    "PUBLIC": 8,
     "requirePermission:disease:review": 1,
     "requireAuth (file-level use on diseaseRouter)": 3,
     "requireAuth (file-level use on farmsRouter)": 4,
+    "requireAuth (file-level use on cropsRouter)": 3,
     "requireAuth (file-level use on eventsRouter)": 2,
+    "requireAuth (file-level use on plotsRouter)": 3,
     "requireAuth (file-level use on ordersRouter)": 5,
-    "requireAuth (file-level use on cartRouter)": 3,
     "requireAuth (file-level use on productsRouter)": 1,
+    "requireAuth (file-level use on cartRouter)": 3,
+    "requireAuth (file-level use on notificationsRouter)": 4,
+    "requireAuth (file-level use on organizationsRouter)": 6,
     "requireAuth (file-level use on paymentsRouter)": 4,
     "requirePermission:payments:refund": 1,
-    "requirePermission:procurement:pay": 1,
     "requireAuth (file-level use on walletRouter)": 4,
+    "requirePermission:procurement:pay": 1,
     "requirePermission:procurement:review": 1,
     "requireAuth (file-level use on procurementRouter)": 2,
     "requirePermission:bookings:assign": 1,
     "requireAuth (file-level use on bookingsRouter)": 4,
     "requireAuth (file-level use on servicesRouter)": 1,
     "requirePermission:services:manage": 1,
-    "requirePermission:providers:manage": 1
+    "requirePermission:providers:manage": 1,
+    "requireAuth (file-level use on weatherRouter)": 1
   },
   "routes": [
     {
@@ -273,6 +278,30 @@
     {
       "module": "farms",
       "file": "src/modules/farms/routes.ts",
+      "method": "PATCH",
+      "path": "/crops/:cropId",
+      "router": "cropsRouter",
+      "auth": "requireAuth (file-level use on cropsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "POST",
+      "path": "/crops",
+      "router": "cropsRouter",
+      "auth": "requireAuth (file-level use on cropsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "GET",
+      "path": "/crops",
+      "router": "cropsRouter",
+      "auth": "requireAuth (file-level use on cropsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
       "method": "GET",
       "path": "/events",
       "router": "eventsRouter",
@@ -289,6 +318,22 @@
     {
       "module": "farms",
       "file": "src/modules/farms/routes.ts",
+      "method": "PATCH",
+      "path": "/plots/:plotId",
+      "router": "plotsRouter",
+      "auth": "requireAuth (file-level use on plotsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "POST",
+      "path": "/plots",
+      "router": "plotsRouter",
+      "auth": "requireAuth (file-level use on plotsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
       "method": "GET",
       "path": "/",
       "router": "farmsRouter",
@@ -301,6 +346,14 @@
       "path": "/",
       "router": "farmsRouter",
       "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "GET",
+      "path": "/plots",
+      "router": "plotsRouter",
+      "auth": "requireAuth (file-level use on plotsRouter)"
     },
     {
       "module": "marketplace",
@@ -333,14 +386,6 @@
       "path": "/checkout",
       "router": "ordersRouter",
       "auth": "requireAuth (file-level use on ordersRouter)"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
-      "method": "POST",
-      "path": "/items",
-      "router": "cartRouter",
-      "auth": "requireAuth (file-level use on cartRouter)"
     },
     {
       "module": "marketplace",
@@ -383,6 +428,102 @@
       "auth": "requireAuth (file-level use on cartRouter)"
     },
     {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/items",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "notifications",
+      "file": "src/modules/notifications/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "notificationsRouter",
+      "auth": "requireAuth (file-level use on notificationsRouter)"
+    },
+    {
+      "module": "notifications",
+      "file": "src/modules/notifications/routes.ts",
+      "method": "GET",
+      "path": "/preferences",
+      "router": "notificationsRouter",
+      "auth": "requireAuth (file-level use on notificationsRouter)"
+    },
+    {
+      "module": "notifications",
+      "file": "src/modules/notifications/routes.ts",
+      "method": "PATCH",
+      "path": "/preferences",
+      "router": "notificationsRouter",
+      "auth": "requireAuth (file-level use on notificationsRouter)"
+    },
+    {
+      "module": "notifications",
+      "file": "src/modules/notifications/routes.ts",
+      "method": "POST",
+      "path": "/read",
+      "router": "notificationsRouter",
+      "auth": "requireAuth (file-level use on notificationsRouter)"
+    },
+    {
+      "module": "ops",
+      "file": "src/modules/ops/routes.ts",
+      "method": "GET",
+      "path": "/retention",
+      "router": "opsRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "GET",
+      "path": "/:id/farms",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "DELETE",
+      "path": "/:id/members/:userId",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "POST",
+      "path": "/:id/members",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "GET",
+      "path": "/:id",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
+      "module": "organizations",
+      "file": "src/modules/organizations/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "organizationsRouter",
+      "auth": "requireAuth (file-level use on organizationsRouter)"
+    },
+    {
       "module": "payments-webhook",
       "file": "src/modules/payments/webhook.ts",
       "method": "POST",
@@ -417,14 +558,6 @@
     {
       "module": "payments",
       "file": "src/modules/payments/routes.ts",
-      "method": "POST",
-      "path": "/payouts",
-      "router": "paymentsRouter",
-      "auth": "requirePermission:procurement:pay"
-    },
-    {
-      "module": "payments",
-      "file": "src/modules/payments/routes.ts",
       "method": "GET",
       "path": "/",
       "router": "paymentsRouter",
@@ -445,6 +578,14 @@
       "path": "/intent",
       "router": "paymentsRouter",
       "auth": "requireAuth (file-level use on paymentsRouter)"
+    },
+    {
+      "module": "payments",
+      "file": "src/modules/payments/routes.ts",
+      "method": "POST",
+      "path": "/payouts",
+      "router": "paymentsRouter",
+      "auth": "requirePermission:procurement:pay"
     },
     {
       "module": "payments",
@@ -565,6 +706,14 @@
       "path": "/providers",
       "router": "servicesRouter",
       "auth": "requirePermission:providers:manage"
+    },
+    {
+      "module": "weather",
+      "file": "src/modules/weather/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "weatherRouter",
+      "auth": "requireAuth (file-level use on weatherRouter)"
     }
   ]
 }

@@ -102,9 +102,17 @@ const USER_STATUS_KEYS: Record<string, DictKey> = {
 export const userStatusLabel = (raw: string, lang: Lang): string => fromMap(USER_STATUS_KEYS, raw, lang);
 
 // ── Roles ──
+// Every role in contracts/roles.json, plus QC_OFFICER (a label the server does not
+// issue today, kept so a historical row still renders as words). The vocabulary
+// guard test fails if a role the server can assign has no entry here — nine of them
+// were missing, so an operator table showed "REGIONAL_MANAGER" verbatim.
 const ROLE_KEYS: Record<string, DictKey> = {
   FARMER: "roleFARMER", QC_OFFICER: "roleQC_OFFICER", ADMIN: "roleADMIN", SUPER_ADMIN: "roleSUPER_ADMIN",
   SERVICE_PROVIDER: "roleSERVICE_PROVIDER",
+  REGIONAL_MANAGER: "roleREGIONAL_MANAGER", AREA_MANAGER: "roleAREA_MANAGER",
+  PROCUREMENT_MANAGER: "rolePROCUREMENT_MANAGER", WAREHOUSE_MANAGER: "roleWAREHOUSE_MANAGER",
+  COLLECTION_MANAGER: "roleCOLLECTION_MANAGER", FIELD_AGENT: "roleFIELD_AGENT",
+  DEALER: "roleDEALER", CORPORATE: "roleCORPORATE", COOPERATIVE: "roleCOOPERATIVE",
 };
 /**
  * Membership tier → localized label. `.tier` arrives as an internal enum

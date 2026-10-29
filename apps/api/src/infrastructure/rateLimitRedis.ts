@@ -26,7 +26,15 @@ if count == 1 or ttl == -1 then
 end
 return {count, ttl}`;
 
-export function createRedisStore(redisUrl: string, windowMs?: number): Store {
+/**
+ * @param prefix Namespace for this limiter's counters. express-rate-limit hands
+ *   the store a key derived only from the request (the keyGenerator's output),
+ *   so two limiters sharing a Redis instance would otherwise write the SAME key
+ *   and silently share one counter — the per-route budgets documented in
+ *   `docs/security.md` would stop meaning what they say. Each limiter passes its
+ *   own prefix.
+ */
+export function createRedisStore(redisUrl: string, windowMs?: number, prefix = "default"): Store {
   const client = new Redis(redisUrl, {
     lazyConnect: false,
     maxRetriesPerRequest: 2,
@@ -38,7 +46,7 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
   let configuredWindowMs = windowMs;
 
   async function bump(key: string, winMs: number): Promise<ClientRateLimitInfo> {
-    const redisKey = `rl:${key}`;
+    const redisKey = `rl:${prefix}:${key}`;
     const windowSec = Math.ceil(winMs / 1000);
     try {
       const result = (await client.eval(BUMP_AND_TTL_LUA, 1, redisKey, String(windowSec))) as [number, number];
@@ -64,14 +72,14 @@ export function createRedisStore(redisUrl: string, windowMs?: number): Store {
     },
     async decrement(key: string): Promise<void> {
       try {
-        await client.decr(`rl:${key}`);
+        await client.decr(`rl:${prefix}:${key}`);
       } catch {
         /* ignore */
       }
     },
     async resetKey(key: string): Promise<void> {
       try {
-        await client.del(`rl:${key}`);
+        await client.del(`rl:${prefix}:${key}`);
       } catch {
         /* ignore */
       }

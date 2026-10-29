@@ -38,10 +38,14 @@ const ROUTE_FILES = [
   ["disease", "disease/routes.ts"],
   ["farms", "farms/routes.ts"],
   ["marketplace", "marketplace/routes.ts"],
+  ["notifications", "notifications/routes.ts"],
+  ["ops", "ops/routes.ts"],
+  ["organizations", "organizations/routes.ts"],
   ["payments", "payments/routes.ts"],
   ["payments-webhook", "payments/webhook.ts"],
   ["procurement", "procurement/routes.ts"],
   ["services", "services/routes.ts"],
+  ["weather", "weather/routes.ts"],
 ];
 
 const HTTP = "(get|post|patch|put|delete)";
@@ -114,6 +118,22 @@ for (const [module, file] of ROUTE_FILES) {
     found.push({ symbol: routerSym, method, path: routePath, chain: authChainOf(args) });
   }
 
+  // Pass 2b: fluent chains. A factory may build its router as one expression —
+  // `return Router({ mergeParams: true }).post("/plots", …).get("/plots", …)` —
+  // so those declarations hang off no identifier and pass 2 cannot see them.
+  // The dot of a fluent call is never preceded by an identifier, which is what
+  // separates this pass from the symbol-based one above.
+  for (const f of factorySpans) {
+    const body = text.slice(f.start, f.end);
+    for (const m of body.matchAll(/(?:^|[^\w$.])\.(get|post|patch|put|delete)\(\s*[`'"]/gm)) {
+      const openParen = f.start + m.index + m[0].lastIndexOf("(");
+      const args = sliceCall(text, openParen);
+      const routePath = firstPathArg(args);
+      if (!routePath) continue;
+      found.push({ symbol: f.name, method: m[1].toUpperCase(), path: routePath, chain: authChainOf(args) });
+    }
+  }
+
   // Pass 3: sub-router factories mounted from an authed parent inherit its scope
   // (fixed-point so chains of factories settle too).
   const mountRe = /(\w+)\.use\(\s*["'`]([^"'`]+)["'`]\s*,\s*(\w+)\(\s*\)\s*\)/g;
@@ -160,6 +180,11 @@ const md = [
   "and the `quality-gates` CI job. `auth` values: `requireAuth`, `requirePermission:<scope>`,",
   "`requireAuth (file-level use on …)` (module declares `router.use(requireAuth)` for that router),",
   "or `PUBLIC` (rate-limited and validated, but unauthenticated by design — see docs/api.md).",
+  "",
+  "`path` is **router-relative**. The prefix each router is mounted on lives in `src/app.ts`",
+  "(`v1.use(\"<prefix>\", <router>)`), and a module may mount a sub-router on a further segment",
+  "(`farmsRouter.use(\"/:id\", eventsRouter())`), so `eventsRouter POST /events` is served at",
+  "`/api/v1/farms/:id/events`. Resolve the prefix from app.ts, not from this column.",
   "",
   `Total: ${routes.length} routes. Summary: ${JSON.stringify(summary)}`,
   "",

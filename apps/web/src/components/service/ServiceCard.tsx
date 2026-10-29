@@ -6,6 +6,7 @@ import { serviceCategoryLabel, priceUnitLabel } from "../../lib/labels";
 import { t } from "../../lib/i18n";
 import type { DictKey, Lang } from "../../lib/i18n";
 import { AgriIconBox } from "../icons/AgriIcons";
+import { serviceHeroImage } from "./heroImages";
 
 interface Props {
   title: string;
@@ -20,17 +21,6 @@ interface Props {
   /** Grid position — staggers the entrance choreography (transient only). */
   index?: number;
 }
-
-const HERO_MAP: Record<string, string> = {
-  THRESHER: "/images/services/thresher.jpg",
-  SOIL_TESTING: "/images/services/soil-test.jpg",
-  POWER_TILLER: "/images/services/power-tiller.jpg",
-  LAND_LEVELLER: "/images/services/land-leveller.png",
-  DRONE: "/images/services/drone.jpg",
-  COMBINE_HARVESTER: "/images/services/combine.jpg",
-  AGRONOMIST: "/images/services/agronomist.jpg",
-  TRACTOR: "/images/services/tractor.jpg",
-};
 
 // Service-specific honest fallback — distinct per category, not generic placeholder (fixes A2).
 // Copy lives in the dictionary (svcDesc*), one key per category.
@@ -62,7 +52,7 @@ export function ServiceCard({
   onDetails,
   index = 0,
 }: Props) {
-  const hero = HERO_MAP[category] ?? HERO_MAP.TRACTOR;
+  const hero = serviceHeroImage(category);
   const providerCount = providers.length;
 
   // Honest aggregated rating across providers — null if no ratings yet (fixes A1)

@@ -9,21 +9,19 @@ Companion documents: `docs/data-protection.md` (retention schedule), `docs/adr/0
 policies in `apps/web/src/features/legal/content.ts`, and the owner-action notes in the root
 `PRIVACY_POLICY.md` / `TERMS_OF_SERVICE.md`.
 
-## 1. Consent capture — status as implemented (verified 2026-10-19)
+## 1. Consent capture — status as implemented (re-verified 2026-10-28)
 
 | Question | Answer | Evidence |
 |---|---|---|
-| Is there a consent field on registration in the API? | **No.** The register schema accepts `fullName, phone, email, password, langPref` only | `apps/api/src/modules/auth/routes.ts:124-130` |
-| Is there a consent checkbox in the web registration form? | **No.** The form collects the same fields and calls `POST /auth/register` with them | `apps/web/src/features/auth/Register.tsx:11-56`, `:79-161` |
-| Does any other screen capture consent? | A repository-wide search for "consent" in `apps/api/src` and `apps/web/src` matches only the published legal text itself (the privacy policy's lawful-basis bullet) | `apps/web/src/features/legal/content.ts:143-146`; search performed 2026-10-19 |
-| How is acceptance expressed today? | By continued use — the runtime terms say continuing to use the service after a change means acceptance | `apps/web/src/features/legal/content.ts:362-364` |
+| Is there a consent field on registration in the API? | **Yes.** `registerSchema` requires `consent: z.literal(true)`; a body without it is refused, and the accepted policy version is written as an append-only `CONSENT_CAPTURED` audit row | `apps/api/src/modules/auth/routes.ts:147-161`, `:223` |
+| Is there a consent checkbox in the web registration form? | **Yes.** `#consent` gates submit and shows a field error when unchecked; the form posts `consent: true` | `apps/web/src/features/auth/Register.tsx:43-54`, `:163-177` |
+| Does any other screen capture consent? | The registration checkbox is the only capture point; no separate consent step exists at photo upload | search over `apps/api/src` and `apps/web/src`, 2026-10-28 |
+| How is acceptance expressed beyond registration? | By continued use — the runtime terms say continuing to use the service after a change means acceptance | `apps/web/src/features/legal/content.ts:362-364` |
 | Is photo upload gated by an explicit consent action? | No separate consent step exists; the privacy policy describes uploaded photos under the "Consent" lawful basis | `apps/web/src/features/legal/content.ts:143-146`; `docs/play/data-safety.md:69-76` |
 
-**[COUNSEL]** The policy states "Consent — photos you upload and optional details you choose to
-provide", but no consent-capture mechanism exists at registration or upload. Questions for
-counsel: is an explicit capture (checkbox/link to terms at registration; notice at photo upload)
-required for the wording to be accurate and enforceable; and what wording/mechanism should it
-use?
+**[COUNSEL]** Registration now captures consent against a published policy version. Remaining
+question for counsel: whether a notice or capture is also required at the photo-upload step, where
+the policy currently relies on the "Consent" lawful basis.
 
 ## 2. Data subject routes — implemented and tested
 

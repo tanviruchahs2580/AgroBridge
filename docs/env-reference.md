@@ -17,7 +17,7 @@ The first table is the API's contract: every variable is parsed and validated by
 | `DATABASE_CONNECTION_LIMIT` | number | — (optional) | no | Prisma pool size for this instance (F-06). Unset keeps Prisma's default (`cpus 2 + 1`), which was 9 connections on the audited box — the fleet's total must stay inside the database's own `max_connections`, so the right value depends on how many instances run, not on a constant. Applied to PostgreSQL URLs only; the SQLite dev/test profile is untouched. | `20` (commented) |
 | `DATABASE_POOL_TIMEOUT_SECONDS` | number | — (optional) | no | Seconds a request may wait for a free pool connection before failing (Prisma default: 10). On expiry the API answers 503 + Retry-After rather than a bare 500 (see errorHandler's P2024 mapping). | `10` (commented) |
 | `JWT_ACCESS_SECRET` | string | — | yes | — | `change-me-to-a-64-char-random-string-in-production` |
-| `JWT_REFRESH_SECRET` | string | — | yes | — | `change-me-to-another-64-char-random-string` |
+| `JWT_REFRESH_SECRET` | string | — | yes | Reserved: validated at startup but unused — refresh tokens are opaque random values stored as SHA-256 hashes, not JWTs, so nothing is signed with this. Kept so a future rotation scheme can adopt it without a config change. (This comment is the source of the description rendered into docs/env-reference.md.) | `change-me-to-another-64-char-random-string` |
 | `ACCESS_TOKEN_TTL` | string | `"15m"` | no | — | `15m` |
 | `REFRESH_TOKEN_TTL_DAYS` | number | `7` | no | — | `7` |
 | `RATE_LIMIT_WINDOW_MINUTES` | number | `15` | no | — | `15` |

@@ -162,8 +162,8 @@ const privacy: LegalDoc = {
           en: "Account and general data — while your account is open.",
         },
         {
-          bn: "অ্যাকাউন্ট মুছে ফেললে — আপনার নাম, ফোন, ইমেইল ও পাসওয়ার্ড সাথে সাথে মুছে যায়; বাকি অ্যাকাউন্ট বন্ধ হয়ে যায়। ব্যাকআপের কপি সর্বোচ্চ ৩০ দিনে স্বয়ংক্রিয়ভাবে মুছে যায়।",
-          en: "After you delete your account — your name, phone, email and password are erased immediately and the account is closed. Backup copies expire automatically within 30 days.",
+          bn: "অ্যাকাউন্ট মুছে ফেললে — আপনার নাম, ফোন, ইমেইল ও পাসওয়ার্ড সাথে সাথে মুছে যায়; বাকি অ্যাকাউন্ট বন্ধ হয়ে যায়। ব্যাকআপে থাকা কপি আমাদের ডেটাবেস প্রদানকারীর স্ন্যাপশট সময়সূচি অনুসরণ করে (প্ল্যাটফর্ম-পরিচালিত); আমরা নিজেরা আলাদা ব্যাকআপ চালাই না।",
+          en: "After you delete your account — your name, phone, email and password are erased immediately and the account is closed. Copies that remain in backups follow our database provider's snapshot schedule (platform-managed); we do not operate our own backup jobs.",
         },
         {
           bn: "আর্থিক রেকর্ড (অর্ডার, পেমেন্ট, ওয়ালেট, উত্তোলন) — আইন অনুযায়ী ৫ বছর, আপনার পরিচয় ছাড়াই এন্ট্রি-হিসেবে সংরক্ষিত।",
@@ -427,8 +427,8 @@ const deletion: LegalDoc = {
           en: "Retained (without your identifying details): financial records — orders, payments, wallet and withdrawal entries — for 5 years as required by law.",
         },
         {
-          bn: "ব্যাকআপে থাকা কপি সর্বোচ্চ ৩০ দিনে স্বয়ংক্রিয়ভাবে মুছে যায়।",
-          en: "Copies held in backups expire automatically within 30 days.",
+          bn: "ব্যাকআপে থাকা কপি আমাদের ডেটাবেস প্রদানকারীর স্ন্যাপশট সময়সূচি অনুসরণ করে (প্ল্যাটফর্ম-পরিচালিত); আমরা নিজেরা আলাদা ব্যাকআপ চালাই না।",
+          en: "Copies held in backups follow our database provider's snapshot schedule (platform-managed); we do not operate our own backup jobs.",
         },
       ],
     },

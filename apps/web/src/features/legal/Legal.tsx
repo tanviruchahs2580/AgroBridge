@@ -3,6 +3,7 @@ import { ArrowLeft, FileText, ShieldCheck, Trash2 } from "lucide-react";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { LEGAL_DOCS, LEGAL_META } from "./content";
+import { LEGAL_ROUTES } from "./routes";
 import type { LegalDoc } from "./content";
 
 const ICONS: Record<LegalDoc["id"], typeof FileText> = {
@@ -86,13 +87,13 @@ export default function Legal({ docId }: { docId: LegalDoc["id"] }) {
           chrome — its {bn,en} pairs are data, so only the labels above go
           through the dictionary. */}
       <nav aria-label={t("legalNavAria", lang)} className="mt-5 flex flex-wrap gap-2">
-        {(Object.keys(LEGAL_DOCS) as LegalDoc["id"][]).map((key) => {
-          const d = LEGAL_DOCS[key];
-          const active = key === doc.id;
+        {LEGAL_ROUTES.map(({ id, path }) => {
+          const d = LEGAL_DOCS[id];
+          const active = id === doc.id;
           return (
             <Link
-              key={key}
-              to={`/${key}`}
+              key={id}
+              to={path}
               aria-current={active ? "page" : undefined}
               className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
                 active

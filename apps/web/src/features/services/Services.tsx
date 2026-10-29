@@ -14,6 +14,7 @@ import { track } from "../../lib/analytics";
 import { ClipboardList, Search, SlidersHorizontal, Tractor, TriangleAlert, CheckCircle2, CalendarClock, ArrowRight, ShieldCheck, Leaf, Wrench, Phone } from "lucide-react";
 import { Badge, BlockError, Button, Card, EmptyState, Input, Label, Modal, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
 import { ServiceCard, ServiceCardSkeleton } from "../../components/service/ServiceCard";
+import { serviceHeroImage } from "../../components/service/heroImages";
 
 type FilterKey = "ALL" | "MECH" | "ADVISORY" | "TEST";
 const FILTER_MAP: Record<FilterKey, string[]> = {
@@ -404,19 +405,7 @@ export default function Services() {
       {selected && (
         <Modal title={selected.name} onClose={() => setSelected(null)} closeLabel={t("close", lang)}>
           <img
-            src={(() => {
-              const map: Record<string, string> = {
-                THRESHER: "/images/services/thresher.jpg",
-                SOIL_TESTING: "/images/services/soil-test.jpg",
-                POWER_TILLER: "/images/services/power-tiller.jpg",
-                LAND_LEVELLER: "/images/services/land-leveller.png",
-                DRONE: "/images/services/drone.jpg",
-                COMBINE_HARVESTER: "/images/services/combine.jpg",
-                AGRONOMIST: "/images/services/agronomist.jpg",
-                TRACTOR: "/images/services/tractor.jpg",
-              };
-              return map[selected.category] ?? "/images/services/tractor.jpg";
-            })()}
+            src={serviceHeroImage(selected.category)}
             alt={selected.name}
             className="mb-3 h-28 w-full rounded-xl object-cover"
           />
