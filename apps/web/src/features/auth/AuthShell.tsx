@@ -1,36 +1,8 @@
-import { useState } from "react";
 import type { ReactNode } from "react";
 import { Bot, Leaf, Store } from "lucide-react";
-import { otherLang, t } from "../../lib/i18n";
+import { t } from "../../lib/i18n";
 import type { Lang } from "../../lib/i18n";
-import { useSession } from "../../lib/session";
-
-/** Pre-login language preference — localStorage-backed so the toggle works
- *  before any session exists (session.setLang would fire a doomed PATCH). */
-const AUTH_LANG_KEY = "agrobridge.auth_lang";
-
-export function useAuthLang(): [Lang, (l: Lang) => void] {
-  const { session } = useSession();
-  const [lang, setLang] = useState<Lang>(() => {
-    try {
-      const stored = localStorage.getItem(AUTH_LANG_KEY);
-      if (stored === "bn" || stored === "en") return stored;
-    } catch {
-      // ignore storage errors (private mode)
-    }
-    return session?.lang ?? "bn";
-  });
-  const update = (l: Lang) => {
-    setLang(l);
-    document.documentElement.lang = l;
-    try {
-      localStorage.setItem(AUTH_LANG_KEY, l);
-    } catch {
-      // ignore storage errors
-    }
-  };
-  return [lang, update];
-}
+import { LangToggle } from "../../lib/publicLanguage";
 
 const HERO_VALUES = [
   { icon: Bot, key: "authHeroValue1" },
@@ -51,18 +23,7 @@ function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
 }
 
 /** Language pill — reads as white-glass over the gradient, outlined on plain surfaces. */
-export function AuthLangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={t("langSwitchAria", lang)}
-      onClick={() => onChange(otherLang(lang))}
-      className="inline-flex min-h-[44px] items-center rounded-chip border border-surface-border-strong bg-surface-card px-3 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
-    >
-      {t("langToggleButton", lang)}
-    </button>
-  );
-}
+
 
 /**
  * Unified premium auth surface (v2): a branded split screen on desktop and,
@@ -162,13 +123,13 @@ export function AuthShell({
 
         {/* Language pill — top-right corner over the photo (mobile)*/}
         <div className="absolute right-4 top-4 z-10 md:hidden">
-          <AuthLangToggle lang={lang} onChange={onToggleLang} />
+          <LangToggle lang={lang} onChange={onToggleLang} />
         </div>
 
         <div className="auth-photo-mobile relative w-full max-w-md md:mt-0">
           {/* Desktop: toggle lives above the card, right-aligned*/}
           <div className="mb-3 hidden justify-end md:flex">
-            <AuthLangToggle lang={lang} onChange={onToggleLang} />
+            <LangToggle lang={lang} onChange={onToggleLang} />
           </div>
 
           <section className="rounded-t-card border border-white/15 bg-[var(--color-auth-card)] p-5 shadow-card backdrop-blur-md sm:p-6 md:rounded-card md:border-surface-border md:bg-surface-card md:backdrop-blur-none">

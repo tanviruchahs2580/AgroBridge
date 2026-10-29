@@ -4,7 +4,8 @@ import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, Input } from "../../components/ui";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
-import { AuthShell, useAuthLang } from "./AuthShell";
+import { AuthShell } from "./AuthShell";
+import { usePublicLang } from "../../lib/publicLanguage";
 
 /**
  * Password recovery, in the two steps the API exposes:
@@ -15,7 +16,7 @@ import { AuthShell, useAuthLang } from "./AuthShell";
  * it just moves on to the code step, and only the code can be wrong.
  */
 export default function Reset() {
-  const [lang, setLang] = useAuthLang();
+  const [lang, setLang] = usePublicLang();
   const [step, setStep] = useState<"phone" | "code" | "done">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
