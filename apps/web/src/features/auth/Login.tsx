@@ -7,11 +7,12 @@ import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, IconButton, Input } from "../../components/ui";
 import { Eye, EyeOff, Lock, Phone } from "lucide-react";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
-import { AuthShell, useAuthLang } from "./AuthShell";
+import { AuthShell } from "./AuthShell";
+import { usePublicLang } from "../../lib/publicLanguage";
 
 export default function Login() {
   const { refresh } = useSession();
-  const [lang, setLang] = useAuthLang();
+  const [lang, setLang] = usePublicLang();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);

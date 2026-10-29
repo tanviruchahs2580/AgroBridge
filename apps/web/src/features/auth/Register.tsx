@@ -6,11 +6,12 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, Input } from "../../components/ui";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
-import { AuthShell, useAuthLang } from "./AuthShell";
+import { AuthShell } from "./AuthShell";
+import { usePublicLang } from "../../lib/publicLanguage";
 
 export default function Register() {
   const { refresh } = useSession();
-  const [uiLang, setUiLang] = useAuthLang();
+  const [uiLang, setUiLang] = usePublicLang();
   const [fullName, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");

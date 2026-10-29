@@ -4,6 +4,30 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-29 the public legal pages ignored the visitor's language)
+- **Read the policy as an English-speaking visitor on the deployed site and you got Bengali —
+  whatever you had chosen.** Switching to English on the login page correctly stores the choice
+  (`agrobridge.auth_lang`) and the toggle confirms it; opening `/privacy` then rendered Bengali with
+  **no language control on the page at all**. The same shape applied to `/terms`,
+  `/account-deletion` and the not-found page. Those are the public URLs Google Play requires, and a
+  reviewer reading the policy is exactly that visitor: someone with no account, reading an
+  English-language store listing, who cannot read Bengali.
+- Cause: each public surface decided the language for itself. The auth screens read the stored
+  choice; the legal documents and the 404 used `session?.lang ?? "bn"`, which for an anonymous
+  visitor is always Bengali — and neither offered a toggle. The page that most needs to be readable
+  by anyone was the one that ignored the reader.
+- Fix: `apps/web/src/lib/publicLanguage.tsx` now owns the public language key, the hook and the
+  language pill. The auth screens, the legal documents and the not-found page all read from it, and
+  `AuthShell`'s private copy of the hook and the toggle — the duplication that let the surfaces
+  diverge — is gone. The legal pages carry the control themselves, since a policy URL can be the
+  first page a visitor ever sees. A choice made here stays a *reading* choice: the authenticated app
+  still follows the account language, so nothing flips the product underneath the user.
+- Tests: four component tests pin it — the default for a first-time visitor, the stored choice
+  carrying into the policy, the control switching and persisting, and switching back (so it is not a
+  one-way door). New module at 100 % statement coverage; the suite's coverage floors are all
+  cleared.
+- Measured after the fix: entry bundle unchanged at 130.2 kB gzip against the 132 kB budget.
+
 ### Fixed (2026-10-29 four auth rate limiters shared one store — a Redis deployment would 500 the recovery path)
 - **`otpStore` was passed to four limiters** (OTP request, OTP verify, password forgot, password
   reset). `express-rate-limit` refuses a store used by two limiters — `unsharedStore()` raises
