@@ -163,35 +163,55 @@ export default function Advisor() {
     }
   }
 
-  /** Fetch the stored photo of a case and show it in the modal (AUD-201). */
+  /**
+   * Fetch the stored photo of a case and show it in the modal (AUD-201).
+   *
+   * The request carries a sequence number: a response that lost the race to a
+   * newer click (or to a close) must not overwrite the modal's state, and the
+   * object URL it would otherwise create would leak (found by the run's
+   * independent review). Object URLs are revoked on replacement, on close and
+   * on unmount.
+   */
+  const photoSeq = useRef(0);
+  const photoUrlRef = useRef<string | null>(null);
+
+  function setPhotoObjectUrl(next: string | null) {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoUrlRef.current = next;
+    setPhotoUrl(next);
+  }
+
   async function viewCasePhoto(c: DiseaseCase) {
+    const seq = ++photoSeq.current;
     setPhotoCase(c);
     setPhotoError(null);
     setPhotoBusy(true);
-    setPhotoUrl((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return null;
-    });
+    setPhotoObjectUrl(null);
     try {
       const blob = await apiBlob(`/disease/cases/${c.id}/image`);
-      setPhotoUrl(URL.createObjectURL(blob));
+      if (seq !== photoSeq.current) return; // superseded by a newer request
+      setPhotoObjectUrl(URL.createObjectURL(blob));
     } catch (err) {
-      setPhotoError(mapError(err, lang));
+      if (seq === photoSeq.current) setPhotoError(mapError(err, lang));
     } finally {
-      setPhotoBusy(false);
+      if (seq === photoSeq.current) setPhotoBusy(false);
     }
   }
 
   function closePhoto() {
+    photoSeq.current++; // invalidate any in-flight fetch
     setPhotoCase(null);
     setPhotoError(null);
-    setPhotoUrl((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return null;
-    });
+    setPhotoObjectUrl(null);
   }
 
-  function openReport(item: AdvisoryHistoryItem) {    setReporting(item);
+  // Revoke the last object URL when the screen unmounts.
+  useEffect(() => () => {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+  }, []);
+
+  function openReport(item: AdvisoryHistoryItem) {
+    setReporting(item);
     setReason("");
     setReportError(null);
   }

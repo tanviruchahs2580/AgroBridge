@@ -421,9 +421,26 @@ export async function apiBlob(path: string): Promise<Blob> {
         ...(getTokens().accessToken ? { Authorization: `Bearer ${getTokens().accessToken}` } : {}),
       },
     });
-  let res = await doFetch();
-  if (res.status === 401 && (await tryRefresh())) {
+  let res: Response;
+  try {
     res = await doFetch();
+  } catch (err) {
+    if (err instanceof NetworkError) throw networkApiError(err);
+    throw new ApiError(0, "NETWORK_ERROR", err instanceof Error ? err.message : "Network error");
+  }
+  if (res.status === 401 && (await tryRefresh())) {
+    try {
+      res = await doFetch();
+    } catch (err) {
+      if (err instanceof NetworkError) throw networkApiError(err);
+      throw new ApiError(0, "NETWORK_ERROR", err instanceof Error ? err.message : "Network error");
+    }
+  }
+  if (res.status === 401) {
+    // Session is dead after refresh/replay — same contract as api(): clear the
+    // tokens and let the app shell route the user to sign-in.
+    clearTokens();
+    unauthorizedHandler?.();
   }
   if (!res.ok) {
     let code = "UNKNOWN";
