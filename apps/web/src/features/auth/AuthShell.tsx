@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Bot, Leaf, Store } from "lucide-react";
 import { t } from "../../lib/i18n";
 import type { Lang } from "../../lib/i18n";
@@ -10,6 +10,27 @@ const HERO_VALUES = [
   { icon: Leaf, key: "authHeroValue3" },
 ] as const;
 
+/**
+ * Which hero crop this viewport needs. A `display:none` image is still
+ * FETCHED by browsers, so rendering both crops and hiding one with `md:hidden`
+ * shipped 171 KB of desktop photo to every mobile login — measured as the
+ * single biggest transfer on the Slow-4G profile, past the LCP budget.
+ * Rendering only the needed crop (with a live listener so resizing still
+ * swaps it) fetches exactly one file per viewport.
+ */
+function useIsDesktop(): boolean {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window === "undefined" ? true : window.matchMedia("(min-width: 768px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
+
 function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
   const box = size === "lg" ? "h-14 w-14 rounded-2xl" : "h-10 w-10 rounded-xl";
   return (
@@ -17,7 +38,7 @@ function BrandMark({ size = "md" }: { size?: "md" | "lg" }) {
       aria-hidden
       className={`flex ${box} items-center justify-center overflow-hidden shadow-button ring-1 ring-white/20`}
     >
-      <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" loading="eager" />
+      <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" loading="eager" />
     </span>
   );
 }
@@ -46,15 +67,21 @@ export function AuthShell({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const isDesktop = useIsDesktop();
   return (
     <div className="agro-shell relative min-h-[100dvh] md:grid md:grid-cols-[1.05fr_1fr]">
       {/* Mobile: the photo is the whole page — nothing cuts off behind the form*/}
-      <img
-        src="/brand/login-bg-mobile-full.webp"
-        alt=""
-        aria-hidden
-        className="absolute inset-0 h-full w-full object-cover md:hidden"
-      />
+      {!isDesktop && (
+        <img
+          src="/brand/login-bg-mobile-full.webp"
+          alt=""
+          aria-hidden
+          // The page's LCP element: give it the first slot in the queue and let
+          // decode happen off the main thread (4x CPU slowdown is the target).
+          {...{ fetchpriority: "high", decoding: "async" }}
+          className="absolute inset-0 h-full w-full object-cover md:hidden"
+        />
+      )}
       <div
         className="absolute inset-0 bg-[image:var(--gradient-auth-scrim-mobile)] md:hidden"
         aria-hidden
@@ -63,14 +90,17 @@ export function AuthShell({
       {/* Brand panel — desktop only. The owner-provided golden-hour field photo
  carries the panel; a deep-green scrim keeps every text token AA.*/}
       <aside className="relative hidden overflow-hidden bg-hero text-white md:flex md:flex-col md:justify-between" aria-hidden>
-        <img
-          src="/brand/login-bg-desktop.webp"
-          srcSet="/brand/login-bg-mobile.webp 640w, /brand/login-bg-desktop.webp 1600w"
-          sizes="(min-width: 768px) 50vw, 100vw"
-          alt=""
-          aria-hidden
-          className="absolute inset-0 h-full w-full object-cover object-[center_64%]"
-        />
+        {isDesktop && (
+          <img
+            src="/brand/login-bg-desktop.webp"
+            srcSet="/brand/login-bg-mobile.webp 640w, /brand/login-bg-desktop.webp 1600w"
+            sizes="(min-width: 768px) 50vw, 100vw"
+            alt=""
+            aria-hidden
+            {...{ fetchpriority: "high", decoding: "async" }}
+            className="absolute inset-0 h-full w-full object-cover object-[center_64%]"
+          />
+        )}
         <div className="absolute inset-0 bg-[image:var(--gradient-auth-scrim-panel)]" />
 
         <div className="relative flex items-center gap-3 p-10 pb-0">
@@ -108,7 +138,7 @@ export function AuthShell({
  the credential card then begins around mid-screen (reference layout).*/}
         <div className="relative flex min-h-[45dvh] flex-col items-center pt-[5.5dvh] text-center text-white md:hidden">
           <img
-            src="/brand/logo-emblem.png"
+            src="/brand/logo-emblem.webp"
             alt=""
             aria-hidden
             className="h-16 w-16 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
@@ -135,7 +165,7 @@ export function AuthShell({
           <section className="rounded-t-card border border-white/15 bg-[var(--color-auth-card)] p-5 shadow-card backdrop-blur-md sm:p-6 md:rounded-card md:border-surface-border md:bg-surface-card md:backdrop-blur-none">
             <header className="mb-5 flex items-center gap-3">
               <span aria-hidden className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-iconBox ring-1 ring-brand-100 md:block">
-                <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
+                <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
               </span>
               <div className="min-w-0">
                 <h1 className="text-xl font-extrabold tracking-[-0.01em] text-white md:text-stone-800">{title}</h1>

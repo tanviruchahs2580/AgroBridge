@@ -114,7 +114,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
     return (
       <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 backdrop-blur">
-          <img src="/brand/logo-mark.png" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
+          <img src="/brand/logo-mark.webp" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
         </div>
         <h1 className="mt-4 text-xl font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
         <p className="mt-1 text-xs font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
@@ -213,7 +213,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             {/* Seed → stem → leaves */}
             <div className="relative flex h-[64px] w-[64px] items-center justify-center rounded-full bg-white shadow-[0_8px_32px_rgba(0,0,0,0.18),0_1px_3px_rgba(0,0,0,0.2)] ring-1 ring-black/5">
               <img
-              src="/brand/logo-mark.png"
+              src="/brand/logo-mark.webp"
               alt=""
               className="h-[56px] w-[56px] rounded-2xl object-cover shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
             />
