@@ -87,13 +87,13 @@ describe("weather adapter — provider response fixtures (A5-03)", () => {
 
     // Day 1: 00:00Z/03:00Z/06:00Z (all pre-18:00Z) — min 27.9, max 34.5, rain 2.4.
     expect(days[0]).toMatchObject({ minC: 27.9, maxC: 34.5, rainMm: 2.4, humidityPct: 84 });
-    expect(days[0]!.windKmh).toBeCloseTo(6.48, 10);
+    expect(days[0]?.windKmh ?? -1).toBeCloseTo(6.48, 10);
 
     // Day 2 starts with the 18:00Z slot (Dhaka midnight) — and is where the
     // missing `rain` field on the last slot must contribute 0, not NaN.
     expect(days[1]).toMatchObject({ minC: 26.4, maxC: 34.9, humidityPct: 88 });
-    expect(days[1]!.rainMm).toBeCloseTo(29.9, 10); // 5.7 + 8.1 + 14.2 + 1.9 + 0
-    expect(days[1]!.windKmh).toBeCloseTo(7.92, 10);
+    expect(days[1]?.rainMm ?? -1).toBeCloseTo(29.9, 10); // 5.7 + 8.1 + 14.2 + 1.9 + 0
+    expect(days[1]?.windKmh ?? -1).toBeCloseTo(7.92, 10);
   });
 
   it("a 429 is a rate limit: retried once, then surfaced with its status — exactly two attempts", async () => {

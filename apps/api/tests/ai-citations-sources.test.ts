@@ -44,10 +44,11 @@ describe("A3-01 — grounded citations resolve to the live corpus", () => {
       const entry = byId.get(s.id);
       // Resolves to a real chunk, not a name invented at response time.
       expect(entry, `${s.id} is not in the live corpus`).toBeDefined();
-      expect(s.titleEn).toBe(entry!.titleEn);
-      expect(s.titleBn).toBe(entry!.titleBn);
-      expect(s.crop).toBe(entry!.crop);
-      expect(s.status).toBe(entry!.status);
+      if (!entry) throw new Error(`${s.id} missing from the live corpus`);
+      expect(s.titleEn).toBe(entry.titleEn);
+      expect(s.titleBn).toBe(entry.titleBn);
+      expect(s.crop).toBe(entry.crop);
+      expect(s.status).toBe(entry.status);
       expect(s.titleEn.trim()).not.toBe("");
     }
     // The version answers were grounded in is the live one.
@@ -65,7 +66,7 @@ describe("A3-01 — grounded citations resolve to the live corpus", () => {
     const row = history.body.data[0] as { groundedRefs: string[]; groundedSources: KbSourceRef[] };
     expect(row.groundedRefs).toContain("jute-stem-rot");
     expect(row.groundedSources.map((s) => s.id)).toEqual(row.groundedRefs);
-    expect(row.groundedSources[0]!.titleEn).toBe("Jute stem rot & yellowing");
+    expect(row.groundedSources[0]?.titleEn).toBe("Jute stem rot & yellowing");
   });
 
   it("ids removed from the corpus resolve to nothing — never to a guessed title", () => {

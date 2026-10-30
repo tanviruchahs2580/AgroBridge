@@ -67,8 +67,8 @@ describe("weather → advisory rules: thresholds are explicit and boundary-teste
   it("falls back to a single INFO advisory when nothing applies — never an empty list", () => {
     const quiet = deriveAgriRisks(cur({ windKmh: 3, tempC: 28, humidityPct: 60 }), [day({ rainMm: 5 })]);
     expect(quiet).toHaveLength(1);
-    expect(quiet[0]!.type).toBe("INFO");
-    expect(quiet[0]!.severity).toBe("LOW");
+    expect(quiet[0]?.type).toBe("INFO");
+    expect(quiet[0]?.severity).toBe("LOW");
   });
 });
 

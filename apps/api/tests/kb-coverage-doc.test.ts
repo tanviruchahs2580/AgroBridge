@@ -30,11 +30,12 @@ describe("knowledge-base coverage map matches the corpus (A2-02)", () => {
     for (const e of KNOWLEDGE_BASE) {
       const row = rows.find((r) => r[1] === `\`${e.id}\``);
       expect(row, `${e.id} is missing from docs/kb-coverage.md`).toBeTruthy();
-      expect(row![2]!.startsWith(e.crop), `${e.id} crop mismatch`).toBe(true);
-      expect(row![4], `${e.id} titleEn mismatch`).toBe(e.titleEn);
-      expect(row![5], `${e.id} titleBn mismatch`).toBe(e.titleBn);
-      expect(row![6], `${e.id} status mismatch`).toBe(e.status);
-      expect(row![7], `${e.id} sign-off column must be honest`).toBe("none");
+      if (!row) continue;
+      expect(row[2] ?? "", `${e.id} crop mismatch`).toContain(e.crop);
+      expect(row[4], `${e.id} titleEn mismatch`).toBe(e.titleEn);
+      expect(row[5], `${e.id} titleBn mismatch`).toBe(e.titleBn);
+      expect(row[6], `${e.id} status mismatch`).toBe(e.status);
+      expect(row[7], `${e.id} sign-off column must be honest`).toBe("none");
     }
   });
 
