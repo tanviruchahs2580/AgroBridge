@@ -24,5 +24,20 @@ module.exports = {
   // ("feat(web)+ci:"). Fixing its message needs a force-push of a published
   // branch, which this repository forbids, so it is ignored by header match —
   // the gate applies to every commit created after it.
-  ignores: [(message) => message.startsWith("feat(web)+ci:")],
+  //
+  // Same policy, same reason, for two published headers over the 100-character
+  // limit: `f1c591b` (101) and `0b8a2ca` (107). Rewording them would need a
+  // force-push of a branch that is already public (forbidden); they are
+  // exempted by EXACT header match, while `header-max-length` keeps applying
+  // to every new commit — the next long subject fails as before.
+  ignores: [
+    (message) => message.startsWith("feat(web)+ci:"),
+    (message) =>
+      message.startsWith(
+        "test(e2e): acceptance drills — AI fallback, pay modes, security replay, restore drill, throttled perf"
+      ) ||
+      message.startsWith(
+        "test(ai): coverage-map parity, advisory-rule boundaries and copy-safety gates; file Domain A evidence (#88)"
+      ),
+  ],
 };

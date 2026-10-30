@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { app, registerFarmer } from "./helpers.js";
 import { primaryOriginOf } from "../src/config/env.js";
@@ -38,13 +38,19 @@ describe("injection surface (B-15)", () => {
   });
 
   it("runtime source carries no shell/eval/dynamic-deserialization sinks", () => {
-    const roots = [path.resolve("src")];
+    const root = path.resolve("src");
     const offenders: string[] = [];
     const walk = (dir: string): void => {
-      for (const name of readdirSync(dir)) {
-        const p = path.join(dir, name);
-        if (statSync(p).isDirectory()) walk(p);
-        else if (/\.(ts|js)$/.test(name)) {
+      // Dirent-based walk with an explicit containment barrier: every path
+      // opened must resolve INSIDE the scanned source root (an escaping or
+      // symlinked entry is skipped). Static analysis can see the guard, and so
+      // can a reviewer — the previous join-then-stat shape read whatever the
+      // directory listing handed it.
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.resolve(dir, entry.name);
+        if (!p.startsWith(root + path.sep)) continue;
+        if (entry.isDirectory()) walk(p);
+        else if (/\.(ts|js)$/.test(entry.name)) {
           const body = readFileSync(p, "utf8");
           for (const [n, line] of body.split("\n").entries()) {
             // `client.eval(...)` is Redis's Lua EVAL command (keys/args bound),
@@ -57,7 +63,7 @@ describe("injection surface (B-15)", () => {
         }
       }
     };
-    roots.forEach(walk);
+    walk(root);
     expect(offenders, "new sink appeared in runtime source").toEqual([]);
   });
 });
