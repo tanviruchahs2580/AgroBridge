@@ -9,12 +9,14 @@ import { defineConfig } from "vitest/config";
  * Thresholds sit 2 points below those numbers so a real regression fails but
  * refactors do not (the earlier ~5-point gap let the suite drift).
  *
- * The branches ceiling is the credential-gated provider adapters
- * (providers/payment/*, providers/storage/*, weather/openweather.ts) that run
- * nowhere outside production — live-gateway behaviour is now exercised by
- * tests/payments-reconciliation-amount.test.ts against a stubbed fetch, which
- * is why branches cleared 70 on this measurement. Raise the floors as those
- * adapters get contract-replay coverage.
+ * AUD-205: `payment/sandbox.ts` (the default provider in every test) and
+ * `payment/sslcommerz.ts` (exercised by payments-reconciliation-amount against
+ * a stubbed fetch) used to sit in the exclude list with an outdated "not wired
+ * in CI" note — a critical-path denominator that shrank while the gates stayed
+ * green. Both are instrumented now; re-measure and raise the floors when they
+ * move. Remaining exclusions are deliberate and owner-visible: the type-only
+ * modules (no executable lines) and the two genuinely credential-gated
+ * adapters with no replay coverage yet (storage/s3.ts, weather/openweather.ts).
  */
 export default defineConfig({
   test: {
@@ -33,9 +35,8 @@ export default defineConfig({
         "dist/**",
         "types/**",
         "coverage/**",
-        // Credential-gated / environment-dependent provider adapters — not wired in CI
-        "src/providers/payment/sandbox.ts",
-        "src/providers/payment/sslcommerz.ts",
+        // Type-only modules (no executable lines) and the credential-gated
+        // adapters without replay coverage (see AUD-205 note above).
         "src/providers/payment/types.ts",
         "src/providers/storage/s3.ts",
         "src/providers/storage/types.ts",
