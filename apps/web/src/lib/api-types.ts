@@ -254,6 +254,19 @@ export interface WeatherData {
 
 /* ─────────────────────────────── AI agent ─────────────────────────────── */
 
+/**
+ * Resolved citation metadata for one grounded KB entry (A3-01). `status` is the
+ * corpus provenance class — "UNSOURCED" means no recorded external source or
+ * agronomist sign-off yet; the UI labels such sources instead of hiding them.
+ */
+export interface KbSourceRef {
+  id: string;
+  titleEn: string;
+  titleBn?: string;
+  crop: string;
+  status: "UNSOURCED" | "REVIEWED";
+}
+
 /** POST /ai/advisory — `data`. Token counts only exist for the hosted provider. */
 export interface AdvisoryAnswer {
   answer: string;
@@ -262,6 +275,8 @@ export interface AdvisoryAnswer {
   model: string;
   lowConfidenceFlag: boolean;
   groundedRefs: string[];
+  /** Metadata for `groundedRefs` in the same order; absent on older servers. */
+  groundedSources?: KbSourceRef[];
   tokensIn?: number;
   tokensOut?: number;
   /** Content version (sha256[:12]) of the knowledge base that grounded the answer — both engines. */
@@ -282,6 +297,8 @@ export interface AdvisoryHistoryItem {
   confidence: number;
   lowConfidenceFlag: boolean;
   groundedRefs: string[];
+  /** Metadata for `groundedRefs` in the same order; absent on older servers. */
+  groundedSources?: KbSourceRef[];
   /** Latest report reason, or null when the answer was never reported. */
   feedbackReason: string | null;
   /** When the report was recorded; null when never reported. A repeat report overwrites. */

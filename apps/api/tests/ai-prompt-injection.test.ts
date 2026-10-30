@@ -221,12 +221,14 @@ describe("AI prompt-injection posture — prompt builder and tool surface", () =
     expect(serialized).not.toMatch(/tool_calls|"tools"|"functions"/);
     const res = await engine.ask("ধানের সেচ কখন দেব?", { lang: "bn" });
     // Exact key set: the offline engine's answer carries only these fields —
-    // plus the additive `kbVersion` provenance field (A2-04). `promptVersion`
-    // is hosted-provider-only and must be absent here.
+    // plus the additive `kbVersion` provenance field (A2-04) and the additive
+    // `groundedSources` citation metadata (A3-01). Neither is an action/tool
+    // surface. `promptVersion` is hosted-provider-only and must be absent here.
     expect(Object.keys(res).sort()).toEqual([
       "answer",
       "confidence",
       "groundedRefs",
+      "groundedSources",
       "kbVersion",
       "lowConfidenceFlag",
       "model",

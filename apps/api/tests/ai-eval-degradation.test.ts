@@ -5,7 +5,12 @@ import { AI_EVAL_THRESHOLDS, renderMarkdown, runEvaluation } from "./ai-eval-met
 
 /**
  * DEGRADATION PROOF (A8-01 / AUD-110): the evaluation gate must be able to
- * FAIL. `retrieve()` and the offline engine accept an optional corpus override
+ * FAIL.
+ *
+ * Each run declares the corpus the engine was built with (`opts.corpus`) so the
+ * citation-validity and provenance metrics judge the engine against the corpus
+ * it claims to retrieve from — a corpus override can never be scored against
+ * the production KB by accident. `retrieve()` and the offline engine accept an optional corpus override
  * (production defaults to the built-in KB, so runtime behaviour is unchanged);
  * here the exact same evaluation runs against deliberately broken retrievers.
  *
@@ -15,7 +20,7 @@ import { AI_EVAL_THRESHOLDS, renderMarkdown, runEvaluation } from "./ai-eval-met
  */
 describe("AI evaluation gate fails under deliberate retrieval degradation", () => {
   it("empty corpus breaches at least two pre-registered thresholds", async () => {
-    const report = await runEvaluation(new OfflineAgroEngine({ corpus: [] }), AI_EVAL_THRESHOLDS);
+    const report = await runEvaluation(new OfflineAgroEngine({ corpus: [] }), AI_EVAL_THRESHOLDS, { corpus: [] });
     console.log("\n" + renderMarkdown(report, "DEGRADED — empty corpus"));
     expect(report.passed).toBe(false);
     expect(report.breaches.length).toBeGreaterThanOrEqual(2);
@@ -26,7 +31,7 @@ describe("AI evaluation gate fails under deliberate retrieval degradation", () =
 
   it("single-entry corpus (only wheat-rust) breaches at least two pre-registered thresholds", async () => {
     const single = KNOWLEDGE_BASE.filter((e) => e.id === "wheat-rust");
-    const report = await runEvaluation(new OfflineAgroEngine({ corpus: single }), AI_EVAL_THRESHOLDS);
+    const report = await runEvaluation(new OfflineAgroEngine({ corpus: single }), AI_EVAL_THRESHOLDS, { corpus: single });
     console.log("\n" + renderMarkdown(report, "DEGRADED — single-entry corpus (wheat-rust only)"));
     expect(report.passed).toBe(false);
     expect(report.breaches.length).toBeGreaterThanOrEqual(2);

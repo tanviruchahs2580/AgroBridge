@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { uuid } from "../../lib/uuid";
 import { api, apiBlob } from "../../lib/api";
-import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase } from "../../lib/api-types";
+import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase, KbSourceRef } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -57,6 +57,8 @@ export default function Advisor() {
     confidence?: number;
     low?: boolean;
     refs?: string[];
+    /** Resolved source metadata for `refs` (same order); absent on older servers. */
+    sources?: KbSourceRef[];
     /** Provenance of the answer: which engine and KB version produced it.*/
     provider?: string;
     model?: string;
@@ -121,6 +123,7 @@ export default function Advisor() {
           confidence: res.confidence,
           low: res.lowConfidenceFlag,
           refs: Array.isArray(res.groundedRefs) ? res.groundedRefs : [],
+          sources: Array.isArray(res.groundedSources) ? res.groundedSources : [],
           provider: res.provider,
           model: res.model,
           kbVersion: res.kbVersion,
@@ -344,9 +347,17 @@ export default function Advisor() {
                 {m.refs && m.refs.length > 0 && (
                   <ul className="space-y-0.5 px-1 text-xs text-stone-500">
                     <li className="font-semibold">{t("advisorSource", lang)}</li>
-                    {m.refs.map((r, ri) => (
-                      <li key={ri}>· {r}</li>
-                    ))}
+                    {m.refs.map((r, ri) => {
+                      // Resolved title when the server sent metadata; the raw id
+                      // only as a fallback for older servers.
+                      const s = m.sources?.find((x) => x.id === r);
+                      return (
+                        <li key={ri}>
+                          · {s ? (lang === "bn" ? s.titleBn ?? s.titleEn : s.titleEn) : r}
+                          {s?.status === "UNSOURCED" && <span className="text-amber-700"> · {t("advisorSourceUnreviewed", lang)}</span>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {m.confidence !== undefined && (

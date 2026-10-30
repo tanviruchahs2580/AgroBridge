@@ -1,0 +1,50 @@
+{
+  "_comment": "Fixture modelled on the documented OpenWeather 'Current weather data' 2.5 response shape (https://openweathermap.org/current), trimmed to the fields the adapter reads. lat/lon are Dhaka coordinates; units=metric as the adapter requests.",
+  "coord": {
+    "lon": 90.4074,
+    "lat": 23.7104
+  },
+  "weather": [
+    {
+      "id": 500,
+      "main": "Rain",
+      "description": "light rain",
+      "icon": "10d"
+    }
+  ],
+  "base": "stations",
+  "main": {
+    "temp": 30.5,
+    "feels_like": 35.2,
+    "temp_min": 29.8,
+    "temp_max": 31.4,
+    "pressure": 1004,
+    "humidity": 78,
+    "sea_level": 1004,
+    "grnd_level": 1001
+  },
+  "visibility": 8000,
+  "wind": {
+    "speed": 2.5,
+    "deg": 140,
+    "gust": 4.1
+  },
+  "rain": {
+    "1h": 1.2
+  },
+  "clouds": {
+    "all": 75
+  },
+  "dt": 1781500000,
+  "sys": {
+    "type": 2,
+    "id": 2019346,
+    "country": "BD",
+    "sunrise": 1781478600,
+    "sunset": 1781527500
+  },
+  "timezone": 21600,
+  "id": 1185241,
+  "name": "Dhaka",
+  "cod": 200
+}

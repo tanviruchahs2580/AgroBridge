@@ -77,9 +77,10 @@ describe("auth matrix over the route inventory (B-08 / B-10)", () => {
         failures.push(`${route.method} ${url}: anon got ${anon.status}, want 401`);
       }
       if (route.auth.startsWith("requirePermission:")) {
-        const asFarmer = await request(app)
-          [route.method.toLowerCase() as "get"](url)
-          .set("Authorization", `Bearer ${farmer.accessToken}`);
+        // Bind the dynamic verb first: `request(app)\n  [verb](...)` is an ASI
+        // hazard (a line starting with `[` continues the previous expression).
+        const verb = route.method.toLowerCase() as "get";
+        const asFarmer = await request(app)[verb](url).set("Authorization", `Bearer ${farmer.accessToken}`);
         if (asFarmer.status !== 403) {
           failures.push(`${route.method} ${url}: farmer got ${asFarmer.status}, want 403 (${route.auth})`);
         }

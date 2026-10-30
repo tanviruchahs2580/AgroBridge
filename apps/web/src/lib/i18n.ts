@@ -220,6 +220,9 @@ export const dict = {
 
   // ── Structured advisor sections ──
   advisorSource: { bn: "তথ্যসূত্র", en: "Source" },
+  // Shown beside a citation whose corpus entry has no recorded external source
+  // or agronomist sign-off — provenance disclosure, not a warning state.
+  advisorSourceUnreviewed: { bn: "বিশেষজ্ঞ-যাচাই বাকি", en: "expert review pending" },
 
   // ── Checkout wizard steps ──
   checkoutStepCart: { bn: "কার্ট", en: "Cart" },
