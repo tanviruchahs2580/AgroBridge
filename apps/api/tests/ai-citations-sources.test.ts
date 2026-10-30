@@ -53,9 +53,22 @@ describe("A3-01 — grounded citations resolve to the live corpus", () => {
     }
     // The version answers were grounded in is the live one.
     expect(data.kbVersion).toBe(KB_VERSION);
+    // A Bengali answer names its source in Bengali — the trailing title line is
+    // not an English leak into a bn transcript.
+    const answer = res.body.data.answer as string;
+    expect(answer).toContain("— ধানে ইউরিয়া প্রয়োগের সময়সূচি");
+    expect(answer).not.toContain("— Urea application schedule for rice");
     // No fabricated URLs anywhere in the citation payload — an unrecorded
     // source cannot become a link.
     expect(JSON.stringify(data.groundedSources)).not.toMatch(/https?:\/\//);
+  });
+
+  it("an English answer keeps the English corpus title", async () => {
+    const f = await registerFarmer();
+    const res = await ask(f.accessToken, "When should I apply urea to rice?", "en");
+    expect(res.status).toBe(200);
+    expect(res.body.data.answer as string).toContain("— Urea application schedule for rice");
+    expect(res.body.data.answer as string).not.toContain("— ধানে ইউরিয়া প্রয়োগের সময়সূচি");
   });
 
   it("history rows resolve their stored ids against the live corpus too", async () => {
