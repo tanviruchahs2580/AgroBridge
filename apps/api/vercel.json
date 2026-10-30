@@ -4,11 +4,17 @@
   "installCommand": "cd ../.. && npm ci --workspace apps/api --include-workspace-root --include=dev --no-audit --no-fund",
   "buildCommand": "cd ../.. && node scripts/vercel-build-api.mjs",
   "outputDirectory": "public",
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ],
   "crons": [
     {
       "path": "/api/v1/ops/retention",
       "schedule": "43 20 * * *"
     }
-  ]
+  ],
+  "ignoreCommand": "test \"$VERCEL_GIT_COMMIT_REF\" != \"main\""
 }
