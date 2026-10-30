@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { LocalStorageProvider } from "../src/providers/storage/local.js";
 import { S3StorageProvider } from "../src/providers/storage/s3.js";
 import { resetResilience } from "../src/providers/resilience.js";
+import { withServer } from "./http-stub-server.js";
 
 /**
  * AUD-207 / AUD-208 (found by the run's independent review): the new served-
@@ -38,7 +38,7 @@ describe("LocalStorageProvider honors its base directory (AUD-207)", () => {
       expect(key).toBe("uploads/disease/contract.bin");
       const back = await provider.get(key);
       expect(back).not.toBeNull();
-      expect(back!.equals(Buffer.from([1, 2, 3, 250]))).toBe(true);
+      expect(back).toEqual(Buffer.from([1, 2, 3, 250]));
 
       // Missing objects are null, not an error.
       expect(await provider.get("uploads/disease/absent.bin")).toBeNull();
@@ -53,21 +53,6 @@ describe("LocalStorageProvider honors its base directory (AUD-207)", () => {
 });
 
 describe("S3StorageProvider get() fetches objects (AUD-208)", () => {
-  function withServer(handler: (req: IncomingMessage, res: ServerResponse) => void) {
-    return new Promise<{ url: string; hits: () => number }>((resolve) => {
-      let hits = 0;
-      const server: Server = createServer((req, res) => {
-        hits++;
-        handler(req, res);
-      });
-      server.listen(0, "127.0.0.1", () => {
-        const port = (server.address() as { port: number }).port;
-        closers.push(() => new Promise((r) => server.close(() => r())));
-        resolve({ url: `http://127.0.0.1:${port}`, hits: () => hits });
-      });
-    });
-  }
-
   function provider(url: string) {
     return new S3StorageProvider("contract-bucket", "us-east-1", "AKIDEXAMPLE", "test-secret", url, 2_000);
   }
@@ -78,9 +63,10 @@ describe("S3StorageProvider get() fetches objects (AUD-208)", () => {
       res.writeHead(200, { "Content-Type": "image/png" });
       res.end(payload);
     });
+    closers.push(srv.close);
     const got = await provider(srv.url).get("uploads/disease/x.png");
     expect(got).not.toBeNull();
-    expect(got!.equals(payload)).toBe(true);
+    expect(got).toEqual(payload);
   });
 
   it("returns null for a 404 and throws (after exactly one retry) on a 500", async () => {
@@ -88,12 +74,14 @@ describe("S3StorageProvider get() fetches objects (AUD-208)", () => {
       res.writeHead(404);
       res.end();
     });
+    closers.push(notFound.close);
     expect(await provider(notFound.url).get("uploads/disease/missing.png")).toBeNull();
 
     const flaky = await withServer((_req, res) => {
       res.writeHead(500);
       res.end();
     });
+    closers.push(flaky.close);
     await expect(provider(flaky.url).get("uploads/disease/err.png")).rejects.toThrow(/S3 GET request failed 500/);
     expect(flaky.hits()).toBe(2); // one retry, bounded
   });
