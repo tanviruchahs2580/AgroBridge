@@ -405,3 +405,39 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   }
   return json.data as T;
 }
+
+/**
+ * Authenticated binary GET (disease photos, AUD-201). Same 401 → refresh →
+ * replay discipline as `api()`, but the payload stays a Blob: the bytes must
+ * never round-trip through JSON parsing (that is how image streams get
+ * corrupted), and a read is never queued for offline replay.
+ */
+export async function apiBlob(path: string): Promise<Blob> {
+  const doFetch = () =>
+    fetch(`${BASE}${path}`, {
+      headers: {
+        Accept: "image/*",
+        "X-Request-Id": newRequestId(),
+        ...(getTokens().accessToken ? { Authorization: `Bearer ${getTokens().accessToken}` } : {}),
+      },
+    });
+  let res = await doFetch();
+  if (res.status === 401 && (await tryRefresh())) {
+    res = await doFetch();
+  }
+  if (!res.ok) {
+    let code = "UNKNOWN";
+    let message = "সমস্যা হয়েছে / Something went wrong";
+    let reference: string | undefined;
+    try {
+      const j = (await res.json()) as { error?: { code?: string; message?: string; reference?: string } };
+      code = j.error?.code ?? code;
+      message = j.error?.message ?? message;
+      reference = j.error?.reference;
+    } catch {
+      // Non-JSON error body (e.g. a proxy page) — keep the fallback copy.
+    }
+    throw new ApiError(res.status, code, message, undefined, reference);
+  }
+  return res.blob();
+}

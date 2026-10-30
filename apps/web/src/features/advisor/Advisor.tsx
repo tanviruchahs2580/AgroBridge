@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { uuid } from "../../lib/uuid";
-import { api } from "../../lib/api";
+import { api, apiBlob } from "../../lib/api";
 import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
@@ -8,7 +8,7 @@ import { t } from "../../lib/i18n";
 import { formatDate } from "../../lib/format";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Bot, Camera, Sprout } from "lucide-react";
+import { Bot, Camera, Eye, Sprout } from "lucide-react";
 import { Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Modal, PageHeader, Skeleton, Spinner, useToast } from "../../components/ui";
 import { confidenceSupportKey } from "./supportLabel";
 import { answerModeLabel, shortKbVersion } from "./answerMeta";
@@ -71,6 +71,16 @@ export default function Advisor() {
   const [reason, setReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  /**
+   * AUD-201: the case photo viewer. The bytes only exist behind an
+   * authenticated endpoint, so the modal fetches a Blob and shows it from an
+   * object URL; the URL is revoked on close so photos do not accumulate in
+   * memory (or linger in the DOM after the session locks).
+   */
+  const [photoCase, setPhotoCase] = useState<DiseaseCase | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // The only fetch on this screen is the user's disease-case list; the chat is
@@ -153,8 +163,35 @@ export default function Advisor() {
     }
   }
 
-  function openReport(item: AdvisoryHistoryItem) {
-    setReporting(item);
+  /** Fetch the stored photo of a case and show it in the modal (AUD-201). */
+  async function viewCasePhoto(c: DiseaseCase) {
+    setPhotoCase(c);
+    setPhotoError(null);
+    setPhotoBusy(true);
+    setPhotoUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+    try {
+      const blob = await apiBlob(`/disease/cases/${c.id}/image`);
+      setPhotoUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      setPhotoError(mapError(err, lang));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function closePhoto() {
+    setPhotoCase(null);
+    setPhotoError(null);
+    setPhotoUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+  }
+
+  function openReport(item: AdvisoryHistoryItem) {    setReporting(item);
     setReason("");
     setReportError(null);
   }
@@ -225,11 +262,21 @@ export default function Advisor() {
               {visibleCases.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">
                   <span>{formatDate(c.createdAt, lang)}</span>
-                  {c.status === "REVIEWED" ? (
-                    <Badge tone="success">{t("reviewed", lang)}</Badge>
-                  ) : (
-                    <Badge tone="default">{t("pendingReview", lang)}</Badge>
-                  )}
+                  <span className="flex items-center gap-2">
+                    {c.status === "REVIEWED" ? (
+                      <Badge tone="success">{t("reviewed", lang)}</Badge>
+                    ) : (
+                      <Badge tone="default">{t("pendingReview", lang)}</Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void viewCasePhoto(c)}
+                      aria-label={t("viewPhoto", lang)}
+                    >
+                      <Eye className="mr-1 h-4 w-4" aria-hidden /> {t("viewPhoto", lang)}
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -393,6 +440,24 @@ export default function Advisor() {
             onChange={(e) => setReason(e.target.value)}
           />
           {reportError && <div className="mt-2"><ErrorBanner message={reportError} /></div>}
+        </Modal>
+      )}
+
+      {photoCase && (
+        <Modal title={t("viewPhoto", lang)} onClose={closePhoto} closeLabel={t("close", lang)}>
+          {photoBusy && (
+            <p role="status" className="flex items-center gap-2 text-sm text-stone-500">
+              <Spinner className="h-4 w-4" /> {t("loading", lang)}
+            </p>
+          )}
+          {photoError && <ErrorBanner message={photoError} />}
+          {photoUrl && !photoError && (
+            <img
+              src={photoUrl}
+              alt={t("casePhotoAlt", lang)}
+              className="max-h-[70vh] w-full rounded-lg object-contain"
+            />
+          )}
         </Modal>
       )}
     </div>

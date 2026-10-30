@@ -8,7 +8,7 @@ import { validate } from "../../middleware/validate.js";
 import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { badRequest, notFound, forbidden, conflict } from "../../shared/errors/index.js";
-import { requirePermission } from "../../middleware/rbac.js";
+import { requirePermission, hasPermission } from "../../middleware/rbac.js";
 import { audit } from "../../middleware/audit.js";
 import { ok } from "../../middleware/context.js";
 import { getStorageProvider } from "../../providers/storage/index.js";
@@ -200,6 +200,56 @@ diseaseRouter.get("/cases/:id", async (req, res, next) => {
     next(e);
   }
 });
+
+/** Params contract for the /:id routes (mirrors the payments module). */
+const idParams = z.object({ id: z.string().min(1).max(64) });
+
+/**
+ * The stored photo of a case (AUD-201). Before this route the bytes had no
+ * read path at all — neither the farmer could see their own photo again nor an
+ * agronomist could review what they were asked to diagnose, so the advertised
+ * review workflow could not practically complete.
+ *
+ * Access: the owner, or a holder of `disease:review` (admin/agronomist). A
+ * non-owner gets 404 rather than 403 — the endpoint must not double as an
+ * existence oracle for other people's case ids. The stored extension decides
+ * the content type; it is set from the byte-sniffed format at upload time
+ * (AUD-104), so it cannot disagree with the bytes.
+ */
+diseaseRouter.get(
+  "/cases/:id/image",
+  validate({ params: idParams }),
+  async (req, res, next) => {
+    try {
+      const auth = getAuth(req);
+      const reviewer = hasPermission(auth.role, "disease:review");
+      const kase = await prisma.diseaseCase.findFirst({
+        where: reviewer ? { id: req.params.id } : { id: req.params.id, userId: auth.userId },
+        select: { imagePath: true },
+      });
+      if (!kase) throw notFound("Disease case");
+
+      const bytes = await getStorageProvider().get(kase.imagePath);
+      if (!bytes) throw notFound("Image");
+
+      const lower = kase.imagePath.toLowerCase();
+      const contentType = lower.endsWith(".png")
+        ? "image/png"
+        : lower.endsWith(".webp")
+          ? "image/webp"
+          : "image/jpeg";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Length", String(bytes.length));
+      // Private: the case belongs to one farmer; intermediaries must not cache it.
+      res.setHeader("Cache-Control", "private, max-age=300");
+      // Render in-place; never offer it as a download with a client-chosen name.
+      res.setHeader("Content-Disposition", "inline");
+      res.send(bytes);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 // Agronomist/admin review endpoint
 const reviewSchema = z.object({

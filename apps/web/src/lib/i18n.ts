@@ -142,6 +142,8 @@ export const dict = {
   refresh: { bn: "রিফ্রেশ", en: "Refresh" },
   search: { bn: "খুঁজুন", en: "Search" },
   viewAll: { bn: "সব দেখুন", en: "View all" },
+  viewPhoto: { bn: "ছবি দেখুন", en: "View photo" },
+  casePhotoAlt: { bn: "আপলোড করা ফসলের ছবি", en: "Uploaded crop photo" },
 
   // ── Toasts / system messages ──
   saved: { bn: "সংরক্ষিত হয়েছে ✓", en: "Saved ✓" },
