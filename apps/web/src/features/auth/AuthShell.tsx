@@ -19,15 +19,19 @@ const HERO_VALUES = [
  * swaps it) fetches exactly one file per viewport.
  */
 function useIsDesktop(): boolean {
+  // jsdom (component tests) has `window` but no matchMedia — fall back to the
+  // desktop crop there rather than throwing inside the auth forms.
+  const supported = typeof window !== "undefined" && typeof window.matchMedia === "function";
   const [desktop, setDesktop] = useState(() =>
-    typeof window === "undefined" ? true : window.matchMedia("(min-width: 768px)").matches
+    supported ? window.matchMedia("(min-width: 768px)").matches : true
   );
   useEffect(() => {
+    if (!supported) return;
     const mq = window.matchMedia("(min-width: 768px)");
     const onChange = () => setDesktop(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-  }, []);
+  }, [supported]);
   return desktop;
 }
 
