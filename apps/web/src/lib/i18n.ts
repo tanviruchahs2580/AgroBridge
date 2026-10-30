@@ -274,6 +274,7 @@ export const dict = {
   // ── Form validation ──
   errFieldRequired: { bn: "এই ঘরটি পূরণ করুন।", en: "This field is required." },
   errNameTooShort: { bn: "নাম কমপক্ষে ২ অক্ষরের হতে হবে।", en: "Name must be at least 2 characters." },
+  errAreaPositive: { bn: "জমির পরিমাণ ০ থেকে বড় হতে হবে।", en: "Area must be greater than 0." },
   errAmountInvalid: { bn: "সঠিক পরিমাণ (টাকা) লিখুন।", en: "Enter a valid amount in taka." },
   // Not the same as errAmountInvalid: the sell-crop field asks for kilos, and
   // telling a farmer the invalid value is "in taka" names the wrong unit.

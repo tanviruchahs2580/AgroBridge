@@ -74,13 +74,22 @@ export default function MyFarm() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const name = String(fd.get("name") ?? "").trim();
+    // `Number(x) || undefined` used to swallow a 0-area farm entirely: the
+    // form said "saved" and the server never saw an area, so a measurement the
+    // user typed was silently discarded (FARM-02). A provided area must be a
+    // positive number; a blank one stays optional.
+    const areaRaw = String(fd.get("area") ?? "").trim();
     const errs: Record<string, string> = {};
     if (name.length < 2) errs.name = t("errNameTooShort", lang);
+    if (areaRaw) {
+      const area = Number(areaRaw);
+      if (!Number.isFinite(area) || area <= 0) errs.area = t("errAreaPositive", lang);
+    }
     setFormErrs(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      await api("POST", "/farms", { name, district: String(fd.get("district") ?? "").trim() || undefined, totalAreaBigha: Number(fd.get("area")) || undefined });
+      await api("POST", "/farms", { name, district: String(fd.get("district") ?? "").trim() || undefined, totalAreaBigha: areaRaw ? Number(areaRaw) : undefined });
       track("farm_created"); toast.success(t("farmCreatedToast", lang)); setShowFarmForm(false); (e.target as HTMLFormElement).reset();
       // The old `load` refetched the farm list and the district weather after
       // every mutation — both families are invalidated, no more and no less.
@@ -163,7 +172,7 @@ export default function MyFarm() {
           keep whatever they have and this retry refetches that resource alone. */}
       <BlockError error={farmsRes.error} retryLabel={t("retry", lang)} onRetry={() => void farmsRes.reload()} />
 
-      {showFarmForm && <Card><form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label><Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} aria-describedby={formErrs.name ? "fm-name-err" : undefined} /><p id="fm-name-err" role="alert" className="text-xs text-danger-text">{formErrs.name}</p></div><div><Label htmlFor="fm-district">{t("districtPh", lang)}</Label><Input id="fm-district" name="district" /></div><div><Label htmlFor="fm-area">{t("areaBigha", lang)}</Label><Input id="fm-area" name="area" type="number" step="0.1" min="0.1" /></div><Button type="submit" className="sm:col-span-3" loading={busy}>{t("save", lang)}</Button></form></Card>}
+      {showFarmForm && <Card><form onSubmit={createFarm} noValidate className="grid gap-3 sm:grid-cols-3"><div><Label htmlFor="fm-name">{t("farmNamePh", lang)}</Label><Input id="fm-name" name="name" aria-invalid={Boolean(formErrs.name)} aria-describedby={formErrs.name ? "fm-name-err" : undefined} /><p id="fm-name-err" role="alert" className="text-xs text-danger-text">{formErrs.name}</p></div><div><Label htmlFor="fm-district">{t("districtPh", lang)}</Label><Input id="fm-district" name="district" /></div><div><Label htmlFor="fm-area">{t("areaBigha", lang)}</Label><Input id="fm-area" name="area" type="number" step="0.1" min="0.1" aria-invalid={Boolean(formErrs.area)} aria-describedby={formErrs.area ? "fm-area-err" : undefined} /><p id="fm-area-err" role="alert" className="text-xs text-danger-text">{formErrs.area}</p></div><Button type="submit" className="sm:col-span-3" loading={busy}>{t("save", lang)}</Button></form></Card>}
 
       {farmsRes.loading && <Card><Skeleton className="h-24 w-full" /></Card>}
 
