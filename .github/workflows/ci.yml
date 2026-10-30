@@ -316,6 +316,12 @@ jobs:
           done
           echo "::error::preview server never answered on 127.0.0.1:4173"; cat /tmp/agro-lhci-preview.log; exit 1
 
+      # Two runs in a row produced NaN/NO_FCP on the runner ("Audit did not
+      # produce a value at all", all three collection attempts) while the same
+      # content passed before and after — headless Chrome failing to paint on a
+      # constrained runner. `--disable-dev-shm-usage` moves Chrome's shm to disk
+      # (the canonical remedy for exactly this), `--disable-gpu` drops the
+      # swiftshader path; budgets themselves are untouched.
       - name: Lighthouse CI (budgets for the built bundle)
         if: hashFiles('apps/web/lighthouserc.json') != ''
         working-directory: apps/web
