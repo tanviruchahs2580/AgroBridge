@@ -98,9 +98,10 @@ export default function WalletPage() {
     }
   }
 
-  const availablePaisa = wallet
-    ? wallet.balancePaisa - (summary?.pendingWithdrawalsPaisa ?? 0)
-    : null;
+  // Holds live in the summary; without it the honest availability is UNKNOWN,
+  // not "balance minus zero" (that overstated it and weakened the client-side
+  // pre-check). The server refuses over-balance requests either way.
+  const availablePaisa = wallet && summary ? wallet.balancePaisa - summary.pendingWithdrawalsPaisa : null;
 
   function submitWithdraw(e: React.FormEvent) {
     e.preventDefault();
@@ -262,7 +263,8 @@ export default function WalletPage() {
       <section>
         <SectionHeader title={t("transactionsTitle", lang)} />
         <div className="space-y-2">
-          <BlockError error={walletRes.error} retryLabel={t("retry", lang)} onRetry={() => void walletRes.reload()} />
+          {/* The wallet resource's error already renders once above this
+              section; repeating the same banner here showed it twice. */}
           <BlockError error={paymentsRes.error} retryLabel={t("retry", lang)} onRetry={() => void paymentsRes.reload()} />
           {ledgerLoading ? (
             <Card className="space-y-2">

@@ -62,3 +62,58 @@ tests:
               summary: "Database unreachable (/ready failing)"
               description: 'agrobridge_db_up has been 0 for 2m. See docs/runbooks/chaos-drills.md and disaster-recovery restore procedure.'
               runbook: docs/runbooks/failed-transaction-recovery.md
+
+  # Firing paths for the remaining rules. The cold read found only two of six
+  # rules had one, so a critical alert watching a never-emitted label could not
+  # be caught. PaymentFailures now watches a series the API actually
+  # increments (reconcileLiveVerdict's FAILED branch).
+  - interval: 1m
+    input_series:
+      - series: 'agrobridge_payment_intents_total{purpose_type="ORDER",status="failed"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PaymentFailures
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              purpose_type: "ORDER"
+              status: "failed"
+            exp_annotations:
+              summary: "More than 5 failed payment intents in 10 minutes"
+              description: "Check SSLCommerz gateway status and PAYMENT_PROVIDER sandbox/live labelling before user complaints arrive."
+              runbook: docs/runbooks/failed-transaction-recovery.md
+
+  - interval: 1m
+    input_series:
+      - series: 'agrobridge_ai_requests_total{provider="offline-agro-engine",status="fallback_success"}'
+        values: '0+2x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AiFallbackSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              provider: "offline-agro-engine"
+              status: "fallback_success"
+            exp_annotations:
+              summary: "AI provider falling back to offline engine (>10 in 15m)"
+              description: "Advisories still answer via the grounded offline KB engine, but check provider quota/keys."
+              runbook: docs/runbooks/provider-outage.md
+
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="api:4000",job="agrobridge"}'
+        values: '1 1 1 0+0x12'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              instance: "api:4000"
+              job: "agrobridge"
+            exp_annotations:
+              summary: "Scrape target down"
+              description: "Prometheus cannot reach api:4000 for 3m. Container may be crashed or network partitioned."
+              runbook: docs/runbooks/live-deployment.md

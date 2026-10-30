@@ -54,26 +54,15 @@ function maskDestination(phone: string): string {
   return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
 }
 
-/** metaStr parsed defensively — absent/malformed JSON degrades to "no metadata". */
-function parsedMeta(metaStr: string | null): Record<string, unknown> {
-  if (!metaStr) return {};
-  try {
-    const parsed = JSON.parse(metaStr) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
 /** Client idempotency key as stored in a payment's metaStr JSON (null when absent). */
 function idempotencyKeyOfMeta(metaStr: string | null): string | null {
-  const key = parsedMeta(metaStr).idempotencyKey;
+  const key = paymentMetaOf(metaStr).idempotencyKey;
   return typeof key === "string" ? key : null;
 }
 
 /** Checkout URL stored at creation time, so a keyed replay resumes the same session. */
 function metaRedirectUrl(metaStr: string | null): string | undefined {
-  const url = parsedMeta(metaStr).redirectUrl;
+  const url = paymentMetaOf(metaStr).redirectUrl;
   return typeof url === "string" ? url : undefined;
 }
 
@@ -423,7 +412,14 @@ export async function reconcileLiveVerdict(
   verdict: { status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }
 ): Promise<{ reconciled: boolean; reason?: "amount_mismatch" }> {
   if (verdict.status === "FAILED") {
-    await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
+    const failed = await prisma.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED" } });
+    // The PaymentFailures alert watches this series; before this line no code
+    // path emitted it, so a critical alert could never fire. Only a GENUINE
+    // gateway verdict counts — superseded intents are cancellations, not
+    // failures, and must not page anyone.
+    if (failed.count === 1) {
+      paymentIntentsTotal.inc({ purpose_type: payment.purposeType, status: "failed" });
+    }
     return { reconciled: false };
   }
   if (verdict.status !== "SUCCEEDED") return { reconciled: false };
@@ -617,7 +613,7 @@ paymentsRouter.post(
         });
 
         // Compensating ledger entry. Balance may go negative on deliberate
-        // refunds exceeding wallet balance â€” documented ops behaviour.
+        // refunds exceeding wallet balance — documented ops behaviour.
         const wallet = await tx.wallet.upsert({
           where: { userId: payment.userId },
           update: { balancePaisa: { decrement: payment.amountPaisa } },

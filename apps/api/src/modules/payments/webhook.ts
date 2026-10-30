@@ -13,7 +13,7 @@ import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict, pay
 import { getPaymentProvider } from "../../providers/payment/index.js";
 
 /**
- * SSLCommerz IPN/webhook endpoint â€” the ONLY path to success when a real
+ * SSLCommerz IPN/webhook endpoint — the ONLY path to success when a real
  * gateway is configured. Unauthenticated by design; every request must carry
  * a valid provider signature (verify_sign). Replay-safe: a webhook for an
  * already-succeeded payment responds idempotently without re-applying
@@ -30,7 +30,7 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     if (!storePassword) throw badRequest("Payment gateway not configured");
 
     // Constant-time comparison (both sides are 32-char MD5 hex; a plain !==
-    // would leak a timing oracle over the digest,).
+    // would leak a timing oracle over the digest).
     const expected = sslcommerzSignature(params, storePassword);
     const provided = (params.verify_sign ?? "").toUpperCase();
     const expectedBuf = Buffer.from(expected, "utf8");
