@@ -59,7 +59,13 @@ export class OfflineAgroEngine implements AiProvider {
     }
 
     const primary = entries[0];
-    const answer = (ctx.lang === "bn" ? primary.answerBn : primary.answerEn) + "\n\n— " + primary.titleEn;
+    // The trailing line names the entry the answer came from, in the answer's
+    // own language: a Bengali answer ending in an English corpus title asked the
+    // farmer to read a language they may not have chosen (seen on the live
+    // advisor). The resolved source row below the answer still carries both
+    // titles, so nothing is lost for a Bengali reader.
+    const primaryTitle = ctx.lang === "bn" ? primary.titleBn ?? primary.titleEn : primary.titleEn;
+    const answer = (ctx.lang === "bn" ? primary.answerBn : primary.answerEn) + "\n\n— " + primaryTitle;
 
     // Calibrated confidence: an entry's stored confidence is only earned by
     // multi-hit / phrase matches; a single keyword hit lands in "probably right
