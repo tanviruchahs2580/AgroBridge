@@ -101,6 +101,23 @@ provider/fallback correctness = 1.00, abstention precision ≥ 0.99, latency p95
 ≤ 250 ms. 95% Wilson intervals are reported in the artifact; the derived
 unsupported-claim rate is 1 − containment.
 
+## Change control: regression gate and rollback (A8-09)
+
+- Any change to the corpus, the retriever, the engine, the prompt template or
+  the provider wiring runs the same frozen evaluation gate in CI
+  (`ai-eval-harness`, 109 held-out items, per-stratum metrics), so an
+  improvement in one language/crop cannot hide a regression in another: the
+  metrics are computed per kind and the language stratum is measured separately
+  (bn/banglish/en).
+- Every answer records `kbVersion` (corpus content hash) and hosted answers
+  record `promptVersion`; stored advisory rows carry both, so the answers
+  affected by a bad revision are identifiable by joining on those columns.
+- Rollback path: the corpus and prompts are code (no runtime ingestion), so the
+  rollback is `git revert` of the offending commit — the KB hashes revert with
+  it and the gate re-runs. A hosted-model change is rolled back by pinning
+  `AI_PROVIDER=offline` (the default), which serves the deterministic KB engine
+  with zero provider spend.
+
 ## Unmeasured / owner-gated follow-ups (honest list)
 
 - Per-entry confidences and top-k: no k-sweep (corpus too small to measure
