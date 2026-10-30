@@ -22,6 +22,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Same first-start-only role/grant setup as the local stack — the comment
+      # above promised the two-role split but nothing mounted it for the compose
+      # path (found by the audit's cold read).
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     networks:
       - internal
     healthcheck:

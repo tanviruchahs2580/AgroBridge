@@ -1,10 +1,19 @@
-import { retrieve, KbEntry, KB_VERSION, kbVersionOf } from "./knowledge.js";
-import { AiContext, AiAnswer, expertVerificationNote, LOW_CONFIDENCE_THRESHOLD, AiProvider } from "./types.js";
+import { retrieve, KbEntry, KB_VERSION, kbVersionOf, sourceRefOf } from "./knowledge.js";
+import {
+  AiContext,
+  AiAnswer,
+  expertVerificationNote,
+  unreviewedTreatmentNote,
+  containsAgrochemGuidance,
+  LOW_CONFIDENCE_THRESHOLD,
+  AiProvider,
+} from "./types.js";
 
 /**
  * Deterministic, grounded, offline AI engine.
  * Retrieves from the curated KB; never fabricates beyond retrieved entries;
- * attaches an explicit expert-verification note when confidence is low.
+ * attaches an explicit expert-verification note when confidence is low, and a
+ * review-pending note when unsourced chemical-input guidance is served (A4-09).
  */
 export class OfflineAgroEngine implements AiProvider {
   readonly name = "offline-agro-engine";
@@ -44,6 +53,7 @@ export class OfflineAgroEngine implements AiProvider {
         model: this.model,
         lowConfidenceFlag: true,
         groundedRefs: [],
+        groundedSources: [],
         kbVersion: this.kbVersion,
       };
     }
@@ -63,6 +73,13 @@ export class OfflineAgroEngine implements AiProvider {
     if (confidence < LOW_CONFIDENCE_THRESHOLD) {
       text += expertVerificationNote(ctx.lang);
     }
+    // A4-09: an answer that names or doses an agrochemical input must be either
+    // source-reviewed or explicitly flagged unverified. Every built-in entry is
+    // currently UNSOURCED, so chemical guidance carries the review-pending note
+    // regardless of the (heuristic) confidence band.
+    if (primary.status === "UNSOURCED" && containsAgrochemGuidance(answer)) {
+      text += unreviewedTreatmentNote(ctx.lang);
+    }
 
     return {
       answer: text,
@@ -71,6 +88,7 @@ export class OfflineAgroEngine implements AiProvider {
       model: this.model,
       lowConfidenceFlag: confidence < LOW_CONFIDENCE_THRESHOLD,
       groundedRefs: entries.map((e) => e.id),
+      groundedSources: entries.map(sourceRefOf),
       kbVersion: this.kbVersion,
     };
   }

@@ -23,9 +23,21 @@ export class LocalStorageProvider implements StorageProvider {
     return `${UPLOAD_PREFIX}${fileName}`;
   }
 
+  /**
+   * Reads a stored object. `save` writes under `baseDir` (operators relocate it
+   * via UPLOAD_BASE_DIR on serverless runtimes) and returns the relative key
+   * `uploads/disease/<name>`; resolving that key with `path.resolve` against the
+   * working directory — as this method used to — pointed at the wrong place
+   * whenever a base dir was configured, so every read of an existing upload
+   * returned null (AUD-207). The key is resolved through `baseDir` exactly like
+   * `delete` does; keys outside the shared prefix remain plain filesystem paths.
+   */
   async get(p: string): Promise<Buffer | null> {
+    const full = p.startsWith(UPLOAD_PREFIX)
+      ? path.join(this.baseDir, "disease", path.basename(p.slice(UPLOAD_PREFIX.length)))
+      : path.resolve(p);
     try {
-      return await readFile(path.resolve(p));
+      return await readFile(full);
     } catch {
       return null;
     }

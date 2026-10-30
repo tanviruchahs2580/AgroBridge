@@ -491,7 +491,7 @@ async function issueOtpChallenge(
       challenge = await prisma.otpChallenge.create({
         data: {
           userId: user.id,
-          // Already canonical `01[3-9]XXXXXXXX` (registration normalises, ),
+          // Already canonical `01[3-9]XXXXXXXX` (normalised at registration),
           // so hashOtp and every verify lookup compare the same string.
           phone: user.phone,
           codeHash: hashOtp(user.phone, code),

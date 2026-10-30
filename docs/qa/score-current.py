@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Current-condition score on the V2 audit catalog — 2026-10-21 re-audit.
 
-Reproduces the V2 audit's scoring (the owner's master-prompt parameter set:
-113 parameters, 10 weighted categories, 0-4 points each, capped by evidence level)
-against the CURRENT tree, which is `main @ 0ce54b5` (the audit's own G0 baseline)
-plus the 10k-concurrency hardening commits on `fix/audit-10k-hardening`.
+Reproduces the V2 audit's scoring (the owner's master-prompt parameter set — the
+parameter count is printed at runtime, not asserted in prose, 10 weighted
+categories, 0-4 points each, capped by evidence level) against the tree that
+branch `audit/v2-remediation` scored (main @ 0ce54b5 plus the 10k-concurrency
+hardening commits). Historical snapshot; today's audit numbers come from
+.audit/score.json.
 
-BASE_SCORES is copied verbatim from the V2 audit's wave-0 config
-(`.audit/v2/score.py` — a local, git-excluded audit artifact), so this file is
-reproducible from the committed repository alone. Every DELTA below names the
-commit/artifact that justifies it. Parameters with no new evidence keep their
-wave-0 value.
+BASE_SCORES starts from the V2 audit's wave-0 values and, unlike earlier
+revisions of this file, keeps exactly ONE entry per parameter: re-assessments
+live in DELTAS (which wins at runtime) with the artifact that justifies them.
+Duplicate keys are a Python silent-shadowing bug — six of them here made the
+runtime use superseded values for ARC-01/ARC-02/SLP-03/SLP-04/SLP-05/DOC-02
+while the docstring claimed otherwise (found by the 2026-10-30 cold read).
 
 Reproduce:  python docs/qa/score-current.py
 """
@@ -74,14 +77,6 @@ BASE_SCORES = {
     "SLP-01": (1, "recommended lint only; no type-aware rules; 144 req.auth!; suppressions partly bare"),
     "SLP-02": (1, "no knip/jscpd/depcheck; dead lib/errors.ts; 7 re-export shims"),
     "SLP-03": (1, "5 files >600 lines; no size/complexity rules"),
-    "ARC-01": (2, "C4-style container diagram + login/refresh and checkout sequence diagrams (Mermaid, captioned to source files) in docs/architecture.md"),
-    "ARC-02": (2, "module boundary and provider-leaf rules enforced by eslint no-restricted-imports (CI lint); graph verified module-to-module and provider-to-module clean"),
-    "SLP-03": (2, "size/complexity guardrails live as eslint warnings (max-lines 650, complexity 18) with the exception table in CONTRIBUTING"),
-    "SLP-04": (2, "TODO/FIXME gate (scripts/todo-gate.mjs) with zero markers in shipped source; rule/audit references remain in tests by intent"),
-    "SLP-05": (2, "conventions documented in CONTRIBUTING (money, phones, timestamps, i18n, errors, module boundaries)"),
-    "DOC-02": (2, "owner/purpose/last-verified banners on core docs; link/claims checker partially in CI"),
-    "SLP-04": (1, "140 rule/audit refs in source; 38 narrative comments; TODO/comment-out clean"),
-    "SLP-05": (1, "API module layout consistent; web lib naming mixed; conventions undocumented"),
     "SLP-06": (2, "no fabricated UI content; seed gated; 1 positioned tagline needs sign-off"),
     "SLP-07": (2, "env/route/action-pin verifiers exist; version-string drift in app.ts/package-lock"),
     "SLP-08": (1, "dead exports (health.ts), unused /organizations, dual-dialect duplication"),
@@ -193,6 +188,15 @@ DELTAS = {
     # mismatches; corrupted → exactly one named mismatch, apps/api/tests/
     # wallet-reconciliation.test.ts) as well as by the ops schedule.
     "API-03": (3, "reconciliation exercised by a committed test running the operator script on the suite database (clean → 0; corrupted → exactly 1 named mismatch)"),
+    # The six re-assessments that used to be duplicate BASE keys (a silent
+    # shadowing bug: Python kept the LAST definition, so SLP-04/SLP-05 ran on
+    # their stale wave-0 text while the updated text sat unreachable).
+    "ARC-01": (2, "C4-style container diagram + login/refresh and checkout sequence diagrams (Mermaid, captioned to source files) in docs/architecture.md"),
+    "ARC-02": (2, "module boundary and provider-leaf rules enforced by eslint no-restricted-imports (CI lint); graph verified module-to-module and provider-to-module clean"),
+    "SLP-03": (2, "size/complexity guardrails live as eslint warnings (max-lines 650, complexity 18) with the exception table in CONTRIBUTING"),
+    "SLP-04": (2, "TODO/FIXME gate (scripts/todo-gate.mjs) with zero markers in shipped source; rule/audit references remain in tests by intent"),
+    "SLP-05": (2, "conventions documented in CONTRIBUTING (money, phones, timestamps, i18n, errors, module boundaries)"),
+    "DOC-02": (2, "owner/purpose/last-verified banners on core docs; link/claims checker partially in CI"),
 }
 
 # The wave-0 audit deducted one point per false/unverifiable claim left in docs.
@@ -241,11 +245,16 @@ def main() -> None:
         caps.append(("open S2 without signed waiver -> <= 70", 70))
     if not UAT_COMPLETE:
         caps.append(("P4 UAT incomplete -> <= 75", 75))
+    binding = []
     for name, cap in caps:
+        if cap < score:
+            binding.append(name)
         score = min(score, cap)
 
+    print(f"- Parameters scored: {len(scores)} ({len(BASE_SCORES)} base + {len(DELTAS)} deltas)")
     print(f"- Wave-0 doc-claim penalty: all 5 resolved on this tree -> -0")
-    print(f"- Caps considered (none bind at this level): {', '.join(n for n, _ in caps)}")
+    print(f"- Caps evaluated: {', '.join(n for n, _ in caps)}")
+    print(f"- Caps binding the score: {', '.join(binding) if binding else 'none'}")
     print(f"- **Score after penalties/caps: {score:.2f} / 100**")
     band = ("90-100 enterprise-grade" if score >= 90 else
             "80-89 production-grade, minor gaps" if score >= 80 else

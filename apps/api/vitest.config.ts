@@ -9,12 +9,14 @@ import { defineConfig } from "vitest/config";
  * Thresholds sit 2 points below those numbers so a real regression fails but
  * refactors do not (the earlier ~5-point gap let the suite drift).
  *
- * The branches ceiling is the credential-gated provider adapters
- * (providers/payment/*, providers/storage/*, weather/openweather.ts) that run
- * nowhere outside production — live-gateway behaviour is now exercised by
- * tests/payments-reconciliation-amount.test.ts against a stubbed fetch, which
- * is why branches cleared 70 on this measurement. Raise the floors as those
- * adapters get contract-replay coverage.
+ * AUD-205 + review follow-up: `payment/sandbox.ts`, `payment/sslcommerz.ts`,
+ * `storage/s3.ts` (stub-server tests in adapter-failure-injection +
+ * storage-serving-contract) and `weather/openweather.ts` (stubbed-fetch tests)
+ * are all instrumented — each has a test that exercises it, and the earlier
+ * "not wired in CI / no replay coverage" note was no longer true for any of
+ * them. Re-measure and raise the floors when they move. The remaining
+ * exclusions are type-only modules with no executable lines (payment/types.ts,
+ * storage/types.ts); nothing else is excluded.
  */
 export default defineConfig({
   test: {
@@ -33,13 +35,9 @@ export default defineConfig({
         "dist/**",
         "types/**",
         "coverage/**",
-        // Credential-gated / environment-dependent provider adapters — not wired in CI
-        "src/providers/payment/sandbox.ts",
-        "src/providers/payment/sslcommerz.ts",
+        // Type-only modules (no executable lines) — the only remaining exclusions.
         "src/providers/payment/types.ts",
-        "src/providers/storage/s3.ts",
         "src/providers/storage/types.ts",
-        "src/providers/weather/openweather.ts",
       ],
       thresholds: {
         statements: 82,

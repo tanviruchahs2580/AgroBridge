@@ -61,7 +61,9 @@ describe("Journey 2 & 13 â€” Farm management + offline sync", () => {
     const forbiddenList = await request(app)
       .get(`/api/v1/farms/${farmId}/plots`)
       .set("Authorization", `Bearer ${b.accessToken}`);
-    expect(forbiddenList.status).toBe(403);
+    // 404, not 403: the scoped lookup must not confirm that another tenant's
+    // farm id exists (existence oracle). Same contract as the events route below.
+    expect(forbiddenList.status).toBe(404);
 
     const notFoundForB = await request(app)
       .post(`/api/v1/farms/${farmId}/events`)

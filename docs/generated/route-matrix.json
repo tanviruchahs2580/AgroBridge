@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/modules/**/routes.ts",
-  "total": 85,
+  "total": 86,
   "summary": {
     "requirePermission:admin:metrics": 3,
     "requirePermission:audit:read": 1,
@@ -10,8 +10,8 @@
     "requireAuth (file-level use on aiRouter)": 3,
     "requireAuth": 9,
     "PUBLIC": 8,
+    "requireAuth (file-level use on diseaseRouter)": 4,
     "requirePermission:disease:review": 1,
-    "requireAuth (file-level use on diseaseRouter)": 3,
     "requireAuth (file-level use on farmsRouter)": 4,
     "requireAuth (file-level use on cropsRouter)": 3,
     "requireAuth (file-level use on eventsRouter)": 2,
@@ -230,6 +230,14 @@
     {
       "module": "disease",
       "file": "src/modules/disease/routes.ts",
+      "method": "GET",
+      "path": "/cases/:id/image",
+      "router": "diseaseRouter",
+      "auth": "requireAuth (file-level use on diseaseRouter)"
+    },
+    {
+      "module": "disease",
+      "file": "src/modules/disease/routes.ts",
       "method": "POST",
       "path": "/cases/:id/review",
       "router": "diseaseRouter",
@@ -408,14 +416,6 @@
       "file": "src/modules/marketplace/routes.ts",
       "method": "GET",
       "path": "/",
-      "router": "cartRouter",
-      "auth": "requireAuth (file-level use on cartRouter)"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
-      "method": "GET",
-      "path": "/",
       "router": "ordersRouter",
       "auth": "requireAuth (file-level use on ordersRouter)"
     },
@@ -432,6 +432,14 @@
       "file": "src/modules/marketplace/routes.ts",
       "method": "POST",
       "path": "/items",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
       "router": "cartRouter",
       "auth": "requireAuth (file-level use on cartRouter)"
     },

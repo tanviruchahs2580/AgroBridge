@@ -18,9 +18,9 @@ misconfigurations:
   # ports and the public port mapping, or swapping the base image for
   # nginx-unprivileged: a deployment-topology change (certbot paths, compose
   # healthcheck, deploy gates), not a Dockerfile tweak, and it is scheduled
-  # separately. Accepted 2026-10-18 by the audit; the matching SECURITY_WAIVERS.md
-  # row (reason / compensating control / expiry) must be added by the security
-  # owner — this comment is the dependency, not a substitute for it.
+  # separately. Accepted 2026-10-18; the matching SECURITY_WAIVERS.md row
+  # ("AVD-DS-0002 (Trivy config)", same expiry) is registered — the cross-reference
+  # required above is satisfied, and this comment names where to re-check it.
   # Compensating controls: no NEW_PRIVILEGED caps, no host PID/network, the
   # container is the only one publishing ports, and the api/db network is
   # internal. Expiry aligns with the register's other rows.
@@ -32,6 +32,6 @@ misconfigurations:
     statement: >-
       nginx TLS-termination container runs its master process as root (upstream
       image model). Ephemeral, cert-mounted, no privileged capabilities; the
-      unprivileged-base migration is scheduled separately. Requires a
-      SECURITY_WAIVERS.md row (security owner).
+      unprivileged-base migration is scheduled separately. Registered in
+      SECURITY_WAIVERS.md (AVD-DS-0002 row, expires with this entry).
     expired_at: 2027-01-31

@@ -142,6 +142,8 @@ export const dict = {
   refresh: { bn: "রিফ্রেশ", en: "Refresh" },
   search: { bn: "খুঁজুন", en: "Search" },
   viewAll: { bn: "সব দেখুন", en: "View all" },
+  viewPhoto: { bn: "ছবি দেখুন", en: "View photo" },
+  casePhotoAlt: { bn: "আপলোড করা ফসলের ছবি", en: "Uploaded crop photo" },
 
   // ── Toasts / system messages ──
   saved: { bn: "সংরক্ষিত হয়েছে ✓", en: "Saved ✓" },
@@ -218,6 +220,9 @@ export const dict = {
 
   // ── Structured advisor sections ──
   advisorSource: { bn: "তথ্যসূত্র", en: "Source" },
+  // Shown beside a citation whose corpus entry has no recorded external source
+  // or agronomist sign-off — provenance disclosure, not a warning state.
+  advisorSourceUnreviewed: { bn: "বিশেষজ্ঞ-যাচাই বাকি", en: "expert review pending" },
 
   // ── Checkout wizard steps ──
   checkoutStepCart: { bn: "কার্ট", en: "Cart" },
@@ -272,6 +277,7 @@ export const dict = {
   // ── Form validation ──
   errFieldRequired: { bn: "এই ঘরটি পূরণ করুন।", en: "This field is required." },
   errNameTooShort: { bn: "নাম কমপক্ষে ২ অক্ষরের হতে হবে।", en: "Name must be at least 2 characters." },
+  errAreaPositive: { bn: "জমির পরিমাণ ০ থেকে বড় হতে হবে।", en: "Area must be greater than 0." },
   errAmountInvalid: { bn: "সঠিক পরিমাণ (টাকা) লিখুন।", en: "Enter a valid amount in taka." },
   // Not the same as errAmountInvalid: the sell-crop field asks for kilos, and
   // telling a farmer the invalid value is "in taka" names the wrong unit.

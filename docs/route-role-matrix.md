@@ -35,7 +35,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 | `/farms` | `farmsRouter` | yes | 12 | 0 |
 | `/weather` | `weatherRouter` | yes | 1 | 0 |
 | `/ai` | `aiRouter` | yes | 3 | 0 |
-| `/disease` | `diseaseRouter` | yes | 4 | 0 |
+| `/disease` | `diseaseRouter` | yes | 5 | 0 |
 | `/products` | `productsRouter` | yes | 2 | 0 |
 | `/cart` | `cartRouter` | yes | 3 | 0 |
 | `/orders` | `ordersRouter` | yes | 5 | 0 |
@@ -137,6 +137,7 @@ Source: `src/modules/disease/routes.ts`
 | POST | `/disease/cases` | guard: module | — | any authenticated role | — |
 | GET | `/disease/cases` | guard: module | — | any authenticated role | — |
 | GET | `/disease/cases/:id` | guard: module | — | any authenticated role | — |
+| GET | `/disease/cases/:id/image` | guard: module | — | any authenticated role | — |
 | POST | `/disease/cases/:id/review` | guard: module | `disease:review` | SUPER_ADMIN, ADMIN | — |
 
 ### `/products` → `productsRouter`

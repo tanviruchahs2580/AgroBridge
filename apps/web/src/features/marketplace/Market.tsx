@@ -114,6 +114,9 @@ export default function Market() {
   // Until the intent response arrives the mode is unknown, so no sandbox claim
   // is rendered — the wording appears only when the server says "sandbox".
   const [intentMode, setIntentMode] = useState<string | null>(null);
+  // The intent is created with the order (not at tap time) so the payment
+  // surface can disclose the REAL provider mode before the user commits.
+  const [intent, setIntent] = useState<PaymentIntent | null>(null);
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [placeOrderError, setPlaceOrderError] = useState<string | null>(null);
@@ -206,6 +209,7 @@ export default function Market() {
     setOrder(null);
     setPaid(false);
     setIntentMode(null);
+    setIntent(null);
     setDeliveryErrs({});
     setCriticalFlow(true);  // Guard: prevent session-destroy during checkout
     if (!prefillDone) {
@@ -262,6 +266,14 @@ export default function Market() {
       clearPendingCheckoutKey();
       setOrder(o);
       setStep(PAY_STEP);
+      // Best-effort intent creation so the mode label is truthful BEFORE the
+      // tap; a failure here leaves intent null and pay() creates it lazily.
+      void api<PaymentIntent>("POST", "/payments/intent", { purposeType: "ORDER", purposeId: o.id })
+        .then((i) => {
+          setIntent(i);
+          setIntentMode(i.providerMode);
+        })
+        .catch(() => null);
       // Order already created; the refresh is fire-and-forget, so a failed cart
       // reload can no longer block payment. The old code refetched the cart only.
       invalidate("market-cart");
@@ -281,23 +293,27 @@ export default function Market() {
     if (!order || paying) return;
     setPaying(true);
     try {
-      const intent = await api<PaymentIntent>("POST", "/payments/intent", {
-        purposeType: "ORDER",
-        purposeId: order.id,
-      });
+      let current = intent;
+      if (!current) {
+        current = await api<PaymentIntent>("POST", "/payments/intent", {
+          purposeType: "ORDER",
+          purposeId: order.id,
+        });
+        setIntent(current);
+      }
       // The real mode is whatever the server reports for this deployment.
-      setIntentMode(intent.providerMode);
+      setIntentMode(current.providerMode);
 
-      if (intent.redirectUrl) {
+      if (current.redirectUrl) {
         // A real gateway is configured: the hosted checkout page collects the
         // money and returns the buyer to the app (POST -> API -> /orders).
         track("checkout_payment_redirect", { totalPaisa: order.totalPaisa });
-        window.location.assign(intent.redirectUrl);
+        window.location.assign(current.redirectUrl);
         return;
       }
 
-      if (intent.providerMode === "sandbox") {
-        await api("POST", `/payments/${intent.paymentId}/confirm`);
+      if (current.providerMode === "sandbox") {
+        await api("POST", `/payments/${current.paymentId}/confirm`);
         setPaid(true);
       }
       track("checkout_completed", { totalPaisa: order.totalPaisa });
@@ -586,6 +602,12 @@ export default function Market() {
                 <Button size="lg" className="w-full" loading={paying} onClick={() => void pay()}>
                   {t("payNow", lang)}
                 </Button>
+              )}
+              {/* Sandbox disclosure belongs BEFORE the user commits, not only on
+                  the receipt: whoever taps "Pay now" must already know no real
+                  money will move (C-25 / IR-14). */}
+              {!paid && intentMode === "sandbox" && (
+                <p className="text-center text-xs text-stone-500">{t("sandboxPaymentNote", lang)}</p>
               )}
               <Button variant="ghost" className="w-full" onClick={closeWizard}>{t("close", lang)}</Button>
             </div>

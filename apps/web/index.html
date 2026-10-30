@@ -21,7 +21,27 @@
          LCP budget caught it. It still loads on demand when a glyph needs it. -->
     <link rel="preload" href="/fonts/hind-siliguri-bengali-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/hind-siliguri-bengali-700.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- The auth surfaces render 400/500/600/700 Bengali text on first paint;
+         without preload the later weights are discovered only after CSS +
+         unicode-range matching, then queue behind the module graph and land
+         past the LCP budget on Slow-4G. All four are fetched by those screens
+         regardless — preloading only re-orders them. -->
+    <link rel="preload" href="/fonts/hind-siliguri-bengali-500.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/hind-siliguri-bengali-600.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/hind-siliguri-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Same reasoning for the Latin subsets: the Bangla hero copy mixes in
+         Latin glyphs (brand name, digits, ©), so every weight's Latin half is
+         needed on the first paint of the auth screens too. -->
+    <link rel="preload" href="/fonts/hind-siliguri-latin-500.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/hind-siliguri-latin-600.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/hind-siliguri-latin-700.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- The auth surfaces' LCP element is the full-bleed photo; it must start
+         before the module graph boots under a 4x CPU slowdown, or it lands past
+         the 4 s LCP budget on a Slow-4G profile. Media-scoped so each viewport
+         fetches exactly one variant (immutable-cached; login is the first screen
+         of most cold visits). -->
+    <link rel="preload" href="/brand/login-bg-mobile-full.webp" as="image" media="(max-width: 767px)" />
+    <link rel="preload" href="/brand/login-bg-desktop.webp" as="image" media="(min-width: 768px)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

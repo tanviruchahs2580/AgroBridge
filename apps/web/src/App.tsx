@@ -170,7 +170,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
             <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
-              <img src="/brand/logo-mark.png" alt="" className="h-full w-full object-cover" />
+              <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
             </span>
             <div className="min-w-0">
               <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>

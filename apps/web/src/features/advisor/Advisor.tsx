@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { uuid } from "../../lib/uuid";
-import { api } from "../../lib/api";
-import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase } from "../../lib/api-types";
+import { api, apiBlob } from "../../lib/api";
+import type { AdvisoryAnswer, AdvisoryFeedback, AdvisoryHistoryItem, DiseaseCase, KbSourceRef } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { formatDate } from "../../lib/format";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Bot, Camera, Sprout } from "lucide-react";
+import { Bot, Camera, Eye, Sprout } from "lucide-react";
 import { Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Modal, PageHeader, Skeleton, Spinner, useToast } from "../../components/ui";
 import { confidenceSupportKey } from "./supportLabel";
 import { answerModeLabel, shortKbVersion } from "./answerMeta";
@@ -57,6 +57,8 @@ export default function Advisor() {
     confidence?: number;
     low?: boolean;
     refs?: string[];
+    /** Resolved source metadata for `refs` (same order); absent on older servers. */
+    sources?: KbSourceRef[];
     /** Provenance of the answer: which engine and KB version produced it.*/
     provider?: string;
     model?: string;
@@ -71,6 +73,16 @@ export default function Advisor() {
   const [reason, setReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  /**
+   * AUD-201: the case photo viewer. The bytes only exist behind an
+   * authenticated endpoint, so the modal fetches a Blob and shows it from an
+   * object URL; the URL is revoked on close so photos do not accumulate in
+   * memory (or linger in the DOM after the session locks).
+   */
+  const [photoCase, setPhotoCase] = useState<DiseaseCase | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // The only fetch on this screen is the user's disease-case list; the chat is
@@ -111,6 +123,7 @@ export default function Advisor() {
           confidence: res.confidence,
           low: res.lowConfidenceFlag,
           refs: Array.isArray(res.groundedRefs) ? res.groundedRefs : [],
+          sources: Array.isArray(res.groundedSources) ? res.groundedSources : [],
           provider: res.provider,
           model: res.model,
           kbVersion: res.kbVersion,
@@ -152,6 +165,53 @@ export default function Advisor() {
       setUploading(false);
     }
   }
+
+  /**
+   * Fetch the stored photo of a case and show it in the modal (AUD-201).
+   *
+   * The request carries a sequence number: a response that lost the race to a
+   * newer click (or to a close) must not overwrite the modal's state, and the
+   * object URL it would otherwise create would leak (found by the run's
+   * independent review). Object URLs are revoked on replacement, on close and
+   * on unmount.
+   */
+  const photoSeq = useRef(0);
+  const photoUrlRef = useRef<string | null>(null);
+
+  function setPhotoObjectUrl(next: string | null) {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoUrlRef.current = next;
+    setPhotoUrl(next);
+  }
+
+  async function viewCasePhoto(c: DiseaseCase) {
+    const seq = ++photoSeq.current;
+    setPhotoCase(c);
+    setPhotoError(null);
+    setPhotoBusy(true);
+    setPhotoObjectUrl(null);
+    try {
+      const blob = await apiBlob(`/disease/cases/${c.id}/image`);
+      if (seq !== photoSeq.current) return; // superseded by a newer request
+      setPhotoObjectUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      if (seq === photoSeq.current) setPhotoError(mapError(err, lang));
+    } finally {
+      if (seq === photoSeq.current) setPhotoBusy(false);
+    }
+  }
+
+  function closePhoto() {
+    photoSeq.current++; // invalidate any in-flight fetch
+    setPhotoCase(null);
+    setPhotoError(null);
+    setPhotoObjectUrl(null);
+  }
+
+  // Revoke the last object URL when the screen unmounts.
+  useEffect(() => () => {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+  }, []);
 
   function openReport(item: AdvisoryHistoryItem) {
     setReporting(item);
@@ -225,11 +285,21 @@ export default function Advisor() {
               {visibleCases.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">
                   <span>{formatDate(c.createdAt, lang)}</span>
-                  {c.status === "REVIEWED" ? (
-                    <Badge tone="success">{t("reviewed", lang)}</Badge>
-                  ) : (
-                    <Badge tone="default">{t("pendingReview", lang)}</Badge>
-                  )}
+                  <span className="flex items-center gap-2">
+                    {c.status === "REVIEWED" ? (
+                      <Badge tone="success">{t("reviewed", lang)}</Badge>
+                    ) : (
+                      <Badge tone="default">{t("pendingReview", lang)}</Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void viewCasePhoto(c)}
+                      aria-label={t("viewPhoto", lang)}
+                    >
+                      <Eye className="mr-1 h-4 w-4" aria-hidden /> {t("viewPhoto", lang)}
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -277,9 +347,17 @@ export default function Advisor() {
                 {m.refs && m.refs.length > 0 && (
                   <ul className="space-y-0.5 px-1 text-xs text-stone-500">
                     <li className="font-semibold">{t("advisorSource", lang)}</li>
-                    {m.refs.map((r, ri) => (
-                      <li key={ri}>· {r}</li>
-                    ))}
+                    {m.refs.map((r, ri) => {
+                      // Resolved title when the server sent metadata; the raw id
+                      // only as a fallback for older servers.
+                      const s = m.sources?.find((x) => x.id === r);
+                      return (
+                        <li key={ri}>
+                          · {s ? (lang === "bn" ? s.titleBn ?? s.titleEn : s.titleEn) : r}
+                          {s?.status === "UNSOURCED" && <span className="text-amber-700"> · {t("advisorSourceUnreviewed", lang)}</span>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {m.confidence !== undefined && (
@@ -393,6 +471,24 @@ export default function Advisor() {
             onChange={(e) => setReason(e.target.value)}
           />
           {reportError && <div className="mt-2"><ErrorBanner message={reportError} /></div>}
+        </Modal>
+      )}
+
+      {photoCase && (
+        <Modal title={t("viewPhoto", lang)} onClose={closePhoto} closeLabel={t("close", lang)}>
+          {photoBusy && (
+            <p role="status" className="flex items-center gap-2 text-sm text-stone-500">
+              <Spinner className="h-4 w-4" /> {t("loading", lang)}
+            </p>
+          )}
+          {photoError && <ErrorBanner message={photoError} />}
+          {photoUrl && !photoError && (
+            <img
+              src={photoUrl}
+              alt={t("casePhotoAlt", lang)}
+              className="max-h-[70vh] w-full rounded-lg object-contain"
+            />
+          )}
         </Modal>
       )}
     </div>

@@ -47,7 +47,11 @@ const overrides = existsSync(ALLOWLIST_FILE) ? JSON.parse(readFileSync(ALLOWLIST
 const problems = [];
 for (const [name, licence] of [...seen].sort()) {
   const parts = String(licence).split(/\s+OR\s+|\s+AND\s+|\(|\)|\//).map((s) => s.trim()).filter(Boolean);
-  const ok = parts.every((p) => ALLOW.has(p)) || parts.length === 0 ? ALLOW.has(String(licence).trim()) : false;
+  // Precedence bug (caught by the audit's cold read): the ternary used to read
+  // as ((every || empty) ? literalCheck : false), so an allowed-parts
+  // expression like "MIT AND ISC" was rejected unless the whole string was on
+  // the list. Decide the way the code reads: every part must be allowed.
+  const ok = parts.length > 0 ? parts.every((p) => ALLOW.has(p)) : ALLOW.has(String(licence).trim());
   if (ok || overrides[name]) continue;
   problems.push(`${name} -> "${licence}"`);
 }

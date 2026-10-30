@@ -27,9 +27,10 @@ import {
  * The deterministic OFFLINE engine is driven directly; no external provider is
  * ever called (offline is also the default in tests/setup-env.ts).
  *
- * Machine-readable results: apps/api/eval-artifacts/ai-eval-latest.json
- * (not yet gitignored — see the remediation report). A Markdown summary is
- * printed to stdout on every run.
+ * Machine-readable results: apps/api/eval-artifacts/ai-eval-latest.json — a
+ * gitignored build output recomputed on every run; the frozen dataset and the
+ * pre-registered thresholds it is measured against ARE committed. A Markdown
+ * summary is printed to stdout on every run.
  */
 describe("AI evaluation gate — frozen held-out set (offline engine)", () => {
   it("runs the pre-registered gate, prints metrics, and writes the artifact", async () => {

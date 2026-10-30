@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { askAgroAgent } from "../../providers/ai/gateway.js";
-import { KNOWLEDGE_BASE } from "../../providers/ai/knowledge.js";
+import { KNOWLEDGE_BASE, sourceRefOf, type KbSourceRef } from "../../providers/ai/knowledge.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
@@ -84,7 +84,13 @@ aiRouter.post(
         membershipTier: user?.farmerProfile?.membershipTier,
       });
 
-      ok(res, answer);
+      ok(res, {
+        ...answer,
+        // Citations resolved against the live corpus (A3-01): the ids the engine
+        // retrieved plus their human-readable metadata. Additive field — clients
+        // that only read `groundedRefs` are unaffected.
+        groundedSources: answer.groundedSources ?? liveGroundedSources(answer.groundedRefs),
+      });
     } catch (e) {
       next(e);
     }
@@ -115,6 +121,21 @@ export function liveGroundedRefs(stored: string | null): string[] {
   return out;
 }
 
+/**
+ * Live citation metadata for a set of grounded ids (A3-01). Unknown ids — an
+ * entry removed after the answer was stored — resolve to nothing rather than to
+ * a guessed title, and the order of the incoming ids is preserved.
+ */
+export function liveGroundedSources(ids: string[]): KbSourceRef[] {
+  const byId = new Map(KNOWLEDGE_BASE.map((e) => [e.id, e]));
+  const out: KbSourceRef[] = [];
+  for (const id of ids) {
+    const entry = byId.get(id);
+    if (entry) out.push(sourceRefOf(entry));
+  }
+  return out;
+}
+
 aiRouter.get("/history", async (req, res, next) => {
   try {
     const rows = await prisma.advisoryQuery.findMany({
@@ -139,7 +160,10 @@ aiRouter.get("/history", async (req, res, next) => {
         requestId: true,
       },
     });
-    const history = rows.map(({ groundedRefs, ...row }) => ({ ...row, groundedRefs: liveGroundedRefs(groundedRefs) }));
+    const history = rows.map(({ groundedRefs, ...row }) => {
+      const refs = liveGroundedRefs(groundedRefs);
+      return { ...row, groundedRefs: refs, groundedSources: liveGroundedSources(refs) };
+    });
     ok(res, history);
   } catch (e) {
     next(e);

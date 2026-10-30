@@ -5,6 +5,10 @@ export interface KbEntry {
   crop: string; // lowercase crop key or "general"
   keywords: string[]; // lowercase match terms (English + Bengali)
   titleEn: string;
+  /** Bengali title shown in the bn UI as the source name. Optional: an entry
+   *  without one falls back to its English title rather than a machine
+   *  translation. */
+  titleBn?: string;
   answerEn: string;
   answerBn: string;
   confidence: number;
@@ -36,6 +40,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "rice",
     keywords: ["rice", "ধান", "blast", "ব্লাস্ট", "blight", "ব্লাইট", "পাতা মোড়ানো", "মড়ানো", "fungus on rice", "brown spot", "দাগ", "সিগার", "ধূসর"],
     titleEn: "Rice blast / fungal leaf disease management",
+    titleBn: "ধানের ব্লাস্ট / ছত্রাকজনিত পাতা-রোগ ব্যবস্থাপনা",
     answerEn:
       "Rice blast appears as spindle-shaped lesions with grey centres on leaves. Management: 1) Keep fields drained rather than continuously flooded when infection appears. 2) Avoid excess nitrogen fertiliser which worsens blast. 3) Use recommended fungicides (e.g., tricyclazole or isoprothiolane group) applied at early lesion stage — confirm product choice with a licensed dealer or DAE agronomist. 4) Remove and burn infected stubble after harvest.",
     answerBn:
@@ -51,6 +56,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "rice",
     keywords: ["rice", "ধান", "urea", "ইউরিয়া", "fertilizer rice", "ধানে সার", "top dress"],
     titleEn: "Urea application schedule for rice",
+    titleBn: "ধানে ইউরিয়া প্রয়োগের সময়সূচি",
     answerEn:
       "For modern high-yielding Boro/Aus rice: apply urea in 3 splits — 50% at 15 days after transplanting (tillering), 30% at panicle initiation (~40 days), 20% just before flowering. Never apply urea on dry soil without standing water. A leaf colour chart (LCC) score of 4 indicates correct nitrogen status.",
     answerBn:
@@ -66,6 +72,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "wheat",
     keywords: ["wheat", "গম", "rust", "রাস্ট", "মরিচা", "yellow leaves wheat"],
     titleEn: "Wheat rust disease",
+    titleBn: "গমের রাস্ট (মরিচা) রোগ",
     answerEn:
       "Yellow/orange powdery pustules on wheat leaves indicate rust. Severity rises with warm humid spells. Action: scout weekly, apply a triazole-group fungicide at first sign if coverage >5% of leaf area (confirm locally registered products), and prefer rust-tolerant varieties (e.g., BARI Gom series noted as tolerant) next season.",
     answerBn:
@@ -81,6 +88,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "jute",
     keywords: ["jute", "পাট", "stem rot", "কাণ্ড পচা", "yellowing jute", "কান্ড পচ", "পচে", "পচন", "ড্ড পচ"],
     titleEn: "Jute stem rot & yellowing",
+    titleBn: "পাটের কাণ্ড পচা ও হলুদ হয়ে যাওয়া",
     answerEn:
       "Stem rot in jute often follows waterlogging. Ensure drainage, avoid wounding plants during weeding, and apply potash as per soil test since potassium deficiency increases susceptibility. Rotate with rice to break disease cycles.",
     answerBn:
@@ -96,6 +104,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "mustard",
     keywords: ["mustard", "সরিষা", "aphid", "এফিড", "green insects mustard", "সবুজ পোকা", "পোকা জড়ো"],
     titleEn: "Mustard aphid control",
+    titleBn: "সরিষার জাবপোকা দমন",
     answerEn:
       "Aphids cluster on flowering shoots causing curling and poor pod set. Spray water jet first for light infestations; if populations are high, use an approved insecticide in late afternoon (protects bees), rotate actives between sprays, and harvest timely. Encourage ladybird beetles — natural predators. Confirm the specific product with a licensed dealer or DAE agronomist before spraying.",
     answerBn:
@@ -111,6 +120,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
     crop: "general",
     keywords: ["soil test", "মাটি পরীক্ষা", "soil health", "soil ph"],
     titleEn: "Soil testing guidance",
+    titleBn: "মাটি পরীক্ষার নির্দেশিকা",
     answerEn:
       "Test your soil every 2–3 years before the major season. Collect samples from 15 cm depth across 8–10 spots of the plot, mix, and take ~500 g to the nearest SRDI/DAE office. Fertiliser recommendations based on soil test typically save 20–30% fertiliser cost. AgroBridge offers soil testing service booking under Services.",
     answerBn:
@@ -130,6 +140,7 @@ export const KNOWLEDGE_BASE: KbEntry[] = [
       "পানি", "সেচন", "সিনচন", "সেচে", "সিন্চন",
     ],
     titleEn: "Irrigation best practice",
+    titleBn: "সেচের সর্বোত্তম চর্চা",
     answerEn:
       "Irrigate early morning or evening to cut evaporation losses. For most field crops, alternate wetting and drying beats constant flooding. Watch AgroBridge weather advisories — irrigate before forecast heat waves and skip irrigation within 48h of heavy rain.",
     answerBn:
@@ -156,6 +167,7 @@ export function kbVersionOf(corpus: KbEntry[]): string {
         crop: e.crop,
         keywords: [...e.keywords].sort(),
         titleEn: e.titleEn,
+        titleBn: e.titleBn ?? null,
         answerEn: e.answerEn,
         answerBn: e.answerBn,
         confidence: e.confidence,
@@ -176,6 +188,32 @@ export function kbVersionOf(corpus: KbEntry[]): string {
  * itself and a silent KB edit becomes visible instead of untraceable.
  */
 export const KB_VERSION = kbVersionOf(KNOWLEDGE_BASE);
+
+/**
+ * Resolved citation metadata for a grounded answer (A3-01). Built from the
+ * live entry itself — id, titles, crop, provenance status — so a citation can
+ * never name a document that is not in the corpus and never carries a
+ * fabricated URL (the shape deliberately has no URL field; an entry's
+ * `sourceUrl` is null until provenance is recorded, and citations resolve
+ * against the live corpus at read time).
+ */
+export interface KbSourceRef {
+  id: string;
+  titleEn: string;
+  titleBn?: string;
+  crop: string;
+  status: KbEntry["status"];
+}
+
+export function sourceRefOf(entry: KbEntry): KbSourceRef {
+  return {
+    id: entry.id,
+    titleEn: entry.titleEn,
+    ...(entry.titleBn ? { titleBn: entry.titleBn } : {}),
+    crop: entry.crop,
+    status: entry.status,
+  };
+}
 
 /** Crop-name aliases per crop. Matching these is *weak* evidence: every entry of
  *  a crop repeats them, so a bare crop mention must never outrank an entry that

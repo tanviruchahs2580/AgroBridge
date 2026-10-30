@@ -30,6 +30,12 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+    # /ready is the api's healthcheck and it needs the db; without this the api
+    # container could start against a not-yet-ready database and only recover
+    # by luck of request ordering.
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "4000"

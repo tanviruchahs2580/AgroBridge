@@ -32,8 +32,8 @@ export class S3StorageProvider implements StorageProvider {
     return key.startsWith("uploads/") ? key.slice("uploads/".length) : key;
   }
 
-  /** SigV4-signed request against the bucket; shared by save and delete. */
-  private async signedRequest(method: "PUT" | "DELETE", key: string, body: Buffer, contentType?: string): Promise<Response> {
+  /** SigV4-signed request against the bucket; shared by save, get and delete. */
+  private async signedRequest(method: "PUT" | "GET" | "DELETE", key: string, body: Buffer, contentType?: string): Promise<Response> {
     const host = this.endpoint
       ? this.endpoint.replace(/^https?:\/\//, "").replace(/\/$/, "")
       : `${this.bucket}.s3.${this.region}.amazonaws.com`;
@@ -70,8 +70,8 @@ export class S3StorageProvider implements StorageProvider {
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
     // Shared policy: per-attempt timeout, one retry on 5xx/429/network
-    // failures — PUT (same key, same bytes) and DELETE (idempotent) are both
-    // safe to repeat.
+    // failures — PUT (same key, same bytes), GET (a read) and DELETE
+    // (idempotent) are all safe to repeat.
     return withResilience(
       "s3",
       async (signal) => {
@@ -119,10 +119,18 @@ export class S3StorageProvider implements StorageProvider {
     if (!res.ok && res.status !== 404) throw new Error(`S3 delete failed ${res.status}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- async by storage contract; objects are served by the CDN, so there is no I/O here.
-  async get(_p: string): Promise<Buffer | null> {
-    // Objects are served by the platform CDN/presigner in production; the API
-    // never proxies image bytes back (see docs/architecture.md).
-    return null;
+  /**
+   * Reads an object back through a SigV4 GET (AUD-208: this used to return
+   * null unconditionally on the assumption that objects are only served by a
+   * CDN/presigner — no presigner existed, so under STORAGE_PROVIDER=s3 the
+   * disease-photo read path 404'd forever). A 404 is "absent" (delete's
+   * ENOENT equivalent); any other failure throws so callers never mistake an
+   * outage for a missing file.
+   */
+  async get(key: string): Promise<Buffer | null> {
+    const res = await this.signedRequest("GET", this.objectKey(key), Buffer.alloc(0));
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`S3 get failed ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
   }
 }

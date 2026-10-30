@@ -43,7 +43,11 @@ async function assertFarmAccess(farmId: string, userId: string, role: string) {
     const member = await prisma.organizationMember.findFirst({ where: { organizationId: farm.organizationId, userId } });
     if (member) return farm;
   }
-  throw forbidden("Not your farm");
+  // 404, not 403: a distinct "forbidden" answer would confirm which guessed
+  // farm/plot/crop ids exist for other tenants (an existence oracle). The
+  // farm-scoped events route already answers 404 for outsiders; every
+  // farm object now speaks with one voice.
+  throw notFound("Farm");
 }
 
 farmsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
@@ -353,6 +357,19 @@ export function cropsRouter() {
           // Same access rule as plots: owner, privileged, or org member.
           await assertFarmAccess(existing.plot.farmId, getAuth(req).userId, getAuth(req).role);
           const body = req.body as z.infer<typeof cropUpdateBody>;
+          // The lifecycle is forward-only: HARVESTED and FAILED are terminal.
+          // Without this guard a PATCH could reopen a harvested cycle or set a
+          // stage its outcome contradicts, which is exactly the kind of
+          // out-of-order transition that corrupts the farm record ledger.
+          // yieldKg stays correctable after harvest (measured weight fixes).
+          if (existing.status !== "ACTIVE") {
+            if (body.stage !== undefined) {
+              throw conflict(`Crop cycle is already ${existing.status} — the stage can no longer change`);
+            }
+            if (body.status !== undefined && body.status !== existing.status) {
+              throw conflict(`Crop cycle is already ${existing.status} — lifecycle transitions are final`);
+            }
+          }
           const updated = await prisma.cropCycle.update({
             where: { id: existing.id },
             // Omitted fields stay unchanged in the database: only keys the
