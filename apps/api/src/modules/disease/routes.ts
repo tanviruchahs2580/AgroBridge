@@ -225,9 +225,22 @@ diseaseRouter.get(
       const reviewer = hasPermission(auth.role, "disease:review");
       const kase = await prisma.diseaseCase.findFirst({
         where: reviewer ? { id: req.params.id } : { id: req.params.id, userId: auth.userId },
-        select: { imagePath: true },
+        select: { imagePath: true, userId: true },
       });
       if (!kase) throw notFound("Disease case");
+
+      // A reviewer reading a farmer's photo is a privileged cross-user read of
+      // personal data (the image can include the farm itself). The review
+      // decision is audited; the read that makes it possible is logged too.
+      if (reviewer && kase.userId !== auth.userId) {
+        await audit({
+          actorId: auth.userId,
+          action: "DISEASE_IMAGE_VIEWED",
+          entityType: "DiseaseCase",
+          entityId: req.params.id,
+          meta: { ownerUserId: kase.userId },
+        });
+      }
 
       const bytes = await getStorageProvider().get(kase.imagePath);
       if (!bytes) throw notFound("Image");

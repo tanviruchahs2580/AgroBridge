@@ -101,6 +101,9 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
 - `POST /disease/cases` — multipart `image` (JPEG/PNG/WebP ≤8MB) + optional `cropCycleId`,
   `cropGuess`. Queued as `PENDING_REVIEW`; no fabricated diagnosis.
 - `GET /disease/cases` · `GET /disease/cases/:id`
+- `GET /disease/cases/:id/image` — the stored photo as bytes (`image/jpeg|png|webp`, sniffed
+  format, `Cache-Control: private`). The owner or a `disease:review` holder only; anyone else
+  gets 404. Cross-user reviewer reads are audited (`DISEASE_IMAGE_VIEWED`).
 - `POST /disease/cases/:id/review` — ADMIN only: `{diagnosis, severity, recommendation}`.
 
 ## Marketplace

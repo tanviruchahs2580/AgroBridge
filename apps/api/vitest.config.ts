@@ -9,14 +9,14 @@ import { defineConfig } from "vitest/config";
  * Thresholds sit 2 points below those numbers so a real regression fails but
  * refactors do not (the earlier ~5-point gap let the suite drift).
  *
- * AUD-205: `payment/sandbox.ts` (the default provider in every test) and
- * `payment/sslcommerz.ts` (exercised by payments-reconciliation-amount against
- * a stubbed fetch) used to sit in the exclude list with an outdated "not wired
- * in CI" note — a critical-path denominator that shrank while the gates stayed
- * green. Both are instrumented now; re-measure and raise the floors when they
- * move. Remaining exclusions are deliberate and owner-visible: the type-only
- * modules (no executable lines) and the two genuinely credential-gated
- * adapters with no replay coverage yet (storage/s3.ts, weather/openweather.ts).
+ * AUD-205 + review follow-up: `payment/sandbox.ts`, `payment/sslcommerz.ts`,
+ * `storage/s3.ts` (stub-server tests in adapter-failure-injection +
+ * storage-serving-contract) and `weather/openweather.ts` (stubbed-fetch tests)
+ * are all instrumented — each has a test that exercises it, and the earlier
+ * "not wired in CI / no replay coverage" note was no longer true for any of
+ * them. Re-measure and raise the floors when they move. The remaining
+ * exclusions are type-only modules with no executable lines (payment/types.ts,
+ * storage/types.ts); nothing else is excluded.
  */
 export default defineConfig({
   test: {
@@ -35,12 +35,9 @@ export default defineConfig({
         "dist/**",
         "types/**",
         "coverage/**",
-        // Type-only modules (no executable lines) and the credential-gated
-        // adapters without replay coverage (see AUD-205 note above).
+        // Type-only modules (no executable lines) — the only remaining exclusions.
         "src/providers/payment/types.ts",
-        "src/providers/storage/s3.ts",
         "src/providers/storage/types.ts",
-        "src/providers/weather/openweather.ts",
       ],
       thresholds: {
         statements: 82,
