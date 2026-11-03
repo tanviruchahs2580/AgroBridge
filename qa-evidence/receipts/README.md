@@ -15,6 +15,7 @@ anything CI produces.
 | [2026-10-18-live-verification.md](2026-10-18-live-verification.md) | 2026-10-18 | `6282ca8` (both Vercel projects serving it) | Is production running the reviewed source: local gates on the workstation, PostgreSQL 17 suite, production walkthrough of every screen/parameter, and the defect that walkthrough found |
 | [2026-10-18-schema-drift-and-release-contract.md](2026-10-18-schema-drift-and-release-contract.md) | 2026-10-18 | `6786a24` | Production schema drift: three migrations unapplied in production while gates stayed green; the fixes and the release-contract check that now compares the applied chain with the repository (ADR-0007) |
 | [2026-10-18-web-edge-and-delivery-perf.md](2026-10-18-web-edge-and-delivery-perf.md) | 2026-10-18 | `6897e7b` (after PR #31) | The static site's edge policy (CSP and friends), before/after live header measurements, and the delivery performance numbers with the guard that fails on divergence (ADR-0008) |
+| [2026-11-03-quiet-surfaces.md](2026-11-03-quiet-surfaces.md) | 2026-11-03 | `b8ae2b0`, rebased onto `dd58587` (`refactor/quiet-surfaces`) | The web copy/layout simplification pass: 81 dictionary entries removed (612 → 531), typecheck, lint, unit 214, build, i18n, lint budget, docs gates, e2e chromium 91 + firefox/webkit 12 on an isolated stack (incl. the `E2E_DB_URL` note for `[ADM-01]`), and the 390/1280 visual review |
 
 ## The remediation wave (2026-10-19)
 
