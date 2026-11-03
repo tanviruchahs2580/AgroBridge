@@ -22,7 +22,7 @@ this page is a bug. Production is `main`.
 | Repository | Branch `main` at `3f1c991` (the 2026-11-03 release: #88, #89, #90) | `git log origin/main` |
 | Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3f1c991`, built 2026-11-03T09:17Z | live probe (curl, 2026-11-03) |
 | API | Deployed; `/health` reports commit `3f1c991`, `env: production` | live probe (curl, 2026-11-03) |
-| Android artifact | CI's `agrobridge-debug-apk` for `3f1c991` bundles the same web chunk as the deployment (byte-identical, SHA-256 `c3df0367…`), `versionName` 1.4.1 | `gh run download 41609544999`; not installed — no device or emulator on the verification machine |
+| Android artifact | CI's `agrobridge-debug-apk` for `3f1c991` bundles the same web build as that deployment's web (entry chunk byte-identical, SHA-256 `c3df0367…`, 404,950 bytes), `versionName` 1.4.1. The later docs-only build differs only in the compiled-in stamp — same byte length, differences confined to Vite's `__vite__mapDeps` table | `gh run download 41609544999`; not installed — no device or emulator on the verification machine |
 | Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-11-03) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
 | Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers; the build fails if the two Vercel configs diverge |
