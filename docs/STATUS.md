@@ -1,30 +1,33 @@
 # STATUS
 
-One page, current as of **2026-10-29 (+06:00)**. What is actually live, what is pilot-grade
+One page, current as of **2026-11-03 (+06:00)**. What is actually live, what is pilot-grade
 simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
 roadmap and no marketing: if a line here disagrees with the running system, the system is right and
 this page is a bug. Production is `main`.
 
-> **Released 2026-10-29: production runs `3e8b5c4`, and every live row below was re-probed.** The
-> enterprise-audit remediation (PR #81) and the public-language fix (PR #83) are deployed: web and
-> API both report `3e8b5c4`, the deploy-verification gate passed on the merge, and a browser pass
-> exercised the public pages, registration with its consent gate, twelve authenticated screens, the
-> data export and account deletion against the live site. Highlights are in the CHANGELOG's
-> 2026-10-29 entries. The previous revision of this page described 2026-10-24 probes; they are
+> **Released 2026-11-03: production runs `3f1c991`, and every live row below was re-probed.** The
+> quiet-surfaces pass (PR #90) is deployed, on top of the enterprise hardening (#88) and the Bengali
+> source-citation fix (#89) that had been live since 2026-10-30 without a STATUS update — this
+> revision covers all three. The deploy-verification gate passed on the merge, and the live site was
+> checked by content, not by assumption: the shipped entry chunk carries none of the twelve strings
+> the pass removed and every replacement, and the debug APK CI built from the same commit bundles a
+> byte-identical web chunk (SHA-256 `c3df0367…`). Highlights are in the CHANGELOG's 2026-11-03
+> entries. The previous revision of this page described the 2026-10-29 release at `3e8b5c4`; it is
 > superseded.
 
 ## Live in production
 
 | Thing | State | Evidence |
 |---|---|---|
-| Repository | Branch `main` at `3e8b5c4` (the 2026-10-29 release: #81, #83) | `git log origin/main` |
-| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3e8b5c4`, built 2026-10-29T04:48Z | live probe (curl, 2026-10-29) |
-| API | Deployed; `/health` reports commit `3e8b5c4`, `env: production` | live probe (curl, 2026-10-29) |
-| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-10-29) |
+| Repository | Branch `main` at `3f1c991` (the 2026-11-03 release: #88, #89, #90) | `git log origin/main` |
+| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3f1c991`, built 2026-11-03T09:17Z | live probe (curl, 2026-11-03) |
+| API | Deployed; `/health` reports commit `3f1c991`, `env: production` | live probe (curl, 2026-11-03) |
+| Android artifact | CI's `agrobridge-debug-apk` for `3f1c991` bundles the same web chunk as the deployment (byte-identical, SHA-256 `c3df0367…`), `versionName` 1.4.1 | `gh run download 41609544999`; not installed — no device or emulator on the verification machine |
+| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-11-03) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
 | Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers; the build fails if the two Vercel configs diverge |
 | API error contract | Unknown routes return the structured envelope with `requestId` | live probe (`ROUTE_NOT_FOUND` example) |
-| CI | Both release PRs passed **19/19 checks** (14 CI jobs incl. the SQLite + PostgreSQL suites and the 52-spec browser suite, CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI, CodeQL and Deploy verification are green on `3e8b5c4` | `gh pr checks 81`, `gh pr checks 83`, Actions runs for `main` |
+| CI | Release PR #90 passed **19/19 checks** (14 CI jobs incl. the SQLite + PostgreSQL suites and the 52-spec browser suite, CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI (13 jobs), CodeQL and Deploy verification are green on `3f1c991` | `gh pr checks 90`, Actions runs for `main` |
 
 Known production properties that are not defects but are easy to misread:
 
@@ -95,6 +98,7 @@ These are open decisions, not bugs; the linked IDs are the register's own identi
 | Knowledge-base provenance | Severity of unsourced KB entries pending agronomist review | OD-14 |
 | SMS provider | Integrate a real SMS provider now or disable phone-gated flows in the pilot | OD-15 |
 | Remediation mode | Whether local remediation on a branch is authorized | OD-16 |
+| Branch protection | `CONTRIBUTING.md` states `main` requires a pull request and green CI + CodeQL, and blocks force pushes and deletion. The GitHub API reports **no protection configured** (`GET /repos/…/branches/main/protection` → 404, checked 2026-11-03). Enable the protection the process claims, or correct `CONTRIBUTING.md` — as written, a force push to `main` succeeds and the merge gate is convention, not enforcement | — |
 | Dependency PRs | Triage of the open Dependabot pull requests | OD-17 |
 
 The in-repo tasks that accompany these are the native-Bangla and agronomy reviews
