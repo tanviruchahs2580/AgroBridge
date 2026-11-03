@@ -53,6 +53,25 @@ describe("i18n dictionary", () => {
     ).toEqual([]);
   });
 
+  it("carries no brand or marketing copy", () => {
+    // The dictionary is UI chrome: a label, a state, a constraint, an error, a
+    // legal disclosure. Copy that argues for the product rather than describing
+    // what the screen is doing has no key to live in — that is the whole rule,
+    // and it is why the header, the auth panel, the Services page, the Home
+    // dashboard, the farm list and the splash no longer carry a slogan, a
+    // subtitle repeating a title, or a tagline under an icon.
+    //
+    // Two of the three retired-shape families are caught here by name; the third
+    // (a sub-line under a label) is caught in review, with the reasoning written
+    // next to each removal rather than in a rule. If you are adding a key whose
+    // name matches this pattern, the copy belongs in the layout — a heading, an
+    // action, or the title of the thing it describes.
+    const dictionary = readFileSync(DICTIONARY, "utf8");
+    const keys = [...dictionary.matchAll(/^ {2}([A-Za-z][A-Za-z0-9_]*):\s*\{\s*bn:/gm)].map((m) => m[1]!);
+    const marketing = keys.filter((key) => /tagline|herov?\d|promo|slogan/i.test(key));
+    expect(marketing, `dictionary keys that are marketing copy, not UI chrome: ${marketing.join(", ")}`).toEqual([]);
+  });
+
   it("still carries the keys the app actually asks for", () => {
     // Guard the guard: a scan that found no keys at all would pass the test above.
     const dictionary = readFileSync(DICTIONARY, "utf8");

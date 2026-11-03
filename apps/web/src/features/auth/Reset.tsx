@@ -77,7 +77,6 @@ export default function Reset() {
   return (
     <AuthShell
       title={t("resetTitle", lang)}
-      subtitle={t("resetSubtitle", lang)}
       lang={lang}
       onToggleLang={setLang}
       footer={

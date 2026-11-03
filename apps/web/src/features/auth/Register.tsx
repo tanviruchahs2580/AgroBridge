@@ -68,7 +68,6 @@ export default function Register() {
   return (
     <AuthShell
       title={t("registerTitle", lang)}
-      subtitle={t("authRegisterSub", lang)}
       lang={lang}
       onToggleLang={(l) => {
         setUiLang(l);
@@ -204,8 +203,12 @@ export default function Register() {
           {t("signUp", lang)}
         </Button>
 
-        {(inputInvalid || !consent) && !busy && (
-          <p className="text-center text-xs text-stone-500">{inputInvalid ? t("fixErrorsNote", lang) : t("errConsentRequired", lang)}</p>
+        {/* Only the consent state needs saying: it is the one reason for a dead
+            submit button that the fields themselves cannot show. The generic
+            "fix the highlighted errors" line that shared this slot was dropped —
+            the highlighted errors say it themselves, at the field that has them. */}
+        {!consent && !busy && (
+          <p className="text-center text-xs text-stone-500">{t("errConsentRequired", lang)}</p>
         )}
       </form>
     </AuthShell>

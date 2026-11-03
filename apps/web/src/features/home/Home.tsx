@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import {
-  Bell, Bot, Calendar, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
+  Bell, Bot, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
   Sprout, Stethoscope, Tractor, TriangleAlert, Wind,
 } from "lucide-react";
 import { api } from "../../lib/api";
@@ -117,12 +117,7 @@ export default function Home() {
         <h1 className="text-lg font-bold leading-tight tracking-tight text-stone-800 sm:text-xl">
           {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
-        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-stone-600">
-          <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-surface-border bg-surface-card">
-            <Calendar className="h-3 w-3 text-stone-500" />
-          </span>
-          {lang === "bn" ? todayBn : todayEn}
-        </p>
+        <p className="mt-1 text-sm text-stone-600">{lang === "bn" ? todayBn : todayEn}</p>
       </section>
 
       {/* The page-level error was ever only the farm read: a rejected
@@ -149,13 +144,13 @@ export default function Home() {
         <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-300)", opacity: 0.12 }} />
         <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-chip bg-white/10 px-2.5 py-1 text-xs font-semibold tracking-wide text-white/85 ring-1 ring-white/15">
-              {/* `bg-enterprise-warning`, not `bg-warning`: the warning token group
-                  has no DEFAULT key, so `bg-warning` compiled to no rule and the
-                  dot vanished on exactly the risk state it exists to signal. */}
-              <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${hasRisk ? "bg-enterprise-warning" : "bg-brand-400"}`} aria-hidden /> {t("farmReadiness", lang)}
-            </p>
-            <h2 className="mt-2 text-lg font-extrabold leading-tight text-white sm:text-xl">
+            {/* State and the way to act on it. The "Farm readiness" pill above
+                this heading named the ring on the other side of the card rather
+                than the situation, and the paragraph that followed restated the
+                heading in a full sentence — "Weather risks detected" needed no
+                second line to be read. The heading is the state; the ring below
+                is captioned with what it measures. */}
+            <h2 className="text-lg font-extrabold leading-tight text-white sm:text-xl">
               {farmsUnavailable
                 ? t("farmDataUnavailable", lang)
                 : farms.length === 0
@@ -164,15 +159,6 @@ export default function Home() {
                     ? t("aiFarmAttention", lang)
                     : t("aiFarmHealthy", lang)}
             </h2>
-            <p className="mt-1 max-w-[36ch] text-sm leading-relaxed text-white/85">
-              {farmsUnavailable
-                ? t("farmDataUnavailableSub", lang)
-                : farms.length === 0
-                  ? t("aiFarmEmptySub", lang)
-                  : hasRisk
-                    ? t("aiFarmAttentionSub", lang)
-                    : t("aiFarmHealthySub", lang)}
-            </p>
             <Link to="/farm" className="mt-3 inline-flex min-h-[44px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
             </Link>
@@ -200,11 +186,13 @@ export default function Home() {
           ) : (
             <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
               <HealthRing score={healthScore} />
-              {/* The basis line must name what actually contributed. It claimed
-                  "records and today's weather" even when the weather read had
-                  failed and computeHealthScore had silently skipped that term. */}
+              {/* The caption names the meter, and — when the weather read failed
+                  and computeHealthScore therefore skipped that term — says so.
+                  It used to be a sentence ("From your records and today's
+                  weather"); the honesty it carried is the second half of it, so
+                  that half is what stays. */}
               <span className="max-w-[18ch] text-center text-2xs leading-snug text-white/70">
-                {weather ? t("farmReadinessBasis", lang) : t("farmReadinessBasisNoWeather", lang)}
+                {weather ? t("farmReadiness", lang) : t("farmReadinessBasisNoWeather", lang)}
               </span>
             </div>
           )}
@@ -246,7 +234,6 @@ export default function Home() {
               <div className="flex flex-col items-center gap-2 p-4 text-center">
                 <Sprout className="h-6 w-6 text-brand-600" aria-hidden />
                 <p className="text-sm font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
-                <p className="text-xs leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
               </div>
             )}
           </div>
@@ -352,7 +339,6 @@ export default function Home() {
               <div className="flex flex-col items-center gap-2 text-center">
                 <RiceEarMedallion size={56} />
                 <p className="text-sm font-semibold text-stone-700">{t("noActiveCrops", lang)}</p>
-                <p className="text-xs leading-snug text-stone-600">{t("addFirstCropHint", lang)}</p>
               </div>
             )}
           </div>
@@ -364,13 +350,10 @@ export default function Home() {
       {/* AI Assistant Entry — indigo accent moment */}
       <section className="animate-enterprise rounded-card border border-indigo-100 bg-enterprise-ai-light p-4 shadow-card" style={{ animationDelay: "180ms" } as React.CSSProperties}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-chip bg-enterprise-ai-strong px-2.5 py-1 text-xs font-bold tracking-wide text-white">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden /> AI • AgroBridge
-            </p>
-            <h2 className="mt-2 text-base font-extrabold text-stone-800">{t("aiAskTitle", lang)}</h2>
-            <p className="text-sm text-stone-600">{t("aiAskSubtitle", lang)}</p>
-          </div>
+          {/* No "AI • AgroBridge" pill (the card already wears the AI accent and
+              sits inside the app) and no "How can I help your farm today?" line —
+              the four actions below are the answer to that question. */}
+          <h2 className="text-base font-extrabold text-stone-800">{t("aiAskTitle", lang)}</h2>
           <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai-strong px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
             {t("askNow", lang)} <span aria-hidden className="ml-1">→</span>
           </Link>
@@ -387,26 +370,32 @@ export default function Home() {
       {/* দ্রুত সেবা */}
       <section className="animate-enterprise" style={{ animationDelay: "220ms" } as React.CSSProperties}>
         <h2 className="mb-3 px-1 text-base font-bold text-stone-800">{t("quickActions", lang)}</h2>
+        {/* Icon over label, centred. Each tile used to carry a second line
+            explaining its own label ("Ask, get solutions" under "AI Agro Agent",
+            "Drone, Tractor, Harvester" under "Services") — four tiles, four
+            taglines, none of which told the user anything the label and the icon
+            had not. Removing them leaves a short label on a wide tile, which is
+            why the tile is now vertical: the shape fits the content. */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Link to="/advisor" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+          <Link to="/advisor" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100" aria-hidden><Bot className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("aiAgent", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickAiSub", lang)}</span></span>
+            <span className="text-sm font-bold leading-tight text-stone-800">{t("aiAgent", lang)}</span>
           </Link>
-          <Link to="/services" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+          <Link to="/services" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100" aria-hidden><Tractor className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("services", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickServiceSub", lang)}</span></span>
+            <span className="text-sm font-bold leading-tight text-stone-800">{t("services", lang)}</span>
           </Link>
-          <Link to="/sell" className="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+          <Link to="/sell" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-enterprise-ai-light text-enterprise-ai ring-1 ring-inset ring-indigo-100" aria-hidden><Coins className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickSellSub", lang)}</span></span>
+            <span className="text-sm font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span>
           </Link>
-          <Link to="/notifications" className="relative flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+          <Link to="/notifications" className="relative flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             {/* info tones, not danger: reading your notifications is a neutral
                 action, and red is this system's danger/critical token. The tile
                 and its count used the danger surface and the `text-danger-text`
                 token as a background, so a mailbox looked like an alert. */}
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-info-bg text-info-text ring-1 ring-inset ring-info-border" aria-hidden><Bell className="h-5 w-5" /></span>
-            <span className="min-w-0"><span className="block text-sm font-bold leading-tight text-stone-800">{t("notifications", lang)}</span><span className="block text-xs leading-tight text-stone-600">{t("quickNotifSub", lang)}</span></span>
+            <span className="text-sm font-bold leading-tight text-stone-800">{t("notifications", lang)}</span>
             {/* `critical-strong` (filled danger surface), not `critical` (the
                 accent): white on the accent measures 3.77:1 and axe reported it as
                 a serious colour-contrast violation on this very element. The token

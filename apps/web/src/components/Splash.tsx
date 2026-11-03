@@ -117,7 +117,6 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
           <img src="/brand/logo-mark.webp" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
         </div>
         <h1 className="mt-4 text-xl font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
-        <p className="mt-1 text-xs font-medium tracking-[0.12em] text-white/70">{t("splashTagline", lang)}</p>
         <p className="mt-6 text-sm font-medium text-white/80">{statusFor(100, lang)}</p>
       </div>
     );
@@ -247,7 +246,6 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             <h1 className="text-2xl font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
               {t("appName", lang)}
             </h1>
-            <p className="mt-1 text-xs font-medium tracking-[0.14em] text-white/70">{t("splashTagline", lang)}</p>
           </m.div>
 
           {/* Status text */}

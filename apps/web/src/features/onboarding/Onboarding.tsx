@@ -80,7 +80,8 @@ export default function Onboarding() {
             {/* `roleLabel`, not the raw enum: this rendered "FARMER" on a Bengali screen. */}
             {session?.fullName} · <span className="text-xs">{session ? roleLabel(session.role, lang) : ""}</span>
           </p>
-          <p className="text-xs text-stone-600">{t("obWhoHint", lang)}</p>
+          {/* No "confirm your profile and continue" line: the Next button is that
+              sentence, and it is on screen. */}
         </Card>
       )}
       {step === 1 && (

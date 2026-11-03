@@ -328,17 +328,22 @@ export function Skeleton({ className = "", ...props }: HTMLAttributes<HTMLDivEle
  * (axe `heading-order`). The four call sites that render inside a section which
  * already has its own `h2` — the wallet ledger and withdrawals, the checkout
  * cart step, and the bookings block — pass 3 and keep the old outline.
+ *
+ * There is deliberately no `description`. Every one of the six descriptions the
+ * prop used to carry said the same thing as its own title from a different angle
+ * ("No orders yet" / "You don't have any orders yet"), or restated a control that
+ * was already on the screen ("Try a different category"). An empty state that
+ * genuinely needs a second line needs an ACTION — a button or a link — not a
+ * sentence, and `action` is what it gets.
  */
 export function EmptyState({
   icon = <Inbox className="h-7 w-7 text-brand-600" aria-hidden />,
   title,
-  description,
   action,
   headingLevel = 2,
 }: {
   icon?: ReactNode;
   title: string;
-  description?: string;
   action?: React.ReactNode;
   headingLevel?: 2 | 3;
 }) {
@@ -349,7 +354,6 @@ export function EmptyState({
         {icon}
       </span>
       <Heading className="text-base font-bold text-stone-800">{title}</Heading>
-      {description && <p className="max-w-sm text-sm leading-relaxed text-stone-600">{description}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>
   );
@@ -492,16 +496,21 @@ export function Sidebar({ items, ariaLabel }: { items: { to: string; label: stri
 }
 
 // ── Page furniture ──
-/** Consistent page header: title + optional subtitle + trailing action slot.*/
+/**
+ * Consistent page header: title + trailing action slot.
+ *
+ * There is deliberately no `subtitle`. Ten screens carried one, and every one of
+ * them was either a restatement of the title ("Settings / Profile, phone
+ * verification and account") or a line of marketing ("Create your farm account in
+ * minutes"). A page says what it is in its title and what it does in its content.
+ */
 export function PageHeader({
   title,
-  subtitle,
   icon,
   action,
   className = "",
 }: {
   title: string;
-  subtitle?: string;
   icon?: ReactNode;
   action?: ReactNode;
   className?: string;
@@ -514,10 +523,7 @@ export function PageHeader({
             {icon}
           </span>
         )}
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-extrabold tracking-[-0.01em] text-stone-800">{title}</h1>
-          {subtitle && <p className="mt-0.5 truncate text-xs text-stone-500">{subtitle}</p>}
-        </div>
+        <h1 className="truncate text-xl font-extrabold tracking-[-0.01em] text-stone-800">{title}</h1>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

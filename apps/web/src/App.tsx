@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, Bot, Coins, Compass, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
+import { Bell, Bot, Coins, Home as HomeIcon, LogOut, Moon, Package, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Sun, Tractor, TriangleAlert, Wallet as WalletIcon, Wrench } from "lucide-react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { otherLang, t } from "./lib/i18n";
@@ -102,13 +102,12 @@ function NotFound() {
   const [lang] = usePublicLang();
   return (
     <main id="main" className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4">
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-surface-border bg-surface-card p-4 py-10 text-center shadow-sm">
-        {/* Decorative: it repeats the "page not found" heading below it and is
- aria-hidden, so it is exempt from non-text contrast.*/}
-        <Compass className="h-10 w-10 text-stone-400" aria-hidden />
+      {/* Heading + the way out, nothing else. The illustration and the "the address
+          you are looking for…" sentence both restated the heading; a 404 is the
+          one screen where the user wants a door, not an explanation. */}
+      <div className="flex flex-col items-center gap-4 rounded-xl border border-surface-border bg-surface-card p-4 py-10 text-center shadow-sm">
         <h1 className="text-lg font-bold text-stone-800">{t("notFoundTitle", lang)}</h1>
-        <p className="max-w-sm text-sm text-stone-600">{t("notFoundBody", lang)}</p>
-        <Link to="/" className="mt-2 inline-flex min-h-[44px] items-center rounded-button bg-action px-4 py-2 font-semibold text-white shadow-button hover:bg-action-hover">
+        <Link to="/" className="inline-flex min-h-[44px] items-center rounded-button bg-action px-4 py-2 font-semibold text-white shadow-button hover:bg-action-hover">
           {t("backHome", lang)}
         </Link>
       </div>
@@ -172,14 +171,11 @@ function Shell({ children }: { children: ReactNode }) {
             <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
               <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
             </span>
-            <div className="min-w-0">
-              <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
-              {/* The tagline only fits once the action row stops competing for
- space; at 360px it wrapped to three lines and squeezed the brand.*/}
-              <div className="mt-0.5 hidden text-[10px] font-medium tracking-wide text-white/70 sm:block">
-                {t("tagline", lang)}
-              </div>
-            </div>
+            {/* Name only. The tagline that sat under it was the one piece of brand
+                copy in the chrome: it said nothing about where the user is or what
+                they can do here, and it was the first thing to wrap at 360px. The
+                mark and the name are the identity. */}
+            <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Account & settings: profile edit, phone verification, policies,
@@ -315,9 +311,10 @@ export default function App() {
   useEffect(() => {
     track("route_view", { path: location.pathname });
     const key = ROUTE_TITLES[location.pathname];
-    document.title = key
-      ? `${t(key, lang)} · ${t("appName", lang)}`
-      : `${t("appName", lang)} — ${t("tagline", lang)}`;
+    // A route without a table entry (the 404, a legal document) is named by the
+    // product alone — the tagline that used to follow it here duplicated the
+    // visible header and added nothing a window list can act on.
+    document.title = key ? `${t(key, lang)} · ${t("appName", lang)}` : t("appName", lang);
     // Move focus to the main landmark so screen-reader users land on page content.
     const mainEl = document.getElementById("main");
     if (mainEl && document.activeElement !== mainEl) {

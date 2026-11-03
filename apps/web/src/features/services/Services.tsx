@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
@@ -11,8 +11,8 @@ import { formatBDT, formatDateTime } from "../../lib/format";
 import { bookingStatusLabel, serviceCategoryLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { ClipboardList, Search, SlidersHorizontal, Tractor, TriangleAlert, CheckCircle2, CalendarClock, ArrowRight, ShieldCheck, Leaf, Wrench, Phone } from "lucide-react";
-import { Badge, BlockError, Button, Card, EmptyState, Input, Label, Modal, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
+import { ClipboardList, Search, SlidersHorizontal, TriangleAlert, Wrench } from "lucide-react";
+import { Badge, BlockError, Button, Card, EmptyState, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, useConfirm, useToast } from "../../components/ui";
 import { ServiceCard, ServiceCardSkeleton } from "../../components/service/ServiceCard";
 import { serviceHeroImage } from "../../components/service/heroImages";
 
@@ -56,7 +56,6 @@ export default function Services() {
   const lang = session?.lang ?? "bn";
   const toast = useToast();
   const confirm = useConfirm();
-  const searchRef = useRef<HTMLInputElement>(null);
 
   // The page reads three independent endpoints, so it holds three independent
   // resources: a failure in any one block leaves the others on screen.
@@ -64,7 +63,6 @@ export default function Services() {
   const bookingsRes = useResource<BookingWithRelations[]>("services-bookings", () => api<BookingWithRelations[]>("GET", "/bookings"));
   const farmsRes = useResource<FarmListItem[]>(RESOURCE_KEYS.farms, () => api<FarmListItem[]>("GET", "/farms"));
 
-  const services = servicesRes.data ?? [];
   const bookings = bookingsRes.data ?? [];
   const farms = farmsRes.data ?? [];
 
@@ -158,57 +156,16 @@ export default function Services() {
 
   return (
     <div className="min-w-0 space-y-5">
-      {/* SECTION 01 — HERO — concise, Bangla-first, field-rooted */}
-      <section className="overflow-hidden rounded-card border border-surface-border bg-surface-card shadow-card">
-        <div className="grid gap-6 p-6 sm:grid-cols-[1.2fr_0.8fr] sm:p-8">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-accent">
-              <Leaf className="h-3.5 w-3.5" aria-hidden /> {t("svcBadgeVerified", lang)}
-            </div>
-            <h1 className="mt-3 text-balance text-2xl font-bold leading-8 tracking-[-0.02em] text-stone-800">
-              {t("svcHeroTitle", lang)}
-            </h1>
-            <p className="mt-2 max-w-[52ch] text-sm leading-6 text-stone-600">
-              {t("svcHeroSub", lang)}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button onClick={() => searchRef.current?.focus()}>
-                {t("svcFindService", lang)} <ArrowRight className="ml-1 h-4 w-4" aria-hidden />
-              </Button>
-              <span className="inline-flex items-center rounded-full bg-surface-subdued px-3 py-1 text-xs font-medium text-stone-600">
-                {t("svcCount", lang, { n: services.length })}
-              </span>
-              {bookings.length > 0 && (
-                <a href="#my-bookings" className="inline-flex min-h-[44px] items-center rounded-full px-3 text-xs font-semibold text-link hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]">
-                  {t("myBookings", lang)} ↓
-                </a>
-              )}
-            </div>
-          </div>
-          <div className="hidden sm:flex items-center justify-center rounded-2xl bg-surface-subdued p-4">
-            <div className="grid w-full max-w-[280px] gap-3">
-              {/* Counts come from FILTER_MAP, not from literals. They used to be
-                  hardcoded 5 / 2 / 1 beside the same mapping, so adding a service
-                  category would have left the summary panel quietly wrong. */}
-              <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-warning-bg text-warning-text ring-1 ring-warning-border"><Tractor className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterMech", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.MECH.length} {t("svcTypesPlural", lang)}</p></div>
-                <ArrowRight className="ml-auto h-4 w-4 text-stone-500" aria-hidden />
-              </div>
-              <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-info-bg text-info-text ring-1 ring-info-border"><Wrench className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterAdvisory", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.ADVISORY.length} {t("svcTypesPlural", lang)}</p></div>
-                <CheckCircle2 className="ml-auto h-4 w-4 text-link" aria-hidden />
-              </div>
-              <div className="flex items-center gap-3 rounded-button border border-surface-border bg-surface-card px-3 py-3 shadow-sm">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-enterprise-soil-50 text-warning-text ring-1 ring-warning-border"><ShieldCheck className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-sm font-semibold text-stone-800">{t("svcFilterTest", lang)}</p><p className="text-xs text-stone-500">{FILTER_MAP.TEST.length} {FILTER_MAP.TEST.length === 1 ? t("svcTypeSingular", lang) : t("svcTypesPlural", lang)}</p></div>
-                <span className="ml-auto text-xs font-bold text-link">{t("svcClearLabel", lang)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* The page opens on the catalogue. Before this it opened on a hero — a
+          "Platform-listed" badge, a slogan headline, a subtitle, a "Find a
+          service" button that focused the search field below, a service count,
+          and a summary panel counting the categories the filter chips already
+          name. Three further sections followed the grid: "How it works" (three
+          steps describing the booking dialog), "Why AgroBridge" (three claims),
+          and a closing CTA. None of it was state and none of it was an action
+          the page did not already offer — a farmer opening Services wants the
+          list and the search field, which is where the page now starts. */}
+      <PageHeader icon={<Wrench className="h-5 w-5" aria-hidden />} title={t("services", lang)} />
 
       {/* Farms — the "add a farm first" hint and its failure share this slot, so
           neither the catalogue nor the bookings go down with them. */}
@@ -227,7 +184,6 @@ export default function Services() {
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500" aria-hidden />
           <input
-            ref={searchRef}
             type="search"
             placeholder={t("svcSearchPh", lang)}
             value={query}
@@ -286,10 +242,7 @@ export default function Services() {
       ) : filtered.length === 0 ? (
         // A failed catalogue must not read as "no services exist".
         servicesRes.error ? null : (
-          <EmptyState
-            title={t("svcEmptyTitle", lang)}
-            description={t("svcEmptyHint", lang)}
-          />
+          <EmptyState title={t("svcEmptyTitle", lang)} />
         )
       ) : (
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -308,98 +261,18 @@ export default function Services() {
                   setFormErrs({});
                   setSelected(s);
                 }}
-                onDetails={() => {
-                  setFormErrs({});
-                  setSelected(s);
-                }}
               />
             </motion.div>
           ))}
         </motion.div>
       )}
 
-      {/* SECTION 06 — HOW IT WORKS — real flow only */}
-      <section aria-labelledby="how-title" className="rounded-card border border-surface-border bg-surface-card p-6 shadow-sm sm:p-8">
-        <h2 id="how-title" className="text-lg font-bold tracking-[-0.01em] text-stone-800">
-          {t("svcHowTitle", lang)}
-        </h2>
-        <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowSub", lang)}</p>
-        <ol className="mt-6 grid gap-6 sm:grid-cols-3">
-          <li className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-link ring-1 ring-brand-100" aria-hidden>
-              <Search className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep1Title", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep1Body", lang)}</p>
-            </div>
-          </li>
-          <li className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-link ring-1 ring-brand-100" aria-hidden>
-              <CalendarClock className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep2Title", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep2Body", lang)}</p>
-            </div>
-          </li>
-          <li className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-link ring-1 ring-brand-100" aria-hidden>
-              <CheckCircle2 className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcHowStep3Title", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHowStep3Body", lang)}</p>
-            </div>
-          </li>
-        </ol>
-      </section>
-
-      {/* SECTION 07 — TRUST — real claims only */}
-      <section aria-labelledby="trust-title" className="rounded-card border border-surface-border bg-surface-subdued p-6 sm:p-8">
-        <h2 id="trust-title" className="text-lg font-bold tracking-[-0.01em] text-stone-800">
-          {t("svcWhyTitle", lang)}
-        </h2>
-        <ul className="mt-4 grid gap-4 sm:grid-cols-3">
-          <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcTrustVerifiedTitle", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustVerifiedBody", lang)}</p>
-            </div>
-          </li>
-          <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
-            <Leaf className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcTrustPriceTitle", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustPriceBody", lang)}</p>
-            </div>
-          </li>
-          <li className="flex gap-3 rounded-2xl border border-surface-border bg-surface-card p-4 shadow-sm">
-            <Phone className="mt-0.5 h-5 w-5 shrink-0 text-link" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-stone-800">{t("svcTrustSupportTitle", lang)}</p>
-              <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcTrustSupportBody", lang)}</p>
-            </div>
-          </li>
-        </ul>
-      </section>
-
-      {/* SECTION 08 — FINAL CTA — existing working action */}
-      <section className="flex flex-col items-start gap-3 rounded-card border border-brand-200 bg-brand-50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-        <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-[-0.01em] text-accent">{t("svcHelpTitle", lang)}</h2>
-          <p className="mt-1 text-sm leading-5 text-stone-600">{t("svcHelpBody", lang)}</p>
-        </div>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <Link to="/farm" className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-button border border-brand-300 bg-surface-card px-4 py-2.5 text-sm font-semibold text-accent transition hover:bg-surface-subdued focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] sm:flex-none">
-            {t("myFarm", lang)}
-          </Link>
-          <Button onClick={() => searchRef.current?.focus()} className="flex-1 sm:flex-none">
-            {t("svcFindServices", lang)} <ArrowRight className="h-4 w-4" aria-hidden />
-          </Button>
-        </div>
-      </section>
+      {/* The three sections that stood here — how it works, why AgroBridge, and
+          a closing CTA — were marketing copy on an authenticated utility screen.
+          The steps described the booking dialog the user reaches from any card,
+          the trust cards made claims the catalogue cannot evidence from the
+          client, and the CTA offered a second door to the search field that is
+          now the first thing on the page. */}
 
       {/* Booking dialog — shared Modal (focus trap, scroll lock, Escape, focus restore) */}
       {selected && (
@@ -507,7 +380,6 @@ export default function Services() {
               headingLevel={3}
               icon={<ClipboardList className="h-10 w-10 text-stone-300" aria-hidden />}
               title={t("noBookings", lang)}
-              description={t("svcBookingEmptyHint", lang)}
             />
           )
         ) : (

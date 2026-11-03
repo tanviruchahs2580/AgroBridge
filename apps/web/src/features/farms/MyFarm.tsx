@@ -12,7 +12,7 @@ import { actionableRisks } from "../../lib/weatherRisks";
 import { getWeatherCoords } from "../../lib/geo";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
-import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Bot, Wrench, ShoppingBag, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
+import { Leaf, MapPin, Tractor, CalendarClock, Sprout, Wrench, ShoppingBag, TriangleAlert, ClipboardList, Home as HomeIcon } from "lucide-react";
 import { BlockError, Button, Card, EmptyState, Input, Label, Select, Skeleton, useToast } from "../../components/ui";
 
 export default function MyFarm() {
@@ -176,18 +176,34 @@ export default function MyFarm() {
 
       {farmsRes.loading && <Card><Skeleton className="h-24 w-full" /></Card>}
 
-      {!farmsRes.loading && !farmsRes.error && farms.length === 0 && !showFarmForm && <EmptyState icon={<Tractor className="h-7 w-7 text-brand-600" />} title={t("noFarmsYet", lang)} description={t("myFarmAddFarmHint", lang)} action={<Button onClick={() => setShowFarmForm(true)}>+ {t("addFarm", lang)}</Button>} />}
+      {!farmsRes.loading && !farmsRes.error && farms.length === 0 && !showFarmForm && <EmptyState icon={<Tractor className="h-7 w-7 text-brand-600" />} title={t("noFarmsYet", lang)} action={<Button onClick={() => setShowFarmForm(true)}>+ {t("addFarm", lang)}</Button>} />}
 
-      {/* Intelligent Farm Overview */}
-      {!farmsRes.loading && farms.length > 0 && (
-        <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
-          <h2 className="text-base font-bold text-stone-800">{todayTasks.length === 1 ? t("myFarmCareOne", lang, { n: todayTasks.length }) : t("myFarmCareMany", lang, { n: todayTasks.length })}</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-danger-border bg-danger-bg px-3 py-1 text-xs font-semibold text-danger-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-critical" /> {t("careUrgent", lang)} — {todayTasks.filter((task)=>task.care.tone==="danger").length}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-warning-border bg-warning-bg px-3 py-1 text-xs font-semibold text-warning-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-enterprise-warning" /> {t("careDueToday", lang)} — {todayTasks.filter((task)=>task.care.tone==="warning").length}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-chip border border-success-border bg-success-bg px-3 py-1 text-xs font-semibold text-success-text"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-500" /> {t("careRoutine", lang)}</span>
-          </div>
-        </section>
+      {/* Weather risk — moved here from the AI briefing card it used to sit
+          inside. It is the one thing on this page that is not derived from the
+          farmer's own records, and it belongs with the work it affects ("hold
+          irrigation today") rather than in a card that also carried an "AI" badge,
+          a sentence about active crops and a disclaimer about the sentence. */}
+      {!farmsRes.loading && !weatherRes.loading && (firstRisk || weatherRes.error) && (
+        <div className="space-y-2">
+          {weatherRes.error ? (
+            <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              {t("weatherUnavailable", lang)}
+            </p>
+          ) : (
+            firstRisk && (
+              <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {lang === "bn" ? firstRisk.titleBn : firstRisk.titleEn}
+              </p>
+            )
+          )}
+          {weatherRes.error && (
+            <Button variant="outline" size="sm" onClick={() => void weatherRes.reload()}>
+              {t("retry", lang)}
+            </Button>
+          )}
+        </div>
       )}
 
       {/* Today's Tasks — most important */}
@@ -201,7 +217,7 @@ export default function MyFarm() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-link">{task.farmName} • {task.plotName} — {cropLabel(task.cropName, lang)}</p>
                   <p className="mt-0.5 text-sm font-semibold text-stone-800">{task.care.task}</p>
-                  <p className="text-xs text-stone-600">{task.care.label} • {stageLabel(task.stage, lang)} • {new Date(task.plantedAt).toLocaleDateString(dateLocale(lang))}</p>
+                  <p className="text-xs text-stone-600">{stageLabel(task.stage, lang)} • {new Date(task.plantedAt).toLocaleDateString(dateLocale(lang))}</p>
                 </div>
                 <span className={`shrink-0 rounded-chip border px-2 py-1 text-xs font-bold ${careToneClass(task.care.tone)}`}>{task.care.label}</span>
               </Card>
@@ -210,58 +226,13 @@ export default function MyFarm() {
         </section>
       )}
 
-      {/* Tomorrow + Upcoming */}
-      {!farmsRes.loading && farms.length > 0 && (
-        <section className="rounded-card border border-surface-border bg-surface-card p-5 shadow-card">
-          <h2 className="text-base font-bold text-stone-800">{t("myFarmTomorrowTitle", lang)}</h2>
-          <p className="mt-1 text-sm text-stone-600">{t("myFarmTomorrowBody", lang)}</p>
-          <div className="mt-3 space-y-2">
-            {farms.flatMap((f)=>f.plots.flatMap((p)=>p.cropCycles)).slice(0,2).map((c)=> (
-              <div key={c.id} className="flex items-center justify-between rounded-xl bg-surface-subdued px-3 py-2">
-                <span className="text-sm font-medium text-stone-800">{cropLabel(c.cropName, lang)} — {stageLabel(c.stage, lang)}</span>
-                <span className="text-xs text-stone-600">{new Date(c.plantedAt).toLocaleDateString(dateLocale(lang))}</span>
-              </div>
-            ))}
-            {farms.flatMap((f)=>f.plots.flatMap((p)=>p.cropCycles)).length===0 && <p className="text-sm text-stone-500">{t("myFarmNoUpcoming", lang)}</p>}
-          </div>
-        </section>
-      )}
-
-      {/* AI Farm Briefing — grounded */}
-      {!farmsRes.loading && farms.length > 0 && (
-        <section className="rounded-card border border-indigo-100 bg-enterprise-ai-light p-5 shadow-card">
-          <h2 className="flex items-center gap-2 text-base font-bold text-stone-800"><Bot className="h-5 w-5 text-enterprise-ai" /> {t("myFarmAiTitle", lang)}</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-700">{t("myFarmAiLine", lang, { n: stats.crops })}</p>
-          <p className="mt-2 text-xs text-stone-500">{t("myFarmAiDisclaimer", lang)}</p>
-          {/* Risk title comes from the weather API as a {titleBn,titleEn} pair —
-              server data, not UI copy, so it is selected by field, not the dictionary.
-              Filtered through the shared actionableRisks(): `risks[0]` is not "the
-              risk", it is merely the first advisory, and the provider's first entry
-              is INFO-level reassurance ("Weather favourable"). Reading it raw put a
-              favourable advisory inside an amber warning box with a warning icon,
-              while Home — which filtered — reported no risk from the same payload. */}
-          {firstRisk && (
-            <p className="mt-3 flex items-start gap-2 rounded-xl bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              {lang === "bn" ? firstRisk.titleBn : firstRisk.titleEn}
-            </p>
-          )}
-          {/* A failed weather read has to say so here. The briefing's risk row is
-              the screen's "what needs attention" line, and with the read failed it
-              simply disappeared — identical to a day with no risks, on advice. */}
-          {weatherRes.error && (
-            <div className="mt-3 space-y-2">
-              <p className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-medium text-warning-text">
-                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                {t("weatherUnavailable", lang)}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => void weatherRes.reload()}>
-                {t("retry", lang)}
-              </Button>
-            </div>
-          )}
-        </section>
-      )}
+      {/* The "Tomorrow & upcoming" card and the "My Farm AI" briefing stood here.
+          The first listed the same crops, stages and planting dates as the farm
+          cards below it, twice, under a sentence explaining that it would; the
+          second wrapped a real weather risk in an AI badge, a sentence counting the
+          active crops, and a disclaimer about the sentence. The risk now sits above
+          today's tasks, where it can change what the farmer does; the crop stages
+          are on the farm cards; nothing is repeated to say that it is not advice. */}
 
       {/* My Farm Overview Grid */}
       {!farmsRes.loading && farms.length > 0 && (
@@ -306,13 +277,16 @@ export default function MyFarm() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="text-base font-bold text-stone-800">{farm.name}</h3>
-                      <p className="text-xs text-stone-600">{[farm.district, farm.totalAreaBigha ? `${farm.totalAreaBigha} ${t("bighaShort", lang)}` : null].filter(Boolean).join(" · ")}</p>
+                      {/* One metadata line. The plot and active-crop counts used to
+                          be two tinted chips under this row, saying with colour what
+                          joins the district and the area with a separator here. */}
+                      <p className="text-xs text-stone-600">
+                        {[farm.district, farm.totalAreaBigha ? `${farm.totalAreaBigha} ${t("bighaShort", lang)}` : null, `${farm.plots.length} ${t("myFarmPlotCount", lang)}`]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
                     </div>
                     <span className={`shrink-0 rounded-chip border px-2.5 py-1 text-xs font-bold ${careToneClass(activeCrops>0 ? "success" : "warning")}`}>{activeCrops>0? t("myFarmStatusActive", lang) : t("myFarmNeedsAttention", lang)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><MapPin className="h-3 w-3" /> {farm.plots.length} {t("myFarmPlotCount", lang)}</span>
-                    <span className="inline-flex items-center gap-1 rounded-chip bg-surface-subdued px-2.5 py-1 font-medium text-stone-600"><Leaf className="h-3 w-3" /> {activeCrops} {t("myFarmActiveCropsChip", lang)}</span>
                   </div>
                   {/* The "details ›" hint that sat here was a <span> styled like a
                       link — `text-link` plus a chevron — so it looked tappable but
