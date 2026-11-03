@@ -88,3 +88,31 @@ grep on the rebased tree.
   no migration and no contract fixture. `apps/web` is the only changed workspace.
 - `e2e/scenarios-governance.spec.ts` needed `E2E_DB_URL` locally, as described above. CI's e2e job
   provisions `test.db`, which is the default, so no CI change is implied.
+
+## Post-merge: the release, the live artifact and the Android artifact
+
+The change was merged as `3f1c991` (`refactor(web): the screens show state and actions, not
+taglines (#90)`, squash with the full body preserved) and verified against production.
+
+| Observation | Command | Result |
+|---|---|---|
+| Live web commit | `curl -s https://agrobridge-web.vercel.app/version.json` | `{"version":"1.4.1","commit":"3f1c991","builtAt":"2026-11-03T09:17:00.931Z"}` |
+| Live API commit | `curl -s https://agro-bridge-api-vantiq-systems.vercel.app/health` | `commit 3f1c991`, `env: production` |
+| Live schema | same host `/ready` | `db: true`, applied 11/11 |
+| Deploy gate | `gh run view 41609544987` | `completed/success` — "Production includes the reviewed commit" |
+| Push-CI / CodeQL on main | `gh run list --branch main` | 13 CI jobs, CodeQL and deploy verification all `success` on `3f1c991` |
+| Shipped copy, live | fetch `/`, extract the entry chunk, count strings in it | entry `index-Bjeuj7BB.js`, 388 549 chars: **0** occurrences of all twelve removed strings; **1** of each replacement (`খামার প্রস্তুতি`, `জেলা অনুযায়ী আবহাওয়া`, `কার্ট খালি`, `টাকা তোলার আগে যাচাই প্রয়োজন`, `প্রোফাইল, ফার্ম, অর্ডার ও ওয়ালেট`, `আবহাওয়ার সতর্কতা পাওয়া যায়নি`) |
+| Live DOM, authenticated | in-app browser, read-only | `/`: ring caption `খামার প্রস্তুতি`, no AI badge/subtitle, quick tiles label-only, empty cards without the "add your first crop" line. `/services`: 8 cards, one action each, no hero/how-it-works/why/CTA. `/settings`: no subtitle, short district caption, short export line, merged footer, policies and the deletion disclosure intact |
+| Android artifact | `gh run download 41609544999 --name agrobridge-debug-apk` | `version.json` inside the APK: `commit 3f1c991`; `assets/public/assets/index-Bjeuj7BB.js` **byte-identical** to the deployed chunk (SHA-256 `c3df0367e000b844f8eb712da7896fc2e45c018bcc4e05438cbb411ac1764b9c`, 404 950 bytes); `AndroidManifest.xml` carries `versionName` 1.4.1 and `com.agrobridge.app` |
+| Default credentials on production | four `POST /auth/login` probes with the seeded demo phones | `401` for `01700000000`, `01700000001`, `01700000002`, `01700000099` |
+
+**Deviation — the APK was not run.** The verification machine has no `adb`, no Android SDK, no
+emulator, and no Java runtime, so the artifact could not be installed. It was checked by content
+(bundle hash, build stamp, manifest version) instead, which proves the APK carries the same reviewed
+build as the deployment but does not prove it launches. Running it remains an owner step on a device.
+
+**Out of scope, recorded:** `GET /repos/tanviruchahs2580/AgroBridge/branches/main/protection` returns
+`404 Branch not protected`, so the gate `CONTRIBUTING.md` describes (pull requests required, CI and
+CodeQL required, force pushes blocked) is not enforced by GitHub. Recorded in `docs/STATUS.md` under
+the owner-decision register rather than changed here: enabling protection and correcting the document
+are different answers and the choice is the owner's.

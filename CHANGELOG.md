@@ -4,6 +4,34 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Deployed (2026-11-03 production at 3f1c991)
+- **Production runs the quiet-surfaces pass.** Web and API both report `3f1c991` (web `version.json`
+  built 2026-11-03T09:17:00Z; API `/health` `env: production`), and the deploy-verification gate
+  passed on the merge. Supersedes the `3e8b5c4` stamp: `dd58587` (#88, #89) had been live since
+  2026-10-30 without a STATUS update, and this record covers both it and #90.
+- Verified against the live site, not just the build: the shipped entry chunk
+  (`/assets/index-Bjeuj7BB.js`, 404,950 bytes) contains **zero** occurrences of the twelve removed
+  strings and one of each replacement, the dashboard and services pages render the simplified
+  layout, and the login screen carries the task heading with no hero copy. The public-language fix
+  from #83 is visible working: this browser carried `agrobridge.auth_lang=en` and the live login
+  rendered English until the visitor switched it.
+- Verified that the Android artifact matches: the debug APK CI built from `3f1c991`
+  (`agrobridge-debug-apk`) bakes `version.json` with commit `3f1c991`, and its bundled entry chunk
+  (`assets/public/assets/index-Bjeuj7BB.js`) is **byte-identical** to the deployed web chunk —
+  SHA-256 `c3df0367e000b844f8eb712da7896fc2e45c018bcc4e05438cbb411ac1764b9c`, 404,950 bytes, and
+  `AndroidManifest.xml` carries `versionName` 1.4.1 / `com.agrobridge.app`. A device or emulator was
+  not available on the verification machine, so the APK was checked by content rather than run.
+- Production hardening re-probed while there: none of the seeded demo credentials authenticate
+  (`401` for all four demo phones), a farmer token gets `403` from `/admin/metrics` and
+  `/admin/users`, the withdrawal endpoint refuses a below-minimum amount (`400`), an amount above
+  the available balance (`422`) and an unknown channel (`400`), registration refuses a
+  100-character password, a missing consent flag and a 9-digit phone, and a negative farm area is
+  rejected.
+- No schema, migration, dependency, environment-variable or workflow change is part of this release;
+  no migration was pending or applied (`/ready`: schema applied 11/11).
+- Checks on the merge: 19/19 on PR #90, then the push-triggered CI (13 jobs), CodeQL and the
+  deploy-verification job all green on `3f1c991`.
+
 ### Changed (2026-11-03 the interface carries state and actions, not copy)
 - **Every screen now shows what is true and what can be done, and stops there.** The web app had
   accumulated copy that described the screen back to the reader, sold the product on the screens of
