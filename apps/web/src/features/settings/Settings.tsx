@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BadgeCheck, CircleAlert, Download, KeyRound, Settings as SettingsIcon, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { BadgeCheck, CircleAlert, Download, KeyRound, Settings as SettingsIcon, ShieldCheck, Trash2 } from "lucide-react";
 import { api, ApiError, API_BASE } from "../../lib/api";
 import { getTokens } from "../../lib/sessionManager";
 import type { Me, OtpRequestResult } from "../../lib/api-types";
@@ -228,7 +228,7 @@ export default function Settings() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <PageHeader icon={<SettingsIcon className="h-5 w-5" aria-hidden />} title={t("settings", lang)} subtitle={t("settingsSubtitle", lang)} />
+      <PageHeader icon={<SettingsIcon className="h-5 w-5" aria-hidden />} title={t("settings", lang)} />
 
       {/* ── Profile ──*/}
       <Card className="space-y-4">
@@ -278,7 +278,11 @@ export default function Settings() {
             <Label htmlFor="st-address">{t("addressLabel", lang)}</Label>
             <Input id="st-address" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" />
           </div>
-          <p className="text-xs text-stone-500">{t("districtWeatherHint", lang)}</p>
+          {/* The one thing about this pair a user cannot infer: what it is for.
+              The sentence that used to be here ("your district and upazila are
+              used to show weather advice for your area") explained the feature;
+              the caption names the effect. */}
+          <p className="text-xs text-stone-500">{t("districtWeatherHintShort", lang)}</p>
           <div className="flex items-center gap-2">
             <Button type="submit" disabled={savingProfile} aria-busy={savingProfile || undefined}>
               {savingProfile && <Spinner className="mr-1.5 h-4 w-4" />}
@@ -315,9 +319,11 @@ export default function Settings() {
             <Badge tone="warning">{t("notVerifiedLabel", lang)}</Badge>
           )}
         </div>
-        <p className="text-xs text-stone-500">
-          {me.phoneVerified ? t("phoneVerifiedBody", lang) : t("phoneVerifyWhy", lang)}
-        </p>
+        {/* Only the unverified state carries a line: why it matters before a
+            withdrawal. Once verified the badge says so, and the sentence that
+            used to restate it ("your number is verified — you can withdraw") was
+            the badge read aloud. */}
+        {!me.phoneVerified && <p className="text-xs text-stone-500">{t("phoneVerifyWhy", lang)}</p>}
 
         {!me.phoneVerified && (
           <div className="space-y-3">
@@ -416,13 +422,11 @@ export default function Settings() {
         {t("appVersionLabel", lang)} {BUILD_INFO.version}
         {BUILD_INFO.commit && BUILD_INFO.commit !== "unknown" ? ` (${BUILD_INFO.commit})` : ""}
         {" · "}
+        {t("accountIdLabel", lang)}: <span className="font-mono">{me.id.slice(0, 8)}</span>
+        {" · "}
         <Link to="/onboarding" className="font-semibold text-link hover:underline">
           {t("onboarding", lang)}
         </Link>
-      </p>
-      <p className="px-1 text-center text-xs text-stone-500">
-        <UserRound className="mr-1 inline h-3 w-3" aria-hidden />
-        {t("accountIdLabel", lang)}: <span className="font-mono">{me.id.slice(0, 8)}</span>
       </p>
     </div>
   );

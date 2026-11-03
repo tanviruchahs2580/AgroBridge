@@ -396,7 +396,9 @@ export default function Market() {
         <EmptyState
           icon={<Inbox className="h-10 w-10 text-stone-300" aria-hidden />}
           title={t("noProducts", lang)}
-          description={category ? t("marketNoProductsDesc", lang) : undefined}
+          // The "try a different category" line was dropped: the chip row that
+          // changes the category is on screen above it, and the button below is
+          // the one-tap version of that advice.
           action={category ? <Button variant="outline" onClick={() => setCategory("")}>{t("catAll", lang)}</Button> : undefined}
         />
       ) : (

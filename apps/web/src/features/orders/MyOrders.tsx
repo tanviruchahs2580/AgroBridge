@@ -136,9 +136,9 @@ export default function MyOrders() {
         <EmptyState
           icon={<Package className="h-10 w-10 text-stone-300" aria-hidden />}
           title={t("ordEmptyTitle", lang)}
-          description={
-            tab === "all" ? t("ordEmptyAllHint", lang) : t("ordEmptyFilteredHint", lang)
-          }
+          // Both descriptions said the same thing as the title from a different
+          // angle ("you don't have any orders yet" / "no orders in this category
+          // yet"); the tab row above already shows which list is empty.
         />
       )}
 

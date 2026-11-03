@@ -118,6 +118,7 @@ at are served by the SPA at `/privacy`, `/terms` and `/account-deletion`.
 See `docs/`: [architecture](docs/architecture.md) · [api](docs/api.md) · [database](docs/database.md)
 · [ai](docs/ai.md) · [security](docs/security.md) · [testing](docs/testing.md)
 · [deployment](docs/deployment.md) · [operations](docs/operations.md) · [performance](docs/performance.md)
+· [ui copy](docs/ui-copy.md) · [design tokens](docs/design-tokens.md)
 · [disaster-recovery](docs/disaster-recovery.md) · [troubleshooting](docs/troubleshooting.md)
 · [runbooks](docs/runbooks/) · [Play release runbook](docs/play/release-runbook.md)
 · [code-quality review 2026-10-17](docs/archive/2026-10-19/CODE_QUALITY_REVIEW_2026-10-17.md)

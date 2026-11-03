@@ -4,6 +4,75 @@ All notable changes to AgroBridge are documented here.
 
 ## [Unreleased]
 
+### Changed (2026-11-03 the interface carries state and actions, not copy)
+- **Every screen now shows what is true and what can be done, and stops there.** The web app had
+  accumulated copy that described the screen back to the reader, sold the product on the screens of
+  the people already using it, and repeated in a sentence what a heading, a label or a button had
+  already said. The rule now applied throughout is the one Linear and Apple Notes follow: a screen
+  states its state and offers its actions, and assumes the person reading it can read.
+- Removed, per surface:
+  - **Shell** — the slogan under the app name in the header, and the same slogan in the document
+    title on routes with no title of their own. The header is the mark and the name.
+  - **Auth** — the brand panel's headline and its three value bullets, the identical block repeated
+    below the card on mobile, the "AI in every farmer's hand" line in both places, and the three
+    subtitles ("Sign in to your account", "Create your farm account in minutes", "Enter your number,
+    take the code, set a new password"). Login's heading is now "Login" — the task — instead of
+    "Welcome", which named the user's arrival rather than the screen. Also gone: the "fix the
+    highlighted errors and try again" line, which the highlighted errors said themselves.
+  - **Home** — the "Farm readiness" badge above the state headline, the sentence under every state
+    ("Weather risks detected — take precautionary action"), the two "add your first crop" lines that
+    repeated the empty cards' own titles, the "AI • AgroBridge" badge and "How can I help your farm
+    today?" line, and the four sub-lines under the quick-action tiles.
+  - **Services** — the hero (a "Platform-listed" badge, a slogan headline, a subtitle, a "Find a
+    service" button that focused the search field below, a service count, and a summary panel
+    counting the categories the filter chips already name), the "How it works" section (three steps
+    describing the dialog the next tap opens), the "Why AgroBridge" section (three claims), and the
+    closing CTA. The page is now: title, search, filters, sort, catalogue, bookings.
+  - **MyFarm** — the counts-chips card (it tallied the tasks listed under it), the "Tomorrow &
+    upcoming" card (the same crops, stages and planting dates as the farm cards below, twice), and
+    the "My Farm AI" card (an AI badge, a sentence counting the active crops, a disclaimer about the
+    sentence). The weather risk that card carried now sits directly above today's tasks, where it can
+    change what the farmer does.
+  - **Settings, Advisor, Notifications, Onboarding, Market, MyOrders, 404, splash** — the settings
+    subtitle, the long district/upazila explanation (replaced by a three-word caption next to the
+    fields), the "your number is verified — you can withdraw" restatement of the Verified badge, the
+    example question in the empty advisor chat (the input's own placeholder says it), the
+    notification-preferences description, the "confirm your profile and continue" line above the Next
+    button, and the empty-state descriptions on market, orders, bookings and services.
+- **Two shared components lost the prop that carried the pattern**, so it cannot come back by
+  accident: `PageHeader` has no `subtitle`, and `EmptyState` has no `description`. An empty state
+  that genuinely needs a second line needs an action — which is the `action` prop it already had.
+- **Service cards no longer invent content.** Eight per-category "fallback descriptions" ("Fast spray
+  without trampling — even coverage") were rendered as though the provider had written them; a
+  service with no description now shows none. The "New — no ratings yet" chip is gone too: an absent
+  rating is absent, not a label. The card's two buttons ("View details" and "Book now") were wired to
+  the same handler and opened the same dialog, so the card now has the one action it performs.
+- **Honesty rules were preserved, not traded for brevity.** Where a sentence existed to prevent the
+  UI from asserting something it did not know, it stayed — shortened, not deleted. The readiness
+  meter's "from your records and today's weather" became a three-word caption that still drops the
+  weather half when the weather read failed; `farmDataUnavailable`, `weatherUnavailable` and
+  `alertsUnavailable` are untouched; the AI advisory disclaimer, the sandbox-payment note and the
+  account-deletion disclosure are untouched in full.
+- **Not copy, but measured**: `apps/web/src/lib/i18n.ts` loses **81 entries**. The identity is exact
+  at the rebase point: `main` declares 612, this branch declares 531, 531 = 612 − 81. A key that
+  nothing references already failed the unit suite; it now also fails on a marketing-shaped *name*
+  (`tagline`, `hero*`, `promo`, `slogan`) — the rule written down in `docs/ui-copy.md` and made
+  mechanical in `src/lib/i18n.deadkeys.test.ts`.
+- Verified (rebased onto `dd58587`, which landed #88/#89 while this branch was open): web unit suite
+  **214 passed / 27 files** (baseline 212/26 — +1 is the new ratchet, +1 file is main's advisor
+  sources spec); typecheck, lint (0 warnings), `i18n:check` (378 referenced, 531 declared, 0 missing,
+  0 inline language ternaries) and the build all clean; `node scripts/qa/lint-budget.mjs` web 0/0;
+  `link-check` and `claims-check` clean. Browser suites against an isolated stack (API `:4599`,
+  web `:5301`): **chromium 91 passed / 1 skipped** — the axe scans of `/`, `/market`, `/wallet`,
+  `/services`, `/orders`, `/sell`, `/settings`, `/notifications` and the login error state in both
+  themes with zero critical/serious violations, `visual-contract` at 390 px **and** 360 px with no
+  horizontal overflow, `console-health` with no console errors or failed requests, and main's new
+  scenario acceptance specs — plus **firefox + webkit 12/12**. One spec, `[ADM-01]`, needed
+  `E2E_DB_URL` because it reads ground truth from a SQLite file and defaults to CI's `test.db`; with
+  the stack's own database it passes (9/9 in that file). A screenshot pass reviewed `/login`, `/`,
+  `/services`, `/farm`, `/market`, `/settings` and the 404 at 390 px and 1280 px. Commands, numbers
+  and the rebase resolution: `qa-evidence/receipts/2026-11-03-quiet-surfaces.md`.
+
 ### Deployed (2026-10-29 production at 3e8b5c4)
 - **Production runs the enterprise-audit remediation and the public-language fix.** Web and API both
   report `3e8b5c4`; `/ready` reports `db: true` with the schema applied 11/11; the

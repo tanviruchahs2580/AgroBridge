@@ -64,16 +64,18 @@ describe("lib/i18n — dict structure and bn/en coverage", () => {
   });
 
   it("t() interpolates {var} tokens from vars", () => {
-    expect(t("welcomeName", "en", { name: "Karim" })).toBe("Welcome, Karim!");
-    expect(t("welcomeName", "bn", { name: "করিম" })).toBe("স্বাগতম, করিম!");
+    // `greeting` is the app's own interpolated key — the `welcomeName` pair this
+    // used to exercise was registered copy that no screen rendered.
+    expect(t("greeting", "en", { name: "Karim" })).toBe("Hello, Karim");
+    expect(t("greeting", "bn", { name: "করিম" })).toBe("আসসালামু আলাইকুম, করিম");
     // The greeting no longer carries a 👋 — see the note on the key in i18n.ts.
     expect(t("greeting", "en", { name: "Asha" })).toBe("Hello, Asha");
     expect(t("greeting", "bn", { name: "আশা" })).toBe("আসসালামু আলাইকুম, আশা");
   });
 
   it("t() leaves unmatched placeholders intact", () => {
-    expect(t("welcomeName", "en")).toBe("Welcome, {name}!");
-    expect(t("welcomeName", "en", {})).toBe("Welcome, {name}!");
+    expect(t("greeting", "en")).toBe("Hello, {name}");
+    expect(t("greeting", "en", {})).toBe("Hello, {name}");
     expect(t("stockLeft", "en", {})).toBe("Stock: {n}");
   });
 
@@ -85,7 +87,7 @@ describe("lib/i18n — dict structure and bn/en coverage", () => {
   });
 
   it("t() handles vars with extra keys ignored", () => {
-    expect(t("welcomeName", "en", { name: "X", extra: "y" } as any)).toBe("Welcome, X!");
+    expect(t("greeting", "en", { name: "X", extra: "y" } as any)).toBe("Hello, X");
   });
 
   it("brand and status keys have distinct bn/en values (not accidentally identical)", () => {

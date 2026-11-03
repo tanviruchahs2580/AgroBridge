@@ -314,10 +314,13 @@ export default function Advisor() {
 
       <Card className="space-y-3">
         {chat.length === 0 && !busy && (
+          // Title only. The example question that used to sit here ("Try: rice
+          // leaves show blast lesions…") was a script for a conversation the user
+          // starts by typing in the field below, which already says "Ask your
+          // question…".
           <EmptyState
             icon={<Sprout className="h-7 w-7 text-brand-600" aria-hidden />}
             title={t("aiAgent", lang)}
-            description={t("exampleQuestion", lang)}
           />
         )}
         {/* `role="log"` + polite: the transcript is a live region designed for

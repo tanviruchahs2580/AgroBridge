@@ -52,8 +52,10 @@ export default function Login() {
 
   return (
     <AuthShell
-      title={t("authWelcome", lang)}
-      subtitle={t("authWelcomeSub", lang)}
+      // The task, not a welcome. "Welcome" over a login form names the user's
+      // arrival; "Login" names what the screen is for, and matches the page
+      // title, the nav entry and the button below it.
+      title={t("login", lang)}
       lang={lang}
       onToggleLang={setLang}
       footer={
@@ -140,8 +142,6 @@ export default function Login() {
             {t("forgotPasswordLink", lang)}
           </Link>
         </p>
-
-        {inputInvalid && !busy && <p className="text-center text-xs text-stone-500">{t("fixErrorsNote", lang)}</p>}
       </form>
     </AuthShell>
   );

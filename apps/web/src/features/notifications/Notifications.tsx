@@ -247,8 +247,9 @@ export default function Notifications() {
         (prefs ? (
           <Card>
             <h2 className="font-semibold text-stone-700">{t("prefsTitle", lang)}</h2>
-            <p className="mb-3 mt-1 text-xs text-stone-600">{t("prefsDescription", lang)}</p>
-            <div className="space-y-2">
+            {/* No "choose which updates you receive and how" line: the three
+                labelled switches under it are the answer. */}
+            <div className="mt-3 space-y-2">
               {([
                 ["critical", "prefCategoryCritical"],
                 ["action", "prefCategoryAction"],
