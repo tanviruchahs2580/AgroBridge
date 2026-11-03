@@ -16,11 +16,19 @@ All notable changes to AgroBridge are documented here.
   from #83 is visible working: this browser carried `agrobridge.auth_lang=en` and the live login
   rendered English until the visitor switched it.
 - Verified that the Android artifact matches: the debug APK CI built from `3f1c991`
-  (`agrobridge-debug-apk`) bakes `version.json` with commit `3f1c991`, and its bundled entry chunk
-  (`assets/public/assets/index-Bjeuj7BB.js`) is **byte-identical** to the deployed web chunk —
-  SHA-256 `c3df0367e000b844f8eb712da7896fc2e45c018bcc4e05438cbb411ac1764b9c`, 404,950 bytes, and
-  `AndroidManifest.xml` carries `versionName` 1.4.1 / `com.agrobridge.app`. A device or emulator was
-  not available on the verification machine, so the APK was checked by content rather than run.
+  (`agrobridge-debug-apk`) bakes `version.json` with commit `3f1c991`, its bundled entry chunk
+  (`assets/public/assets/index-Bjeuj7BB.js`) was **byte-identical** to the chunk serving from
+  `3f1c991` (SHA-256 `c3df0367e000b844f8eb712da7896fc2e45c018bcc4e05438cbb411ac1764b9c`,
+  404,950 bytes), and `AndroidManifest.xml` carries `versionName` 1.4.1 / `com.agrobridge.app`.
+  A device or emulator was not available on the verification machine, so the APK was checked by
+  content rather than run.
+- **How to re-check the APK against a later deployment.** The docs-only merge that carried this
+  record (`84cf9c0`) rebuilt the bundle from identical sources, so the file serving today is
+  `index-o4UoFM_O.js` and its hash differs. The build stamp is compiled into every chunk, which
+  changes each chunk's content hash and therefore the lazy-route filename table in the entry: the
+  two builds have the **same byte length** (404,950) and every differing region lies inside Vite's
+  `__vite__mapDeps` array. Compare an APK against the chunk built from its *own* commit, not against
+  whatever the CDN serves today.
 - Production hardening re-probed while there: none of the seeded demo credentials authenticate
   (`401` for all four demo phones), a farmer token gets `403` from `/admin/metrics` and
   `/admin/users`, the withdrawal endpoint refuses a below-minimum amount (`400`), an amount above
