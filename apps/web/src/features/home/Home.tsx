@@ -43,7 +43,12 @@ function HealthRing({ score }: { score: number }) {
     <div className="relative flex h-[92px] w-[92px] items-center justify-center">
       <svg width="92" height="92" viewBox="0 0 92 92" className="-rotate-90" aria-hidden>
         <circle cx="46" cy="46" r={r} stroke="rgba(255,255,255,0.18)" strokeWidth="7" fill="none" />
-        <circle cx="46" cy="46" r={r} stroke="var(--color-brand-400)" strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} className="drop-shadow-sm transition-all duration-700" />
+        {/* `transition-[stroke-dashoffset]`, not `transition-all`: only the arc's
+            offset animates here, and `transition-all` kept every other property
+            (including `stroke-width` and the layout-affecting box) on a
+            700 ms transition for any change — the classic way a cheap animation
+            turns into a repaint budget problem on the devices this app targets. */}
+        <circle cx="46" cy="46" r={r} stroke="var(--color-brand-400)" strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} className="drop-shadow-sm transition-[stroke-dashoffset] duration-700" />
       </svg>
       <span className="absolute text-xl font-extrabold text-white">{score}%</span>
     </div>

@@ -1,9 +1,10 @@
 # STATUS
 
-One page, current as of **2026-11-03 (+06:00)**. What is actually live, what is pilot-grade
-simulation, what is waiting on owner decisions, and where the evidence for each claim sits. No
-roadmap and no marketing: if a line here disagrees with the running system, the system is right and
-this page is a bug. Production is `main`.
+One page. Live rows as of **2026-11-03 (+06:00)**; corrected **2026-11-10** (branch protection, CI
+wording, evidence availability) without a production re-probe. What is actually live, what is
+pilot-grade simulation, what is waiting on owner decisions, and where the evidence for each claim
+sits. No roadmap and no marketing: if a line here disagrees with the running system, the system is
+right and this page is a bug. Production is `main`.
 
 > **Released 2026-11-03: production runs `3f1c991`, and every live row below was re-probed.** The
 > quiet-surfaces pass (PR #90) is deployed, on top of the enterprise hardening (#88) and the Bengali
@@ -15,19 +16,28 @@ this page is a bug. Production is `main`.
 > entries. The previous revision of this page described the 2026-10-29 release at `3e8b5c4`; it is
 > superseded.
 
+> **2026-11-10 corrections (docs-integrity pass — see `docs/audit/2026-11-10-full-qa-audit.md`).**
+> The branch-protection row was wrong in the repository's favour: the legacy
+> `/branches/main/protection` endpoint 404s, but ruleset `25297401` (`main — protected`) is active
+> — see the owner-decision register below. The CI row no longer claims a browser-suite size ("52
+> specs" was stale; the suite is 22 Playwright spec files, `ls apps/web/e2e/*.spec.ts | wc -l`).
+> "Where the evidence lives" now states which citations are committed and which are not. Production
+> was not re-probed by this pass; the audit's §3.6 records its own 2026-11-10 probes.
+
 ## Live in production
 
 | Thing | State | Evidence |
 |---|---|---|
-| Repository | Branch `main` at `3f1c991` (the 2026-11-03 release: #88, #89, #90) | `git log origin/main` |
+| Repository | Branch `main` carries the 2026-11-03 release `3f1c991` (#88, #89, #90); everything after it is docs-only release records (#91, #92) | `git log origin/main` |
 | Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3f1c991`, built 2026-11-03T09:17Z | live probe (curl, 2026-11-03) |
-| API | Deployed; `/health` reports commit `3f1c991`, `env: production` | live probe (curl, 2026-11-03) |
+| API | Deployed; `/health` reported commit `3f1c991`, `env: production` | live probe (curl, 2026-11-03); the 2026-11-10 audit re-probe reports `d205f76` — a docs-only rebuild of the same code (§3.6 of `docs/audit/2026-11-10-full-qa-audit.md`) |
+(fix: audit remediation — money, authorisation, AI, release path (AUD-2026-11-10-FULL))
 | Android artifact | CI's `agrobridge-debug-apk` for `3f1c991` bundles the same web build as that deployment's web (entry chunk byte-identical, SHA-256 `c3df0367…`, 404,950 bytes), `versionName` 1.4.1. The later docs-only build differs only in the compiled-in stamp — same byte length, differences confined to Vite's `__vite__mapDeps` table | `gh run download 41609544999`; not installed — no device or emulator on the verification machine |
 | Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-11-03) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
 | Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers; the build fails if the two Vercel configs diverge |
 | API error contract | Unknown routes return the structured envelope with `requestId` | live probe (`ROUTE_NOT_FOUND` example) |
-| CI | Release PR #90 passed **19/19 checks** (14 CI jobs incl. the SQLite + PostgreSQL suites and the 52-spec browser suite, CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI (13 jobs), CodeQL and Deploy verification are green on `3f1c991` | `gh pr checks 90`, Actions runs for `main` |
+| CI | Release PR #90 passed **19/19 checks** (the CI jobs incl. the SQLite + PostgreSQL suites and the Playwright browser suite — 22 spec files, `ls apps/web/e2e/*.spec.ts | wc -l` — plus CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI, CodeQL and Deploy verification were green on `3f1c991` | `gh pr checks 90`, Actions runs for `main` |
 
 Known production properties that are not defects but are easy to misread:
 
@@ -68,7 +78,7 @@ release on). The go-live cutover order remains `docs/play/launch-checklist.md`.
 
 | Surface | Current mode | What a user sees |
 |---|---|---|
-| Payments | `PAYMENT_PROVIDER=sandbox`; in production the sandbox only runs behind an explicit opt-in flag | Sandbox label and message; no real money moves (`apps/api/src/modules/payments/routes.ts:105-210`) |
+| Payments | `PAYMENT_PROVIDER=sandbox`; in production the sandbox only runs behind an explicit opt-in flag | Sandbox label and message; no real money moves (sandbox-mode copy and the provider-mode gate in `apps/api/src/modules/payments/routes.ts`) |
 | Payment gateway webhook | Implemented and signature-verified, but the live SSLCommerz adapter is not activated | `docs/runbooks/live-deployment.md`; decision OD-07 |
 | Weather | Placeholder provider accepted in production (`ALLOW_PLACEHOLDER_PROVIDERS=1`) | Weather cards render provider data with provenance fields; live OpenWeather requires credentials (`docs/runbooks/live-deployment.md` env table) |
 | AI advisory | Offline grounded engine; hosted OpenAI-compatible provider requires credentials | Answers are grounded in the in-repo knowledge base with a KB version and disclaimer (`docs/ai.md`) |
@@ -76,9 +86,10 @@ release on). The go-live cutover order remains `docs/play/launch-checklist.md`.
 | Disease photo review | Uploads are stored durably in the database and queued as `PENDING_REVIEW`; there is no classifier and no agronomist queue UI for reviewers | `apps/api/src/modules/disease/routes.ts`; `docs/play/data-safety.md` |
 | Storage | `STORAGE_PROVIDER=db` — uploads survive redeploys; `local` disk is rejected for production | `apps/api/src/providers/storage/index.ts`; ADR-0012 |
 
-## Deferred — owner decisions (from `.audit/v2/DECISIONS.md`)
+## Deferred — owner decisions (from the audit decision register)
 
-These are open decisions, not bugs; the linked IDs are the register's own identifiers.
+These are open decisions, not bugs; the linked IDs are the register's own identifiers. The register
+itself (`.audit/v2/DECISIONS.md`) is **not in this repository** — see §Where the evidence lives.
 
 | Area | Decision needed | Register ID |
 |---|---|---|
@@ -98,7 +109,7 @@ These are open decisions, not bugs; the linked IDs are the register's own identi
 | Knowledge-base provenance | Severity of unsourced KB entries pending agronomist review | OD-14 |
 | SMS provider | Integrate a real SMS provider now or disable phone-gated flows in the pilot | OD-15 |
 | Remediation mode | Whether local remediation on a branch is authorized | OD-16 |
-| Branch protection | `CONTRIBUTING.md` states `main` requires a pull request and green CI + CodeQL, and blocks force pushes and deletion. The GitHub API reports **no protection configured** (`GET /repos/…/branches/main/protection` → 404, checked 2026-11-03). Enable the protection the process claims, or correct `CONTRIBUTING.md` — as written, a force push to `main` succeeds and the merge gate is convention, not enforcement | — |
+| Branch protection | **Enforced — the earlier reading of this page was wrong.** Ruleset `25297401` (`main — protected`, enforcement `active`) requires a pull request (approvals **0**), linear history, blocks deletion and force-push, and gates on 11 required status checks (`gh api repos/…/rulesets/25297401`, checked 2026-11-10). The legacy `/branches/main/protection` endpoint 404s for rulesets and is what the 2026-11-03 revision misread; `docs/archive/2026-10-19/generated/governance-branch-protection.md` explains the endpoint difference. Remaining decisions: the migration-drift job, the `quality-gates` job, compose smoke, the IaC scan and ZAP are **not** required checks — add them to the ruleset (recommended) or record that convention is enough; and decide whether approvals should stay at 0 | — |
 | Dependency PRs | Triage of the open Dependabot pull requests | OD-17 |
 
 The in-repo tasks that accompany these are the native-Bangla and agronomy reviews
@@ -109,12 +120,9 @@ The in-repo tasks that accompany these are the native-Bangla and agronomy review
 
 | Location | What it holds |
 |---|---|
-| `qa-evidence/receipts/` | Dated receipts (index: `qa-evidence/receipts/README.md`): round results, live verification, schema-drift and release-contract checks, web edge/delivery measurements |
-| `qa-evidence/` (top level) | Gate logs from earlier rounds (API/web suites, e2e runs, load test, live probes) and probe scripts |
-| `.audit/v2/BASELINE.md` | The current identity/toolchain/topology record and gate results for commit `0ce54b5` |
-| `.audit/v2/FINAL_AUDIT_REPORT.md`, `FINDINGS.md`, `RISK_REGISTER.md`, `CLAIMS_LEDGER.md`, `SCORECARD.md` | Detailed findings, claim-by-claim verification and the risk register |
-| `.audit/v2/DECISIONS.md` | The decision register summarized above |
-| `.audit/evidence/` | Raw probe outputs (live headers, health payloads) |
+| `qa-evidence/receipts/` | Dated receipts (index: `qa-evidence/receipts/README.md`): round results, live verification, schema-drift and release-contract checks, web edge/delivery measurements — **committed** |
+| `qa-evidence/` (top level) | Gate logs from earlier rounds (API/web suites, e2e runs, load test, live probes) and probe scripts — **local only, not committed**; unavailable from a clone |
+| `.audit/**`, `.audit-archive/**`, `.agent-evidence/**` | The 2026-10/11 audit working trees (`.audit/v2/{BASELINE,FINAL_AUDIT_REPORT,FINDINGS,RISK_REGISTER,CLAIMS_LEDGER,SCORECARD,DECISIONS}.md`, `.audit/evidence/E-V2-live-probes.txt`, …) — **not in this repository**. The originals survive only under `.audit-archive/pre-v3-final-20261030/` on the machine that produced them; every tracked-document citation to them is currently **unverifiable from a clone** (F-21, `docs/audit/2026-11-10-full-qa-audit.md`). Do not treat those citations as reproducible evidence until the owner decides whether to publish a curated evidence tree |
 | `docs/qa/test-traceability.md` | Capability → test file → CI job mapping |
 | `docs/qa/score-deductions.md` | Every remaining parameter below 3, what closes it, and which rows the documentation wave moved |
 | `docs/play/launch-checklist.md` | The credential/secret inventory and go-live order of operations for Play |
@@ -124,6 +132,7 @@ The in-repo tasks that accompany these are the native-Bangla and agronomy review
 
 ## Reading this page safely
 
-Claims here are dated. Re-verify before quoting them externally: the live probe values come from
-2026-10-19 and production moves without this file. Anything not listed as live or pilot is either
-deferred to the owner or not implemented.
+Claims here are dated. Re-verify before quoting them externally: the live-row probes date from
+2026-11-03 (and the 2026-11-10 audit's own probes are recorded in
+`docs/audit/2026-11-10-full-qa-audit.md` §3.6), and production moves without this file. Anything not
+listed as live or pilot is either deferred to the owner or not implemented.

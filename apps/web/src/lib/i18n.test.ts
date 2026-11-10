@@ -112,7 +112,7 @@ describe("lib/i18n — guest language fallback (regression lock)", () => {
     Object.defineProperty(window.navigator, "language", { value: "en-US", configurable: true });
     // App still uses session?.lang ?? "bn", so t still returns bn
     expect(guestLang(null)).toBe("bn");
-    expect(t("loading", guestLang(null))).toBe("লোড হচ্ছে...");
+    expect(t("loading", guestLang(null))).toBe("লোড হচ্ছে…");
     // restore
     Object.defineProperty(window.navigator, "language", { value: origLang ?? "en-US", configurable: true });
   });
@@ -257,5 +257,41 @@ describe("lib/labels — raw enum → localized label helpers", () => {
       expect(bn).not.toBe(paymentPurposeLabel(raw, "en"));
     }
     expect(paymentPurposeLabel("SOMETHING_NEW", "en")).toBe("SOMETHING_NEW");
+  });
+});
+
+describe("lib/i18n — one Bengali word for 'farm' (F-93)", () => {
+  it("never oscillates: খামার everywhere, ফার্ম nowhere in the dictionary", () => {
+    const entries = Object.entries(dict) as [string, { bn: string; en: string }][];
+    const rejected = entries.filter(([, v]) => v.bn.includes("ফার্ম")).map(([k]) => k);
+    expect(
+      rejected,
+      `keys still using ফার্ম (the audit's rejected term) — use খামার:\n${rejected.join("\n")}`
+    ).toEqual([]);
+
+    // Guard the guard: the scan above must be looking at a dictionary that still
+    // carries the concept, in the chosen register, across more than a handful of
+    // keys (the audit counted 22 affected keys in total).
+    const chosen = entries.filter(([, v]) => v.bn.includes("খামার")).map(([k]) => k);
+    expect(chosen.length).toBeGreaterThanOrEqual(20);
+    for (const anchor of ["myFarm", "addFarm", "farms", "farmLabel", "farmNamePh", "noFarmsYet"]) {
+      expect(chosen, `'${anchor}' must use খামার`).toContain(anchor);
+    }
+  });
+});
+
+describe("lib/i18n — toast copy carries no duplicate success glyph (F-99)", () => {
+  it("no dictionary value ships a ✓ (ToastProvider draws the tick) or a bare ASCII ellipsis", () => {
+    const entries = Object.entries(dict) as [string, { bn: string; en: string }][];
+    const ticked = entries.filter(([, v]) => v.bn.includes("✓") || v.en.includes("✓")).map(([k]) => k);
+    expect(ticked, `keys drawn with a second tick (ToastProvider already renders one): ${ticked.join(", ")}`).toEqual([]);
+
+    const asciiEllipsis = entries.filter(([, v]) => v.bn.includes("...") || v.en.includes("...")).map(([k]) => k);
+    expect(asciiEllipsis, `keys using "..." instead of the house ellipsis "…": ${asciiEllipsis.join(", ")}`).toEqual([]);
+
+    // Guard the guard: the house ellipsis must actually be in use, or the check
+    // above would pass on a dictionary that simply dropped every ellipsis.
+    expect(dict.loading.en).toBe("Loading…");
+    expect(dict.askPlaceholder.bn).toBe("আপনার প্রশ্ন লিখুন…");
   });
 });

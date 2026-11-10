@@ -18,6 +18,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 |---|---|
 | `ALL /payments/gateway/return/:outcome` | hosted-checkout browser return; trusts nothing in the request — the outcome is decided by asking the provider, the webhook remains the primary path |
 | `GET /membership/plans` | public tier catalogue (price/benefits only, no user data); shown before login to drive sign-up |
+| `GET /ops/reconcile-wallet` | scheduled-operations trigger for the platform cron (`0 4 * * *` in apps/api/vercel.json, F-20); no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset, exactly like /ops/retention |
 | `GET /ops/retention` | scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3) |
 | `POST /auth/login` | credential exchange itself; login limiter plus per-account throttle, uniform error and timing profile |
 | `POST /auth/password/forgot` | self-service recovery for a caller who cannot log in; always-200 response hides account existence |
@@ -36,7 +37,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 | `/weather` | `weatherRouter` | yes | 1 | 0 |
 | `/ai` | `aiRouter` | yes | 3 | 0 |
 | `/disease` | `diseaseRouter` | yes | 5 | 0 |
-| `/products` | `productsRouter` | yes | 2 | 0 |
+| `/products` | `productsRouter` | yes | 3 | 0 |
 | `/cart` | `cartRouter` | yes | 3 | 0 |
 | `/orders` | `ordersRouter` | yes | 5 | 0 |
 | `/services` | `servicesRouter` | yes | 3 | 0 |
@@ -49,7 +50,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 | `/admin` | `adminRouter` | yes | 8 | 0 |
 | `/organizations` | `organizationsRouter` | yes | 6 | 0 |
 | `/analytics` | `analyticsRouter` | no | 1 | 0 |
-| `/ops` | `opsRouter` | no | 1 | 1 |
+| `/ops` | `opsRouter` | no | 2 | 2 |
 
 ### `/payments` → `paymentWebhookRouter`
 
@@ -150,6 +151,7 @@ Source: `src/modules/marketplace/routes.ts`
 |---|---|---|---|---|---|
 | GET | `/products` | guard: module | — | any authenticated role | — |
 | POST | `/products` | guard: route | `products:manage` | SUPER_ADMIN, ADMIN, DEALER | — |
+| PATCH | `/products/:id` | guard: module | `products:manage` | SUPER_ADMIN, ADMIN, DEALER | — |
 
 ### `/cart` → `cartRouter`
 
@@ -291,12 +293,12 @@ Source: `src/modules/organizations/routes.ts`
 
 | Method | Path | Auth | Permission | Roles | Notes |
 |---|---|---|---|---|---|
-| POST | `/organizations` | guard: module | — | any authenticated role | — |
-| GET | `/organizations` | guard: module | — | any authenticated role | — |
-| GET | `/organizations/:id` | guard: module | — | any authenticated role | — |
-| POST | `/organizations/:id/members` | guard: module | — | any authenticated role | — |
-| DELETE | `/organizations/:id/members/:userId` | guard: module | — | any authenticated role | — |
-| GET | `/organizations/:id/farms` | guard: module | — | any authenticated role | — |
+| POST | `/organizations` | guard: module | `org:manage` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
+| GET | `/organizations` | guard: module | `org:read` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
+| GET | `/organizations/:id` | guard: module | `org:read` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
+| POST | `/organizations/:id/members` | guard: module | `org:manage` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
+| DELETE | `/organizations/:id/members/:userId` | guard: module | `org:manage` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
+| GET | `/organizations/:id/farms` | guard: module | `farm:read:org` | SUPER_ADMIN, ADMIN, CORPORATE, COOPERATIVE | — |
 
 ### `/analytics` → `analyticsRouter`
 
@@ -317,3 +319,4 @@ Source: `src/modules/ops/routes.ts`
 | Method | Path | Auth | Permission | Roles | Notes |
 |---|---|---|---|---|---|
 | GET | `/ops/retention` | public | — | — | scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3) |
+| GET | `/ops/reconcile-wallet` | public | — | — | scheduled-operations trigger for the platform cron (`0 4 * * *` in apps/api/vercel.json, F-20); no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset, exactly like /ops/retention |

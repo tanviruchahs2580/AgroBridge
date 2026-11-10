@@ -75,7 +75,15 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
   const lang = session?.lang ?? "bn";
 
   const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * The raw failure, not its rendered text.
+   *
+   * Storing `mapError(e, lang)` froze the message in the language it was fetched
+   * in: a farmer who hit a failure and then switched to English kept reading the
+   * Bengali sentence until they retried, because nothing re-mapped it. The
+   * mapping happens on render instead, so the current language wins immediately.
+   */
+  const [error, setError] = useState<unknown>(null);
   /** A result (data or error) has arrived at least once. */
   const [settled, setSettled] = useState(false);
   /** Requests currently in flight; distinguishes a first load from a refresh. */
@@ -100,8 +108,6 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
   // and depending on them would refetch on every render.
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  const langRef = useRef(lang);
-  langRef.current = lang;
 
   // Only the newest request may write state: a reload that started before an
   // invalidate must not overwrite the newer result (the classic stale-response race).
@@ -129,7 +135,7 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
       setError(null);
     } catch (e) {
       if (!mounted.current || id !== requestId.current) return;
-      setError(mapError(e, langRef.current));
+      setError(e);
     } finally {
       if (mounted.current) {
         setInFlight((n) => Math.max(0, n - 1));
@@ -170,7 +176,8 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>, deps: unk
     data,
     loading: !settled,
     refreshing: settled && inFlight > 0,
-    error,
+    // Mapped here, on every render, from the current language.
+    error: error === null ? null : mapError(error, lang),
     reload,
     setData,
   };

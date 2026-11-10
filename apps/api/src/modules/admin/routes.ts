@@ -4,23 +4,39 @@ import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
-import { forbidden, badRequest } from "../../shared/errors/index.js";
+import { forbidden, notFound, badRequest } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
+import { assertNotSelfDealing } from "../../lib/separationOfDuties.js";
 import { getAuth } from "../../shared/auth-context.js";
 import { ciContains } from "../../shared/utils/ciContains.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
 
-/** All admin routes require at least one elevated permission. */
-adminRouter.use((req, res, next) => {
-  if (!["ADMIN", "SUPER_ADMIN", "REGIONAL_MANAGER", "AREA_MANAGER", "PROCUREMENT_MANAGER"].includes(getAuth(req).role)) {
-    return next(forbidden("Admin area"));
-  }
-  next();
-});
+/**
+ * This module's authorization is expressed per route with
+ * `requirePermission(...)` — the only gate mechanism the project recognises.
+ *
+ * It used to open with an inline role list
+ * (`["ADMIN","SUPER_ADMIN","REGIONAL_MANAGER","AREA_MANAGER","PROCUREMENT_MANAGER"]`),
+ * which the route-role matrix's static parser cannot see, so `docs/route-role-matrix.md`
+ * could not report who may reach these routes (F-08). The list was also *not* the
+ * real boundary: every route below re-checks a permission anyway, so a role could
+ * pass this gate and still be refused — the matrix reported one answer and the
+ * code enforced another. Removing it changes no decision:
+ *
+ *   - `admin:metrics`      — ADMIN, SUPER_ADMIN, REGIONAL_MANAGER (as before)
+ *   - `users:read`         — ADMIN tier only; the old gate admitted
+ *                            REGIONAL_MANAGER/AREA_MANAGER/PROCUREMENT_MANAGER
+ *                            here to be refused on the next line
+ *   - `audit:read`, `finance:withdrawals`, `users:manage` — ADMIN tier only
+ *
+ * A route added to this module without `requirePermission` now fails
+ * `tests/permission-reachability.test.ts` instead of being silently covered by
+ * a module gate nobody re-reads.
+ */
 
 // ---- Metrics: every number maps to real backend data ----
 // Company-wide revenue and farmer counts are not AREA/PROCUREMENT-manager
@@ -113,7 +129,9 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
   try {
     const body = req.body as z.infer<typeof userUpdate>;
     const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
-    if (!target) throw badRequest("User not found");
+    // 404, not 400: the resource named by the path does not exist. A 400 read as
+    // "your request was malformed" for what is an absent row (F-70).
+    if (!target) throw notFound("User");
 
     if (target.id === getAuth(req).userId) {
       if (body.status === "SUSPENDED") throw badRequest("You cannot suspend your own account");
@@ -225,6 +243,16 @@ adminRouter.post(
   async (req, res, next) => {
     try {
       const { action, note } = req.body as { action: string; note?: string };
+      // Separation of duties (money stream request, owner-approved): the account
+      // that REQUESTED a withdrawal must not be the account that approves or
+      // marks it paid. `finance:withdrawals` is held by the ADMIN tier, so a
+      // privileged user's own withdrawal would otherwise clear itself — one
+      // actor on both sides of a payout. SUPER_ADMIN keeps the documented
+      // break-glass exception inside assertNotSelfDealing. Enforced before the
+      // claim transaction so a refused self-approval moves no money and no state.
+      const existing = await prisma.withdrawal.findUnique({ where: { id: req.params.id }, select: { userId: true } });
+      if (!existing) throw notFound("Withdrawal");
+      assertNotSelfDealing(getAuth(req).userId, existing.userId, getAuth(req).role, "This withdrawal");
       const w = await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
         if (action === "APPROVE") {
           // APPROVE debits the wallet now and releases the request-time hold.

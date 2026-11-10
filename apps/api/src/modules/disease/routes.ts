@@ -189,10 +189,15 @@ diseaseRouter.get("/cases", async (req, res, next) => {
 
 diseaseRouter.get("/cases/:id", async (req, res, next) => {
   try {
-    const where =
-      getAuth(req).role === "ADMIN" || getAuth(req).role === "SUPER_ADMIN"
-        ? { id: req.params.id }
-        : { id: req.params.id, userId: getAuth(req).userId };
+    // `disease:review` (ADMIN/SUPER_ADMIN) is the declared reviewer capability,
+    // matching the photo route below. Expressed as the permission rather than a
+    // second inline role list the route-role matrix cannot see (F-08) — the
+    // effective decision is unchanged: the same two roles, the same owner
+    // fallback.
+    const isReviewer = hasPermission(getAuth(req).role, "disease:review");
+    const where = isReviewer
+      ? { id: req.params.id }
+      : { id: req.params.id, userId: getAuth(req).userId };
     const kase = await prisma.diseaseCase.findFirst({ where });
     if (!kase) throw notFound("Disease case");
     ok(res, kase);

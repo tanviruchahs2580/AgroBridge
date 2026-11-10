@@ -201,7 +201,11 @@ function Shell({ children }: { children: ReactNode }) {
             </button>
             <button
               type="button"
-              aria-label={t("langToggleAria", lang)}
+              // The accessible name must START with the visible text (WCAG 2.5.3
+              // Label in Name): the control reads "EN"/"বাং", and a name of
+              // "Switch to English" alone left speech-input users unable to
+              // activate it by the name they can see. Same fix as LangToggle.
+              aria-label={`${t("langToggleButton", lang)} — ${t("langSwitchAria", lang)}`}
               onClick={() => setLang(otherLang(lang))}
               className="inline-flex min-h-[44px] items-center rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >

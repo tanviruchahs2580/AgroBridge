@@ -12,15 +12,22 @@ import { defineConfig } from "vitest/config";
  * AUD-205 + review follow-up: `payment/sandbox.ts`, `payment/sslcommerz.ts`,
  * `storage/s3.ts` (stub-server tests in adapter-failure-injection +
  * storage-serving-contract) and `weather/openweather.ts` (stubbed-fetch tests)
- * are all instrumented — each has a test that exercises it, and the earlier
- * "not wired in CI / no replay coverage" note was no longer true for any of
- * them. Re-measure and raise the floors when they move. The remaining
+ * are all instrumented. F-14 correction: the payments route's sandbox branch
+ * does NOT call `provider.createPayment` (it builds its own SBX- reference), so
+ * `payment/sandbox.ts` is exercised directly by
+ * tests/payment-sandbox-provider.test.ts — the earlier "each has a test that
+ * exercises it" note was true for the other files, not for that one.
+ * Re-measure and raise the floors when they move. The remaining
  * exclusions are type-only modules with no executable lines (payment/types.ts,
  * storage/types.ts); nothing else is excluded.
  */
 export default defineConfig({
   test: {
     environment: "node",
+    // The lock on the shared SQLite test database is released by the teardown
+    // that this global setup *returns*. vitest 4 has no `globalTeardown` config
+    // key — declaring one is a TS2769 and a silent no-op (verified against
+    // vitest 4.1.12's distributed types, which contain no such option).
     globalSetup: "./tests/global-setup.ts",
     setupFiles: ["./tests/setup-env.ts"],
     fileParallelism: false,

@@ -11,11 +11,12 @@ import { requestContext } from "./middleware/context.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
-import { registry, metricsMiddleware, dbUp } from "./lib/metrics.js";
+import { registry, metricsMiddleware, dbUp, registerMountPrefixes } from "./lib/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 import { readSchemaState } from "./infrastructure/schemaState.js";
 import { storageReadiness } from "./providers/storage/index.js";
 import { paymentsReadiness } from "./providers/payment/index.js";
+import { initHealthRegistry } from "./providers/health.js";
 
 // Multi-instance deployments set REDIS_URL so all pods share limit windows.
 const sharedStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, undefined, "global") : undefined;
@@ -47,13 +48,32 @@ import { organizationsRouter } from "./modules/organizations/routes.js";
 import { analyticsRouter } from "./modules/analytics/routes.js";
 import { opsRouter } from "./modules/ops/routes.js";
 import { paymentWebhookRouter } from "./modules/payments/webhook.js";
-import { metricsGuard } from "./middleware/metricsGuard.js";
+import { metricsGuard, hasOpsDetailAccess } from "./middleware/metricsGuard.js";
 import { rateLimitHandler } from "./middleware/rateLimitResponse.js";
 import { credentialOrIpKey } from "./middleware/rateLimitKeys.js";
 import { admissionControl } from "./middleware/admission.js";
 
-export function createApp() {
-  const app = express();
+/**
+ * Whether `/ready`'s introspection block is served to this caller (F-40).
+ *
+ * Extracted as a pure predicate so the production rule is unit-testable without
+ * booting a production app: the suite runs with `isProd === false`, so an HTTP
+ * test alone could never pin the closed branch (and a test that only pins the
+ * open branch is exactly the kind of gate the audit found elsewhere).
+ */
+export function readyDetailVisible(input: { environmentIsProduction: boolean; hasOpsDetailAccess: boolean }): boolean {
+  if (input.hasOpsDetailAccess) return true;
+  return !input.environmentIsProduction;
+}
+
+export function createApp() {  const app = express();
+
+  // Seed the provider-health registry from configuration before anything can
+  // ask for it. It used to be exported and never called, so the registry stayed
+  // empty and `markDown` (written by the AI gateway) recorded into an object
+  // nothing read (F-28). The scrape-time gauge in infrastructure/metrics.ts is
+  // the reader; this is the writer's initial state.
+  initHealthRegistry();
 
   app.set("trust proxy", env.TRUST_PROXY === "false" ? false : env.TRUST_PROXY);
   app.disable("x-powered-by");
@@ -70,11 +90,17 @@ export function createApp() {
       exposedHeaders: ["X-Request-Id", "traceparent", "X-Total-Count"],
     })
   );
+  // Correlation FIRST, before any parser that can fail (F-73). `express.json()`
+  // rejects malformed or oversized bodies by calling next(err) from inside the
+  // parser, so every middleware after it — including requestContext — is
+  // skipped and `errorHandler` used to answer a 400 with `requestId: undefined`
+  // and no `X-Request-Id` header, breaking the correlation contract for exactly
+  // the requests that need support most.
+  app.use(requestContext);
   // Global body limits; JSON only for non-multipart routes.
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: false, limit: "200kb" }));
 
-  app.use(requestContext);
   app.use(metricsMiddleware);
 
   const globalLimiter = rateLimit({
@@ -117,22 +143,72 @@ export function createApp() {
     });
   });
 
-  app.get("/ready", async (_req, res) => {
+  /**
+   * Readiness. The BOOLEAN signal is public — the deploy gate polls it and a
+   * load balancer cannot present a credential — but the introspection block is
+   * not.
+   *
+   * F-40: this endpoint used to publish `schema.latest` (a migration name),
+   * `limiterStore`, `storage.durable` and `payments.sandbox` to anonymous
+   * callers. That is free reconnaissance: `payments.sandbox: true` tells an
+   * attacker simulated payments can be completed on this deployment, and
+   * `storage.durable: false` advertises that uploads vanish on redeploy.
+   *
+   * The one field with reconnaissance value — `payments.sandbox` — requires
+   * `METRICS_TOKEN` in production; in production that is the only way to see it.
+   * Outside production (local docker Prometheus, tests, a developer's curl) it
+   * stays open, because there is nothing to reconnoitre on a machine whose
+   * configuration is already known. When production has no METRICS_TOKEN
+   * configured the field is simply absent, so an operator loses a diagnostic
+   * rather than leaking one.
+   *
+   * The remaining detail (`schema`, `limiterStore`, `storage`) deliberately stays
+   * public in production: `deploy-verify.yml` asserts on `schema` and
+   * `limiterStore` unauthenticated, and gating them would break a working deploy
+   * gate while demanding a secret the repository does not have. `schema.latest` is
+   * a migration name that is already public in the repo, and `storage.durable` is
+   * the durability signal that same gate enforces — neither tells an attacker
+   * anything the source does not.
+   */
+  app.get("/ready", async (req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
       dbUp.set(1);
-      // Schema state is part of the answer to "can this release serve?" — the
-      // deploy gate compares `schema.latest` with the repository's newest
-      // migration (ADR-0007).
+      if (readyDetailVisible({ environmentIsProduction: isProd, hasOpsDetailAccess: hasOpsDetailAccess(req) })) {
+        // Schema state is part of the answer to "can this release serve?" — the
+        // deploy gate compares `schema.latest` with the repository's newest
+        // migration (ADR-0007).
+        const schema = await readSchemaState();
+        // Storage durability is release-blocking, like the schema: production
+        // must outlive its instances (deploy-verify.yml enforces it). The payment
+        // provider joins them so "can this release take real money?" is answerable
+        // from the deployment's own state (AUD-103).
+        res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness(), payments: paymentsReadiness() });
+        return;
+      }
+      // Production caller without ops access. Everything the deploy gate asserts
+      // stays public: `deploy-verify.yml` reads `schema` and `limiterStore` here
+      // unauthenticated, the migration names `schema.latest` exposes are already
+      // public in this repository, and `storage.durable` is the durability signal
+      // the same gate enforces. Gating them would break the deploy gate and demand
+      // a secret this repo does not have (F-19), while leaking nothing an attacker
+      // cannot read from the source. The one field with genuine reconnaissance
+      // value is omitted: a public `payments.sandbox` tells an attacker whether
+      // simulated payments can be completed against this deployment (F-40).
       const schema = await readSchemaState();
-      // Storage durability is release-blocking, like the schema: production
-      // must outlive its instances (deploy-verify.yml enforces it). The payment
-      // provider joins them so "can this release take real money?" is answerable
-      // from the deployment's own state (AUD-103).
-      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness(), payments: paymentsReadiness() });
+      res.json({ ok: true, ready: true, db: true, schema, limiterStore, storage: storageReadiness(), detail: "requires-authorization" });
+      return;
     } catch {
       dbUp.set(0);
-      res.status(503).json({ ok: false, ready: false, db: false });
+      // Standard envelope even on the 503 path (F-70): a client that branches on
+      // `error.code` previously found no `error` object at all here.
+      res.status(503).json({
+        ok: false,
+        ready: false,
+        db: false,
+        error: { code: "NOT_READY", message: "The service is not ready: database connectivity failed" },
+        requestId: req.requestId,
+      });
     }
   });
 
@@ -178,5 +254,9 @@ export function createApp() {
 
   app.use(notFoundHandler);
   app.use(errorHandler);
+  // The HTTP-metric route label falls back to the app's mount table for a
+  // response written before any route dispatched (F-26). Captured here, after
+  // every mount exists, so the table is complete.
+  registerMountPrefixes(app);
   return app;
 }

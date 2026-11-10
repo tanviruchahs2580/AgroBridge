@@ -33,7 +33,10 @@ jobs:
         run: |
           set -uo pipefail
           WEB_URL="https://agrobridge-web.vercel.app"
-          API_URL="https://agro-bridge-api.vercel.app"
+          # Canonical API host (F-78): the same one ci.yml bakes into
+          # VITE_API_BASE_URL and deploy-verify.yml asserts; the short alias
+          # still resolves but is no longer a second source of truth in a gate.
+          API_URL="https://agro-bridge-api-vantiq-systems.vercel.app"
           fail=0
 
           probe() { # name expected http_code_regex url

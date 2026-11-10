@@ -1,5 +1,4 @@
-import { Tractor, Plane, FlaskConical, Wrench, Leaf, Sprout, Clock, ShieldCheck, Star, Calendar, Phone, Eye, ArrowRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { Tractor, Plane, FlaskConical, Wrench, Leaf, Sprout, Wheat } from "lucide-react";
 
 // Duotone icon box — Gap Analysis §4.5
 // Style: 48x48, radius 14px, border 1px, stroke 1.75px, duotone fill 20%
@@ -22,7 +21,11 @@ function IconForCategory({ category, size=22 }: { category: string; size?: numbe
   switch (category) {
     case "DRONE": return <Plane {...props} />;
     case "TRACTOR": return <Tractor {...props} />;
-    case "COMBINE_HARVESTER": return <Tractor {...props} />; // fallback, custom combine below
+    // Wheat, not the tractor it shared before: the old case carried a
+    // "// fallback, custom combine below" comment pointing at a custom glyph that
+    // was never written, so two categories rendered the same mark. Lucide has no
+    // combine-harvester glyph; the crop it harvests is the honest distinct one.
+    case "COMBINE_HARVESTER": return <Wheat {...props} />;
     case "POWER_TILLER": return <Tractor {...props} />;
     case "LAND_LEVELLER": return <Wrench {...props} />;
     case "SOIL_TESTING": return <FlaskConical {...props} />;
@@ -32,13 +35,18 @@ function IconForCategory({ category, size=22 }: { category: string; size?: numbe
   }
 }
 
-// Custom tractor/combine duotone fallback — if lucide missing, use Tractor with accent
-export function AgriIconBox({ category, size=48, withMotion=true }: { category: string; size?: number; withMotion?: boolean }) {
+/**
+ * The category icon tile. No motion prop: the only caller passed
+ * `withMotion={false}`, so the `true` default — and with it the group-hover
+ * scale branch — was unreachable code that still had to be read and maintained
+ * in both directions.
+ */
+export function AgriIconBox({ category, size=48 }: { category: string; size?: number }) {
   const cat = (CATEGORY_STYLE[category as Category] ? category : "TRACTOR") as Category;
   const style = CATEGORY_STYLE[cat] ?? CATEGORY_STYLE.TRACTOR;
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-iconBox border ${style.bg} ${style.border} ${withMotion ? "transition group-hover:scale-[1.05]" : ""}`}
+      className={`flex shrink-0 items-center justify-center rounded-iconBox border ${style.bg} ${style.border}`}
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -47,19 +55,6 @@ export function AgriIconBox({ category, size=48, withMotion=true }: { category: 
       </span>
     </div>
   );
-}
-
-export function MetaIcon({ icon, className="" }: { icon: "star"|"clock"|"shield"|"calendar"|"phone"|"eye"|"arrow"; className?: string }) {
-  const map: Record<string, ReactNode> = {
-    star: <Star className={`h-3 w-3 fill-enterprise-warning text-enterprise-warning ${className}`} />,
-    clock: <Clock className={`h-3 w-3 ${className}`} />,
-    shield: <ShieldCheck className={`h-3 w-3 ${className}`} />,
-    calendar: <Calendar className={`h-3 w-3 ${className}`} />,
-    phone: <Phone className={`h-3 w-3 ${className}`} />,
-    eye: <Eye className={`h-3 w-3 ${className}`} />,
-    arrow: <ArrowRight className={`h-3.5 w-3.5 ${className}`} />,
-  };
-  return <>{map[icon]}</>;
 }
 
 /**

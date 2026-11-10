@@ -13,11 +13,11 @@ policies in `apps/web/src/features/legal/content.ts`, and the owner-action notes
 
 | Question | Answer | Evidence |
 |---|---|---|
-| Is there a consent field on registration in the API? | **Yes.** `registerSchema` requires `consent: z.literal(true)`; a body without it is refused, and the accepted policy version is written as an append-only `CONSENT_CAPTURED` audit row | `apps/api/src/modules/auth/routes.ts:147-161`, `:223` |
-| Is there a consent checkbox in the web registration form? | **Yes.** `#consent` gates submit and shows a field error when unchecked; the form posts `consent: true` | `apps/web/src/features/auth/Register.tsx:43-54`, `:163-177` |
+| Is there a consent field on registration in the API? | **Yes.** `registerSchema` requires `consent: z.literal(true)`; a body without it is refused, and the accepted policy version is written as an append-only `CONSENT_CAPTURED` audit row | `apps/api/src/modules/auth/routes.ts` (`registerSchema` + the register handler's audit write) |
+| Is there a consent checkbox in the web registration form? | **Yes.** `#consent` gates submit and shows a field error when unchecked; the form posts `consent: true` | `apps/web/src/features/auth/Register.tsx` (the consent guard and the checkbox) |
 | Does any other screen capture consent? | The registration checkbox is the only capture point; no separate consent step exists at photo upload | search over `apps/api/src` and `apps/web/src`, 2026-10-28 |
-| How is acceptance expressed beyond registration? | By continued use — the runtime terms say continuing to use the service after a change means acceptance | `apps/web/src/features/legal/content.ts:362-364` |
-| Is photo upload gated by an explicit consent action? | No separate consent step exists; the privacy policy describes uploaded photos under the "Consent" lawful basis | `apps/web/src/features/legal/content.ts:143-146`; `docs/play/data-safety.md:69-76` |
+| How is acceptance expressed beyond registration? | By continued use — the runtime terms say continuing to use the service after a change means acceptance | `apps/web/src/features/legal/content.ts` (the terms document, "Changes and contact") |
+| Is photo upload gated by an explicit consent action? | No separate consent step exists; the privacy policy describes uploaded photos under the "Consent" lawful basis | `apps/web/src/features/legal/content.ts` (privacy policy "Legal bases"); `docs/play/data-safety.md` (notices and consent section) |
 
 **[COUNSEL]** Registration now captures consent against a published policy version. Remaining
 question for counsel: whether a notice or capture is also required at the photo-upload step, where
@@ -27,36 +27,37 @@ the policy currently relies on the "Consent" lawful basis.
 
 | Capability | Endpoint / surface | Evidence |
 |---|---|---|
-| Data export (JSON attachment of the caller's rows only) | `GET /api/v1/auth/me/export`; rate-limited; audit event `USER_DATA_EXPORTED`; `Cache-Control: no-store` | `apps/api/src/modules/auth/routes.ts:67-76`, `:304-323`; scoping/redaction in `apps/api/src/modules/auth/dataExport.ts` |
-| Account deletion (in-app) | `DELETE /api/v1/auth/me` — blocks while an order is in progress or a withdrawal is PENDING/APPROVED; checks run inside the same transaction as the mutation | `apps/api/src/modules/auth/routes.ts:520-542` |
-| What deletion does | revokes refresh tokens; deletes OTP challenges; clears address-like profile fields (`address`, `district`, `upazila`, `nidLast4`); anonymizes the user row (`Deleted User`, `DEL-<id>`, random hash, DISABLED) | `apps/api/src/modules/auth/routes.ts:544-565` |
-| Photo purge on deletion | best-effort per file after commit; failures are logged, counted, and returned honestly as `pendingPurge`, then retried by script | `apps/api/src/modules/auth/routes.ts:567-585`; `apps/api/scripts/purge-uploads.ts` |
-| Audit trail for deletion | `ACCOUNT_DELETED` audit event | `apps/api/src/modules/auth/routes.ts:581` |
-| Public deletion page (for users who cannot sign in) | `/account-deletion` served by the SPA; Play requires an in-app path and an external web resource | `apps/web/src/App.tsx` legal routes; `docs/play/store-readiness-checklist.md:57-79` |
+| Data export (JSON attachment of the caller's rows only) | `GET /api/v1/auth/me/export`; rate-limited; audit event `USER_DATA_EXPORTED`; `Cache-Control: no-store` | the export handler and its limiter in `apps/api/src/modules/auth/routes.ts`; scoping/redaction in `apps/api/src/modules/auth/dataExport.ts` |
+| Account deletion (in-app) | `DELETE /api/v1/auth/me` — blocks while an order is in progress or a withdrawal is PENDING/APPROVED; checks run inside the same transaction as the mutation | `apps/api/src/modules/auth/routes.ts` (`DELETE /me`) |
+| What deletion does | revokes refresh tokens; deletes OTP challenges; clears address-like profile fields (`address`, `district`, `upazila`, `nidLast4`); anonymizes the user row (`Deleted User`, `DEL-<id>`, random hash, DISABLED). **F-12 post-fix extension (landing in the same remediation wave):** the farm geometry and advisory/farm-event free text are additionally anonymised — see the callout in `docs/data-protection.md` and verify against the handler after it merges | `apps/api/src/modules/auth/routes.ts` (`DELETE /me` transaction) |
+| Photo purge on deletion | best-effort per file after commit; failures are logged, counted, and returned honestly as `pendingPurge`, then retried by script | the purge loop in `apps/api/src/modules/auth/routes.ts` (`DELETE /me`); `apps/api/scripts/purge-uploads.ts` |
+| Audit trail for deletion | `ACCOUNT_DELETED` audit event | the audit write in `apps/api/src/modules/auth/routes.ts` (`DELETE /me`) |
+| Public deletion page (for users who cannot sign in) | `/account-deletion` served by the SPA; Play requires an in-app path and an external web resource | `apps/web/src/App.tsx` legal routes; `docs/play/store-readiness-checklist.md` |
 | Play data-deletion requirements | both paths exist and are recorded with the official source | `docs/play/store-readiness-checklist.md` §3 |
 
 Note for accuracy: `docs/adr/0011-data-retention.md` §5 lists "does not clear profile
 address/location fields" and "offers no data-export endpoint" as known gaps — the code has since
-implemented both (see the table above). The ADR text is older than the code; treat this table and
-the code as current. (ADR edits are owned elsewhere.)
+implemented both (see the table above), and the ADR's own **Addendum (2026-10-24)** records the
+closures. Treat the addendum, this table and the code as current; §5 is the decision as of
+2026-10-18.
 
 ## 3. Retention and lawful basis — facts, then questions
 
 Retention facts (detail and mechanisms in `docs/retention-and-logs.md`; source table in
-`docs/data-protection.md:14-26`):
+`docs/data-protection.md`):
 
 - Account/profile data: account lifetime; anonymized at deletion.
-- Refresh tokens: 7-day TTL by default (`apps/api/src/config/env.ts:25`), rotated and revoked.
-- OTP challenges: 5-minute TTL or consumed (`apps/api/src/modules/auth/routes.ts:354`); deleted at
+- Refresh tokens: 7-day TTL by default (`REFRESH_TOKEN_TTL_DAYS` in `apps/api/src/config/env.ts`), rotated and revoked.
+- OTP challenges: 5-minute TTL or consumed (`OTP_TTL_MINUTES` in `apps/api/src/modules/auth/routes.ts`); deleted at
   account deletion.
 - Crop/disease photos: purged at deletion (best-effort + retry queue).
 - Disease-case metadata rows: retained without file bytes after deletion.
 - Financial/ledger rows: **5 years**, retained, never edited (compensating entries only —
-  `docs/adr/0011-data-retention.md:43-45`).
+  `docs/adr/0011-data-retention.md`, decision 6).
 - Logs: operator-configured (suggest 30 days in the source table); backups: 30 days.
 - Runtime policy statements: privacy policy §5 (retention) and the deletion page
-  (`apps/web/src/features/legal/content.ts:158-172`, `:419-434`); terms state the wallet is not a
-  bank account (`content.ts:320-334`).
+  (`apps/web/src/features/legal/content.ts`); terms state the wallet is not a
+  bank account (same file, terms document).
 
 **[COUNSEL] Questions — no answers are asserted here:**
 
@@ -71,8 +72,10 @@ Retention facts (detail and mechanisms in `docs/retention-and-logs.md`; source t
 4. **Controller identity and registration.** Does the operator (as registered) need to be named a
    data controller in a specific form, and does any registration/notification obligation apply?
 5. **Cross-border processing.** Hosting, database and optional AI/weather/SMS providers may
-   process data outside Bangladesh. What must the policy and contracts say, and is any safeguard
-   or notice required?
+   process data outside Bangladesh. The policy now states the verified position explicitly
+   (servers and primary database in the United States, US East — `PRIVACY_POLICY.md` §6 /
+   privacy §6 in `apps/web/src/features/legal/content.ts`), added 2026-11-10 (F-10). Counsel
+   should confirm whether further safeguards, notices or contract terms are required.
 6. **Deletion semantics.** Deletion anonymizes identity but retains financial rows and backup
    copies up to 30 days. Is that an acceptable "deletion" as described to users and for Play's
    account-deletion requirement?
@@ -114,10 +117,10 @@ Counsel should work from the official portal above; when the citations are confi
 | Play/legal requirement | State | Evidence |
 |---|---|---|
 | Privacy policy URL | Runtime page exists at `/privacy`; root copies carry owner-action entity placeholders | `apps/web/src/features/legal/content.ts`; `PRIVACY_POLICY.md`; `TERMS_OF_SERVICE.md` |
-| Account deletion (in-app + web) | Implemented | `apps/api/src/modules/auth/routes.ts:520`; `apps/web/src/App.tsx` legal routes |
-| Data export | Implemented | `apps/api/src/modules/auth/routes.ts:304-323` |
+| Account deletion (in-app + web) | Implemented | `apps/api/src/modules/auth/routes.ts` (`DELETE /me`); `apps/web/src/App.tsx` legal routes |
+| Data export | Implemented | `apps/api/src/modules/auth/routes.ts` (the export handler) |
 | Data safety form answers traced to code | Maintained | `docs/play/data-safety.md` |
 | Content rating | Not completed (Console-side) | `docs/play/store-readiness-checklist.md` §4 |
-| Entity details (legal name, address) | **Placeholder — owner action before store submission** | `apps/web/src/features/legal/content.ts:16-27` (`LEGAL_ENTITY`); root policy files |
-| Consent capture | Absent — see §1 | `apps/api/src/modules/auth/routes.ts:124-130`; `apps/web/src/features/auth/Register.tsx` |
+| Entity details (legal name, address) | **Placeholder — owner action before store submission** | `LEGAL_ENTITY` in `apps/web/src/features/legal/content.ts`; root policy files |
+| Consent capture | Implemented — see §1 | `apps/api/src/modules/auth/routes.ts` (`registerSchema` consent field; `CONSENT_CAPTURED` audit row); `apps/web/src/features/auth/Register.tsx` (checkbox gates submit) |
 | Counsel review of policies and lawful basis | Pending — the questions above | this file, §3 |

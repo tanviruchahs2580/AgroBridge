@@ -26,7 +26,7 @@ function regenerate(): { committedBefore: string; committedAfter: string; matrix
   return { committedBefore, committedAfter, matrix: JSON.parse(committedAfter) };
 }
 
-type MatrixShape = { total: number; routes: Array<{ module: string; method: string; path: string; auth: string }> };
+type MatrixShape = { total: number; routes: Array<{ module: string; method: string; path: string; router: string; auth: string }> };
 
 /**
  * Routes that are unauthenticated BY DESIGN, each with its justification.
@@ -56,6 +56,11 @@ const PUBLIC_ALLOWLIST: Array<{ match: RegExp; because: string }> = [
     match: /^ops GET \/retention$/,
     because:
       "the scheduled retention job's trigger — no user token exists for a cron, so it compares a constant-time CRON_SECRET bearer and answers 503 when the secret is unset",
+  },
+  {
+    match: /^ops GET \/reconcile-wallet$/,
+    because:
+      "the scheduled wallet-reconciliation trigger (F-20, `0 4 * * *` in apps/api/vercel.json) — same cron guard as /ops/retention: constant-time CRON_SECRET bearer, 503 when unset, and a ledger discrepancy answers 500 so the run fails visibly",
   },
 ];
 

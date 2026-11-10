@@ -7,6 +7,7 @@ import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, IconButton, Input } from "../../components/ui";
 import { Eye, EyeOff, Lock, Phone } from "lucide-react";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
+import type { AuthSession } from "../../lib/api-types";
 import { AuthShell } from "./AuthShell";
 import { usePublicLang } from "../../lib/publicLanguage";
 
@@ -21,9 +22,13 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
 
-  const inputInvalid =
-    (phone.trim().length > 0 && !BD_PHONE_RE.test(phone.trim())) ||
-    (password.length > 0 && password.length < 8);
+  // Authentication, not registration: the API's login schema is
+  // `password: z.string().min(1)`, so a client rule that demands 8 characters
+  // here (a) reported a mistyped short password as "weak" instead of letting the
+  // server answer "wrong password", (b) left the submit button dead until blur,
+  // and (c) made a legacy/seeded account with a short password impossible to sign
+  // into from the web client. The length policy belongs on Register and Reset.
+  const inputInvalid = phone.trim().length > 0 && !BD_PHONE_RE.test(phone.trim());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,14 +36,16 @@ export default function Login() {
     if (!phone.trim()) errs.phone = t("errFieldRequired", lang);
     else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
     if (!password) errs.password = t("errFieldRequired", lang);
-    else if (password.length < 8) errs.password = t("errWeakPassword", lang);
     setFieldErrs(errs);
     if (Object.keys(errs).length > 0) return;
 
     setBusy(true);
     setError("");
     try {
-      const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/login", { phone: phone.trim(), password });
+      // The declared contract shape (lib/api-types), not a locally invented
+      // subset: a hand-written `{ accessToken, refreshToken }` here was a third
+      // declaration of the login response that could drift from the API's.
+      const data = await api<AuthSession>("POST", "/auth/login", { phone: phone.trim(), password });
       setTokens(data.accessToken, data.refreshToken);
       track("login_success");
       await refresh();
@@ -104,7 +111,6 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setFieldErrs((p) => ({ ...p, password: undefined })); }}
-              onBlur={() => { if (password && password.length < 8) setFieldErrs((p) => ({ ...p, password: t("errWeakPassword", lang) })); }}
               placeholder={t("passwordPlaceholder", lang)}
               className="pl-10 pr-12"
               aria-invalid={Boolean(fieldErrs.password)}

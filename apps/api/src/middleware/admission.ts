@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
+import { requestsShedTotal } from "../infrastructure/metrics.js";
 import { fail } from "./context.js";
 
 /**
@@ -40,6 +41,11 @@ export function admissionControl(req: Request, res: Response, next: NextFunction
 
   if (inFlight >= ceiling) {
     shed++;
+    // F-71: a shed request used to be visible only as a log line (and, through
+    // the generic HTTP counter, as a 503 on `route="unmatched"`). Shedding is a
+    // capacity signal an operator must be able to alert on, and `admissionStats()`
+    // has no production caller — this counter is the production surface.
+    requestsShedTotal.inc();
     logger.warn(
       { requestId: req.requestId, method: req.method, path: req.path, inFlight, ceiling },
       "shedding request — instance at its concurrency ceiling",

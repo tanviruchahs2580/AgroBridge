@@ -4,9 +4,10 @@ Terms as they are actually rendered by the UI dictionary `apps/web/src/lib/i18n.
 column quotes the dictionary verbatim and the `key` column names the exact dictionary key, so any
 row can be located with `rg '"<key>:" apps/web/src/lib/i18n.ts`. Where the dictionary uses more
 than one Bangla word for the same concept, both are listed and that fact is noted rather than
-smoothed over. Line anchors are given only where they are stable blocks (state enums at
-`i18n.ts:156-176`, service copy at `:456-486`, procurement at `:493-504`, stages at `:346-351`,
-product categories at `:366-370`).
+smoothed over. Line anchors were removed on 2026-11-10 (F-21): the dictionary's line numbers move whenever copy
+changes, so rows are located by key, not by line. The stable *blocks* are the state enums
+(`stage*`, `pipe*`, `bs*`), the service copy (`svc*`), the procurement pipeline (`pipe*`) and the
+product categories (`cat*`) — each key is a `rg` away.
 
 Native-speaker sign-off status: none of the farmer-facing copy has been reviewed by a native
 speaker yet — the review is an open task in `docs/agronomy-review-sheet.md` §3 ("Native-Bangla copy
@@ -17,17 +18,16 @@ decision (inconsistent pairs or register questions); all rows are in scope of th
 
 | English | Bangla (as used) | key | Note |
 |---|---|---|---|
-| Farm | ফার্ম | `myFarm` ("আমার ফার্ম") | |
-| Farm | খামার | `aiFarmEmptyTitle` ("শুরু করতে খামার যোগ করুন"), `myFarmAddFarmHint` ("আপনার খামার যোগ করে…") | **[review]** both ফার্ম and খামার are used for "farm"; a native reviewer should pick one register or define when each applies |
+| Farm | খামার | `myFarm` ("আমার খামার"), `farmLabel`, `aiFarmEmptyTitle` ("শুরু করতে খামার যোগ করুন"), `myFarmAddFarmHint` ("আপনার খামার যোগ করে…") | standardised on খামার across the dictionary on 2026-11-10 (F-93; `grep -c ফার্ম apps/web/src/lib/i18n.ts` → 0); the earlier ফার্ম/খামার oscillation is gone |
 | Plot | প্লট | `addPlot` ("নতুন প্লট"), `plotNamePh` ("প্লটের নাম") | |
 | Crop | ফসল | `addCrop` ("নতুন ফসল"), `cropName` ("ফসলের নাম") | |
 | Crop cycle / active crop | চলমান ফসল | `activeCropsTitle`, `kpiActiveCrops` | the UI surface for the `CropCycle` record |
-| Crop stage — seed | বীজ | `stageSEED` | `i18n.ts:346` |
-| Crop stage — germination | অঙ্কুরোদগম | `stageGERMINATION` | `:347` |
-| Crop stage — vegetative | বৃদ্ধি | `stageVEGETATIVE` | `:348`; `growthStage` renders "বৃদ্ধি পর্যায়ে" |
-| Crop stage — flowering | ফুল ফোটা | `stageFLOWERING` | `:349` |
-| Crop stage — grain/fruit development | দানা/ফল গঠন | `stageGRAIN_FRUIT_DEVELOPMENT` | `:350` |
-| Crop stage — harvest | ফসল তোলা | `stageHARVEST` | `:351` |
+| Crop stage — seed | বীজ | `stageSEED` | |
+| Crop stage — germination | অঙ্কুরোদগম | `stageGERMINATION` | |
+| Crop stage — vegetative | বৃদ্ধি | `stageVEGETATIVE` | `growthStage` renders "বৃদ্ধি পর্যায়ে" |
+| Crop stage — flowering | ফুল ফোটা | `stageFLOWERING` | |
+| Crop stage — grain/fruit development | দানা/ফল গঠন | `stageGRAIN_FRUIT_DEVELOPMENT` | |
+| Crop stage — harvest | ফসল তোলা | `stageHARVEST` | |
 | Bigha (area unit) | বিঘা | `areaBigha` ("জমির পরিমাণ (বিঘা)"), `bighaShort` | used in both languages; no conversion is displayed anywhere |
 | District | জেলা | `districtLabel`, `districtPh` | |
 | Upazila | উপজেলা | `upazilaLabel` | kept as the administrative term, not translated |
@@ -37,7 +37,7 @@ decision (inconsistent pairs or register questions); all rows are in scope of th
 | English | Bangla (as used) | key | Note |
 |---|---|---|---|
 | Weather | আবহাওয়া | `weather` | |
-| Weather as of (provenance line) | আবহাওয়া তথ্য: {time} | `weatherAsOf` | cache hits keep the original fetch time and are labelled "সংরক্ষিত কপি" (`weatherCachedCopy`); `i18n.ts:361-362` |
+| Weather as of (provenance line) | আবহাওয়া তথ্য: {time} | `weatherAsOf` | cache hits keep the original fetch time and are labelled "সংরক্ষিত কপি" (`weatherCachedCopy`) |
 | Humidity | আর্দ্রতা | `humidityLabel`; `moisturePct` | the same Bangla word covers air humidity and grain/soil moisture; context disambiguates |
 | Wind | বাতাস | `windLabel` | |
 | Spraying | স্প্রে | `weatherSPRAY_RAIN` ("বৃষ্টির কারণে স্প্রে পিছিয়ে দিন") | |
@@ -64,7 +64,7 @@ decision (inconsistent pairs or register questions); all rows are in scope of th
 | Stock | স্টক | `stockLeft` ("স্টক: {n}") | out of stock = স্টক নেই (`outOfStock`) |
 | Sandbox payment | স্যান্ডবক্স মোড — কোনো প্রকৃত অর্থ লেনদেন হবে না। | `sandboxPaymentNote` | shown for simulated payments |
 | Payment | পেমেন্ট | `walletPAYMENT`, `payNow` ("পেমেন্ট করুন") | |
-| Product categories | বীজ (seeds) · সার (fertilizer) · জৈব উপকরণ (bio-inputs) · কীটনাশক (crop protection) · যন্ত্রপাতি (equipment) | `catSEED` … `catEQUIPMENT` | `i18n.ts:366-370` |
+| Product categories | বীজ (seeds) · সার (fertilizer) · জৈব উপকরণ (bio-inputs) · কীটনাশক (crop protection) · যন্ত্রপাতি (equipment) | `catSEED` … `catEQUIPMENT` | |
 
 ## Procurement and quality
 

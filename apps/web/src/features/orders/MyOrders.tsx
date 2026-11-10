@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, apiRaw } from "../../lib/api";
 import type { OrderWithItems } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
@@ -7,7 +7,7 @@ import { t } from "../../lib/i18n";
 import { formatBDT, formatDateTime } from "../../lib/format";
 import { orderStatusLabel, paymentStatusLabel } from "../../lib/labels";
 import { Package, MapPin, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { Badge, BlockError, Card, EmptyState, IconButton, Skeleton, Spinner, useConfirm, useToast } from "../../components/ui";
+import { Badge, BlockError, Card, EmptyState, IconButton, PageHeader, Skeleton, Spinner, useConfirm, useToast } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
 import { mapError } from "../../lib/errors-ui";
 
@@ -18,6 +18,16 @@ import { mapError } from "../../lib/errors-ui";
  */
 
 type TabKey = "all" | "active" | "delivered";
+
+/**
+ * The list plus the server's own total. `GET /orders` is a capped slice with no
+ * page parameter, so a total larger than the array is the truncation signal the
+ * screen must render (not paper over).
+ */
+interface OrdersPage {
+  items: OrderWithItems[];
+  total: number | null;
+}
 
 const STATUS_TONES: Record<string, BadgeTone> = {
   PENDING: "warning",
@@ -40,14 +50,24 @@ export default function MyOrders() {
 
   // The screen reads one endpoint, so it holds one resource: the list owns the
   // loading, the failure and the refetch after a delete.
-  const ordersRes = useResource<OrderWithItems[]>("orders", async () => {
+  const ordersRes = useResource<OrdersPage>("orders", async () => {
     // GET /orders returns a plain array (contract asserted in
     // apps/api/tests/journey-marketplace.test.ts) — not an { items } envelope.
-    const data = await api<OrderWithItems[] | { items?: OrderWithItems[] }>("GET", "/orders");
-    return Array.isArray(data) ? data : (data?.items ?? []);
+    // The response is also a CAPPED slice (take: 100) and it is X-Total-Count,
+    // not the body, that says whether it is the whole history. `apiRaw` is the
+    // only way to reach that header; every `api()` call site keeps returning
+    // `data` alone.
+    const res = await apiRaw<OrderWithItems[] | { items?: OrderWithItems[] }>("GET", "/orders");
+    const items = Array.isArray(res.data) ? res.data : (res.data?.items ?? []);
+    const header = res.headers.get("X-Total-Count");
+    const parsed = header === null ? NaN : Number(header);
+    return { items, total: Number.isFinite(parsed) ? parsed : null };
   });
 
-  const orders = ordersRes.data ?? [];
+  const orders = ordersRes.data?.items ?? [];
+  const ordersTotal = ordersRes.data?.total ?? null;
+  /** The API served a window: say how many of the total are on screen. */
+  const truncated = ordersTotal !== null && ordersTotal > orders.length;
 
   /** Finished orders can be removed; in-flight ones must be cancelled first. */
   function deletable(order: OrderWithItems): boolean {
@@ -94,10 +114,11 @@ export default function MyOrders() {
 
   return (
     <div className="min-w-0 space-y-5 overflow-hidden">
-      <h1 className="flex items-center gap-2 text-xl font-bold text-stone-800">
-        <Package className="h-6 w-6 text-green-700" aria-hidden />
-        {t("myOrders", lang)}
-      </h1>
+      {/* PageHeader, not a hand-rolled h1: this was the one screen whose heading
+          did not match the shared one (size, icon tile, spacing), and its own h1
+          carried a legacy `green-*` alias instead of the semantic token the other
+          screens use. Same heading, same shell as every other page. */}
+      <PageHeader icon={<Package className="h-5 w-5" aria-hidden />} title={t("myOrders", lang)} />
 
       {/* Tabs */}
       <div className="flex gap-2">
@@ -119,6 +140,15 @@ export default function MyOrders() {
       </div>
 
       <BlockError error={ordersRes.error} retryLabel={t("retry", lang)} onRetry={() => void ordersRes.reload()} />
+
+      {/* Truncation, stated. The list is a window over the server's capped slice
+          and used to be presented as the whole history; the count comes from
+          X-Total-Count, so it is the server's number, not the array's length. */}
+      {truncated && (
+        <p role="status" className="rounded-lg bg-info-bg px-3 py-2 text-xs font-medium text-info-text">
+          {t("ordersTruncatedNotice", lang, { shown: orders.length, total: ordersTotal })}
+        </p>
+      )}
 
       {ordersRes.loading && (
         <div className="space-y-3">
@@ -152,7 +182,7 @@ export default function MyOrders() {
             <div className="flex items-start justify-between gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-bold text-green-800">{order.orderNo}</span>
+                  <span className="font-mono text-sm font-bold text-stone-800">{order.orderNo}</span>
                   <Badge tone={STATUS_TONES[order.status] ?? "default"}>
                     {orderStatusLabel(order.status, lang)}
                   </Badge>
@@ -163,7 +193,7 @@ export default function MyOrders() {
                     <Calendar className="h-3 w-3" aria-hidden />
                     {formatDateTime(order.createdAt, lang)}
                   </span>
-                  <span className="font-bold text-green-800">{formatBDT(order.totalPaisa, lang)}</span>
+                  <span className="font-bold text-accent">{formatBDT(order.totalPaisa, lang)}</span>
                 </div>
               </div>
               <div className="flex shrink-0 items-center">
@@ -217,7 +247,7 @@ export default function MyOrders() {
                   {order.discountPaisa > 0 && (
                     <>
                       <dt className="text-stone-500">{t("orderDiscount", lang)}</dt>
-                      <dd className="text-right font-medium text-green-700">−{formatBDT(order.discountPaisa, lang)}</dd>
+                      <dd className="text-right font-medium text-success-text">−{formatBDT(order.discountPaisa, lang)}</dd>
                     </>
                   )}
                   <dt className="text-stone-500">{t("orderDeliveryFee", lang)}</dt>

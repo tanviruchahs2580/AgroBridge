@@ -32,8 +32,18 @@ export interface ApiEnvelope<T> {
 }
 
 /**
- * `fail` envelope. Note: rate-limiter rejections (429) return only
- * `{ ok:false, error:{ code, message } }` — no `requestId`, no `reference`.
+ * `fail` envelope from apps/api/src/middleware/context.ts.
+ *
+ * `requestId` is set by `fail()` on every handler refusal — including rate-limiter
+ * rejections: middleware/rateLimitResponse.ts calls `fail()`, and
+ * apps/api/tests/rate-limit-envelope.test.ts:36-38 asserts the 429 body carries a
+ * non-empty `requestId` equal to its `x-request-id` header. (An earlier comment
+ * here claimed 429s had no requestId and no reference; that was the bug F-02's
+ * sibling fixed, and the API test is the check.)
+ *
+ * `reference` is present only when the handler supplied one. `requestId` is
+ * omitted only where the request never reached `requestContext` — a body-parser
+ * rejection (malformed JSON) fails before it mounts.
  */
 export interface ApiErrorEnvelope {
   ok?: false;

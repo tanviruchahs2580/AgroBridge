@@ -18,13 +18,17 @@ vi.mock("./api.js", async () => {
 });
 
 // The hook reads the language from the session context; the provider is heavy, so
-// the context module is stubbed with a fixed Bangla session.
+// the context module is stubbed with a session whose language the language-switch
+// test below can flip (the fold-in on this file: a failure used to be stored as
+// its mapped text, freezing it in the language it was fetched in).
+let sessionLang: "bn" | "en" = "bn";
 vi.mock("./session", () => ({
-  useSession: () => ({ session: { userId: "u1", fullName: "Test", role: "FARMER", lang: "bn", dark: false, district: null }, loading: false }),
+  useSession: () => ({ session: { userId: "u1", fullName: "Test", role: "FARMER", lang: sessionLang, dark: false, district: null }, loading: false }),
 }));
 
 import { useResource, invalidate, type Resource } from "./useResource";
 import { ApiError } from "./api";
+import { t } from "./i18n";
 
 function mount<T>(use: () => Resource<T>, opts: { strict?: boolean } = {}) {
   const container = document.createElement("div");
@@ -35,12 +39,17 @@ function mount<T>(use: () => Resource<T>, opts: { strict?: boolean } = {}) {
     latest = use();
     return null;
   }
-  const tree = opts.strict
-    ? React.createElement(React.StrictMode, null, React.createElement(Probe))
-    : React.createElement(Probe);
-  act(() => root.render(tree));
+  // A fresh element per call: root.render() with the *same* element object bails
+  // out, so a "re-render" has to hand React new children to actually render.
+  const renderTree = () =>
+    opts.strict
+      ? React.createElement(React.StrictMode, null, React.createElement(Probe))
+      : React.createElement(Probe);
+  act(() => root.render(renderTree()));
   return {
     get: () => latest!,
+    /** Re-render the same tree (what a language change does through the context). */
+    rerender: () => act(() => root.render(renderTree())),
     unmount: () => act(() => root.unmount()),
   };
 }
@@ -56,6 +65,7 @@ async function settle(times = 3) {
 
 beforeEach(() => {
   mockApi.mockReset();
+  sessionLang = "bn";
 });
 afterEach(() => {
   document.body.innerHTML = "";
@@ -111,6 +121,23 @@ describe("useResource — loading, data, error", () => {
     });
     expect(r.get().error).toBeNull();
     expect(r.get().data).toEqual({ balancePaisa: 10 });
+    r.unmount();
+  });
+
+  it("re-maps a stored failure into the language on screen when the language changes", async () => {
+    // The failure is stored raw and mapped at render time. It used to be stored
+    // as its rendered text, so a farmer who hit an error and then switched to
+    // English kept reading the Bengali sentence until they retried.
+    mockApi.mockRejectedValueOnce(new ApiError(403, "PHONE_NOT_VERIFIED", "raw server message"));
+    const r = mount(() => useResource("wallet", () => mockApi()));
+    await settle();
+    expect(r.get().error).toBe(t("errPhoneNotVerified", "bn"));
+
+    sessionLang = "en";
+    r.rerender();
+
+    expect(r.get().error).toBe(t("errPhoneNotVerified", "en"));
+    expect(r.get().error).not.toBe(t("errPhoneNotVerified", "bn"));
     r.unmount();
   });
 

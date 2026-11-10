@@ -3,7 +3,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
-import { requirePermission } from "../../middleware/rbac.js";
+import { requirePermission, hasPermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, badRequest, unprocessable, conflict } from "../../shared/errors/index.js";
 import { ok, idempotencyKeyOf } from "../../middleware/context.js";
@@ -124,6 +124,72 @@ productsRouter.post(
   }
 );
 
+/**
+ * Product lifecycle (F-63c): before this route `isActive` was never written by
+ * any code path — every occurrence was a `where: { isActive: true }` filter — so
+ * the flag was permanently true and a mispriced product could never be
+ * corrected, nor a withdrawn one retired, through the API. Deactivating is a
+ * soft retire: the row keeps its order history (OrderItem snapshots the price
+ * and sku) while vanishing from the catalogue and from new checkouts.
+ *
+ * The schema is written out rather than derived with `productBody.partial()`:
+ * the create schema's defaults (`unit`, `stockQty`) are applied to an absent
+ * key, so a partial patch would silently rewrite fields the caller never sent —
+ * and an empty body would stop being empty. Every field is optional here and
+ * at least one is required, so a PATCH can never be a silent no-op. `sku` is
+ * not patchable: it is the identifier clients and order snapshots key on.
+ */
+const productUpdateBody = z
+  .object({
+    name: z.string().trim().min(2).max(160).optional(),
+    category: z.enum(["SEED", "FERTILIZER", "BIO_INPUT", "CROP_PROTECTION", "EQUIPMENT"]).optional(),
+    description: z.string().trim().max(2000).optional(),
+    unit: z.string().trim().max(20).optional(),
+    pricePaisa: z.number().int().positive().optional(),
+    stockQty: z.number().int().min(0).optional(),
+    batchNo: z.string().trim().max(60).optional(),
+    expiryDate: z.coerce.date().optional(),
+    supplier: z.string().trim().max(160).optional(),
+    cropRelevance: z.string().trim().max(300).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: "No fields to update" });
+
+productsRouter.patch("/:id", requirePermission("products:manage"), validate({ body: productUpdateBody }), async (req, res, next) => {
+  try {
+    const existing = await prisma.product.findUnique({ where: { id: req.params.id }, select: { id: true, sku: true, isActive: true } });
+    if (!existing) throw notFound("Product");
+    const body = req.body as z.infer<typeof productUpdateBody>;
+    const product = await prisma.product.update({
+      where: { id: existing.id },
+      // Omitted keys stay unchanged; an explicit false/0 is written.
+      data: {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.category !== undefined ? { category: body.category } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.unit !== undefined ? { unit: body.unit } : {}),
+        ...(body.pricePaisa !== undefined ? { pricePaisa: body.pricePaisa } : {}),
+        ...(body.stockQty !== undefined ? { stockQty: body.stockQty } : {}),
+        ...(body.batchNo !== undefined ? { batchNo: body.batchNo } : {}),
+        ...(body.expiryDate !== undefined ? { expiryDate: body.expiryDate } : {}),
+        ...(body.supplier !== undefined ? { supplier: body.supplier } : {}),
+        ...(body.cropRelevance !== undefined ? { cropRelevance: body.cropRelevance } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+    });
+    await audit({
+      actorId: getAuth(req).userId,
+      action: "PRODUCT_UPDATE",
+      entityType: "Product",
+      entityId: product.id,
+      meta: { sku: existing.sku, isActive: product.isActive, pricePaisa: product.pricePaisa },
+    });
+    ok(res, product);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---------------- Cart ----------------
 cartRouter.use(requireAuth);
 
@@ -183,13 +249,37 @@ cartRouter.delete("/items/:productId", validate({ params: z.object({ productId: 
 // ---------------- Orders ----------------
 ordersRouter.use(requireAuth);
 
+/**
+ * Territory scoping for a caller who may read MORE than their own rows.
+ *
+ * `hasPermission(role, "orders:read:any")` is the declared capability
+ * (ADMIN/SUPER_ADMIN/REGIONAL_MANAGER), and the permission table is the
+ * authority — an inline `["ADMIN","SUPER_ADMIN"]` list here made
+ * `REGIONAL_MANAGER`'s declared `orders:read:any` unreachable and invisible to
+ * the route-role matrix (F-08, F-63).
+ *
+ * The region predicate is what keeps that from being a widening: a
+ * territory-scoped role sees only rows whose owner is in its own region, an
+ * unassigned one falls back to its own rows (the fail-closed direction, and the
+ * same ODL-007 state `lib/territory.ts` already logs), and only the platform
+ * admin tier is unrestricted.
+ */
+async function orderReadScope(req: import("express").Request): Promise<{ userId?: string; user?: { region: string } }> {
+  const actor = getAuth(req);
+  if (!hasPermission(actor.role, "orders:read:any")) return { userId: actor.userId };
+  if (actor.role === "ADMIN" || actor.role === "SUPER_ADMIN") return {};
+  const me = await prisma.user.findUnique({ where: { id: actor.userId }, select: { region: true } });
+  if (!me?.region) return { userId: actor.userId };
+  // A relation filter on the order's owner: the same shape findMany and count
+  // both accept, so the slice and its X-Total-Count can never disagree.
+  return { user: { region: me.region } };
+}
+
 ordersRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
-    // X-Total-Count: the body stays a capped slice (100) but the
+    const where = await orderReadScope(req);    // X-Total-Count: the body stays a capped slice (100) but the
     // caller can tell a full list from a truncated one. Count runs over the
     // exact same scope as the slice, so a window cannot disagree with its total.
-    const where = isPrivileged ? {} : { userId: getAuth(req).userId };
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
@@ -208,9 +298,9 @@ ordersRouter.get("/", async (req, res, next) => {
 
 ordersRouter.get("/:id", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
+    const where = { id: req.params.id, ...(await orderReadScope(req)) };
     const order = await prisma.order.findFirst({
-      where: { id: req.params.id, ...(isPrivileged ? {} : { userId: getAuth(req).userId }) },
+      where,
       include: { items: true, user: { select: { fullName: true } } },
     });
     if (!order) throw notFound("Order");

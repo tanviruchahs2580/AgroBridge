@@ -24,8 +24,11 @@ and any real provider credentials (`OPENWEATHER_API_KEY`, `AI_PROVIDER=openai-co
 `OPENAI_API_KEY`). Without them the system runs on clearly-labelled mock/sandbox providers.
 
 ## 3. Database switch to PostgreSQL
-The PG runtime schema is `apps/api/prisma/schema.postgresql.prisma` (kept in sync with the
-SQLite schema by `tests/schema-parity.test.ts`), and its migration chain lives in
+The PG **runtime** schema is `apps/api/prisma/postgres/schema.prisma` — the copy production runs
+(`scripts/generate-prisma.mjs` selects it when `VERCEL` is set; `apps/api/scripts/patch-vercel-output.mjs`
+regenerates it into the function bundle). `apps/api/prisma/schema.postgresql.prisma` is the
+auxiliary copy used by CI/rehearsal paths, and all variants are kept in sync by
+`tests/schema-parity.test.ts`. The migration chain lives in
 `apps/api/prisma/postgres/migrations/`. **Do not** point the default
 `npx prisma migrate deploy` at PostgreSQL — `prisma/migrations/` is SQLite-only (provider
 mismatch validation error, P1 fixed 2026-09-15).
@@ -55,10 +58,15 @@ NODE_ENV=production node apps/api/dist/server.js
 export POSTGRES_PASSWORD=... API_DATABASE_URL="postgresql://..." \
        JWT_ACCESS_SECRET=... JWT_REFRESH_SECRET=...
 docker compose -f docker-compose.yml up --build -d
-docker compose -f docker-compose.yml up --build -d
 docker compose exec api npx prisma migrate deploy --schema prisma/postgres/schema.prisma
 curl -f http://localhost:4000/health && curl -f http://localhost:8080/
 ```
+
+> **Known broken as of 2026-11-10 (F-18):** the `exec … prisma migrate deploy` line above cannot
+> run — `docker/api.Dockerfile` removes `npm`/`prisma`/`@prisma/engines` from the image on purpose
+> (smaller attack surface). Until the container deploy path is repaired (tracked as F-18 in
+> `docs/audit/2026-11-10-full-qa-audit.md`), run migrations from outside the container, as §3
+> does. The duplicate `up --build -d` line that used to be here was removed in the same pass.
 
 ## 6. Post-deploy verification checklist
 1. `/health` returns ok; `/ready` reports `db:true`, the applied `schema` chain and the

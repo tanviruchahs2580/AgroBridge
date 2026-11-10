@@ -8,6 +8,14 @@ on:
   schedule:
     - cron: "17 3 * * 1" # weekly, Mondays
 
+# One analysis per ref: the weekly schedule and a push could otherwise run two
+# analyses of the same ref side by side (F-85). Queued, not cancelled — an
+# analysis that has already started is allowed to finish and report, rather
+# than being dropped because a newer run arrived.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   analyze:
     name: Analyze (javascript-typescript)

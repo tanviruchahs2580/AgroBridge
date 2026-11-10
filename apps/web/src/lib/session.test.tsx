@@ -78,6 +78,9 @@ vi.mock("react-router-dom", async () => {
 
 // Import under test AFTER mocks
 import { SessionProvider, useSession } from "./session";
+// The REAL broadcastLogout (the sessionManager mock spreads the actual module):
+// the cross-tab test below drives it exactly the way another tab would.
+import { broadcastLogout as sessionManagerBroadcastLogout } from "./sessionManager";
 
 async function renderSession(initialPath = "/", initialSearch = "") {
   mockLocation = { pathname: initialPath, search: initialSearch };
@@ -244,8 +247,33 @@ describe("lib/session — logout", () => {
     // body `{}` → the same token still got 200 from /auth/refresh; with the token
     // in the body → 401.
     expect(mockApi).toHaveBeenCalledWith("POST", "/auth/logout", { refreshToken: "rt" });
-    expect(mockClearTokens).toHaveBeenCalled();
+    // Sign-out now goes through sessionManager.broadcastLogout (F: cross-tab
+    // logout left the other tabs signed in), so the observable outcome is
+    // asserted rather than a spy on clearTokens: this tab's stored tokens are
+    // gone and the React session is null.
+    expect(localStorage.getItem("ab_at")).toBeNull();
+    expect(localStorage.getItem("ab_rt")).toBeNull();
     expect(getCtx().session).toBeNull();
+    unmount();
+  });
+
+  it("a logout broadcast from another tab clears this tab's React session", async () => {
+    localStorage.setItem("ab_at", "at");
+    localStorage.setItem("ab_rt", "rt");
+    mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
+    const { getCtx, unmount } = await renderSession("/wallet");
+    expect(getCtx().session).not.toBeNull();
+
+    // What the other tab's logout delivers here: the session manager clears its
+    // mirrors and emits. Before the fix only the module state moved — React kept
+    // rendering the signed-in shell (wallet, farm data) for a session that no
+    // longer existed anywhere else.
+    await act(async () => {
+      sessionManagerBroadcastLogout();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(getCtx().session).toBeNull();
+    expect(localStorage.getItem("ab_at")).toBeNull();
     unmount();
   });
 
@@ -261,9 +289,11 @@ describe("lib/session — logout", () => {
       await new Promise((r) => setTimeout(r, 10));
     });
     // The deleted account must not be asked to log itself out — that request
-    // could only 401 and paint a misleading "session expired" toast.
+    // could only 401 and paint a misleading "session expired" toast. It IS
+    // broadcast, though: the account is gone, so every tab on this device has to
+    // stop rendering it.
     expect(mockApi).not.toHaveBeenCalled();
-    expect(mockClearTokens).toHaveBeenCalled();
+    expect(localStorage.getItem("ab_at")).toBeNull();
     expect(getCtx().session).toBeNull();
     unmount();
   });
@@ -277,7 +307,7 @@ describe("lib/session — logout", () => {
       getCtx().logout();
       await new Promise((r) => setTimeout(r, 10));
     });
-    expect(mockClearTokens).toHaveBeenCalled();
+    expect(localStorage.getItem("ab_at")).toBeNull();
     expect(getCtx().session).toBeNull();
     unmount();
   });
@@ -391,6 +421,68 @@ describe("lib/session — expired token handling (unauthorizedHandler)", () => {
     });
     // After handler, session is null, so effect sets lang to bn
     expect(document.documentElement.lang).toBe("bn");
+    unmount();
+  });
+});
+
+describe("lib/session — the OS theme preference (F-41)", () => {
+  /** Listeners the provider registered on the matchMedia stub. */
+  let mqListeners: ((e: { matches: boolean }) => void)[] = [];
+
+  beforeEach(() => {
+    localStorage.clear();
+    mockApi.mockReset();
+    mqListeners = [];
+    document.documentElement.dataset.theme = "light";
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: (_type: string, fn: (e: { matches: boolean }) => void) => {
+        mqListeners.push(fn);
+      },
+      removeEventListener: (_type: string, fn: (e: { matches: boolean }) => void) => {
+        mqListeners = mqListeners.filter((l) => l !== fn);
+      },
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+    document.documentElement.dataset.theme = "light";
+  });
+
+  async function flipOsToDark() {
+    await act(async () => {
+      for (const fn of mqListeners) fn({ matches: true });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+
+  it("repaints html[data-theme] when the OS flips to dark — the control does not lie", async () => {
+    const { getCtx, unmount } = await renderSession("/");
+    expect(getCtx().dark).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    await flipOsToDark();
+
+    // Before the fix only setDark ran: the icon and aria-pressed moved to dark
+    // while the painted theme stayed light, so the toggle reported the opposite
+    // of what the user saw.
+    expect(getCtx().dark).toBe(true);
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    unmount();
+  });
+
+  it("an explicit stored choice wins over later OS changes", async () => {
+    localStorage.setItem("agro_dark_mode", "false");
+    const { getCtx, unmount } = await renderSession("/");
+    expect(getCtx().dark).toBe(false);
+
+    await flipOsToDark();
+
+    expect(getCtx().dark).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("light");
     unmount();
   });
 });

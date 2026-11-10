@@ -9,6 +9,18 @@ on:
 permissions:
   contents: read
 
+# One debug build per ref: a second dispatch supersedes the first instead of
+# racing it for the same Gradle caches and artifact name (F-85). Unlike the
+# signed release below, cancelling is what an operator wants here — the newest
+# dispatch is the artifact they asked for.
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+# Workflow-wide: every npm invocation enforces the install-script allow-list in
+# package.json (see the note on the pin step; F-88).
+env:
+  NPM_CONFIG_STRICT_ALLOW_SCRIPTS: "true"
 
 jobs:
   debug-apk:
@@ -27,6 +39,19 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+
+      # F-88 — see the full note in ci.yml's api-quality job: `allowScripts` is an
+      # npm 11 surface, Node 22 bundles npm 10, and NPM_CONFIG_STRICT_ALLOW_SCRIPTS
+      # (workflow env) only means anything once npm is pinned to the version
+      # package.json declares.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
 
       - name: Install web workspace deps
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund

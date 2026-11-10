@@ -47,7 +47,7 @@ on them.
    When the budget is crossed anyway: in production the gateway refuses the hosted provider with
    `429 AI_BUDGET_EXCEEDED`; outside production it logs a warning, serves from the offline engine
    and increments `agrobridge_ai_requests_total{status="budget_fallback"}`
-   (`apps/api/src/providers/ai/gateway.ts:25-47`). The window is the calendar month and the sum
+   (the budget guard in `apps/api/src/providers/ai/gateway.ts`). The window is the calendar month and the sum
    covers hosted-provider rows only.
 5. **Injection resistance.** Code fences, role prefixes, `[INST]/[SYS]` markers and angle brackets
    are stripped from user text; the LLM prompt keeps the user turn in the user role and fences all

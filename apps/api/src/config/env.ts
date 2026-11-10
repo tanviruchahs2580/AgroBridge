@@ -6,6 +6,24 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   /**
+   * The dev-only auth shortcuts, as an EXPLICIT switch (F-77).
+   *
+   * Two behaviours hang off "not production" in `modules/auth/routes.ts`: a new
+   * registration is created with `phoneVerified: true`, and
+   * `/auth/otp/request` + `/auth/password/forgot` echo the OTP code in the
+   * response as `devCode`. `NODE_ENV` defaults to `development`, so a
+   * deployment that simply forgot to set `NODE_ENV=production` auto-verified
+   * every phone and returned every OTP in the API response — an OTP bypass
+   * reachable by operator omission.
+   *
+   * They now require this variable to be `1`, IN ADDITION to being outside
+   * production. Setting it is the deliberate act of accepting that phone
+   * verification and OTP secrecy are disabled on this instance; CI/tests and
+   * the local stack set it, a deployment never does. `docs/env-reference.md`
+   * records the rule.
+   */
+  DEV_AUTH_SHORTCUTS: z.enum(["0", "1"]).optional(),
+  /**
    * Production escape hatch that re-admits http://localhost origins into the
    * CORS allow-list. Only the local docker stack needs it (NODE_ENV=production
    * there, but the web UI is served from http://localhost:8080). Never set it
@@ -299,6 +317,19 @@ export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
 export const isTest = env.NODE_ENV === "test";
 export const isDev = env.NODE_ENV === "development";
+
+/**
+ * Whether the dev-only auth shortcuts are active (F-77): a self-registered
+ * phone is auto-verified and OTP codes are echoed as `devCode`. Requires BOTH
+ * "not production" and the explicit `DEV_AUTH_SHORTCUTS=1` opt-in, so an
+ * operator who never set `NODE_ENV` gets real verification rather than an OTP
+ * bypass. Pure function so the two-condition rule is unit-testable without
+ * re-importing the module.
+ */
+export function devAuthShortcutsEnabled(cfg: { NODE_ENV?: string; DEV_AUTH_SHORTCUTS?: string }): boolean {
+  return cfg.NODE_ENV !== "production" && cfg.DEV_AUTH_SHORTCUTS === "1";
+}
+export const devAuthShortcuts = devAuthShortcutsEnabled(env);
 
 /** Fallback used when WEB_ORIGIN is empty or unparseable. */
 const LOCAL_WEB_ORIGIN = "http://localhost:5173";

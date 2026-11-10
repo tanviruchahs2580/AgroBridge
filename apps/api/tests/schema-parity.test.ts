@@ -61,7 +61,7 @@ export type AllowlistedDifference = { kind: string; target: string; reason: stri
 function stripComment(line: string): string {
   let inString = false;
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+    const ch = line.charAt(i);
     if (inString) {
       if (ch === "\\") i++;
       else if (ch === '"') inString = false;
@@ -79,7 +79,7 @@ function canonical(text: string): string {
   let out = "";
   let inString = false;
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
+    const ch = text.charAt(i);
     if (inString) {
       out += ch;
       if (ch === "\\") out += text[++i] ?? "";
@@ -101,7 +101,7 @@ function braceDelta(line: string): number {
   let delta = 0;
   let inString = false;
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+    const ch = line.charAt(i);
     if (inString) {
       if (ch === "\\") i++;
       else if (ch === '"') inString = false;
@@ -121,7 +121,7 @@ function splitTopTokens(line: string): string[] {
   let depth = 0;
   let inString = false;
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+    const ch = line.charAt(i);
     if (inString) {
       current += ch;
       if (ch === "\\") current += line[++i] ?? "";
@@ -167,7 +167,7 @@ function extractBlocks(source: string): RawBlock[] {
     }
     const m = /^\s*(model|enum|datasource|generator)\s+(\w+)\s*\{\s*$/.exec(line);
     if (m) {
-      head = { kind: m[1] as RawBlock["kind"], name: m[2]!, body: [] };
+      head = { kind: m[1] as RawBlock["kind"], name: m[2], body: [] };
       depth = 1;
     }
   }
@@ -183,9 +183,9 @@ function parseModel(body: string[]): ParsedModel {
     if (t.startsWith("@@")) {
       const m = /^@@(\w+)\s*(?:\((.*)\))?\s*$/.exec(t);
       if (!m) continue;
-      const set = blockAttrs.get(m[1]!) ?? new Set<string>();
+      const set = blockAttrs.get(m[1]) ?? new Set<string>();
       set.add(canonical(m[2] ?? ""));
-      blockAttrs.set(m[1]!, set);
+      blockAttrs.set(m[1], set);
       continue;
     }
     const tokens = splitTopTokens(t);
@@ -195,7 +195,7 @@ function parseModel(body: string[]): ParsedModel {
     if (!tm) continue;
     fields.set(name, {
       name,
-      type: tm[1]!,
+      type: tm[1],
       array: tm[2] !== undefined,
       optional: tm[3] !== undefined,
       attrs: tokens.slice(2).map(canonical).sort(),
@@ -481,8 +481,8 @@ describe("comparator self-checks", () => {
     const diffs = compareSchemas(parsePrismaSchema(TINY_SCHEMA), parsePrismaSchema(drifted), "self-check");
     const field = diffs.find((d) => d.kind === "field" && d.target === "Order.qty");
     expect(field).toBeDefined();
-    expect(field!.detail).toContain("Int");
-    expect(field!.detail).toContain("String");
+    expect(field?.detail).toContain("Int");
+    expect(field?.detail).toContain("String");
   });
 
   it("reports and then allowlists a datasource-provider difference, and nothing else", () => {

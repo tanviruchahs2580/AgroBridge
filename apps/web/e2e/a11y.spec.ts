@@ -21,15 +21,14 @@ function criticalSerious(violations: { id: string; impact: string | null; descri
 
 async function assertNoCriticalSerious(page: import("@playwright/test").Page) {
   const builder = new AxeBuilder({ page });
-  // Accepted exclusion (review quarterly alongside SECURITY_WAIVERS.md):
-  // form div.rounded-md.bg-stone-50 — demo-credentials hint rendered only
-  // under import.meta.env.DEV; ships in no production bundle.
-  // The former `.text-stone-400` exclusion is gone: muted meta text was bumped
-  // to stone-500 in the shared components (Stepper, Input placeholder) so the
-  // gate now sees those nodes instead of looking away from them.
-  const results = await builder
-    .exclude("form div.rounded-md.bg-stone-50")
-    .analyze();
+  // No exclusion. The one this scan carried — "form div.rounded-md.bg-stone-50",
+  // justified as a DEV-only demo-credentials hint — matched no node: no `demo`,
+  // `Demo@`, `bg-stone-50` or `rounded-md` string exists under
+  // src/features/auth, so the exclusion read as a deliberate blind spot while
+  // excluding nothing in any build. The former `.text-stone-400` exclusion went
+  // the same way: muted meta text was bumped to stone-500 in the shared
+  // components (Stepper, Input placeholder), so the gate sees those nodes.
+  const results = await builder.analyze();
   const offenders = criticalSerious(results.violations as never);
   if (offenders.length > 0) throw new Error(`Critical/serious a11y violations on ${page.url()}:\n${offenders.join("\n")}`);
   expect(offenders).toEqual([]);

@@ -1,4 +1,11 @@
 {
+  "admin/analytics/summary": [
+    "activeDaysSample: number",
+    "events[]: object",
+    "events[].count: number",
+    "events[].name: string",
+    "windowDays: number"
+  ],
   "admin/audit-logs": [
     "items[]: object",
     "items[].action: string",
@@ -44,10 +51,17 @@
     "total: number",
     "totalPages: number"
   ],
+  "admin/users:patch": [
+    "fullName: string",
+    "id: string",
+    "role: string",
+    "status: string"
+  ],
   "admin/withdrawals": [
     "[]: object",
     "[].amountPaisa: number",
     "[].channel: string",
+    "[].clientRequestId: null",
     "[].createdAt: string",
     "[].decidedAt: null",
     "[].decidedBy: null",
@@ -63,26 +77,55 @@
     "[].user.phoneVerified: boolean",
     "[].userId: string"
   ],
+  "ai/advisory": [
+    "answer: string",
+    "confidence: number",
+    "groundedRefs[]: array<string>",
+    "groundedSources[]: object",
+    "groundedSources[].crop: string",
+    "groundedSources[].id: string",
+    "groundedSources[].status: string",
+    "groundedSources[].titleBn: string",
+    "groundedSources[].titleEn: string",
+    "kbVersion: string",
+    "lowConfidenceFlag: boolean",
+    "model: string",
+    "provider: string"
+  ],
   "ai/history": [
+    "[]: object",
     "[].answer: string",
     "[].confidence: number",
     "[].createdAt: string",
     "[].feedbackAt: null",
     "[].feedbackReason: null",
     "[].groundedRefs[]: array<string>",
+    "[].groundedSources[]: object",
     "[].groundedSources[].crop: string",
     "[].groundedSources[].id: string",
     "[].groundedSources[].status: string",
     "[].groundedSources[].titleBn: string",
     "[].groundedSources[].titleEn: string",
-    "[].groundedSources[]: object",
     "[].id: string",
     "[].kbVersion: string",
     "[].lowConfidenceFlag: boolean",
     "[].promptVersion: null",
     "[].question: string",
-    "[].requestId: string",
-    "[]: object"
+    "[].requestId: string"
+  ],
+  "ai/history/:id/feedback": [
+    "feedbackAt: string",
+    "feedbackReason: string",
+    "id: string"
+  ],
+  "auth/login": [
+    "accessToken: string",
+    "refreshToken: string",
+    "user: object",
+    "user.fullName: string",
+    "user.id: string",
+    "user.langPref: string",
+    "user.role: string"
   ],
   "auth/me": [
     "createdAt: string",
@@ -104,6 +147,32 @@
     "status: string",
     "wallet: object",
     "wallet.balancePaisa: number"
+  ],
+  "auth/me:patch": [
+    "email: null",
+    "farmerProfile: object",
+    "farmerProfile.address: null",
+    "farmerProfile.district: null",
+    "farmerProfile.id: string",
+    "farmerProfile.joinedAt: string",
+    "farmerProfile.membershipExpiresAt: null",
+    "farmerProfile.membershipTier: string",
+    "farmerProfile.nidLast4: null",
+    "farmerProfile.upazila: null",
+    "farmerProfile.userId: string",
+    "fullName: string",
+    "id: string",
+    "langPref: string",
+    "role: string"
+  ],
+  "auth/register": [
+    "accessToken: string",
+    "refreshToken: string",
+    "user: object",
+    "user.fullName: string",
+    "user.id: string",
+    "user.langPref: string",
+    "user.role: string"
   ],
   "bookings": [
     "[]: object",
@@ -133,13 +202,88 @@
   "cart": [
     "createdAt: string",
     "id: string",
-    "items[]: array(empty)",
+    "items[]: object",
+    "items[].cartId: string",
+    "items[].id: string",
+    "items[].product: object",
+    "items[].product.batchNo: null",
+    "items[].product.category: string",
+    "items[].product.createdAt: string",
+    "items[].product.cropRelevance: null",
+    "items[].product.description: null",
+    "items[].product.expiryDate: null",
+    "items[].product.id: string",
+    "items[].product.isActive: boolean",
+    "items[].product.name: string",
+    "items[].product.pricePaisa: number",
+    "items[].product.sku: string",
+    "items[].product.stockQty: number",
+    "items[].product.supplier: null",
+    "items[].product.unit: string",
+    "items[].product.updatedAt: string",
+    "items[].productId: string",
+    "items[].qty: number",
     "subtotalPaisa: number",
     "updatedAt: string",
     "userId: string"
   ],
+  "cart/items": [
+    "createdAt: string",
+    "id: string",
+    "items[]: object",
+    "items[].cartId: string",
+    "items[].id: string",
+    "items[].product: object",
+    "items[].product.batchNo: null",
+    "items[].product.category: string",
+    "items[].product.createdAt: string",
+    "items[].product.cropRelevance: null",
+    "items[].product.description: null",
+    "items[].product.expiryDate: null",
+    "items[].product.id: string",
+    "items[].product.isActive: boolean",
+    "items[].product.name: string",
+    "items[].product.pricePaisa: number",
+    "items[].product.sku: string",
+    "items[].product.stockQty: number",
+    "items[].product.supplier: null",
+    "items[].product.unit: string",
+    "items[].product.updatedAt: string",
+    "items[].productId: string",
+    "items[].qty: number",
+    "updatedAt: string",
+    "userId: string"
+  ],
   "disease/cases": [
-    "[]: array(empty)"
+    "[]: object",
+    "[].confidence: null",
+    "[].createdAt: string",
+    "[].cropCycleId: null",
+    "[].cropGuess: null",
+    "[].diagnosis: null",
+    "[].id: string",
+    "[].imagePath: string",
+    "[].recommendation: string",
+    "[].reviewedAt: null",
+    "[].reviewedBy: null",
+    "[].severity: null",
+    "[].status: string",
+    "[].userId: string"
+  ],
+  "disease/cases:create": [
+    "confidence: null",
+    "createdAt: string",
+    "cropCycleId: null",
+    "cropGuess: null",
+    "diagnosis: null",
+    "id: string",
+    "imagePath: string",
+    "recommendation: string",
+    "reviewedAt: null",
+    "reviewedBy: null",
+    "severity: null",
+    "status: string",
+    "userId: string"
   ],
   "farms": [
     "[]: object",
@@ -308,7 +452,38 @@
     "userId: string"
   ],
   "payments": [
-    "[]: array(empty)"
+    "[]: object",
+    "[].amountPaisa: number",
+    "[].createdAt: string",
+    "[].id: string",
+    "[].intentKey: null",
+    "[].metaStr: string",
+    "[].method: string",
+    "[].providerRef: string",
+    "[].purposeId: string",
+    "[].purposeType: string",
+    "[].refNo: string",
+    "[].refundRef: null",
+    "[].refundedAt: null",
+    "[].requestId: string",
+    "[].status: string",
+    "[].updatedAt: string",
+    "[].user: object",
+    "[].user.fullName: string",
+    "[].userId: string"
+  ],
+  "payments/:id/status": [
+    "providerMode: string",
+    "reconciled: boolean",
+    "status: string"
+  ],
+  "payments/intent": [
+    "amountPaisa: number",
+    "messageBn: string",
+    "messageEn: string",
+    "paymentId: string",
+    "providerMode: string",
+    "refNo: string"
   ],
   "procurement": [
     "[]: object",
@@ -334,6 +509,28 @@
     "[].user.phone: string",
     "[].user.region: null",
     "[].userId: string"
+  ],
+  "procurement/offers": [
+    "basePricePerKgPaisa: number",
+    "calculation: object",
+    "calculation.deductionsPaisa: number",
+    "calculation.grossPaisa: number",
+    "calculation.netPayablePaisa: number",
+    "createdAt: string",
+    "cropName: string",
+    "deductionsPaisa: number",
+    "farmId: string",
+    "id: string",
+    "moisturePct: number",
+    "netPayablePaisa: number",
+    "notes: null",
+    "poNo: string",
+    "qcNotes: null",
+    "qualityGrade: string",
+    "quantityKg: number",
+    "status: string",
+    "updatedAt: string",
+    "userId: string"
   ],
   "products": [
     "items[]: object",
@@ -372,7 +569,16 @@
   ],
   "wallet": [
     "balancePaisa: number",
-    "transactions[]: array(empty)"
+    "transactions[]: object",
+    "transactions[].amountPaisa: number",
+    "transactions[].balanceAfterPaisa: number",
+    "transactions[].createdAt: string",
+    "transactions[].direction: string",
+    "transactions[].id: string",
+    "transactions[].reason: string",
+    "transactions[].refId: null",
+    "transactions[].refType: null",
+    "transactions[].userId: string"
   ],
   "wallet/summary": [
     "membership: object",
@@ -387,6 +593,7 @@
     "[]: object",
     "[].amountPaisa: number",
     "[].channel: string",
+    "[].clientRequestId: null",
     "[].createdAt: string",
     "[].decidedAt: null",
     "[].decidedBy: null",

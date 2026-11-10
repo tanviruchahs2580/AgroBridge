@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 /**
  * Prunes orphaned disease-upload files: deletes anything older than 7 days
- * that no DiseaseCase row references. Run via cron/systemd timer, e.g.:
- *   0 3 * * * cd /srv/agrobridge/apps/api && node scripts/prune-uploads.mjs
+ * that no DiseaseCase row references.
+ *
+ * Where it runs (2026-11-10): this is a HOST-side tool for a deployment that
+ * keeps uploads on a local filesystem (`STORAGE_PROVIDER=local`, docs/deployment.md
+ * §4). The previous header suggested `0 3 * * * cd /srv/agrobridge/apps/api` — an
+ * invented host; production is Vercel + Neon, where STORAGE_PROVIDER=db stores
+ * objects in the database and there is no `uploads/` directory to prune (the
+ * retention endpoint's purge queue removes those). Run it from a checkout on the
+ * machine that owns the files: `cd apps/api && node scripts/prune-uploads.mjs`.
  */
 import { readdir, unlink, stat } from "node:fs/promises";
 import path from "node:path";

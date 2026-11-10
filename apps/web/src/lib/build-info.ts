@@ -1,9 +1,12 @@
 /**
- * Build identity for the running bundle. `version.json` is written into the
- * web root by scripts/stamp-build.mjs at build time (version + git commit), so
- * a deployed bundle — web or Android — can be traced back to the exact commit
- * that produced it. When the file is absent (dev server, unit tests) the
- * values degrade to dev/unknown rather than breaking the page.
+ * Build identity for the running bundle. `version.json` is emitted into the
+ * bundle root by the `agrobridge-build-stamp` plugin inlined in vite.config.ts
+ * (version + git commit), so a deployed bundle — web or Android — can be traced
+ * back to the exact commit that produced it. When the values are absent (dev
+ * server, unit tests) they degrade to dev/unknown rather than breaking the page.
+ *
+ * The emitter is that inline Vite plugin, not a `scripts/stamp-build.mjs` — this
+ * docblock used to name a file that does not exist anywhere in the repository.
  */
 export interface BuildInfo {
   version: string;

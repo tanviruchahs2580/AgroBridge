@@ -82,6 +82,14 @@ export default function Market() {
   const toast = useToast();
 
   const [category, setCategory] = useState("");
+  /**
+   * Catalogue page. `GET /products` answers a Paged payload (page/pageSize/
+   * total/totalPages) and this screen used to request page 1 only, silently: a
+   * catalogue with 120 products rendered 50 of them with nothing on screen
+   * saying the rest existed. The page is part of the resource identity (deps),
+   * so switching it refetches exactly this resource.
+   */
+  const [page, setPage] = useState(1);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [cartBusyIds, setCartBusyIds] = useState<Set<string>>(new Set());
 
@@ -91,15 +99,27 @@ export default function Market() {
   // catalogue no longer blanks the cart bar.
   const productsRes = useResource<ProductList>(
     "market-products",
-    // The catalogue request carries the active category — unchanged: the same
-    // `?pageSize=50&category=<cat>` URL, refetched when the chip changes.
-    () => api<ProductList>("GET", `/products?pageSize=50${category ? `&category=${category}` : ""}`),
-    [category]
+    // The catalogue request carries the active category and page — the same
+    // `?pageSize=50&category=<cat>&page=<n>` URL, refetched when either changes.
+    () => api<ProductList>("GET", `/products?pageSize=50&page=${page}${category ? `&category=${category}` : ""}`),
+    [category, page]
   );
   const cartRes = useResource<Cart>("market-cart", () => api<Cart>("GET", "/cart"));
 
   const products = productsRes.data?.items ?? [];
   const cart = cartRes.data?.items ?? [];
+  // The server's own page bounds. Rendering the pager from `total`/`totalPages`
+  // is what makes the truncation visible instead of implied.
+  const totalPages = productsRes.data?.totalPages ?? 1;
+  const cataloguePage = productsRes.data?.page ?? page;
+  const catalogueTotal = productsRes.data?.total ?? products.length;
+
+  // A page beyond the last one (a category narrowed while the user was deep in
+  // the list, a deletion shrinking the catalogue) is clamped to the last page the
+  // server reports, so the grid cannot sit empty with a pager claiming page 9/2.
+  useEffect(() => {
+    if (productsRes.data && page > totalPages) setPage(totalPages);
+  }, [productsRes.data, page, totalPages]);
 
   // Checkout wizard
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -356,7 +376,7 @@ export default function Market() {
           <button
             key={c.value || "all"}
             type="button"
-            onClick={() => setCategory(c.value)}
+            onClick={() => { setCategory(c.value); setPage(1); }}
             aria-pressed={category === c.value}
             className={`min-h-[44px] shrink-0 rounded-full px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)] ${
               category === c.value
@@ -399,7 +419,7 @@ export default function Market() {
           // The "try a different category" line was dropped: the chip row that
           // changes the category is on screen above it, and the button below is
           // the one-tap version of that advice.
-          action={category ? <Button variant="outline" onClick={() => setCategory("")}>{t("catAll", lang)}</Button> : undefined}
+          action={category ? <Button variant="outline" onClick={() => { setCategory(""); setPage(1); }}>{t("catAll", lang)}</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ contentVisibility: "auto", containIntrinsicSize: "0 500px" }}>
@@ -429,6 +449,45 @@ export default function Market() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Catalogue pager. The response has always carried total/totalPages; only
+          the first page was rendered, so a farmer comparing prices saw 50 of 120
+          products with no hint that the list was a window. Only the buttons are
+          rendered when there is somewhere to go; the position announcement keeps
+          it honest for screen readers either way. */}
+      {!productsRes.loading && !productsRes.error && productsRes.data && (
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {totalPages > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cataloguePage <= 1 || productsRes.refreshing}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="min-h-[44px]"
+            >
+              ← {t("pagerPrev", lang)}
+            </Button>
+          )}
+          <p className="text-xs font-semibold text-stone-600" aria-live="polite">
+            {t("pagerPageOf", lang, { page: cataloguePage, total: totalPages })}
+            {/* The count is a second, non-interactive fact about the same window;
+                it rides the same live region as a suffix so a page change
+                announces the whole position in one utterance. */}
+            <span className="ml-2 font-normal text-stone-500">· {t("marketTotalProducts", lang, { n: catalogueTotal })}</span>
+          </p>
+          {totalPages > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cataloguePage >= totalPages || productsRes.refreshing}
+              onClick={() => setPage((p) => p + 1)}
+              className="min-h-[44px]"
+            >
+              {t("pagerNext", lang)} →
+            </Button>
+          )}
         </div>
       )}
 

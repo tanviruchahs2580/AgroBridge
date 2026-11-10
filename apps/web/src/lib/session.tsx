@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, setUnauthorizedHandler } from "./api";
-import { getTokens, clearTokens as smClearTokens } from "./sessionManager";
+import { broadcastLogout, clearTokens as smClearTokens, getTokens, onChange } from "./sessionManager";
 import { track } from "./analytics";
 import { t } from "./i18n";
 import { useToast } from "../components/ui";
@@ -64,6 +64,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Dark mode — the boot script in index.html already set data-theme before
   // React mounted; keep the context state and browser-chrome colors in sync
   // and follow live OS preference changes while the user has no explicit choice.
+  //
+  // The paint is keyed on `dark`, not run once on mount. It used to run once
+  // with the listener calling only setDark, so when the OS flipped light→dark the
+  // icon and aria-pressed moved while html[data-theme] stayed light: the control
+  // reported the opposite of the theme actually painted. The suppression that
+  // hid it (`eslint-disable exhaustive-deps` on an empty deps array) was
+  // load-bearing, so re-running the effect — which reapplies the theme and
+  // re-binds the listener — is the fix, not a workaround.
   useEffect(() => {
     applyTheme(dark);
     const mq = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -79,10 +87,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
     mq?.addEventListener?.("change", onChange);
     return () => mq?.removeEventListener?.("change", onChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dark]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     if (!getTokens().accessToken) {
       setSession(null);
       setLoading(false);
@@ -103,12 +110,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setSession(null); // tokens survive network failures; session restores next boot
     }
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refresh]);
 
   // Final-401 hook from the http layer: clear session, notify, send to /login
   // keeping the current path so login can return the user.
@@ -126,12 +132,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search, session?.lang]);
 
+  // Cross-tab sign-out. `logout()` broadcasts, and the session manager's
+  // storage/BroadcastChannel listeners clear its mirrors in every other tab —
+  // but React state is not part of that mirror, so this tab kept rendering the
+  // signed-in app (shell, wallet, farm data) for a session that no longer
+  // existed anywhere else. Adopting the manager's cleared state signs the tab
+  // out through the normal guard rather than on the next 401.
+  useEffect(
+    () =>
+      onChange(({ tokens }) => {
+        if (!tokens.accessToken) setSession((current) => (current ? null : current));
+      }),
+    []
+  );
+
   // Keep <html lang> in sync with the active UI language.
   useEffect(() => {
     document.documentElement.lang = session?.lang === "en" ? "en" : "bn";
   }, [session?.lang]);
 
-  function logout() {
+  const logout = useCallback(() => {
     // The refresh token MUST travel in the body: `POST /auth/logout` revokes the
     // refresh token it is given (`req.body.refreshToken`, optional) and does
     // nothing at all when the body is empty. This call used to send `{}`, so
@@ -144,16 +164,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // (tests/security-matrix.test.ts:65) — the client was simply not exercising it.
     const { refreshToken } = getTokens();
     void api("POST", "/auth/logout", refreshToken ? { refreshToken } : {}).catch(() => undefined);
-    smClearTokens();
+    // broadcastLogout, not clearTokens: signing out is an intent that applies to
+    // every tab on this device, and only the broadcast tells the others.
+    broadcastLogout();
     setSession(null);
-  }
+  }, []);
 
-  function endSession() {
-    smClearTokens();
+  const endSession = useCallback(() => {
+    // Also a broadcast: the account is gone, so every tab on this device must
+    // stop rendering it. No server call — see the docblock above.
+    broadcastLogout();
     setSession(null);
-  }
+  }, []);
 
-  async function setLang(l: "bn" | "en") {
+  const setLang = useCallback(async (l: "bn" | "en") => {
     setSession((s) => (s ? { ...s, lang: l } : s));
     document.documentElement.lang = l;
     track("language_switch", { to: l });
@@ -162,9 +186,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       /* keep UI language even if persist fails */
     }
-  }
+  }, []);
 
-  function toggleDark() {
+  const toggleDark = useCallback(() => {
     setDark((prev) => {
       const next = !prev;
       document.documentElement.classList.add("theme-transition");
@@ -178,9 +202,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       track("dark_mode_toggle", { mode: next ? "dark" : "light" });
       return next;
     });
-  }
+  }, []);
 
-  return <SessionCtx.Provider value={{ session, loading, dark, refresh, logout, endSession, setLang, toggleDark }}>{children}</SessionCtx.Provider>;
+  /**
+   * Memoised context value. It was rebuilt on every provider render — including
+   * renders caused by state this context does not expose — so every consumer of
+   * useSession re-rendered with it (the whole shell on each toast, every
+   * useResource subscriber on each queued-mutation tick). The handlers are
+   * useCallback-stable, so the memo now actually holds between those renders.
+   */
+  const value = useMemo<Ctx>(
+    () => ({ session, loading, dark, refresh, logout, endSession, setLang, toggleDark }),
+    [session, loading, dark, refresh, logout, endSession, setLang, toggleDark]
+  );
+
+  return <SessionCtx.Provider value={value}>{children}</SessionCtx.Provider>;
 }
 
 export function useSession() {

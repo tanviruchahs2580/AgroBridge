@@ -34,7 +34,7 @@ Steps:
 1. Open the app. The login screen appears.
 2. Enter the phone number and password above and tap "লগইন" (Login).
 3. Use the bottom navigation to move between the screens:
-   হোম (Home), আমার ফার্ম (My Farm), এআই কৃষি সহকারী (AI Agro Agent),
+   হোম (Home), আমার খামার (My Farm), এআই কৃষি সহকারী (AI Agro Agent),
    বাজার (Market), ওয়ালেট (Wallet), আমার অর্ডার (My Orders).
 4. Home shows weather advisories, today's crop-care tasks and a farm summary.
 5. All screens are available in Bangla and English — the "EN / বাং" button in the header

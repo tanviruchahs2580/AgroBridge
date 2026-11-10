@@ -4,10 +4,12 @@
  * The audit asks that validation errors reach the user as visible, localized
  * copy — not just state. This mounts the real Login form (no testing-library in
  * this repo; raw react-dom/client + act, mirroring components/ui.test.tsx) and
- * drives the three validation branches:
+ * drives the two validation branches that exist:
  *   - empty submit → both required-field messages render as role="alert"
  *   - invalid phone + blur → the BD-phone message replaces the field state
- *   - short password + blur → the weak-password message
+ *   - a SHORT password is deliberately not a client-side error here (F-35):
+ *     the registration length policy does not apply to authentication, and the
+ *     submit is allowed to reach the API with it
  * No network is touched: the component's own validation returns before api().
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -105,7 +107,7 @@ describe("Login form — validation reaches the user", () => {
     mounted.unmount();
   }, 15_000);
 
-  it("invalid phone and short password surface their mapped messages on blur", async () => {
+  it("does not apply the registration password policy to sign-in (F-35)", async () => {
     const mounted = mount(
       React.createElement(MemoryRouter, null, React.createElement(Login))
     );
@@ -116,13 +118,26 @@ describe("Login form — validation reaches the user", () => {
     await blur(phone);
     expect(alerts()).toContain(PHONE_INVALID);
 
+    // A short password is the SERVER's business: `POST /auth/login` accepts
+    // `z.string().min(1)`, and this form used to reject anything under 8 with the
+    // signing-UP policy — so a mistyped password was reported as "weak" instead
+    // of "wrong", the button was dead until blur, and a legacy account with a
+    // short password could never sign in from the web client at all.
     await type(password, "short");
     await blur(password);
-    expect(alerts()).toContain(WEAK_PASSWORD);
+    expect(alerts()).not.toContain(WEAK_PASSWORD);
+    expect(must<HTMLInputElement>("#password").getAttribute("aria-invalid")).not.toBe("true");
 
-    // The submit control reflects the invalid state instead of submitting it.
-    expect(must<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
-    expect(mockApi).not.toHaveBeenCalled();
+    // The phone number is now valid, so the submit control is live and the short
+    // password reaches the API — where the credential check decides.
+    await type(phone, "01712345678");
+    const submit = must<HTMLButtonElement>('button[type="submit"]');
+    expect(submit.disabled).toBe(false);
+    await act(async () => {
+      submit.click();
+    });
+    expect(mockApi).toHaveBeenCalledTimes(1);
+    expect(mockApi).toHaveBeenCalledWith("POST", "/auth/login", { phone: "01712345678", password: "short" });
     mounted.unmount();
   }, 15_000);
 });

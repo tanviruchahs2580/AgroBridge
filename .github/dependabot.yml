@@ -5,8 +5,12 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    # Routine bumps arrive as one PR; majors stay individual so a breaking
-    # change is reviewed on its own.
+    # Bounded queue: 10 refs were open with none merged or closed (F-86), which
+    # is how a dependency PR becomes invisible rather than decided. Patch/minor
+    # arrive as one grouped PR; a major arrives on its own — per CONTRIBUTING.md
+    # §Dependency policy a major is a migration (branch, compatibility test,
+    # rollback note), so it is triaged deliberately rather than ignored here.
+    open-pull-requests-limit: 5
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]
@@ -16,25 +20,51 @@ updates:
     schedule:
       interval: weekly
     # Every `uses:` is pinned to a full SHA; this is what rotates them. Grouped
-    # so the churn is one reviewable PR instead of one per action.
+    # so the churn is one reviewable PR instead of one per action. No ignores:
+    # a security fix in an action is worth the review.
+    open-pull-requests-limit: 2
     groups:
       github-actions:
         patterns: ["*"]
 
   # Dockerfiles live in docker/, compose files at the root. Base images are
-  # digest-pinned, so Dependabot is the only automated path that moves them.
+  # digest-pinned, so Dependabot is the only automated path that moves them —
+  # which is exactly why majors are held during the release-stabilisation window:
+  # a `node:25-alpine` bump contradicts the Node 22 pin (.nvmrc, engines.node,
+  # AGENTS.md §2) and would change the interpreter this project builds and tests
+  # with, with no test that can see it. Removing an ignore entry belongs in the
+  # PR that performs the migration (new .nvmrc + engines + a CI run on that
+  # runtime), never in a dependency bump (F-86).
   - package-ecosystem: docker
     directory: "/docker"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
     groups:
       docker-images:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "nginx"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
     groups:
       compose-images:
         patterns: ["*"]
+    ignore:
+      # Same reasoning as /docker: postgres 16→17 needs a pgdata volume
+      # migration (docker-compose.yml says so in a comment), not a tag edit.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "grafana/grafana"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prom/prometheus"
+        update-types: ["version-update:semver-major"]

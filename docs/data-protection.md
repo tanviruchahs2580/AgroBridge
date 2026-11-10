@@ -3,19 +3,21 @@
 Operational companion to `PRIVACY_POLICY.md` (user-facing). Scope: production PostgreSQL
 + local uploads + backups on the single-VM deployment.
 
-Current production reality (2026-10-19): the API runs as Vercel Functions and writes to PostgreSQL
-on Neon, and uploads use `STORAGE_PROVIDER=db` (durable rows in the database), not instance-local
+Current production reality (2026-10-19): the API runs as Vercel Functions in the observed `iad1`
+region (US East) and writes to PostgreSQL on Neon (primary co-located in `iad1` — ADR-0018), and
+uploads use `STORAGE_PROVIDER=db` (durable rows in the database), not instance-local
 disk (`docs/runbooks/live-deployment.md`; `docs/runtime-contract.md`). The "backups on the
 single-VM deployment" scope below describes the docker-compose deployment path; where it differs
-from the Vercel+Neon path (notably backup ownership), the platform configuration is authoritative
-and the gap is tracked in `.audit/v2/DECISIONS.md`. Related: `docs/threat-model.md` (AC-09, AC-14)
-for upload and log-exposure controls.
+from the Vercel+Neon path (notably backup ownership), the platform configuration is authoritative.
+The decision register that used to be cited here (`.audit/v2/DECISIONS.md`) is **not in this
+repository** and cannot be resolved from a clone (see `docs/STATUS.md` §Where the evidence lives).
+Related: `docs/threat-model.md` (AC-09, AC-14) for upload and log-exposure controls.
 
 ## Retention schedule
 
 | Data | Where | Retention | Mechanism |
 |---|---|---|---|
-| Account & profile data | PostgreSQL | account lifetime | deleted/anonymized at account deletion (incl. `region`, address fields) |
+| Account & profile data | PostgreSQL | account lifetime | deleted/anonymized at account deletion (incl. `region`, address fields, farm geo fields and free-text advisory/farm-event content — see §Account deletion mechanics) |
 | Auth refresh tokens | PostgreSQL | 7 days (TTL) | expiry + rotation + revoked at deletion |
 | OTP challenges | PostgreSQL | 5 minutes / until consumed | expiry; **deleted at account deletion** |
 | Crop/disease photos (files) | storage provider (`uploads/` or S3) | account lifetime | **purged at deletion** (best-effort per file; failures logged) |
@@ -28,8 +30,9 @@ for upload and log-exposure controls.
 ## Account deletion mechanics
 
 Triggered by in-app **Settings → Delete Account** (`DELETE /api/v1/auth/me`).
-**What the code actually does** (verified against the handler on 2026-10-18; an earlier
-revision of this document described behaviour that was never built):
+**What the code actually does** (baseline verified against the handler on 2026-10-18 — an earlier
+revision of this document described behaviour that was never built; the farm/advisory extension
+marked "post-fix" below is *not* in the code at `3f1c991`):
 
 1. **Blocks** deletion while the account has unpaid/pending orders or open withdrawals
    (the response asks the user to resolve them first).
@@ -57,8 +60,21 @@ revision of this document described behaviour that was never built):
    provider retains its snapshots (platform-managed; we do not operate our own backup jobs)")
    and no fixed day-count is promised to users.
 
-**Known residuals** (verified against the code on 2026-10-18 — do not claim more):
+> **Post-fix extension (F-12, landing in the same remediation wave) — describes the handler
+> *after* the change, not the code at `3f1c991`.** Deletion additionally anonymises the farm
+> geometry (`Farm.address`, `district`, `upazila`, `lat`, `lng`), the free text on farm events
+> (`FarmEvent.title`, `notes`) and the free text of advisory queries
+> (`AdvisoryQuery.question`, `answer`). Until that change merges, the two rows a regulator or the
+> Play Console would read (the retention table and the Data-safety table below) state the
+> *post-fix* behaviour, and this callout is the marker. Verify against the current handler in
+> `apps/api/src/modules/auth/routes.ts` (`DELETE /me`) before relying on it externally.
 
+**Known residuals** (baseline verified against the code on 2026-10-18 — do not claim more):
+
+- **Notification bodies, audit-log IPs and login-attempt rows survive deletion.** The F-12
+  extension covers farm geometry and advisory/event free text only; it does not rewrite
+  `Notification.body`, `AuditLog.ip` or the `LoginAttempt` rows. Recorded as a follow-up
+  decision, not fixed here.
 - **Disease-case metadata rows survive deletion** (diagnosis text, storage key). The photo
   *bytes* are purged (step 6); the advisory record itself is retained with the anonymized
   user id. If policy later requires removing these, the cascade is one `deleteMany`.
@@ -105,25 +121,29 @@ root cause, corrective actions w/ owners.
 
 ## Play Console — Data Safety form mapping
 
-Source of truth: `apps/api/prisma/schema.prisma` + this document.
+Source of truth: `apps/api/prisma/postgres/schema.prisma` (the production runtime variant — F-61;
+kept in parity with the SQLite variant by `apps/api/tests/schema-parity.test.ts`) + this document.
 
 | Data type | Collected? | Purpose | Encrypted in transit | Deletable by user |
 |---|---|---|---|---|
 | Phone number | Yes | Account mgmt, app functionality (OTP) | Yes (TLS) | Yes (account deletion; financial refs retained) |
 | Name | Yes | App functionality (profile, orders) | Yes | Yes (anonymized) |
-| Physical address (farm location/GPS) | Yes | App functionality (advisories, logistics) | Yes | Yes |
+| Physical address (farm location/GPS) | Yes | App functionality (advisories, logistics) | Yes | Yes (anonymised at account deletion — F-12 post-fix extension, see the callout above) |
 | Photos (crop images) | Yes | App functionality (disease detection) | Yes | Yes (files purged at account deletion; JPEG EXIF stripped at upload) |
 | Financial info (payment/wallet transactions) | Yes | App functionality (payments, payouts) | Yes | **No** — retained 5y per bookkeeping norms |
-| Device or other IDs | Yes | Analytics (self-hosted), crash reporting | Yes | No (aggregated, non-identifying) |
+| App interactions (screen-open events) | Yes | Analytics (first-party product metrics, written with the account id — `apps/api/src/modules/analytics/routes.ts`) | Yes | No — removed by the 180-day retention job, not by account deletion |
+| Device or other IDs | **No** — no device-identifier API and no crash-reporting SDK is installed | — | — | — |
 | Contacts / SMS / gallery | **No** | — | — | — |
 | Precise location beyond farm plot input | **No** (only plot coordinates the user enters) | — | — | — |
 
-All network traffic is TLS via the nginx edge (`docker/web.nginx.prod.conf`). No ads SDKs,
-no third-party analytics — crash/analytics are self-hosted.
+All network traffic is TLS (Vercel's edge in production; the nginx image in the compose
+deployment). No ads SDKs and no third-party analytics. There is no crash-reporting sink — the web
+app reports errors to the console only (`AGENTS.md` §14).
 
 ## Retention enforcement job (2026-10-19, SEC-06 / ADR-0011)
 
-`npm run retention --workspace apps/api` (cron: `0 5 * * *`) hard-deletes only rows past
+`npm run retention --workspace apps/api` (production cron: `43 20 * * *` UTC on
+`/api/v1/ops/retention` — `apps/api/vercel.json`) hard-deletes only rows past
 their documented window and is safe to re-run. Implementation: `apps/api/scripts/retention.mjs`,
 covered by `apps/api/tests/retention-job.test.ts` (old rows go, window rows survive).
 

@@ -28,3 +28,18 @@ monitoring
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# Untracked local working artefacts. .gitignore already hides them from git, and
+# CI never has them (it builds from a fresh clone) — but a local `docker build`
+# did drag ~130 MB into the context and, because docker/web.Dockerfile ends with
+# `COPY . .`, into the web builder layer: four debug APKs (32 MB), the audit and
+# evidence trees, QA screenshots and jscpd output (F-84).
+*.apk
+tmp_*.mjs
+api-full-validation.sh
+New folder/
+.audit*/
+.audit-archive/
+.agent-evidence/
+qa-*/
+jscpd-report/

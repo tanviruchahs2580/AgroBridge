@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, registerFarmer, getAdmin } from "./helpers.js";
+import { app, createUserWithRole, getAdmin, registerFarmer } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 
 const MIN_WITHDRAWAL_PAISA = 10_000; // ৳100
@@ -163,5 +163,39 @@ describe("Wallet withdrawals — admin decisions", () => {
       .set("Authorization", `Bearer ${f.accessToken}`)
       .send({ action: "APPROVE" });
     expect(res.status).toBe(403);
+  });
+
+  it("an admin cannot decide their OWN withdrawal request — separation of duties (F-75)", async () => {
+    const admin = await getAdmin();
+    await seedBalance(admin.userId, 50_000);
+    const wd = await requestWithdrawal(admin.accessToken, 10_000);
+    expect(wd.status).toBe(201);
+    const wdId = wd.body.data.id as string;
+
+    const selfDecision = await request(app)
+      .post(`/api/v1/admin/withdrawals/${wdId}/decision`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ action: "APPROVE" });
+    expect(selfDecision.status).toBe(403);
+    expect(selfDecision.body.error.message).toMatch(/separation of duties/i);
+
+    // Refused before the claim transaction: still PENDING, hold intact, no debit.
+    const row = await prisma.withdrawal.findUniqueOrThrow({ where: { id: wdId } });
+    expect(row.status).toBe("PENDING");
+    const wallet = await prisma.wallet.findUniqueOrThrow({ where: { userId: admin.userId } });
+    expect(wallet.balancePaisa).toBe(50_000);
+    expect(wallet.heldPaisa).toBe(10_000);
+    expect(await prisma.walletTransaction.count({ where: { refType: "WITHDRAWAL", refId: wdId } })).toBe(0);
+
+    // A different operator can still decide it; rejecting releases the hold so
+    // this test leaves no funds stuck in the shared seed wallet.
+    const otherAdmin = await createUserWithRole("ADMIN");
+    const reject = await request(app)
+      .post(`/api/v1/admin/withdrawals/${wdId}/decision`)
+      .set("Authorization", `Bearer ${otherAdmin.accessToken}`)
+      .send({ action: "REJECT" });
+    expect(reject.status).toBe(200);
+    expect(reject.body.data.status).toBe("REJECTED");
+    expect((await prisma.wallet.findUniqueOrThrow({ where: { userId: admin.userId } })).heldPaisa).toBe(0);
   });
 });

@@ -5,15 +5,18 @@ repository (`apps/api/tests/…`, `apps/web/src/**/*.test.ts(x)`, `apps/web/e2e/
 quoted because they move every round — take totals from your own run (the README says the same).
 
 Priority: **P0** = money, auth, tenancy, data integrity; **P1** = core product journeys; **P2** =
-supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`.
+supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`. File names track
+the 2026-11-10 domain-named suite renames (F-92): the round-numbered files
+(`hardening-round11`, `misc-hardening`, `round10-regressions`, `rbac-fixes`, `auth-hardening`,
+`disease-upload-hardening`) were split into behaviour-named suites.
 
 | Capability | Pri | Representative tests | Suite | CI job |
 |---|---|---|---|---|
-| Registration, login, refresh rotation + reuse detection, logout | P0 | `journey-auth.test.ts`; `auth-hardening.test.ts`; `login-timing-equalisation.test.ts` | api | `api-quality`, `api-postgres` |
-| Phone OTP verification | P0 | `auth-hardening.test.ts` (OTP suite) | api | `api-quality`, `api-postgres` |
-| Account deletion (anonymize, block with pending money) and data export | P0 | `auth-hardening.test.ts`; `auth-deletion-completion.test.ts`; `auth-export.test.ts` | api | `api-quality`, `api-postgres` |
+| Registration, login, refresh rotation + reuse detection, logout | P0 | `journey-auth.test.ts`; `auth-session-integrity.test.ts`; `login-timing-equalisation.test.ts` | api | `api-quality`, `api-postgres` |
+| Phone OTP verification | P0 | `auth-session-integrity.test.ts` (OTP suite) | api | `api-quality`, `api-postgres` |
+| Account deletion (anonymize, block with pending money) and data export | P0 | `auth-session-integrity.test.ts` (deletion); `auth-deletion-completion.test.ts`; `auth-export.test.ts` | api | `api-quality`, `api-postgres` |
 | Auth/financial rate limiting and 429 envelope | P0 | `auth-rate-limit-envelope.test.ts`; `rate-limit-envelope.test.ts`; `rate-limit-redis.test.ts` | api | `api-quality`, `api-postgres` |
-| Server-side RBAC and privilege-escalation resistance | P0 | `security-matrix.test.ts`; `rbac-fixes.test.ts` | api | `api-quality`, `api-postgres` |
+| Server-side RBAC and privilege-escalation resistance | P0 | `security-matrix.test.ts`; `booking-and-procurement-scope.test.ts` | api | `api-quality`, `api-postgres` |
 | IDOR/BOLA across orders, payments, notifications, advisories, disease cases | P0 | `cross-user-negative.test.ts`; `security-matrix.test.ts`; `farm-event-sync-scoping.test.ts` | api | `api-quality`, `api-postgres` |
 | Tenant (organization) isolation | P0 | `tenant-isolation.test.ts` | api | `api-quality`, `api-postgres` |
 | CORS origin policy and security headers | P0 | `cors-origin-policy.test.ts`; `security-observability.test.ts` | api | `api-quality`, `api-postgres` |
@@ -26,7 +29,7 @@ supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`.
 | Wallet withdrawals, holds, approve/reject, race safety | P0 | `wallet-withdrawals.test.ts`; `withdrawal-race.test.ts`; `timezone-boundaries.test.ts` | api | `api-quality`, `api-postgres` |
 | Procurement QC pipeline, grade/moisture math, payout credit | P0 | `journey-services-procurement.test.ts`; `unit-core.test.ts` (price engine) | api | `api-quality`, `api-postgres` |
 | Concurrent payouts credit once | P0 | `concurrency.test.ts` | api (PG profile) | `api-postgres` |
-| Disease upload hardening (size, MIME, magic bytes, EXIF) and storage durability | P0 | `disease-upload-hardening.test.ts`; `storage-db-provider.test.ts` | api | `api-quality`, `api-postgres` |
+| Disease upload hardening (size, MIME, magic bytes, EXIF), upload rate limiting, and storage durability | P0 | `disease-upload-integrity.test.ts`; `disease-upload-rate-limit.test.ts`; `storage-db-provider.test.ts` | api | `api-quality`, `api-postgres` |
 | Farm records: farm → plot → crop lifecycle, task calendar | P1 | `journey-farm.test.ts`; `unit-core.test.ts` (lifecycle stages) | api | `api-quality`, `api-postgres` |
 | Offline-first farm events, `clientUuid` idempotency, owner scoping | P1 | `journey-farm.test.ts`; `farm-event-sync-scoping.test.ts` | api | `api-quality`, `api-postgres` |
 | Weather providers, cache freshness, provenance fields | P1 | `journey-weather-ai-disease.test.ts`; `weather-cache.test.ts`; `weather-provenance.test.ts`; `unit-core.test.ts` (risk engine) | api | `api-quality`, `api-postgres` |
@@ -35,7 +38,7 @@ supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`.
 | Service catalog, booking lifecycle, pricing units, rating | P1 | `journey-services-procurement.test.ts`; `services-pricing-rating.test.ts` | api | `api-quality`, `api-postgres` |
 | Notifications and cross-user isolation | P1 | `journey-admin.test.ts`; `cross-user-negative.test.ts` | api | `api-quality`, `api-postgres` |
 | Admin metrics, user suspension with instant revocation, audit log viewer | P1 | `journey-admin.test.ts`; `admin-pagination-bounds.test.ts`; `security-matrix.test.ts` | api | `api-quality`, `api-postgres` |
-| Response contract, error envelope, list totals | P1 | `response-contract.test.ts`; `money-list-total-count.test.ts`; `misc-hardening.test.ts` | api | `api-quality`, `api-postgres` |
+| Response contract, error envelope, list totals | P1 | `response-contract.test.ts`; `money-list-total-count.test.ts`; `error-envelope-and-metrics.test.ts` | api | `api-quality`, `api-postgres` |
 | Environment parity and placeholder fail-fast, cost guard | P1 | `env-parity.test.ts`; `env-cost-guard.test.ts` | api | `api-quality`, `api-postgres` |
 | Schema parity across dialect copies and migration chain | P0 | `schema-parity.test.ts`; `docs-route-parity.test.ts` | api | `api-quality`; drift itself by `api-migration-drift` |
 | Web session handling, API client, error mapping | P1 | `apps/web/src/lib/api.test.ts`; `apps/web/src/lib/session.test.tsx`; `apps/web/src/lib/useResource.test.tsx` | web | `web-quality` |
@@ -63,7 +66,8 @@ supporting surfaces. CI job ids are the job keys in `.github/workflows/ci.yml`.
 ## Gaps this map keeps visible
 
 - **No device-level Android testing.** `android-build` produces an APK; nothing runs on a device or
-  emulator in CI (`.audit/v2/BASELINE.md` records the same environment limitation).
+  emulator in CI (the local audit working tree recorded the same limitation; it is not in this
+  repository — see `docs/STATUS.md` §Where the evidence lives).
 - **No load or soak test in CI.** The only load figure in the repo is the local autocannon profile
   in `docs/testing.md`; `qa-evidence/P1-loadtest-local.log` is a one-off run, not a gate.
 - **No XSS or CSRF-specific test** despite the localStorage token decision (see

@@ -6,22 +6,28 @@ documentation on **2026-10-19** and are quoted with their source URL. Everything
 than documented) is labelled as observed; anything not measured in this repository is marked
 **UNVERIFIED**.
 
+**Evidence note (2026-11-10).** Several rows cite the machine-local probe set
+`.audit/evidence/E-V2-live-probes.txt`. That tree is **not tracked and not in a clone of this
+repository** (F-21 — see `docs/STATUS.md` §Where the evidence lives). Those citations are
+provenance records, marked inline; where a live claim has been re-observed since, the 2026-11-10
+full-qa audit's re-probe is cited alongside (`docs/audit/2026-11-10-full-qa-audit.md` §3.6).
+
 ## Topology
 
 | Component | Runtime | Evidence |
 |---|---|---|
 | Web SPA | Vercel static deployment, project `agrobridge-web` | `docs/runbooks/live-deployment.md` (topology table); `apps/web/vercel.json` (`framework: vite`, SPA rewrite, header set) |
 | API | Vercel Functions via `@vercel/node`, entry `api/index.js` importing `../dist/app.js` | `docs/runbooks/live-deployment.md` ("Function bundle facts"); `apps/api/vercel.json` |
-| Database | PostgreSQL on Neon (Vercel Marketplace integration) behind the API function | `docs/runbooks/live-deployment.md`; `/ready` reports `db: true` in `.audit/evidence/E-V2-live-probes.txt` |
-| Rate-limit store | In-process memory unless `REDIS_URL` is set; `/ready` publishes which is active | `apps/api/src/app.ts:26-39`; live `/ready` reports `"limiterStore":"memory"` (`.audit/evidence/E-V2-live-probes.txt`) |
+| Database | PostgreSQL on Neon (Vercel Marketplace integration) behind the API function; primary co-located with the functions in `iad1` (ADR-0018) | `docs/runbooks/live-deployment.md`; `/ready` reports `db: true` (the original 2026-10-19 probe file `.audit/evidence/E-V2-live-probes.txt` is not in this repository — see the evidence note above) |
+| Rate-limit store | In-process memory unless `REDIS_URL` is set; `/ready` publishes which is active | `limiterStore` selection in `apps/api/src/app.ts`; `/ready` reports `"limiterStore":"memory"` (the 2026-10-19 probe file is not in this repository — see the evidence note above) |
 | Metrics | Prometheus scrape of `api:4000/metrics` (compose network); `/metrics` guarded in production | `monitoring/prometheus.yml`; `apps/api/src/middleware/metricsGuard.ts` |
 
 ## Observed regions (live probes, 2026-10-19)
 
 | Surface | Observed | Evidence |
 |---|---|---|
-| Web edge | `bom1` (Mumbai) | `X-Vercel-Id: bom1::m65x2-…` in `.audit/evidence/E-V2-live-probes.txt:28` |
-| API function execution | `iad1` (US East) | `X-Vercel-Id: bom1::iad1::…` in `.audit/evidence/E-V2-live-probes.txt:40` |
+| Web edge | `bom1` (Mumbai) | `X-Vercel-Id: bom1::…` in the 2026-10-19 probe set — **not in this repository**, not reproducible from a clone (see the evidence note above) |
+| API function execution | `iad1` (US East) | `X-Vercel-Id: bom1::iad1::…` in the 2026-10-19 probe set — **not in this repository**; re-observed by the 2026-11-10 full-qa audit (`docs/audit/2026-11-10-full-qa-audit.md` §3.6/§2.4) |
 
 The function region is not pinned anywhere in the repository: neither `apps/api/vercel.json` nor
 `apps/web/vercel.json` contains a `regions` or `functions` block. Vercel's documentation states
@@ -80,18 +86,18 @@ therefore whichever row of the table above applies to the owner's account.
 
 | Path | Timeout | Evidence |
 |---|---|---|
-| AI provider request | 20 s, then a typed `TIMEOUT` error | `apps/api/src/providers/ai/openai-compat.ts:34,163,174` |
-| Weather provider fetch (current and forecast) | 8 s | `apps/api/src/providers/weather/openweather.ts:5,13,38` |
-| S3-compatible storage request | 30 s | `apps/api/src/providers/storage/s3.ts:75` |
-| Checkout / payout / webhook / withdrawal Prisma transactions | `timeout: 15000`, `maxWait: 8000` | `apps/api/src/modules/marketplace/routes.ts:442`; `apps/api/src/modules/payments/routes.ts:523`; `apps/api/src/modules/payments/webhook.ts:92` |
-| Global rate-limit window | 15 min, 300 requests per window per instance/key | `apps/api/src/config/env.ts:26-27`; `apps/api/src/app.ts:76-87` |
+| AI provider request | 20 s, then a typed `TIMEOUT` error | `REQUEST_TIMEOUT_MS` in `apps/api/src/providers/ai/openai-compat.ts` |
+| Weather provider fetch (current and forecast) | 8 s | `FETCH_TIMEOUT_MS` in `apps/api/src/providers/weather/openweather.ts` |
+| S3-compatible storage request | 30 s | `S3_TIMEOUT_MS` / `withResilience("s3", …)` in `apps/api/src/providers/storage/s3.ts` |
+| Checkout / payout / webhook / withdrawal Prisma transactions | `timeout: 15000`, `maxWait: 8000` | the checkout transaction in `apps/api/src/modules/marketplace/routes.ts`; the payment/wallet transactions in `apps/api/src/modules/payments/routes.ts`; the webhook claim in `apps/api/src/modules/payments/webhook.ts` |
+| Global rate-limit window | 15 min, 300 requests per window per instance/key | `RATE_LIMIT_WINDOW_MINUTES` / `RATE_LIMIT_MAX` in `apps/api/src/config/env.ts`; the global `rateLimit` middleware in `apps/api/src/app.ts` |
 
 ## What breaks first
 
 Ordered by how little it takes to hit the limit, with the failure the user sees:
 
 1. **Disease photo upload between 4.5 MB and 8 MB.** The application accepts images up to 8 MB
-   (`apps/api/src/modules/disease/routes.ts:19,47`) but Vercel rejects any request body over
+   (the size cap in `apps/api/src/modules/disease/routes.ts`) but Vercel rejects any request body over
    4.5 MB with 413 `FUNCTION_PAYLOAD_TOO_LARGE` before the app runs. The in-app copy says 8 MB
    (`apps/web/src/lib/i18n.ts`, `imageTooLarge`), so a 5–8 MB photo fails at the edge with a
    platform error. Files under 4.5 MB behave as documented.
@@ -101,7 +107,7 @@ Ordered by how little it takes to hit the limit, with the failure the user sees:
    binding constraint is the client, which sees a slow answer rather than a 504.
 3. **The rate limiter under scale-out.** Without `REDIS_URL` each instance enforces its own
    window, so the effective quota is instances × limit and the limiter fails open rather than
-   closed (`apps/api/src/app.ts:31-39`, documented in `docs/security.md`). Production reports
+   closed (`limiterStore` selection in `apps/api/src/app.ts`, documented in `docs/security.md`). Production reports
    `limiterStore: "memory"`.
 4. **Connections to Neon under concurrency.** No pool configuration exists in code; if function
    concurrency rises faster than the Neon plan's connection ceiling, requests fail at connect
@@ -110,7 +116,7 @@ Ordered by how little it takes to hit the limit, with the failure the user sees:
    Prisma P2028. At pilot volume this has not been observed; there is no production measurement
    either way.
 6. **Metrics cardinality.** `agrobridge_http_request_duration_seconds` is labelled by matched
-   route pattern and status, not raw URL (`apps/api/src/infrastructure/metrics.ts:44-58`), so
+   route pattern and status, not raw URL (`agrobridge_http_request_duration_seconds` labels in `apps/api/src/infrastructure/metrics.ts`), so
    scanner traffic cannot mint unbounded label sets — this is a controlled risk, not a first
    breaker.
 7. **Function duration.** The default 300 s is far above every in-app operation; nothing in the
@@ -120,8 +126,8 @@ Ordered by how little it takes to hit the limit, with the failure the user sees:
 ## Owner decisions this contract depends on
 
 - Pin `regions` (e.g. `bom1`) and/or set `functions.maxDuration` explicitly, or record that the
-  platform defaults are accepted (`.audit/v2/DECISIONS.md` leaves this to the owner; see
-  `.audit/v2/FINDINGS.md` runtime finding).
+  platform defaults are accepted (the decision register that left this to the owner is **not in
+  this repository** — see `docs/STATUS.md` §Where the evidence lives).
 - Decide the Neon plan and connection strategy, and record the ceiling in this file.
 - Decide whether uploads above the platform 4.5 MB cap should be rejected client-side and re-label
   the 8 MB copy.

@@ -15,6 +15,9 @@ apps/web/dist/
 *.db
 *.db-journal
 *.sqlite
+# Test-run lock guarding apps/api/prisma/test.db (tests/global-setup.ts):
+# two concurrent runs shared one database and corrupted each other.
+apps/api/prisma/.test-db.lock
 
 # Logs
 logs/
@@ -80,6 +83,18 @@ apps/web/src/api/
 
 # ZCode session tooling (local plans/task artifacts)
 .zcode/
+
+# Audit working trees (untracked by design — F-21/F-79). They held the machine-local
+# evidence the tracked docs used to cite; those citations are now marked unavailable
+# instead (see docs/STATUS.md §Where the evidence lives). Previously excluded only via
+# .git/info/exclude — machine-local, not cloned, not reviewed.
+/.audit/
+/.audit-archive/
+/.agent-evidence/
+
+# Screenshot drop from a design-review session (apps/web/IMG-01/) — raw captures, not
+# source. Tracked images live in apps/web/public/ with provenance in docs/asset-provenance.md.
+apps/web/IMG-01/
 
 # Local QA artifacts (sweep screenshots/results, test logs, ad-hoc probes).
 # `qa-evidence/*`, not `qa-evidence/`: excluding the directory itself also excludes

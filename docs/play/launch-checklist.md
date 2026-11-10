@@ -89,12 +89,12 @@ described in this file; "later" means a deliberate follow-up activation.
 
 | Variable | Required | Value / source | Why |
 |---|---|---|---|
-| `DATABASE_URL` (+`POSTGRES_*`) | now | injected by the Neon marketplace integration | PostgreSQL connection (`env.ts:21`) |
-| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | now | random 32-byte hex each | production boot aborts on default/dev values (`env.ts:22-23`, `:135-140`) |
+| `DATABASE_URL` (+`POSTGRES_*`) | now | injected by the Neon marketplace integration | PostgreSQL connection (`apps/api/src/config/env.ts`) |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | now | random 32-byte hex each | production boot aborts on default/dev values (the boot gate in `apps/api/src/config/env.ts`) |
 | `NODE_ENV` | now | `production` | picks the production guardrails |
-| `WEB_ORIGIN` | now | comma list; see §3 for the domain step | CORS allow-list and redirect origin (`env.ts:7`, `:194-232`) |
+| `WEB_ORIGIN` | now | comma list; see §3 for the domain step | CORS allow-list and redirect origin (`WEB_ORIGIN` / `corsAllowedOrigins` in `apps/api/src/config/env.ts`) |
 | `STORAGE_PROVIDER` | now | **`db`** | uploads survive redeploys without extra infrastructure; any `local` provider fails the deploy gate (`deploy-verify.yml:198-213`; ADR-0012 `docs/adr/0012-durable-uploads-in-database.md:27-31`) |
-| `ALLOW_PLACEHOLDER_PROVIDERS` | now, while any placeholder remains | `1` | without it the API refuses to boot when a placeholder provider is active; with it, the startup log lists every accepted placeholder (`env.ts:141-152`, `:104-117`). The flag is an acknowledgement, not a configuration — remove it once every placeholder is replaced |
+| `ALLOW_PLACEHOLDER_PROVIDERS` | now, while any placeholder remains | `1` | without it the API refuses to boot when a placeholder provider is active; with it, the startup log lists every accepted placeholder (`apps/api/src/config/env.ts`, the placeholder manifest). The flag is an acknowledgement, not a configuration — remove it once every placeholder is replaced |
 | `API_PUBLIC_URL` | now if payments will run | `https://<api-domain>` | payment-gateway return URLs (`env.ts:20`); optional while no gateway is configured |
 | `SMS_PROVIDER` + `SMS_API_URL` + `SMS_API_KEY` | now for real OTP | `http` + your gateway's POST endpoint + its API key (optional `SMS_SENDER_ID`) | the adapter posts `{ to, text }` with a bearer token; production boot aborts on `http` without URL/key (`env.ts:63-72`, `:171-173`). Left as `sandbox`, OTP codes are only logged and real users cannot verify phones |
 | `REDIS_URL` | recommended now | your Redis connection string | without it rate-limit windows are per-function-instance and fail open (`env.ts:37`; the limitation is documented in `docs/security.md` and surfaced on `/ready` as `limiterStore`) |

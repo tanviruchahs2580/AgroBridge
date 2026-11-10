@@ -40,7 +40,7 @@ function mount(node: ReactElement) {
 vi.mock("../../lib/useResource.js", () => ({
   useResource: (key: string) =>
     key === "farms"
-      ? { data: [{ id: "farm1", name: "টেস্ট ফার্ম", district: "রংপুর" }], loading: false, error: null }
+      ? { data: [{ id: "farm1", name: "টেস্ট খামার", district: "রংপুর" }], loading: false, error: null }
       : { data: [], loading: false, error: null },
   invalidate: () => {},
 }));
@@ -111,5 +111,27 @@ describe("features/sell-crop — offer form validation", () => {
     });
     expect(document.body.textContent).toContain(dict.errValidation.bn);
     expect(mockApi).not.toHaveBeenCalled();
+  });
+});
+
+describe("features/sell-crop — pickers speak their own purpose", () => {
+  it("names the empty options as prompts, never as the field label above them", () => {
+    mount(<SellCrop />);
+
+    const farmOption = q("#of-farm")?.querySelector('option[value=""]');
+    const cropOption = q("#of-crop")?.querySelector('option[value=""]');
+    expect(farmOption?.textContent).toBe(dict.selectFarmPrompt.bn);
+    expect(cropOption?.textContent).toBe(dict.selectCropPrompt.bn);
+    // The regression: an empty option that repeated the field's label read as a
+    // chosen value ("Farm" / "Crop name") and hid what the empty state means.
+    expect(farmOption?.textContent).not.toBe(dict.farmLabel.bn);
+    expect(cropOption?.textContent).not.toBe(dict.cropName.bn);
+  });
+
+  it("offers the grade vocabulary through the shared label map (F-37)", () => {
+    mount(<SellCrop />);
+
+    const gradeOptions = Array.from(q("#of-grade")?.querySelectorAll("option") ?? []).map((o) => o.textContent);
+    expect(gradeOptions).toEqual([dict.gradeA.bn, dict.gradeB.bn, dict.gradeC.bn]);
   });
 });

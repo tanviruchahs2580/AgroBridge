@@ -9,7 +9,9 @@ import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
-import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict, paymentMetaOf } from "./routes.js";
+import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict } from "./routes.js";
+import { claimPendingPayment } from "./meta.js";
+import { paymentMetaOf } from "../../lib/pendingIntents.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
 
 /**
@@ -85,20 +87,47 @@ paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").R
     // webhook won the race, or the intent was superseded (new intent FAILED
     // this one) despite the gateway collecting money — that case must NOT be
     // answered with processed:true, it is a reconciliation case.
+    //
+    // The claim helper (shared with the sandbox confirm and reconciliation
+    // paths) composes metaStr from the row's CURRENT value, so the client
+    // idempotency key survives settlement. The webhook is the ONLY success path
+    // for real money, and overwriting metaStr here used to destroy the key —
+    // turning a client's keyed retry into a second payable intent (F-02).
     let processed = false;
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const claimed = await tx.payment.updateMany({
-        where: { id: payment.id, status: "PENDING" },
-        // providerRef stays the merchant tran_id (stable across gateway
-        // session keys); the gateway-side val_id lives in metaStr.
-        data: { status: "SUCCEEDED", metaStr: JSON.stringify({ mode: "sslcommerz", valId, verified: true }) },
-      });
-      if (claimed.count !== 1) return; // lost race / superseded
+      // providerRef stays the merchant tran_id (stable across gateway
+      // session keys); the gateway-side val_id lives in metaStr.
+      const claimed = await claimPendingPayment(tx, payment.id, { mode: "sslcommerz", valId, verified: true });
+      if (!claimed) return; // lost race / superseded
       processed = true;
       await applyPaymentSideEffects(tx, payment);
     }, { timeout: 15000, maxWait: 8000 });
 
     if (!processed) {
+      // F-24: a captured payment the webhook cannot apply must not be silently
+      // swallowed — the money is at the gateway, the Payment row is terminal or
+      // superseded, and nothing else watches this case (the reconciliation
+      // script does not look at gateway payments). Escalate on all three
+      // channels — audit trail, the PaymentFailures series, and a structured
+      // warn log — with tender references only, never the payload.
+      paymentIntentsTotal.inc({ purpose_type: payment.purposeType, status: "webhook_not_claimable" });
+      logger.warn(
+        {
+          tranId,
+          paymentId: payment.id,
+          refNo: payment.refNo,
+          paymentStatus: payment.status,
+          purposeType: payment.purposeType,
+          amountPaisa: payment.amountPaisa,
+        },
+        "SSLCommerz webhook captured money for a payment that is not claimable — needs reconciliation"
+      );
+      await audit({
+        action: "PAYMENT_NOT_CLAIMABLE",
+        entityType: "Payment",
+        entityId: payment.id,
+        meta: { tranId, valId, paymentStatus: payment.status, amountPaisa: payment.amountPaisa },
+      });
       return ok(res, { received: true, processed: false, reason: "not_claimable" });
     }
 

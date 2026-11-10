@@ -13,6 +13,12 @@ process.env.PAYMENT_PROVIDER = process.env.PAYMENT_PROVIDER ?? "sandbox";
 // (payments-reconciliation-amount.test.ts).
 process.env.SSLCOMMERZ_STORE_PASSWORD = process.env.SSLCOMMERZ_STORE_PASSWORD ?? "test-store-password";
 process.env.SSLCOMMERZ_STORE_ID = process.env.SSLCOMMERZ_STORE_ID ?? "test-store-id";
+// Dev-only auth shortcuts as an EXPLICIT switch (F-77): the suite registers
+// hundreds of accounts and drives the OTP flows directly, so it opts in the
+// same way a developer running the local stack does. Without this the suite
+// would exercise the production verification path for every helper — which is
+// a different test, not a broken one, and would hide the shortcut branch.
+process.env.DEV_AUTH_SHORTCUTS = process.env.DEV_AUTH_SHORTCUTS ?? "1";
 // Guards the scheduled-ops endpoint (tests/ops-retention-endpoint.test.ts);
 // must exist before the app's env schema parses.
 process.env.CRON_SECRET = process.env.CRON_SECRET ?? "test-cron-secret";

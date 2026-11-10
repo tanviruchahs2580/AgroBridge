@@ -116,12 +116,12 @@ export default function Services() {
       track("booking_created", { serviceCategory: selected.category });
       toast.success(t("bookingReceivedToast", lang));
       setSelected(null);
-      // The new booking moves the bookings list and the provider assignment that
-      // comes with it; the old page-wide `load` refreshed all three resources,
-      // so all three families are invalidated — no more, no less.
-      invalidate("services");
+      // Exactly what a booking moves: the bookings list it adds to. The
+      // catalogue (`services`) and the farm list (`farms`) are inputs to this
+      // dialog, not outputs of it — POST /bookings touches neither, so
+      // invalidating them refetched the whole catalogue (up to 32 service rows,
+      // each re-mounted) for nothing, on the screen the user is still reading.
       invalidate("services-bookings");
-      invalidate(RESOURCE_KEYS.farms);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -143,10 +143,9 @@ export default function Services() {
     try {
       await api("POST", `/bookings/${b.id}/status`, { status: "CANCELLED" });
       toast.success(t("bookingCancelledToast", lang));
-      // Same refetch set as the old page-wide `load`.
-      invalidate("services");
+      // Same reasoning as booking: a status change moves the bookings list only.
+      // The catalogue row is not touched by it, so it is not refetched.
       invalidate("services-bookings");
-      invalidate(RESOURCE_KEYS.farms);
     } catch (err) {
       toast.error(mapError(err, lang));
     } finally {
@@ -219,7 +218,10 @@ export default function Services() {
               className="min-h-[44px] rounded-input border border-surface-border-strong bg-surface-card px-3 py-2 text-sm font-medium text-stone-800 focus:border-brand-500 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               aria-label={t("svcSortLabel", lang)}
             >
-              <option value="default">{t("svcSortLabel", lang)}</option>
+              {/* The default option names the ordering, not the field's label:
+                  an option reading "Sort" inside a control already labelled
+                  "Sort" read as a second label rather than as the state. */}
+              <option value="default">{t("svcSortDefault", lang)}</option>
               <option value="priceAsc">{t("svcSortAsc", lang)}</option>
               <option value="priceDesc">{t("svcSortDesc", lang)}</option>
             </select>
@@ -297,7 +299,7 @@ export default function Services() {
                 aria-describedby={formErrs.farm ? "bk-farm-err" : undefined}
               >
                 <option value="" disabled>
-                  {t("farmLabel", lang)}
+                  {t("selectFarmPrompt", lang)}
                 </option>
                 {farms.map((f) => (
                   <option key={f.id} value={f.id}>

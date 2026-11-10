@@ -11,6 +11,12 @@ the archived status summary; this register supersedes those where they conflict.
 Legend — **B** = hard Google Play submission blocker · **P0/P1/P2/P3** = severity for the
 running product (P0 broken/unsafe for users, P1 significant, P2 quality, P3 polish).
 
+> **Status note (2026-11-10).** This register (with the requirements gate in
+> `docs/play/store-readiness-checklist.md`) is the surviving current launch-readiness record.
+> The earlier `PLAY_STORE_LAUNCH_AUDIT.md` — a `NO-GO` against 1.3.0 — is archived at
+> `docs/archive/2026-11-10/PLAY_STORE_LAUNCH_AUDIT.md` with a banner naming what closed its
+> blockers; do not treat it as current.
+
 ---
 
 ## A. Google Play submission blockers
@@ -18,7 +24,7 @@ running product (P0 broken/unsafe for users, P1 significant, P2 quality, P3 poli
 | ID | Pri | Finding | Evidence | Fix in this round |
 |---|---|---|---|---|
 | PS-1 | **B, P0** | **No account-deletion path.** Google Play requires apps that let users create accounts to offer in-app deletion *and* a web deletion URL. The API endpoint exists but nothing in the UI calls it, and the published policy promises "Settings → Delete Account". | `apps/api/src/modules/auth/routes.ts:323` (`DELETE /auth/me`); no `/settings` route in `apps/web/src/App.tsx:276-291`; `PRIVACY_POLICY.md:69,145` | New `/settings` screen with a guarded delete flow + public `/account-deletion` page |
-| PS-2 | **B** | **No hosted privacy policy / terms URL.** Policy exists only as markdown; root `vercel.json` rewrites every path to `/index.html` so it cannot be served as a file, and Play requires a public URL. | `PRIVACY_POLICY.md`; `vercel.json`; `docs/PLAY_STORE_LAUNCH_AUDIT.md:16` | In-app `/privacy` + `/terms` routes (stable URLs that work the moment a domain exists) from one typed content module |
+| PS-2 | **B** | **No hosted privacy policy / terms URL.** Policy exists only as markdown; root `vercel.json` rewrites every path to `/index.html` so it cannot be served as a file, and Play requires a public URL. | `PRIVACY_POLICY.md`; `vercel.json`; `docs/archive/2026-11-10/PLAY_STORE_LAUNCH_AUDIT.md` (executive summary; archived 2026-11-10) | In-app `/privacy` + `/terms` routes (stable URLs that work the moment a domain exists) from one typed content module |
 | PS-3 | **B, P0** | **Release AAB is silently debug-signed.** Gradle reads `android/key.properties` but CI writes `android/app/key.properties`, and the release build falls back to the debug key instead of failing. Play rejects wrongly-signed uploads. | `apps/web/android/app/build.gradle:6,41`; `.github/workflows/android-release.yml:67-74` | Read from both locations, hard-fail without a real keystore, and assert the signer in CI |
 | PS-4 | **B** | **Legal entity / contact details are placeholders**, and the policy describes password+OTP login differently from the shipped flow. Play review and the data-safety form must match reality. | `PRIVACY_POLICY.md:11,98,109,155` | Corrected policy content with a single `LEGAL_ENTITY` block the owner fills once |
 | PS-5 | **B** | **No store listing raw material.** No feature graphic (1024×500), no phone screenshots, no short/full description in bn or en. Only the 512×512 icon exists. | `apps/web/public/icons/icon-512.png` is the only asset; `qa-screenshots/**` are desktop browser captures | Generated feature graphic + real phone-size screenshots + bn/en listing copy under `play/` |
@@ -98,7 +104,7 @@ items in §E. Verification evidence:
 
 | Gate | Result |
 |---|---|
-| API suite (`npm run test --workspace apps/api`) | **148 passed / 1 skipped** (11 new regression tests in `tests/round10-regressions.test.ts`) |
+| API suite (`npm run test --workspace apps/api`) | **148 passed / 1 skipped** (11 new regression tests — the round-10 regressions, split on 2026-11-10 into `tests/checkout-delivery-and-order-items.test.ts`, `tests/admin-and-procurement-authorization.test.ts` and `tests/payment-status-and-gateway-return.test.ts`; F-92) |
 | Web unit (`npm run test:unit --workspace apps/web`) | **108 passed** |
 | Web lint (eslint + jsx-a11y) | **0 problems** |
 | i18n dictionary check | 320 keys referenced, **0 missing** |

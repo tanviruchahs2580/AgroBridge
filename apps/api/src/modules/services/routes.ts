@@ -2,10 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
-import { requirePermission } from "../../middleware/rbac.js";
+import { requirePermission, hasPermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, forbidden, unprocessable, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
+import { audit } from "../../middleware/audit.js";
 import { refNo } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
@@ -162,9 +163,30 @@ bookingsRouter.post(
 
 bookingsRouter.get("/", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
+    // F-63a: this list used to be `["ADMIN","SUPER_ADMIN"]`-or-own, so
+    // REGIONAL_MANAGER/AREA_MANAGER could ASSIGN a booking by id
+    // (`bookings:assign`) but could not see the queue they are asked to work —
+    // the assign flow was unusable for the roles it exists for. The capability
+    // is `bookings:read:any` (declared in the permission table), and it is
+    // territory-scoped like every other manager read:  a manager sees the
+    // bookings of farmers in its own region, an unassigned manager falls back
+    // to its own rows, and only the platform admin tier is unrestricted.
+    const actor = getAuth(req);
+    // The capability check is written with the permission literal at the call
+    // site so the reachability guard (tests/permission-reachability.test.ts)
+    // can see that `bookings:read:any` is live.
+    const canReadAny = hasPermission(actor.role, "bookings:read:any");
+    let scope: Record<string, unknown> = { userId: actor.userId };
+    if (canReadAny) {
+      if (actor.role === "ADMIN" || actor.role === "SUPER_ADMIN") {
+        scope = {};
+      } else {
+        const me = await prisma.user.findUnique({ where: { id: actor.userId }, select: { region: true } });
+        scope = me?.region ? { user: { region: me.region } } : { userId: actor.userId };
+      }
+    }
     const bookings = await prisma.booking.findMany({
-      where: isPrivileged ? {} : { userId: getAuth(req).userId },
+      where: scope,
       include: { service: { select: { name: true, category: true } }, farm: { select: { name: true } }, provider: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -227,12 +249,18 @@ bookingsRouter.post("/:id/assign", requirePermission("bookings:assign"), validat
 bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]), reason: z.string().max(300).optional() }) }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const role = getAuth(req).role;
-    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
-    // SERVICE_PROVIDER may only transition bookings assigned to THEM.
+    // "May act on any booking" is the declared `bookings:manage:any`
+    // capability, and "may act on my own assigned bookings" is
+    // `bookings:manage:own` — the permission table, not a second role list
+    // (F-08). The two scopes are the same object predicates as before, so this
+    // is a mechanism change: the admin tier stays unrestricted, a
+    // SERVICE_PROVIDER stays limited to the bookings assigned to it, and any
+    // other caller stays limited to its own rows.
+    const isAdmin = hasPermission(role, "bookings:manage:any");
     let scope: Record<string, unknown>;
     if (isAdmin) {
       scope = {};
-    } else if (role === "SERVICE_PROVIDER") {
+    } else if (hasPermission(role, "bookings:manage:own")) {
       const provider = await prisma.serviceProvider.findFirst({ where: { userId: getAuth(req).userId }, select: { id: true } });
       if (!provider) throw notFound("Provider profile");
       scope = { providerId: provider.id };
@@ -306,6 +334,10 @@ bookingsRouter.post("/:id/status", validate({ body: z.object({ status: z.enum(["
       refType: "BOOKING",
       refId: booking.id,
     });
+    // A booking transition moves money (cancellation voids a live payment
+    // intent) and closes out a paid service; the module had no audit trail at
+    // all (F-72).
+    await audit({ actorId: getAuth(req).userId, action: "BOOKING_STATUS_CHANGED", entityType: "Booking", entityId: booking.id, meta: { from: booking.status, to: status } });
     ok(res, updated);
   } catch (e) {
     next(e);

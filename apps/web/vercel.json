@@ -10,7 +10,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-YUcwMzZ0gx97FWbqxA9+Cavq+c8Ee6RP3CVy8jWZp00='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://agro-bridge-api.vercel.app https://agro-bridge-api-vantiq-systems.vercel.app; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-YUcwMzZ0gx97FWbqxA9+Cavq+c8Ee6RP3CVy8jWZp00='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://agro-bridge-api-vantiq-systems.vercel.app; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },

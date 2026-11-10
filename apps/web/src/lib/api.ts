@@ -194,24 +194,21 @@ class NetworkError extends Error {
   }
 }
 
-// ── Request correlation id ──
-// Every API request carries one, so a client-side failure report can be tied to
-// the server's log line for the same call. One id per *logical* request: the
-// GET/5xx retry loop and the post-refresh replay of the same `api` call reuse
-async function rawRequest(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
+/**
+ * One fetch with the transport's timeout and its error contract attached.
+ *
+ * Every authenticated request in this module goes through here (JSON calls and
+ * `apiBlob` alike), so an aborted call can only ever surface as a NetworkError —
+ * `apiBlob` used to call `fetch` directly and then test `instanceof NetworkError`
+ * on it, a branch that could never be taken, while having no timeout at all: a
+ * hung photo request left the viewer spinning forever. Sharing this helper is
+ * what makes those branches reachable and the ceiling uniform.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(`${BASE}${path}`, {
-      method,
-      headers: {
-        ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-        ...(getTokens().accessToken ? { Authorization: `Bearer ${getTokens().accessToken}` } : {}),
-        "X-Request-Id": requestId,
-      },
-      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
-      signal: ctrl.signal,
-    });
+    return await fetch(url, { ...init, signal: ctrl.signal });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new NetworkError(true, `Request timed out after ${REQUEST_TIMEOUT_MS}ms`);
@@ -220,6 +217,26 @@ async function rawRequest(method: string, path: string, body: unknown, requestId
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ── Request correlation id ──
+// Every API request carries one, so a client-side failure report can be tied to
+// the server's log line for the same call. One id per *logical* request: the
+// GET/5xx retry loop and the post-refresh replay of the same `api` call reuse
+async function rawRequest(method: string, path: string, body: unknown, requestId: string): Promise<Response> {
+  // One read of the token store per request: getTokens() re-syncs from
+  // localStorage defensively, and calling it per header made that two
+  // synchronous storage reads for the same request.
+  const { accessToken } = getTokens();
+  return fetchWithTimeout(`${BASE}${path}`, {
+    method,
+    headers: {
+      ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      "X-Request-Id": requestId,
+    },
+    body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
+  });
 }
 
 function sleep(ms: number) {
@@ -319,7 +336,24 @@ async function attemptRefresh(refreshToken: string): Promise<boolean> {
   }
 }
 
-export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+/** A response envelope plus its headers — the return shape of `apiRaw()`. */
+export interface RawApiResponse<T> {
+  data: T;
+  status: number;
+  headers: Headers;
+}
+
+/**
+ * The one transport body, in full-response form.
+ *
+ * `api()` and `apiRaw()` are two named views of it rather than one function with
+ * an options flag: the flag form needs TypeScript overloads to keep `api()`'s
+ * return type unchanged for its ~90 existing call sites, and the base
+ * `no-redeclare` rule in .eslintrc.json rejects overload signatures (the
+ * typescript-eslint replacement is not configured, and the eslint config is
+ * outside this change's scope). Two thin names, no casts, same single code path.
+ */
+async function request<T = unknown>(method: string, path: string, body?: unknown): Promise<RawApiResponse<T>> {
   const wasAuthed = Boolean(getTokens().accessToken);
   // One correlation id for this logical request: retries (5xx/network) and the
   // post-refresh replay below all reuse it.
@@ -403,7 +437,23 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     const err = json.error ?? {};
     throw new ApiError(res.status, err.code ?? "UNKNOWN", err.message ?? "সমস্যা হয়েছে / Something went wrong", err.details, err.reference);
   }
-  return json.data as T;
+  return { data: json.data as T, status: res.status, headers: res.headers };
+}
+
+/** The envelope's `data`, and nothing else. The form every existing caller uses. */
+export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  return (await request<T>(method, path, body)).data;
+}
+
+/**
+ * Same transport, whole response — the only way to reach a header the envelope
+ * does not carry. X-Total-Count is the truncation signal `GET /orders` sends
+ * (its body is a capped array, not a Paged), so without this the header is
+ * unreachable and a truncated list is indistinguishable from a complete one.
+ * Read paths only: a write's success is already expressed by `data`.
+ */
+export async function apiRaw<T = unknown>(method: string, path: string, body?: unknown): Promise<RawApiResponse<T>> {
+  return request<T>(method, path, body);
 }
 
 /**
@@ -411,10 +461,13 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
  * replay discipline as `api()`, but the payload stays a Blob: the bytes must
  * never round-trip through JSON parsing (that is how image streams get
  * corrupted), and a read is never queued for offline replay.
+ *
+ * The timeout is the transport's own (fetchWithTimeout), so a request that hangs
+ * fails as a visible network error rather than leaving the viewer spinning.
  */
 export async function apiBlob(path: string): Promise<Blob> {
   const doFetch = () =>
-    fetch(`${BASE}${path}`, {
+    fetchWithTimeout(`${BASE}${path}`, {
       headers: {
         Accept: "image/*",
         "X-Request-Id": newRequestId(),

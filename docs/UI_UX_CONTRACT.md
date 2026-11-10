@@ -21,7 +21,7 @@
 
 | Route | File | Layout Locked | Notes |
 |---|---|---|---|
-| `/login` | `apps/web/src/features/auth/Login.tsx` | **LOCKED** | Eager loaded (`App.tsx:18`), `+880` phone + password, `Demo` hint, no Google/FB (easy farmer) |
+| `/login` | `apps/web/src/features/auth/Login.tsx` | **LOCKED** | Eager loaded (`App.tsx`), `+880` phone + password, `Demo` hint, no Google/FB (easy farmer) |
 | `/register` | `apps/web/src/features/auth/Register.tsx` | **LOCKED** | Lazy, phone+password+confirm |
 | `/` | `apps/web/src/features/home/Home.tsx` | **LOCKED** | Hero `87%` + 4-card grid + `AI Ask` + `দ্রুত সেবা` 4 + `Smart Alerts` — not `28°C` complex (see `v1.2.0-easy-dashboard` revert base) |
 | `/farm` | `apps/web/src/features/farms/MyFarm.tsx` | **LOCKED** | Farm/plot/crop forms, `Tractor` header, addFarm CTA |
@@ -33,9 +33,9 @@
 | `/notifications` | `apps/web/src/features/notifications/Notifications.tsx` | **LOCKED** | Tablist `role=tab` (known a11y gap, but visual locked) |
 | `/admin` | `apps/web/src/features/admin-panel/Admin.tsx` | **LOCKED** | Breadcrumb `Home`, admin tables |
 | `/onboarding` | `apps/web/src/features/onboarding/Onboarding.tsx` | **LOCKED** | Feature-flag `VITE_FEATURE_ONBOARDING` |
-| `*` | `App.tsx:82 NotFound` | **LOCKED** | `Compass` + `notFoundTitle` + `backHome` |
+| `*` | `App.tsx` (`NotFound`) | **LOCKED** | `Compass` + `notFoundTitle` + `backHome` |
 
-**Router:** `App.tsx:245-258` — `ReverseGuard` for `/login|/register`, `Shell` for all authenticated routes, `Suspense fallback PageFallback` (`Skeleton`), `ErrorBoundary key={pathname}` per route, `PageTransition` only on `/services`.
+**Router:** the route table in `App.tsx` — `ReverseGuard` for `/login|/register`, `Shell` for all authenticated routes, `Suspense fallback PageFallback` (`Skeleton`), `ErrorBoundary key={pathname}` per route, `PageTransition` only on `/services`.
 
 **Splash:** `components/Splash.tsx` native `colors.xml #0A2F1F` + React overlay `from-[#0A2F1F] via-[#1A4A32] to-[#2E7D4F]` seed→stem→leaves — locked.
 
@@ -44,11 +44,11 @@
 | Component | File | Contract |
 |---|---|---|
 | `TopBar` | `components/TopBar.tsx` | `bg-[#14532d]` header, `🌾` + `appName`, lang toggle `EN/বাং`, admin link, logout — spacing/color locked |
-| `BottomNav` / `Sidebar` | `components/ui.tsx:214` | `primaryNav` 5 + `secondaryNav` 3, `BottomNav` `aria-current` (known `undefined` gap — locked), `Sidebar` md+ |
+| `BottomNav` / `Sidebar` | `components/ui.tsx` | `primaryNav` 5 + `secondaryNav` 3, `BottomNav` `aria-current` (known `undefined` gap — locked), `Sidebar` md+ |
 | `Skeleton` / `ErrorBanner` / `EmptyState` | `ui.tsx` | House pattern every page: `Skeleton` → `ErrorBanner role=alert` → `EmptyState` — retry copy locked |
 | `PageTransition` / `motion` | `components/PageTransition.tsx`, `lib/motion.ts` | `MotionConfig` + `enterprise-enter 0.5s` + `agro-shake` — durations locked, `prefers-reduced-motion` disables |
-| `Offline banner` | `App.tsx:162` | `bg-amber-100` + `queued` count — text `offlineBanner` locked |
-| `Toast` / `Confirm` | `ui.tsx:298` `aria-live polite` | 4s auto-dismiss — locked |
+| `Offline banner` | `App.tsx` | `bg-amber-100` + `queued` count — text `offlineBanner` locked |
+| `Toast` / `Confirm` | `ui.tsx` (`aria-live polite`) | 4s auto-dismiss — locked |
 
 ## 3. Design Tokens — Immutable (single source `tokens.css:5`)
 
@@ -59,14 +59,14 @@
 - **Spacing:** 4/8pt grid `space-1 0.25rem` … `space-8 2rem`
 - **Radius:** `lg 0.5rem / xl 0.75 / 2xl 1 / card 20px / button 12px / chip 999px / iconBox 14px`
 - **Shadow:** `sm/md/lg/card/cardHover/button` per `tokens.css:92`
-- **Type scale:** `xs 11/16 / sm 13/18 / base 16/24 / lg 18/28 / xl 20/28 / 2xl 28/36` (`tailwind.config.js:84`)
-- **Manifest:** `theme #166534 / bg #fafaf9` (`vite.config.ts:35-36`) — PWA splash stays `#fafaf9` (native splash is separate `#0A2F1F`)
+- **Type scale:** `xs 11/16 / sm 13/18 / base 16/24 / lg 18/28 / xl 20/28 / 2xl 28/36` (`tailwind.config.js`, the `fontSize` scale)
+- **Manifest:** `theme #166534 / bg #fafaf9` (`vite.config.ts`, the manifest block) — PWA splash stays `#fafaf9` (native splash is separate `#0A2F1F`)
 
-All hex lives ONLY in `tokens.css`/`tailwind.config.js` per contract; exceptions (`bg-[#15803D]` in `TopBar.tsx:25`) are grandfathered and locked.
+All hex lives ONLY in `tokens.css`/`tailwind.config.js` per contract; exceptions (`bg-[#15803D]` in `TopBar.tsx`) are grandfathered and locked.
 
 ## 4. Immutable User Flows
 
-- **Auth:** `Login → session → ReverseGuard bounce` (`App.tsx:64`), `Register → Login`, `OTP none` (SMS mock) — copy/flow locked even though OTP delivery is known gap (Phase 4, not UI)
+- **Auth:** `Login → session → ReverseGuard bounce` (`App.tsx`), `Register → Login`, `OTP none` (SMS mock) — copy/flow locked even though OTP delivery is known gap (Phase 4, not UI)
 - **Checkout/Payment:** `Market addToCart → cart modal (onClose only on success step) → checkout → shipping (optional) → order UNPAID → POST /payment/intent → confirm/webhook → SETTLED` — texts locked
 - **Farm creation:** `MyFarm addFarm → farm → plot → cropCycle → stage` — forms locked
 - **Service booking:** `Services → ServiceCard → booking → assign → status` — `› /farm` anchors are locked (even though they bypass router — locked behavior)

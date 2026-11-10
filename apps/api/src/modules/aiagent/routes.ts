@@ -2,8 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { askAgroAgent } from "../../providers/ai/gateway.js";
-import { KNOWLEDGE_BASE, sourceRefOf, type KbSourceRef } from "../../providers/ai/knowledge.js";
+import { KNOWLEDGE_BASE, canonicalCropOf, sourceRefOf, type KbSourceRef } from "../../providers/ai/knowledge.js";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { ok } from "../../middleware/context.js";
@@ -14,9 +15,28 @@ import { userOrIpKey } from "../../middleware/rateLimitKeys.js";
 import { audit } from "../../middleware/audit.js";
 import { notFound } from "../../shared/errors/index.js";
 import { getAuth } from "../../shared/auth-context.js";
+import { advisoryHourlyLimitForTier } from "./limits.js";
 
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
+
+/**
+ * Membership tier that decides this account's advisory quota (F-62). Read from
+ * the database — never from the request — and any error falls back to the base
+ * tier so a failure can never grant a larger quota.
+ */
+async function advisoryTierOf(userId: string): Promise<string | undefined> {
+  try {
+    const profile = await prisma.farmerProfile.findUnique({
+      where: { userId },
+      select: { membershipTier: true },
+    });
+    return profile?.membershipTier ?? undefined;
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, "membership tier lookup failed for the AI quota — using the base limit");
+    return undefined;
+  }
+}
 
 // AI endpoints are expensive -> stricter limit than global. The custom handler
 // keeps this limiter's message but wraps it in the standard error envelope with
@@ -24,10 +44,11 @@ aiRouter.use(requireAuth);
 const aiStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 60 * 60 * 1000, "ai-advisory") : undefined;
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  // Operator-tunable, and documented as such in .env.example: the value was
-  // hardcoded here while AI_HOURLY_LIMIT sat unread beside it, so an operator who
-  // lowered the quota to control provider spend changed nothing.
-  limit: env.AI_HOURLY_LIMIT,
+  // Operator-tunable base (documented in .env.example) multiplied by the
+  // caller's membership tier: BRONZE ×1, SILVER ×4, GOLD ×10. Previously a flat
+  // limit for every account while the paid tier benefits promised "Unlimited AI
+  // advisory" (F-62) — the promise is gone and the grant is real.
+  limit: async (req) => advisoryHourlyLimitForTier(await advisoryTierOf(getAuth(req).userId), env.AI_HOURLY_LIMIT),
   standardHeaders: true,
   legacyHeaders: false,
   store: aiStore,
@@ -38,6 +59,42 @@ const aiLimiter = rateLimit({
   message: { ok: false, error: { code: "RATE_LIMITED", message: "AI advisory limit reached for this hour. Please try later." } },
 });
 
+/**
+ * Farm/farmer context for one advisory request (F-07 extraction): the farmer
+ * row, their newest farm's active crop cycle and the canonical crop vocabulary
+ * key. Only canonical keys ("rice", "wheat", …) leave this function — an
+ * unrecognised client value is dropped in favour of the farm's active crop,
+ * and an unrecognised farm value is dropped entirely (no ranking hint). The
+ * provider sanitises the field again — defence in depth.
+ */
+async function advisoryContextOf(userId: string, cropName?: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      fullName: true,
+      langPref: true,
+      farmerProfile: { select: { membershipTier: true, district: true } },
+      farms: {
+        take: 1,
+        orderBy: { createdAt: "desc" },
+        select: {
+          district: true, lat: true, lng: true,
+          plots: { take: 1, select: { cropCycles: { where: { status: "ACTIVE" }, take: 1, select: { cropName: true, stage: true } } } },
+        },
+      },
+    },
+  });
+  const farm = user?.farms?.[0];
+  const activeCrop = farm?.plots?.[0]?.cropCycles?.[0];
+  return {
+    farmerName: user?.fullName,
+    cropName: canonicalCropOf(cropName) ?? canonicalCropOf(activeCrop?.cropName),
+    cropStage: activeCrop?.stage,
+    district: user?.farmerProfile?.district ?? farm?.district ?? undefined,
+    membershipTier: user?.farmerProfile?.membershipTier,
+  };
+}
+
 aiRouter.post(
   "/advisory",
   aiLimiter,
@@ -45,43 +102,30 @@ aiRouter.post(
     body: z.object({
       question: z.string().trim().min(5).max(1000),
       lang: z.enum(["bn", "en"]).default("bn"),
-      cropName: z.string().trim().max(80).optional(),
+      // F-07: user-supplied and previously interpolated raw into the hosted
+      // system prompt. Reject control characters / line separators outright —
+      // no legitimate crop name contains them — and allow-list the value
+      // against the known crop vocabulary below.
+      cropName: z
+        .string()
+        .trim()
+        .max(80)
+        // eslint-disable-next-line no-control-regex -- rejecting C0/C1 controls and line separators is the point (F-07)
+        .refine((v) => !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(v), "cropName must be a single line")
+        .optional(),
     }),
   }),
   async (req, res, next) => {
     try {
       const { question, lang, cropName } = req.body as { question: string; lang: "bn" | "en"; cropName?: string };
-
-      // Context extraction: farmer + active crop context for grounding.
-      const user = await prisma.user.findUnique({
-        where: { id: getAuth(req).userId },
-        select: {
-          fullName: true,
-          langPref: true,
-          farmerProfile: { select: { membershipTier: true, district: true } },
-          farms: {
-            take: 1,
-            orderBy: { createdAt: "desc" },
-            select: {
-              district: true, lat: true, lng: true,
-              plots: { take: 1, select: { cropCycles: { where: { status: "ACTIVE" }, take: 1, select: { cropName: true, stage: true } } } },
-            },
-          },
-        },
-      });
-
-      const farm = user?.farms?.[0];
-      const activeCrop = farm?.plots?.[0]?.cropCycles?.[0];
+      const userId = getAuth(req).userId;
+      const context = await advisoryContextOf(userId, cropName);
 
       const answer = await askAgroAgent(question, {
-        userId: getAuth(req).userId,
+        userId,
         requestId: req.requestId,
         lang,
-        farmerName: user?.fullName,
-        cropName: cropName ?? activeCrop?.cropName,
-        cropStage: activeCrop?.stage,
-        district: user?.farmerProfile?.district ?? farm?.district ?? undefined,
-        membershipTier: user?.farmerProfile?.membershipTier,
+        ...context,
       });
 
       ok(res, {
@@ -208,6 +252,13 @@ aiRouter.post(
         entityId: id,
         ip: req.ip,
       });
+
+      // Ops signal (P3: the feedback had no consumer beyond the owner). A
+      // stable, queryable line — id + actor + reason LENGTH, never the free
+      // text, which may carry the farmer's own details and must stay on the
+      // owner-scoped row. The audit row above is the durable trail; a dedicated
+      // ops queue endpoint belongs to the admin module.
+      logger.info({ advisoryId: id, actorId: getAuth(req).userId, reasonChars: reason.length }, "ai advisory feedback received");
 
       ok(res, updated);
     } catch (e) {

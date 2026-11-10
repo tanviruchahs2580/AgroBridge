@@ -8,6 +8,10 @@ retried-but-passing test is reported as *flaky* by Playwright, and this register
 is where those are accounted for instead of being quietly re-run away
 (`apps/web/playwright.config.ts`).
 
+**Evidence note (2026-11-10, F-21):** the `.audit/evidence/…` log paths in the entries below are
+machine-local run logs; that tree is **not in this repository** (see `docs/STATUS.md` §Where the
+evidence lives). The durable part of each entry is the re-run result and the assessment.
+
 | Date | Spec | Symptom | Evidence | Assessment / action |
 |---|---|---|---|---|
 | 2026-10-17 | several, CI | Later tests failed at sign-in after unrelated specs | CI run observations during AUD-134 | Root-caused: the global 300 req/15 min window was exhausted by a browser suite; CI sets `RATE_LIMIT_MAX=2000`/`LOGIN_RATE_LIMIT_MAX=500` for its throwaway instance. Documented in `docs/testing.md`. |

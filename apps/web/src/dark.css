@@ -136,14 +136,9 @@ html[data-theme="dark"] .hover\:bg-stone-50:hover {
   background-color: var(--color-stone-100);
 }
 
-/* Premium dotted surface (index.css) — dark variant */
-html[data-theme="dark"] .bg-dot-pattern {
-  background-color: var(--color-surface-bg);
-  background-image:
-    radial-gradient(rgba(134, 239, 172, 0.05) 1px, transparent 1px),
-    linear-gradient(180deg, #171917 0%, #1a1d1a 48%, #1e221e 100%);
-  background-size: 22px 22px, 100% 100%;
-}
+/* The dark variant of `.bg-dot-pattern` went with the light rule in index.css:
+   neither had a caller left in src, and this one was maintained by hand on every
+   dark-mode pass — dead CSS with a maintenance cost. */
 
 /* Page shell glow — quieter on dark */
 html[data-theme="dark"] .agro-shell {

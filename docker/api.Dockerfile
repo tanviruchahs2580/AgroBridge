@@ -47,6 +47,10 @@ COPY --from=build /app/apps/api/prisma/schema.prisma ./apps/api/prisma/schema.pr
 COPY --from=build /app/apps/api/prisma/postgres ./apps/api/prisma/postgres
 COPY --from=build /app/apps/api/prisma/migrations ./apps/api/prisma/migrations
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+# No npm/npx and no Prisma CLI in the shipped runtime image — a deliberate
+# choice, and the reason migrations are a separate step: schema changes run from
+# the `migrate` stage below (docker-compose.prod.yml service `migrate`, profile
+# `migrate`), never from this container and never on boot.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app/apps/api
 # Run as the unprivileged `node` user shipped with the base image (Phase 13:
@@ -56,3 +60,25 @@ ENV NODE_ENV=production
 USER node
 EXPOSE 4000
 CMD ["node", "dist/server.js"]
+
+# ---- migration stage: the Prisma CLI, not a server ----
+# The runtime stage above ships neither npm/npx nor the Prisma CLI, so the
+# documented `docker compose exec api npx prisma migrate deploy` could never
+# have run (F-18). Schema changes run from this stage in their own one-shot
+# container instead of widening the runtime image:
+#
+#   docker build --target migrate -f docker/api.Dockerfile -t <ns>/api-migrate:<tag> .
+#   docker compose -f docker-compose.prod.yml --profile migrate run --rm migrate
+#
+# The deploy workflow builds it with the same tags as the api image and runs it
+# BEFORE `up -d`, so "apply schema" and "deploy code" stay two separately
+# observable, separately reversible steps. `migrate deploy` is idempotent and
+# append-only: it is safe to re-run, and rolling the application back does not
+# roll the schema back.
+FROM build AS migrate
+WORKDIR /app/apps/api
+ENV NODE_ENV=production
+# Read + execute only: the Prisma engine binaries are present from `npm ci` in
+# the build stage, and this container only talks to the database.
+USER node
+ENTRYPOINT ["sh", "-c", "exec npx prisma migrate deploy --schema prisma/postgres/schema.prisma"]

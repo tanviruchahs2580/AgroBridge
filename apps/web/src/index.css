@@ -184,14 +184,11 @@ body {
   color: var(--color-brand-900);
 }
 
-/* Gap Analysis §4.8 — soft agricultural mesh, not a loud grid */
-.bg-dot-pattern {
-  background-color: var(--color-surface-bg);
-  background-image:
-    radial-gradient(rgba(21, 128, 61, 0.06) 1px, transparent 1px),
-    linear-gradient(180deg, #f7faf6 0%, #f4f7f2 48%, #eef5ee 100%);
-  background-size: 22px 22px, 100% 100%;
-}
+/* Gap Analysis §4.8's `.bg-dot-pattern` lived here and had no caller left in
+   the source tree: the whole rule (plus its dark-mode twin in dark.css) was dead
+   CSS shipped to every user. The preflight dead-class gate only checks
+   class → CSS, never CSS → class, so nothing was watching this direction.
+   Anything reintroducing it needs the class used in a component first. */
 
 .agro-shell {
   background:
@@ -228,9 +225,10 @@ body {
   }
 }
 
-.touch-target {
-  @apply inline-flex min-h-[44px] min-w-[44px] items-center justify-center;
-}
+
+/* `.touch-target` (an `@apply` shorthand for the 44px minimum) was removed with
+   no callers: every interactive element now carries the min-h/min-w utilities
+   directly, so the class only added a second way to do the same thing. */
 
 
 /* ── Mobile auth skin: the credential panel floats on the full-page field

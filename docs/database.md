@@ -66,9 +66,9 @@ Never edit applied migrations; never hand-edit production schemas. Remember the 
 
 - The API and the migration tooling use **one database role**. `DATABASE_URL` is passed straight
   to `new PrismaClient(...)` with no datasource overrides
-  (`apps/api/src/infrastructure/database/prisma.ts:6-12`), and the migration chain runs with the
-  same URL (`apps/api/scripts/deploy-migrations.mjs:20`); the deploy runbook points the DDL step
-  at the unpooled connection (`docs/runbooks/live-deployment.md:66-71`).
+  (the `PrismaClient` construction in `apps/api/src/infrastructure/database/prisma.ts`), and the migration chain runs with the
+  same URL (`apps/api/scripts/deploy-migrations.mjs`); the deploy runbook points the DDL step
+  at the unpooled connection (`docs/runbooks/live-deployment.md`).
 - Consequence: because migrations execute with the application's own connection string, that role
   must be able to run DDL — the runtime credentials are schema-owner credentials. No read/write
   split or separate migrator role exists in the repository

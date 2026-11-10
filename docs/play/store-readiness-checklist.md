@@ -67,7 +67,7 @@ form."
 **Repository state:** in-app deletion exists at Settings → Account (typed confirmation, blocked
 while an order is in progress or a withdrawal is pending — `apps/api/src/modules/auth/routes.ts`
 deletion section); public pages are served by the SPA at `/account-deletion`, `/privacy` and
-`/terms` (`apps/web/src/App.tsx:52-54,326-328`; `apps/web/src/features/legal/Legal.tsx`). The
+`/terms` (the legal routes in `apps/web/src/App.tsx`; `apps/web/src/features/legal/Legal.tsx`). The
 deletion flow anonymizes identity and retains financial rows as the policy states.
 
 - [ ] **[OWNER]** Point the Data safety deletion link at the real domain (the Vercel subdomain
