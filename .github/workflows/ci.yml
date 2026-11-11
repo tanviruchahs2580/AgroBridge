@@ -521,9 +521,26 @@ jobs:
 
       # WebKit and Firefox run only the two smoke specs (see the projects in
       # apps/web/playwright.config.ts); chromium owns the full suite.
+      # The retry is not decoration: on 2026-11-11 this exact step failed three
+      # PR runs in a row on runner-side flakiness (a hung download that ate the
+      # 45-minute job timeout twice, then an apt mirror returning exit 100
+      # twice) — the browsers themselves never changed. Three bounded attempts
+      # with a backoff turn a CDN/apt blip into a wait instead of a blocked
+      # release; the loop re-enters `playwright install` idempotently, so an
+      # attempt that already downloaded some browsers resumes rather than
+      # restarts.
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: |
+          for i in 1 2 3; do
+            if npx playwright install --with-deps chromium firefox webkit; then
+              exit 0
+            fi
+            echo "::warning::Playwright browser install attempt $i failed (runner-side CDN/apt flake) — retrying in 90s"
+            sleep 90
+          done
+          echo "::error::Playwright browser install failed after 3 attempts"
+          exit 1
 
       - name: Provision seeded SQLite database + API client
         working-directory: apps/api
