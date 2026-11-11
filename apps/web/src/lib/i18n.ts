@@ -330,6 +330,7 @@ export const dict = {
   regularFarmVisit: { bn: "নিয়মিত খামার পরিদর্শন করুন", en: "Regular farm visit" },
   viewDetails: { bn: "বিস্তারিত দেখুন", en: "View details" },
   aiFarmHealthy: { bn: "আপনার খামার সুস্থ আছে", en: "Your farm is healthy" },
+  aiFarmHealthySub: { bn: "আপনার জমি, ফসল ও আবহাওয়া — সবই অনুকূল পর্যায়ে আছে", en: "Your land, crops and weather are all in a favourable phase" },
   farmReadiness: { bn: "খামার প্রস্তুতি", en: "Farm readiness" },
   aiFarmEmptyTitle: { bn: "শুরু করতে খামার যোগ করুন", en: "Add a farm to get started" },
   aiFarmEmptyMeter: { bn: "খামার যোগ করলে প্রস্তুতি দেখা যাবে", en: "Readiness appears once a farm exists" },
