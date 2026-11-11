@@ -89,6 +89,16 @@
   --gradient-auth-scrim-panel: linear-gradient(to top, rgba(1, 40, 35, 0.95), rgba(1, 40, 35, 0.7) 50%, rgba(1, 40, 35, 0.35));
   --color-auth-card: rgba(1, 40, 35, 0.85);
 
+  /* Home farm-readiness panel — photo scrim over the owner-supplied field
+     photo (images/hero-farm.jpg, 2026-11-12), same rationale as the auth
+     washes: photo and wash identical in both themes, rgba() lives here so the
+     component carries no hex. The wide variant keeps the left column (badge,
+     heading, CTA) over ≥0.85 green for AA contrast and releases the photo on
+     the right; the narrow variant is the stacked mobile column, near-uniform
+     because white text then spans the full card width. */
+  --gradient-hero-scrim-wide: linear-gradient(to right, rgba(1, 40, 35, 0.95) 0%, rgba(1, 40, 35, 0.85) 42%, rgba(1, 40, 35, 0.45) 72%, rgba(1, 40, 35, 0.14) 100%);
+  --gradient-hero-scrim-narrow: linear-gradient(to bottom, rgba(1, 40, 35, 0.78) 0%, rgba(1, 40, 35, 0.88) 55%, rgba(1, 40, 35, 0.94) 100%);
+
   /* Action & accent — mode-independent semantics.
    * `action` = filled button backgrounds (stays deep green in dark).
    * `link`  = standalone links/inline accents (brightens in dark).

@@ -135,68 +135,83 @@ export default function Home() {
         </div>
       )}
 
-      {/* Farm readiness — brand-gradient hero (offline-safe, no remote imagery) */}
+      {/* Farm readiness — owner-supplied field photo (images/hero-farm.jpg,
+          2026-11-12) behind the state heading, per the owner's after-condition
+          mock. bg-hero stays underneath as the graceful fallback if the image
+          fails to load; the scrim tokens live in the token layer (rgba, both
+          themes identical) like the auth washes. Everything functional here is
+          unchanged: the four heading states, the CTA target and the ring's
+          data source. */}
       <section className="animate-enterprise relative overflow-hidden rounded-card bg-hero shadow-float" style={{ animationDelay: "80ms" } as React.CSSProperties}>
-        <div
+        <img
+          src="/images/hero-farm.jpg"
+          alt=""
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage: "radial-gradient(ellipse at 30% 20%, white 1px, transparent 1.5px), radial-gradient(ellipse at 70% 80%, white 1px, transparent 1.5px)",
-            backgroundSize: "180px 180px, 220px 220px",
-          }}
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-400)", opacity: 0.2 }} />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full blur-3xl" aria-hidden style={{ backgroundColor: "var(--color-brand-300)", opacity: 0.12 }} />
-        <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div className="min-w-0">
-            {/* State and the way to act on it. The "Farm readiness" pill above
-                this heading named the ring on the other side of the card rather
-                than the situation, and the paragraph that followed restated the
-                heading in a full sentence — "Weather risks detected" needed no
-                second line to be read. The heading is the state; the ring below
-                is captioned with what it measures. */}
-            <h2 className="text-lg font-extrabold leading-tight text-white sm:text-xl">
-              {farmsUnavailable
-                ? t("farmDataUnavailable", lang)
-                : farms.length === 0
-                  ? t("aiFarmEmptyTitle", lang)
-                  : hasRisk
-                    ? t("aiFarmAttention", lang)
-                    : t("aiFarmHealthy", lang)}
-            </h2>
-            <Link to="/farm" className="mt-3 inline-flex min-h-[44px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+        <div aria-hidden className="absolute inset-0 bg-[image:var(--gradient-hero-scrim-narrow)] md:bg-[image:var(--gradient-hero-scrim-wide)]" />
+        <div className="relative flex flex-col gap-3 p-4 sm:p-5">
+          {/* The readiness pill returns at the owner's request (their mock shows
+              it); it names the meter below, not the state — the heading above
+              it carries the state, as documented when the previous pill was
+              removed. */}
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-chip bg-action px-2.5 py-1 text-2xs font-bold tracking-wide text-white ring-1 ring-white/25">
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+            {t("farmReadiness", lang)}
+          </span>
+          <h2 className="text-lg font-extrabold leading-tight text-white sm:text-xl">
+            {farmsUnavailable
+              ? t("farmDataUnavailable", lang)
+              : farms.length === 0
+                ? t("aiFarmEmptyTitle", lang)
+                : hasRisk
+                  ? t("aiFarmAttention", lang)
+                  : t("aiFarmHealthy", lang)}
+          </h2>
+          {/* The owner's mock carries a sub-line naming the three inputs. It is
+              shown only in the healthy state — under "attention" or "empty" it
+              would contradict the heading — and unlike the removed restating
+              sentence it adds the inputs, not a repeat. */}
+          {!farmsUnavailable && farms.length > 0 && !hasRisk && (
+            <p className="-mt-1 max-w-[46ch] text-sm leading-relaxed text-white/90">
+              {t("aiFarmHealthySub", lang)}
+            </p>
+          )}
+          <div>
+            <Link to="/farm" className="mt-1 inline-flex min-h-[44px] items-center rounded-button bg-white px-3.5 py-1.5 text-sm font-bold text-brand-900 shadow-sm hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               {t("viewDetails", lang)} <span aria-hidden className="ml-1">→</span>
             </Link>
           </div>
           {/* The readiness ring is computed from the farm/crop records and today's
               weather. With no farm on file there is nothing to score, so the
               number is withheld rather than showing a floor value as if it meant
-              something. */}
+              something. Ring and caption sit side by side, as in the mock. */}
           {farmsUnavailable ? (
             // No number: the reads that produce it did not complete, and a score
             // computed from an empty array would be a fabricated 60%.
-            <div className="flex shrink-0 flex-col items-center gap-1.5 self-center rounded-card bg-white/10 p-4 text-center ring-1 ring-white/15 backdrop-blur sm:self-auto">
-              <TriangleAlert className="h-6 w-6 text-white/80" aria-hidden />
-              <span className="max-w-[16ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+            <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 text-left ring-1 ring-white/15 backdrop-blur">
+              <TriangleAlert className="h-6 w-6 shrink-0 text-white/80" aria-hidden />
+              <span className="max-w-[24ch] text-xs font-medium leading-snug tracking-wide text-white/85">
                 {t("farmDataUnavailable", lang)}
               </span>
             </div>
           ) : farms.length === 0 ? (
-            <div className="flex shrink-0 flex-col items-center gap-1.5 self-center rounded-card bg-white/10 p-4 text-center ring-1 ring-white/15 backdrop-blur sm:self-auto">
-              <Sprout className="h-6 w-6 text-white/80" aria-hidden />
-              <span className="max-w-[14ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+            <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 text-left ring-1 ring-white/15 backdrop-blur">
+              <Sprout className="h-6 w-6 shrink-0 text-white/80" aria-hidden />
+              <span className="max-w-[22ch] text-xs font-medium leading-snug tracking-wide text-white/85">
                 {t("aiFarmEmptyMeter", lang)}
               </span>
             </div>
           ) : (
-            <div className="flex shrink-0 flex-col items-center gap-2 self-center rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur sm:self-auto">
+            <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur">
               <HealthRing score={healthScore} />
               {/* The caption names the meter, and — when the weather read failed
                   and computeHealthScore therefore skipped that term — says so.
                   It used to be a sentence ("From your records and today's
                   weather"); the honesty it carried is the second half of it, so
                   that half is what stays. */}
-              <span className="max-w-[18ch] text-center text-2xs leading-snug text-white/70">
+              <span className="max-w-[20ch] text-2xs leading-snug text-white/80">
                 {weather ? t("farmReadiness", lang) : t("farmReadinessBasisNoWeather", lang)}
               </span>
             </div>

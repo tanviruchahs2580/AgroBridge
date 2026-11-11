@@ -53,6 +53,7 @@ Item for the owner: record which tool/version produced the subsets.
 | `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable.png` | PWA manifest (`public/manifest.webmanifest` icons) | Derivative of the brand mark; same open question as `logo-mark.png`. **UNKNOWN — owner must record origin.** |
 | `icons/apple-touch-icon.png`, `icons/favicon-64.png` | Platform icon slots | same as `icon.svg`/brand derivatives; **UNKNOWN — owner must record origin.** |
 | `images/services/agronomist.jpg`, `combine.jpg`, `drone.jpg`, `land-leveller.png`, `power-tiller.jpg`, `soil-test.jpg`, `thresher.jpg`, `tractor.jpg` | Referenced by the services feature (`apps/web/src/components/service/ServiceCard.tsx`, `apps/web/src/features/services/Services.tsx`) | No provenance record in the repository. **UNKNOWN — owner must supply licence or asset must be removed.** These are the images the Play listing and the services page render. |
+| `images/hero-farm.jpg` | Home farm-readiness panel (`apps/web/src/features/home/Home.tsx`) | **Owner-supplied 2026-11-12** (in-session, file `photo_6316709806865060868_y.jpg`): the owner provided the photograph and directed its use as the panel background. Terms recorded here by owner instruction; no third-party licence applies per the owner. |
 
 ## Unreferenced service images (flagged)
 
