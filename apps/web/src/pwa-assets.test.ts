@@ -46,8 +46,11 @@ describe("PWA assets — the manifest matches the splash handover", () => {
     expect(maskable.length).toBeGreaterThan(0);
 
     // Comments are stripped first: the file documents the removal by naming the
-    // retired attribute, and only live markup may not contain it.
-    const html = read("index.html").replace(/<!--[\s\S]*?-->/g, "");
+    // retired attribute, and only live markup may not contain it. The second
+    // replace removes any residual `<!--` (an unclosed comment would otherwise
+    // swallow the rest of the file and hide live markup from the assertion) —
+    // the incomplete-multi-character-sanitization pattern CodeQL flags.
+    const html = read("index.html").replace(/<!--[\s\S]*?-->/g, "").replace(/<!--/g, "");
     expect(html).not.toContain('rel="maskable"');
     // The manifest is still linked, and the maskable-capable icon is the one the
     // manifest points at.

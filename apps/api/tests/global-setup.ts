@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, openSync, closeSync, readFileSync, rmSync, statSync, unlinkSync, writeSync } from "node:fs";
+import { readFileSync, openSync, closeSync, rmSync, statSync, unlinkSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +33,7 @@ function clientDialect(clientDir: string): string | null {
 }
 
 function ensurePrismaClient(schemaPath: string, clientDir: string, neededDialect: string) {
-  const generated = existsSync(clientDir);
+  const generated = exists(clientDir);
   if (!generated) {
     execSync("npx prisma generate --schema prisma/schema.prisma", { stdio: "inherit" });
     return;
@@ -54,9 +54,9 @@ function ensurePrismaClient(schemaPath: string, clientDir: string, neededDialect
     execSync("npx prisma generate --schema prisma/schema.prisma", { stdio: "inherit" });
   } catch (e) {
     throw new Error(
-      `prisma generate failed while the generated client does not match this run's dialect/schema.\n` +
-        `On Windows this usually means a dev server is running and holding the query engine DLL:\n` +
-        `stop \`npm run dev --workspace apps/api\` and run the suite again.\n` +
+      "prisma generate failed while the generated client does not match this run's dialect/schema.\n" +
+        "On Windows this usually means a dev server is running and holding the query engine DLL:\n" +
+        "stop `npm run dev --workspace apps/api` and run the suite again.\n" +
         `Original error: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
@@ -64,6 +64,15 @@ function ensurePrismaClient(schemaPath: string, clientDir: string, neededDialect
 
 const LOCK_FILE = fileURLToPath(new URL("../prisma/.test-db.lock", import.meta.url));
 export const TEST_DB_LOCK = LOCK_FILE;
+
+function exists(p: string): boolean {
+  try {
+    statSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function isProcessAlive(pid: number): boolean {
   try {
@@ -87,15 +96,66 @@ function isProcessAlive(pid: number): boolean {
  * concurrent run's `globalSetup`.
  *
  * The lock is advisory but fail-fast: a second run stops with an actionable
- * message instead of silently corrupting the first. A lock whose owning process
- * has exited (SIGKILL, crash, CI timeout) is detected and reclaimed, so a stale
- * file can never wedge the suite permanently. Set `TEST_DB_FILE` to run against
- * a private database and skip the lock entirely (see docs/testing.md).
+ * message instead of silently corrupting the first. The owner pid is read back
+ * with a single unconditional `readFileSync` — never after an existence probe,
+ * which is the check-then-act shape CodeQL flags (js/file-system-race) — and an
+ * unreadable or malformed payload FAILS CLOSED rather than reclaiming, because
+ * a half-written file cannot be told apart from a live run's. A lock whose
+ * owner has exited is reclaimed (delete + retry the exclusive create); one
+ * whose owner is alive, or whose contents are undecidable, stops the run with
+ * the remedy spelled out. Set `TEST_DB_FILE` to run against a private database
+ * and skip the lock entirely (see docs/testing.md).
  */
+function readLockOwner(): { pid: number } | null | "undecidable" {
+  let raw: string;
+  try {
+    raw = readFileSync(LOCK_FILE, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e; // unreadable for a real reason (permissions) — not ours to decide
+  }
+  try {
+    const parsed = JSON.parse(raw) as { pid?: unknown };
+    return typeof parsed.pid === "number" ? { pid: parsed.pid } : "undecidable";
+  } catch {
+    return "undecidable"; // a partial write cannot be told apart from a live run
+  }
+}
+
 function acquireDbLock(): void {
   const payload = JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() });
+  const remedy =
+    "Wait for the other run to finish, or run this one against a private database:\n" +
+    "  TEST_DB_FILE=file:./my-run.db npm run test --workspace apps/api\n";
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // One unconditional read per attempt — there is no existence probe to race
+    // against, which is also why this is not the js/file-system-race shape.
+    const owner = readLockOwner();
+    if (owner === "undecidable") {
+      throw new Error(
+        `The SQLite test-database lock exists but cannot be read (${LOCK_FILE}).\n` +
+          "A half-written lock cannot be told apart from a live run, so this run stops\n" +
+          "instead of stealing it. If no other run is active, delete that file and retry.\n\n" +
+          "Or run against a private database:\n" +
+          "  TEST_DB_FILE=file:./my-run.db npm run test --workspace apps/api\n",
+      );
+    }
+    if (owner !== null && isProcessAlive(owner.pid)) {
+      throw new Error(
+        `Another test run (pid ${owner.pid}) is already using the SQLite test database.\n` +
+          "Both runs share apps/api/prisma/test.db, which this suite deletes and recreates —\n" +
+          'running them together produces "The table main.User does not exist" in whichever\n' +
+          "run lost the race, and that error looks like a product regression.\n\n" +
+          remedy,
+      );
+    }
+    if (owner !== null) {
+      console.log(`[global-setup] reclaiming stale test-db lock (owner pid ${owner.pid} is gone)`);
+      // The owner is gone, so the file is not held open — the delete is the reclaim.
+      rmSync(LOCK_FILE, { force: true });
+    }
+
     try {
       const fd = openSync(LOCK_FILE, "wx");
       writeSync(fd, payload);
@@ -103,42 +163,19 @@ function acquireDbLock(): void {
       return;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-    }
-
-    let ownerPid: number | null = null;
-    try {
-      ownerPid = (JSON.parse(readFileSync(LOCK_FILE, "utf8")) as { pid?: number }).pid ?? null;
-    } catch {
-      ownerPid = null; // unreadable/partial lock — treat as stale
-    }
-
-    if (ownerPid !== null && isProcessAlive(ownerPid)) {
-      throw new Error(
-        `Another test run (pid ${ownerPid}) is already using the SQLite test database.\n` +
-          `Both runs share apps/api/prisma/test.db, which this suite deletes and recreates —\n` +
-          `running them together produces "The table main.User does not exist" in whichever\n` +
-          `run lost the race, and that error looks like a product regression.\n\n` +
-          `Wait for the other run to finish, or run this one against a private database:\n` +
-          `  TEST_DB_FILE=file:./my-run.db npm run test --workspace apps/api\n`,
-      );
-    }
-
-    console.log(`[global-setup] reclaiming stale test-db lock (owner pid ${ownerPid ?? "unknown"} is gone)`);
-    try {
-      unlinkSync(LOCK_FILE);
-    } catch {
-      // Someone else won the reclaim race; the next loop iteration re-checks.
+      // Lost a create race against another run (it created the lock between our
+      // read and ours). Loop: the next attempt reads ITS pid and decides again.
     }
   }
 
-  throw new Error(`Could not acquire ${LOCK_FILE} after reclaiming a stale lock.`);
+  throw new Error(`Could not acquire ${LOCK_FILE} after three attempts — another run keeps winning the create race.`);
 }
 
 export function releaseDbLock(): void {
   try {
     unlinkSync(LOCK_FILE);
   } catch {
-    // Not held (PG profile, or already reclaimed) — nothing to do.
+    // Not held (PG profile, private database, or already reclaimed) — nothing to do.
   }
 }
 
@@ -183,8 +220,9 @@ export default function globalSetup() {
   // a path we cannot reason about.
   if (dbRel.startsWith("file:./")) {
     const dbPath = fileURLToPath(new URL(`../prisma/${dbRel.slice("file:./".length)}`, import.meta.url));
+    // `force` makes this safe whether or not the file exists — no probe, no race.
     for (const p of [dbPath, dbPath + "-journal"]) {
-      if (existsSync(p)) rmSync(p);
+      rmSync(p, { force: true });
     }
   }
 
