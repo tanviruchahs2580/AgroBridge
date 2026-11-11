@@ -28,16 +28,16 @@ right and this page is a bug. Production is `main`.
 
 | Thing | State | Evidence |
 |---|---|---|
-| Repository | Branch `main` carries the 2026-11-03 release `3f1c991` (#88, #89, #90); everything after it is docs-only release records (#91, #92) | `git log origin/main` |
-| Web SPA | Deployed; `version.json` reports version `1.4.1`, commit `3f1c991`, built 2026-11-03T09:17Z | live probe (curl, 2026-11-03) |
-| API | Deployed; `/health` reported commit `3f1c991`, `env: production` | live probe (curl, 2026-11-03); the 2026-11-10 audit re-probe reports `d205f76` — a docs-only rebuild of the same code (§3.6 of `docs/audit/2026-11-10-full-qa-audit.md`) |
+| Repository | Branch `main` carries the 2026-11-11 remediation release `5d66344` (PR #93 — the AUD-2026-11-10-FULL remediation, 1.4.2/versionCode 14002); the audit receipt is `docs/audit/2026-11-10-full-qa-audit.md` Part II | `git log origin/main` |
+| Web SPA | Deployed; `version.json` reports version `1.4.2`, commit `5d66344`, built 2026-11-11T18:10Z | live probe (curl, 2026-11-11) |
+| API | Deployed; `/health` reports commit `5d66344`, `env: production` | live probe (curl, 2026-11-11) |
 (fix: audit remediation — money, authorisation, AI, release path (AUD-2026-11-10-FULL))
 | Android artifact | CI's `agrobridge-debug-apk` for `3f1c991` bundles the same web build as that deployment's web (entry chunk byte-identical, SHA-256 `c3df0367…`, 404,950 bytes), `versionName` 1.4.1. The later docs-only build differs only in the compiled-in stamp — same byte length, differences confined to Vite's `__vite__mapDeps` table | `gh run download 41609544999`; not installed — no device or emulator on the verification machine |
-| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 11/11, latest migration `20261024020000_otp_live_challenge_unique` | live probe (curl, 2026-11-03) |
+| Database | PostgreSQL on Neon; `/ready` reports `db: true`, schema applied 13/13, latest migration `20261110130000_fk_relation_indexes` (the two additive remediation migrations were applied to production before the code deploy), and `/ready` no longer publishes the payment-provider mode unauthenticated (F-40) | live probe (curl, 2026-11-11) |
 | Public surfaces | `https://agrobridge-web.vercel.app` (web), `https://agro-bridge-api-vantiq-systems.vercel.app` (API) | `docs/runbooks/live-deployment.md` topology table |
 | Web security headers | CSP (hash-pinned), HSTS preload, `X-Frame-Options: DENY`, `Permissions-Policy` without geolocation | live headers; the build fails if the two Vercel configs diverge |
 | API error contract | Unknown routes return the structured envelope with `requestId` | live probe (`ROUTE_NOT_FOUND` example) |
-| CI | Release PR #90 passed **19/19 checks** (the CI jobs incl. the SQLite + PostgreSQL suites and the Playwright browser suite — 22 spec files, `ls apps/web/e2e/*.spec.ts | wc -l` — plus CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI, CodeQL and Deploy verification were green on `3f1c991` | `gh pr checks 90`, Actions runs for `main` |
+| CI | Release PR #93 passed **19/19 checks** (2026-11-11; three CI-fix rounds were needed inside the PR: the npm-11 strict install-script gate, two CodeQL highs, the unnamed Docker stage that made every API image build the migrate stage, and runner-side browser-install flakiness now retried); Release PR #90 passed **19/19 checks** (the CI jobs incl. the SQLite + PostgreSQL suites and the Playwright browser suite — 22 spec files, `ls apps/web/e2e/*.spec.ts | wc -l` — plus CodeQL, ZAP DAST, Docker build + compose smoke, Trivy, gitleaks, both Vercel previews); push-to-main CI, CodeQL and Deploy verification were green on `3f1c991` | `gh pr checks 90`, Actions runs for `main` |
 
 Known production properties that are not defects but are easy to misread:
 
