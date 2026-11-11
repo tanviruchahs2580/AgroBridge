@@ -23,7 +23,7 @@ RUN npm run build
 
 # ---- runtime stage: production deps only, freshest patches ----
 # node:22-alpine (same digest as the build stage)
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runtime
 WORKDIR /app
 RUN apk upgrade --no-cache
 COPY package.json package-lock.json ./

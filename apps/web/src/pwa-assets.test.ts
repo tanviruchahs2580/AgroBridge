@@ -45,12 +45,13 @@ describe("PWA assets — the manifest matches the splash handover", () => {
     const maskable = (manifest.icons ?? []).filter((i) => (i.purpose ?? "").split(/\s+/).includes("maskable"));
     expect(maskable.length).toBeGreaterThan(0);
 
-    // Comments are stripped first: the file documents the removal by naming the
-    // retired attribute, and only live markup may not contain it. The second
-    // replace removes any residual `<!--` (an unclosed comment would otherwise
-    // swallow the rest of the file and hide live markup from the assertion) —
-    // the incomplete-multi-character-sanitization pattern CodeQL flags.
-    const html = read("index.html").replace(/<!--[\s\S]*?-->/g, "").replace(/<!--/g, "");
+    // The retired link relation must not appear anywhere in index.html — the
+    // file's own comment refers to it without spelling the attribute out, so
+    // this assertion needs no HTML sanitisation at all (a strip-the-comments
+    // pre-pass is what CodeQL's incomplete-multi-character-sanitization query
+    // flagged, and it was also weaker than this: a strict whole-file assertion
+    // cannot be defeated by an unclosed comment hiding live markup).
+    const html = read("index.html");
     expect(html).not.toContain('rel="maskable"');
     // The manifest is still linked, and the maskable-capable icon is the one the
     // manifest points at.
