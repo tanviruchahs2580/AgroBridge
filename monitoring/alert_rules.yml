@@ -67,3 +67,33 @@ groups:
           description: "Prometheus cannot reach {{ $labels.instance }} for 3m. Container may be crashed or network partitioned."
           runbook: docs/runbooks/live-deployment.md
 
+      # AGENTS.md §12 expects authorisation failures to be alertable, and the HTTP
+      # series cannot carry them: metricsMiddleware labels a request that is
+      # refused before the route layer runs as route="unmatched" (F-26), so a
+      # burst of 401/403 on /auth/login is invisible in
+      # agobridge_http_requests_total.
+      #
+      # DEPENDENCY (F-27): agobridge_auth_failures_total{route,reason} is being
+      # added in apps/api/src/infrastructure/metrics.ts by the API stream; it is
+      # NOT emitted yet (checked 2026-11-10: the file defines http_requests_total,
+      # http_request_duration_seconds, db_up, ai_requests_total,
+      # payment_intents_total only). Until it lands this rule matches no series
+      # and cannot fire — inert, not wrong — and the promtool cases below prove
+      # its firing and quiet paths against synthetic series, so the rule works
+      # the moment the metric does. If the symbol lands under a different name,
+      # this expression is the one line to change.
+      - alert: AuthFailureSpike
+        # 0.1/s ≈ 6 refused requests/min on ONE route+reason, sustained for 10
+        # minutes. The login limiter allows 20 attempts / 15 min per address, so
+        # one farmer mistyping a password cannot reach it; a client looping on a
+        # 403, a credential-stuffing run spread across addresses, or an RBAC
+        # regression can.
+        expr: sum by (route, reason) (rate(agobridge_auth_failures_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained 401/403 rate on one route (>0.1/s for 10m)"
+          description: "{{ $labels.route }} is refusing requests with reason {{ $labels.reason }}. Check the API logs for that reason and recent RBAC or session changes before it becomes a lockout; a mass 401 after a deploy is usually JWT-secret rotation (docs/runbooks/secret-rotation.md)."
+          runbook: docs/operations.md
+

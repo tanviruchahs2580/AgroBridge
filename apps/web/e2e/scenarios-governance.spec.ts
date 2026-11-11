@@ -201,7 +201,7 @@ test.describe("Scenario acceptance — UX & resilience", () => {
     const longName = "উত্তর-পশ্চিম চর দেলুয়াবাদ কৃষি খামার — ২য় ব্লক, ১২ নং সীমানা";
     await login(page, { phone: f.phone, password: "Demo@1234" });
     await page.goto("/farm");
-    await page.getByRole("button", { name: /নতুন ফার্ম|Add Farm/ }).first().click();
+    await page.getByRole("button", { name: /নতুন খামার|Add Farm/ }).first().click();
     await page.fill("#fm-name", longName);
     await page.fill("#fm-area", "3.5");
     await page.locator("form button[type='submit']").first().click();
@@ -218,7 +218,7 @@ test.describe("Scenario acceptance — UX & resilience", () => {
     await login(page, DEMO.farmer);
     await page.goto("/");
     // The rest of Home must stay usable while weather fails.
-    await expect(page.locator("#main")).toContainText(/কাজ|Task|ফার্ম|Farm|পরামর্শ|Advis/i, { timeout: 15_000 });
+    await expect(page.locator("#main")).toContainText(/কাজ|Task|খামার|Farm|পরামর্শ|Advis/i, { timeout: 15_000 });
     blocked = false;
     const retry = page.locator("button", { hasText: /রিফ্রেশ|Retry|আবার/i }).first();
     if ((await retry.count()) > 0) {

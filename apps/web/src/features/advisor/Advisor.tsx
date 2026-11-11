@@ -15,6 +15,17 @@ import { answerModeLabel, shortKbVersion } from "./answerMeta";
 
 const CROP_KEYWORDS = /rice|wheat|jute|mustard|maize|potato|ধান|গম|পাট|সরিষা|ভুট্টা|আলু/i;
 
+/**
+ * Photo-upload outcome. `queued` means the case is stored and awaiting an
+ * agronomist (status PENDING_REVIEW) — it must never be rendered as a diagnosis
+ * and must never be inferred from localized copy.
+ */
+type UploadState =
+  | { kind: "idle" }
+  | { kind: "busy" }
+  | { kind: "queued" }
+  | { kind: "error"; message: string };
+
 /** Client-side downscale + JPEG re-encode (max dim 1280, q 0.82) before upload. */
 async function compressImage(file: File): Promise<Blob> {
   try {
@@ -66,8 +77,18 @@ export default function Advisor() {
   }[]>([]);
   const [busy, setBusy] = useState(false);
   const [showAllCases, setShowAllCases] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState("");
+  /**
+   * The photo-upload outcome as a discriminated state.
+   *
+   * It used to be a message string with the branch decided by comparing it to
+   * `t("pendingReview", lang)` at render time: switching the UI language between
+   * the upload and the next paint re-classified a success as a failure (a green
+   * "pending expert review" box turned into a red error banner showing that same
+   * sentence), and any future copy edit could do the same silently. A tag cannot
+   * drift from its message.
+   */
+  const [upload, setUpload] = useState<UploadState>({ kind: "idle" });
+  const uploading = upload.kind === "busy";
   const [showHistory, setShowHistory] = useState(false);
   const [reporting, setReporting] = useState<AdvisoryHistoryItem | null>(null);
   const [reason, setReason] = useState("");
@@ -145,24 +166,21 @@ export default function Advisor() {
     e.target.value = ""; // allow re-selecting the same file
     if (!file || uploading) return;
     if (file.size > 8 * 1024 * 1024) {
-      setUploadMsg(t("imageTooLarge", lang));
+      setUpload({ kind: "error", message: t("imageTooLarge", lang) });
       return;
     }
-    setUploading(true);
-    setUploadMsg("");
+    setUpload({ kind: "busy" });
     track("disease_upload");
     try {
       const blob = await compressImage(file);
       const fd = new FormData();
       fd.append("image", blob, "crop.jpg");
       await api("POST", "/disease/cases", fd);
-      setUploadMsg(t("pendingReview", lang));
+      setUpload({ kind: "queued" });
       // The old code awaited loadCases: that refetched exactly this resource.
       invalidate("advisor-cases");
     } catch (err) {
-      setUploadMsg(mapError(err, lang));
-    } finally {
-      setUploading(false);
+      setUpload({ kind: "error", message: mapError(err, lang) });
     }
   }
 
@@ -250,26 +268,30 @@ export default function Advisor() {
       <p className="text-xs leading-relaxed text-stone-600">{t("advisoryDisclaimer", lang)}</p>
 
       <Card className="space-y-2">
-        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-button border border-brand-300 px-4 py-2 font-semibold text-link transition-colors hover:border-brand-400 hover:bg-brand-50 focus-within:ring-2 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-color)] peer-focus-visible:ring-offset-2 ring-offset-[var(--color-surface-bg)]">
+        {/* `focus-within`, not `peer-focus-visible`: `peer-*` variants only match
+            a SIBLING peer, and the file input is a CHILD of this label, so those
+            classes generated CSS that could never apply — the ring colour and
+            offset were never painted and the control fell back to whatever the
+            UA drew. The label is the visible focus target for the sr-only input
+            inside it, so focus-within is the correct relation. */}
+        <label className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-button border border-brand-300 px-4 py-2 font-semibold text-link transition-colors hover:border-brand-400 hover:bg-brand-50 focus-within:ring-2 focus-within:ring-[var(--ring-color)] focus-within:ring-offset-2 ring-offset-[var(--color-surface-bg)]">
           <Camera className="mr-2 inline h-5 w-5" aria-hidden /> {t("uploadPhoto", lang)} · {t("diseaseCheck", lang)}
           {/* `sr-only`, not `hidden`: display:none removes the input from the tab
               order, so the photo upload — the only way to use the disease
               intake — could not be reached or activated by keyboard at all. */}
-          <input type="file" accept="image/*" capture="environment" className="peer sr-only" onChange={uploadImage} disabled={uploading} />
+          <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={uploadImage} disabled={uploading} />
         </label>
-        {uploading && (
+        {upload.kind === "busy" && (
           <p role="status" className="flex items-center gap-2 text-sm text-stone-500">
             <Spinner className="h-4 w-4" /> {t("compressingImage", lang)}
           </p>
         )}
-        {uploadMsg &&
-          (uploadMsg === t("pendingReview", lang) ? (
-            <div role="status" className="rounded-lg bg-success-bg px-3 py-2 text-xs text-success-text">
-              {uploadMsg}
-            </div>
-          ) : (
-            <ErrorBanner message={uploadMsg} />
-          ))}
+        {upload.kind === "queued" && (
+          <div role="status" className="rounded-lg bg-success-bg px-3 py-2 text-xs text-success-text">
+            {t("pendingReview", lang)}
+          </div>
+        )}
+        {upload.kind === "error" && <ErrorBanner message={upload.message} />}
 
         {/* Cases: their own block — its skeleton while loading, and its own
  error with retry (previously the failure was silent). The empty

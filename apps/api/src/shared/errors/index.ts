@@ -72,3 +72,18 @@ export const weatherProviderUnavailable = (details?: unknown) =>
 /** Refused by our own resilience policy (circuit open / bulkhead full) — 503. */
 export const weatherProviderOverloaded = (details?: unknown) =>
   new AppError(503, "WEATHER_PROVIDER_OVERLOADED", "Weather service is temporarily overloaded; please retry later", details);
+
+/**
+ * The scheduled wallet reconciliation found a wallet whose stored balance (or
+ * hold) disagrees with its ledger. A 500 on purpose: the cron invocation must
+ * fail visibly, because a silently-clean answer would let a drifted ledger
+ * stay invisible — the exact failure mode the reconciliation exists to catch.
+ * Details carry the bounded mismatch list for the operator reading the cron log.
+ */
+export const walletReconciliationMismatch = (details?: unknown) =>
+  new AppError(
+    500,
+    "WALLET_RECONCILIATION_MISMATCH",
+    "Wallet reconciliation found ledger discrepancies — see details and docs/runbooks/failed-transaction-recovery.md",
+    details
+  );

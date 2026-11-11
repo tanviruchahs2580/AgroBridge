@@ -92,11 +92,30 @@ export class SSLCommerzProvider implements PaymentProvider {
           total_amount: (input.amountPaisa / 100).toFixed(2),
           currency: "BDT",
           tran_id: input.refNo,
+          // Callback base comes from the caller and already carries the API
+          // mount prefix (`/api/v1`); without it the buyer 404s after paying
+          // (F-04).
           success_url: `${input.returnBaseUrl}/payments/gateway/return/success`,
           fail_url: `${input.returnBaseUrl}/payments/gateway/return/fail`,
           cancel_url: `${input.returnBaseUrl}/payments/gateway/return/cancel`,
+          // IPN target: the signed webhook is the ONLY success path for real
+          // money. Without notify_url SSLCommerz does not POST it, so a
+          // browser-less payment (or a buyer who closes the tab) never settles
+          // (F-05).
+          notify_url: `${input.returnBaseUrl}/payments/webhook/sslcommerz`,
+          cus_name: input.customerName?.trim() || "AgroBridge Customer",
           cus_phone: input.customerPhone,
+          // The v4 session call expects an address/city/country triple, but the
+          // payment context carries no address (the buyer profile is not part of
+          // createPayment). Documented placeholders: a missing field is what
+          // makes the gateway answer FAILED with no GatewayPageURL, while a
+          // placeholder keeps the session open.
+          cus_add1: "N/A",
+          cus_city: "Dhaka",
+          cus_country: "Bangladesh",
+          product_name: "AgroBridge purchase",
           product_category: "general",
+          product_profile: "general",
           shipping_method: "NO",
           num_of_item: "1",
         }).toString(),

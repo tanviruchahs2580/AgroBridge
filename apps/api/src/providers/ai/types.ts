@@ -1,4 +1,4 @@
-import type { KbSourceRef } from "./knowledge.js";
+import type { KbEntry, KbSourceRef } from "./knowledge.js";
 
 export interface AiContext {
   lang: "bn" | "en";
@@ -7,6 +7,12 @@ export interface AiContext {
   cropStage?: string;
   district?: string;
   weatherSummary?: string;
+  /**
+   * Membership tier of the caller, if known. Read today by the per-tier
+   * advisory quota (`modules/aiagent/routes.ts` → `advisoryHourlyLimitForTier`)
+   * and recorded in the gateway's usage telemetry; the engines do not branch on
+   * it (advice quality must not depend on plan).
+   */
   membershipTier?: string;
 }
 
@@ -37,6 +43,28 @@ export interface AiAnswer {
    * already names the deterministic template that produced the answer.
    */
   promptVersion?: string;
+  /**
+   * Hosted provider only: the model the provider reports it actually served
+   * for this completion (the configured `model` is a mutable alias a provider
+   * may resolve/roll). Recorded in the usage ledger so an incident can be
+   * attributed to the model that answered, not the alias requested.
+   */
+  responseModel?: string;
+  /**
+   * Hosted provider only: the provider's opaque deployment fingerprint for the
+   * serving backend. Sanitized (single-line, length-capped) before it is
+   * recorded — provider output is untrusted input like any other.
+   */
+  systemFingerprint?: string;
+  /**
+   * Hosted provider only: share of the answer's content tokens that appear in
+   * the retrieved reference text (0..1). `undefined` when nothing was
+   * retrieved. F-43: the hosted path used to report a fixed 0.75 whenever any
+   * entry was retrieved; confidence is now derived from retrieval scores plus
+   * this support measure, and a low measure downgrades the answer to
+   * low-confidence with no citations.
+   */
+  answerSupport?: number;
 }
 
 export interface AiProvider {
@@ -100,6 +128,22 @@ const AGROCHEM_RE =
 
 export function containsAgrochemGuidance(text: string): boolean {
   return AGROCHEM_RE.test(text);
+}
+
+/**
+ * Whether an answer needs the review-pending note: it names or doses an
+ * agrochemical input AND at least one grounding entry is `UNSOURCED` — or
+ * nothing was retrieved at all, in which case the text cannot be grounded in
+ * any source and the note is the honest floor.
+ *
+ * F-44: this decision used to be inlined in the offline engine, so the hosted
+ * provider — the one path that can invent a dose from parametric memory —
+ * never applied it. Both engines now call this single helper.
+ */
+export function unreviewedTreatmentRequired(answer: string, entries: KbEntry[]): boolean {
+  if (!containsAgrochemGuidance(answer)) return false;
+  if (entries.length === 0) return true;
+  return entries.some((e) => e.status === "UNSOURCED");
 }
 
 export function unreviewedTreatmentNote(lang: "bn" | "en"): string {

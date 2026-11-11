@@ -190,14 +190,14 @@ test("T3: Dashboard greeting correct (no decorative emoji)", async ({ page }) =>
 test("T4: MyFarm page works, correct error messages", async ({ page }) => {
   await login(page);
 
-  // Click My Farm in bottom nav
-  const farmNav = page.locator('[data-testid="bottom-nav"] a').filter({ hasText: /ফার্ম|Farm/ }).first();
+  // Click My Farm in bottom nav (the label uses খামার — F-93's chosen register)
+  const farmNav = page.locator('[data-testid="bottom-nav"] a').filter({ hasText: /খামার|Farm/ }).first();
   await farmNav.click();
   await page.waitForTimeout(1500);
 
   // Check we're on the farm page (assertion must actually run — was broken ||-style)
   const farmPageText = await page.textContent("body");
-  expect(farmPageText).toMatch(/আমার ফার্ম|My Farm/i);
+  expect(farmPageText).toMatch(/আমার খামার|My Farm/i);
 
   // Check no wrong "phone taken" error message
   expect(farmPageText).not.toContain("এই নম্বর");

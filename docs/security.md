@@ -68,12 +68,14 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
     permission-gated (`payments:refund`, held only by ADMIN/SUPER_ADMIN), takes a `gatewayRef` for
     live refunds, refuses MEMBERSHIP refunds and writes a compensating wallet debit. It is an
     operator action on someone else's payment by design; the scoping every sibling has would make
-    operator-initiated refunds impossible. `payments/routes.ts:527-620`.
+    operator-initiated refunds impossible. `POST /payments/:id/refund` in
+    `apps/api/src/modules/payments/routes.ts`.
   - `POST /api/v1/farms/:id/events` is **owner-only**, while the farm's other mutations admit
     organisation members (`assertFarmAccess`). So an organisation member can read an org farm's
     event log but not append to it. That asymmetry is fail-closed (it grants less, never more); it is
     recorded rather than "fixed" because widening a write path is a permission decision, not a
-    maintenance one. `farms/routes.ts:37-47` vs `:418`.
+    maintenance one. `assertFarmAccess` vs the `POST /farms/:id/events` handler in
+    `apps/api/src/modules/farms/routes.ts`.
 - **Overload behaviour:** the API refuses work it cannot serve instead of queueing it. Past
   `MAX_CONCURRENT_REQUESTS` in-flight requests it answers `503 OVERLOADED` + `Retry-After`
   immediately, and a database pool timeout is mapped to `503 DB_POOL_EXHAUSTED` rather than a bare

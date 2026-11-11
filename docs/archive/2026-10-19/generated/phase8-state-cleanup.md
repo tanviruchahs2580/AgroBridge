@@ -1,5 +1,12 @@
 # Phase 8 — State Management Cleanup (Local Prep, No Push, UI-Locked)
 
+> **REJECTED PROPOSAL — banner added 2026-11-10 (F-53).** The document proposed
+> adopting `@tanstack/react-query@5.64.1` and claimed a `queryClient.ts` and `lib/optimistic.ts`
+> were already configured. That was never true: no react-query dependency is installed and no such
+> files exist, and `AGENTS.md` §4 forbids introducing React Query — the web data layer is
+> `lib/api.ts` + `lib/useResource.ts` by design (ADR-0002). Kept in the archive because it is
+> part of this engagement's trail; **do not implement anything from it**.
+
 **Status:** PREPARED — no push, no commit, no visual change
 **Scope:** `apps/web/src` only — `lib/sessionManager.ts` + `lib/queryKeys.ts` + this doc
 **Constraint:** UI-locked — zero pixels changed, pure state-ownership / data-fetch hygiene

@@ -12,8 +12,11 @@ Source of truth: `apps/api/src/providers/ai/knowledge.ts` — seven hand-authore
 entries, each carrying a `sources` ledger currently marked **UNSOURCED** (no publisher, URL,
 edition or date exists yet; nothing was invented to fill the fields).
 
-For each entry (ids: crop/plant-protection entries — rice blast, rice stem borer, wheat rust,
-potato late blight, jute stem rot, mustard aphid, plus the two general entries):
+For each entry (ids: crop/plant-protection entries — `rice-blast`, `rice-urea`, `wheat-rust`,
+`jute-stem-rot`, `mustard-aphid` — plus the two general entries `soil-test` and
+`irrigation-general`; the list is verified against `KNOWLEDGE_BASE` as of 2026-11-10, F-101 — an
+earlier revision of this sheet named `rice stem borer` and `potato late blight`, which do not
+exist in the corpus, and omitted `rice-urea`):
 
 - [ ] Confirm the advice is correct for Bangladesh conditions (variety, season, region).
 - [ ] Provide at least one authoritative source per entry (e.g. DAE / BARI / BRRI / SRDI

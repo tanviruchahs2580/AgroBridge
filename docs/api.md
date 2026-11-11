@@ -1,8 +1,8 @@
-<!-- owner: @tanviruchahs2580 · purpose: route reference for the mounted API surface — regenerated inventory in docs/qa/route-matrix.md · last-verified: 2026-10-21 @ 6550a9a -->
+<!-- owner: @tanviruchahs2580 · purpose: route reference for the mounted API surface — regenerated inventory in docs/generated/route-matrix.md · last-verified: 2026-11-10 (F-89 path fix) -->
 
 # API Reference (v1)
 
-> **Owner:** engineering · **Purpose:** HTTP API reference consumed by the web app · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+> **Owner:** engineering · **Purpose:** HTTP API reference consumed by the web app · **Last verified:** 2026-11-10 (F-89: the pointer above named a path that never existed — the regenerated inventory is `docs/generated/route-matrix.md`, produced by `node apps/api/scripts/route-matrix.mjs`).
 
 
 Base URL: `/api/v1` · JSON envelope:
@@ -184,6 +184,12 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
   (`apps/api/vercel.json`); authenticated by the `CRON_SECRET` bearer
   (constant-time compared) and fail-closed when the secret is unset. Applies
   the ADR-0011 windows and audits `RETENTION_JOB_RUN`. Not for app clients.
+- `GET /ops/reconcile-wallet` — daily wallet reconciliation, same Vercel cron
+  file (`0 4 * * *`) and the same `CRON_SECRET` guard. Audits
+  `WALLET_RECONCILIATION_RUN` and answers **500** with
+  `WALLET_RECONCILIATION_MISMATCH` when a wallet's balance disagrees with its
+  ledger, so a money-path drift fails the cron run visibly instead of
+  reporting a green run that reconciled nothing. Not for app clients.
 
 ## Analytics (`/analytics`)
 - `POST /analytics/events` `{events: [{name(lower_snake_case), sessionId?, props?}] ≤ 20}` —

@@ -28,7 +28,7 @@ const PAGES = [
   { name: "login", path: "/login", auth: false, marker: /স্বাগতম|Welcome|লগইন|Login/i, control: "#phone" },
   { name: "register", path: "/register", auth: false, marker: /রেজিস্ট্রেশন|Register|অ্যাকাউন্ট|Account/i, control: "#rphone" },
   { name: "home", path: "/", auth: true, marker: /আসসালামু|Hello,|হোম|Home/i, control: "main#main" },
-  { name: "farm", path: "/farm", auth: true, marker: /আমার ফার্ম|My Farm/i, control: "main#main" },
+  { name: "farm", path: "/farm", auth: true, marker: /আমার খামার|My Farm/i, control: "main#main" },
   { name: "market", path: "/market", auth: true, marker: /বাজার|Market/i, control: "main#main" },
   { name: "services", path: "/services", auth: true, marker: /সেবা|Services/i, control: "main#main" },
   { name: "notifications", path: "/notifications", auth: true, marker: /নোটিফিকেশন|Notifications/i, control: "main#main" },

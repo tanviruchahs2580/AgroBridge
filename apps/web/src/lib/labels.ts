@@ -22,6 +22,17 @@ export { CROP_KEYS };
 export const CROPS = Object.keys(CROP_KEYS);
 export const cropLabel = (raw: string, lang: Lang): string => fromMap(CROP_KEYS, raw, lang);
 
+// ── Procurement quality grades ──
+// SellCrop kept a private copy of this map and called `t(GRADE_KEYS[o.qualityGrade])`
+// straight: a grade the server sends that the map does not know became
+// `t(undefined)` → a TypeError during render, which took the whole screen to the
+// ErrorBoundary. Every other enum axis on this screen already falls back to the
+// raw value through `fromMap`; this one now does too.
+const GRADE_KEYS: Record<string, DictKey> = { A: "gradeA", B: "gradeB", C: "gradeC" };
+/** The grade vocabulary, in the order the picker presents it. */
+export const GRADES = Object.keys(GRADE_KEYS);
+export const qualityGradeLabel = (raw: string, lang: Lang): string => fromMap(GRADE_KEYS, raw, lang);
+
 // ── Crop cycle stages ──
 const STAGE_KEYS: Record<string, DictKey> = {
   SEED: "stageSEED", GERMINATION: "stageGERMINATION", VEGETATIVE: "stageVEGETATIVE",
@@ -102,10 +113,12 @@ const USER_STATUS_KEYS: Record<string, DictKey> = {
 export const userStatusLabel = (raw: string, lang: Lang): string => fromMap(USER_STATUS_KEYS, raw, lang);
 
 // ── Roles ──
-// Every role in contracts/roles.json, plus QC_OFFICER (a label the server does not
-// issue today, kept so a historical row still renders as words). The vocabulary
-// guard test fails if a role the server can assign has no entry here — nine of them
-// were missing, so an operator table showed "REGIONAL_MANAGER" verbatim.
+// Every role in contracts/roles.json, plus the legacy-only QC_OFFICER that file's
+// `legacy_labels` block keeps on purpose (a label the server does not issue today,
+// so a historical row still renders as words). The vocabulary guard test fails if
+// a role the server can assign has no entry here — nine of them were missing, so an
+// operator table showed "REGIONAL_MANAGER" verbatim — and it fails equally on an
+// entry the contract does not declare.
 const ROLE_KEYS: Record<string, DictKey> = {
   FARMER: "roleFARMER", QC_OFFICER: "roleQC_OFFICER", ADMIN: "roleADMIN", SUPER_ADMIN: "roleSUPER_ADMIN",
   SERVICE_PROVIDER: "roleSERVICE_PROVIDER",
@@ -226,7 +239,14 @@ export function farmCareSuggestion(c: { stage: string; plantedAt: string }, lang
 const BENEFIT_LABELS: Record<string, { bn: string; en: string }> = {
   "Basic AI advisory": { bn: "বেসিক এআই পরামর্শ", en: "Basic AI advisory" },
   "Weekly weather digest": { bn: "সাপ্তাহিক আবহাওয়া সারাংশ", en: "Weekly weather digest" },
-  "Unlimited AI advisory": { bn: "আনলিমিটেড এআই পরামর্শ", en: "Unlimited AI advisory" },
+  // F-62: the seed used to advertise "Unlimited AI advisory" while every tier
+  // was capped at the hourly limit. Per-tier multipliers now apply (×4 Silver /
+  // ×10 Gold over the operator base) and the seed carries the ×N copy; the
+  // legacy key stays mapped to the honest wording so a row seeded before the
+  // fix cannot render the false claim.
+  "AI advisory limit ×4 (Silver)": { bn: "এআই পরামর্শের সীমা ×৪ (সিলভার)", en: "AI advisory limit ×4 (Silver)" },
+  "AI advisory limit ×10 (Gold)": { bn: "এআই পরামর্শের সীমা ×১০ (গোল্ড)", en: "AI advisory limit ×10 (Gold)" },
+  "Unlimited AI advisory": { bn: "বর্ধিত এআই পরামর্শ (ঘণ্টাভিত্তিক সীমা প্রযোজ্য)", en: "Expanded AI advisory (hourly quota applies)" },
   "3% marketplace discount": { bn: "বাজারে ৩% ছাড়", en: "3% marketplace discount" },
   "5% marketplace discount": { bn: "বাজারে ৫% ছাড়", en: "5% marketplace discount" },
   "Priority soil testing": { bn: "অগ্রাধিকার মাটি পরীক্ষা", en: "Priority soil testing" },

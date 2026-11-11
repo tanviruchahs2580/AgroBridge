@@ -5,6 +5,8 @@ import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, forbidden, badRequest, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
+import { audit } from "../../middleware/audit.js";
+import { isPlatformAdmin } from "../../shared/authorization.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const farmsRouter = Router();
@@ -33,20 +35,54 @@ const farmBody = z.object({
   organizationId: z.string().min(5).optional(),
 });
 
-/** Ownership + tenant check: owner, privileged, or org member may access. */
-async function assertFarmAccess(farmId: string, userId: string, role: string) {
+/**
+ * What a caller wants to do with the farm: `read` a farm object, `write` its
+ * farm data (patches, plots, crop cycles, events), or `delete` the farm itself
+ * (which cascades plots, crop cycles and the digital record).
+ *
+ * The capability is what makes the organisation membership row's `role`
+ * meaningful. `organizations/routes.ts` invites as ADMIN|MEMBER|VIEWER; before
+ * this existed the row's role was read but never consulted, so a VIEWER — the
+ * read-only role corporate/cooperative aggregators use — could rename or
+ * delete a member's farm and cascade away its plots and crop history (F-06).
+ */
+export type FarmCapability = "read" | "write" | "delete";
+
+/**
+ * Which organisation-member roles carry which capability. Kept as a table, not
+ * as `if` ladders in three routes: one place to read the policy, one place to
+ * change it, and the tests in farm-org-role-capabilities.test.ts pin it.
+ * ADMIN of the organisation is the only membership level that may destroy a
+ * farm; the capability ladder is deliberately not transitive-by-accident.
+ */
+export const ORG_MEMBER_CAPABILITIES: Record<string, readonly FarmCapability[]> = {
+  VIEWER: ["read"],
+  MEMBER: ["read", "write"],
+  ADMIN: ["read", "write", "delete"],
+};
+
+/**
+ * Ownership + tenant check: owner, privileged, or org member may access.
+ *
+ * Role-aware since F-06: an organisation member passes only for the
+ * capabilities their membership role carries. An under-privileged member gets
+ * the same 404 as a stranger — see the note below — so the role check cannot
+ * be used to probe how much access a membership confers.
+ */
+export async function assertFarmAccess(farmId: string, userId: string, role: string, capability: FarmCapability = "read") {
   const farm = await prisma.farm.findUnique({ where: { id: farmId } });
   if (!farm) throw notFound("Farm");
-  const isPrivileged = role === "SUPER_ADMIN" || role === "ADMIN";
-  if (farm.ownerId === userId || isPrivileged) return farm;
+  if (farm.ownerId === userId || isPlatformAdmin(role)) return farm;
   if (farm.organizationId) {
     const member = await prisma.organizationMember.findFirst({ where: { organizationId: farm.organizationId, userId } });
-    if (member) return farm;
+    if (member && (ORG_MEMBER_CAPABILITIES[member.role] ?? []).includes(capability)) return farm;
   }
   // 404, not 403: a distinct "forbidden" answer would confirm which guessed
   // farm/plot/crop ids exist for other tenants (an existence oracle). The
   // farm-scoped events route already answers 404 for outsiders; every
-  // farm object now speaks with one voice.
+  // farm object now speaks with one voice. An org member who is a real member
+  // but lacks the capability deliberately gets the same answer — the response
+  // must not tell a VIEWER that a write was refused rather than never possible.
   throw notFound("Farm");
 }
 
@@ -58,9 +94,10 @@ farmsRouter.get("/", async (req: import("express").Request, res: import("express
     const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
     const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
     const where: Record<string, unknown> = {};
-    if (["CORPORATE", "COOPERATIVE"].includes(role) && orgIds.length > 0) {
+    // authorization-exempt: a VIEW-narrowing predicate, not the gate — the route is requireAuth and this decides which farms are visible (owned + org membership), never whether the caller may act.
+    if (["CORPORATE", "COOPERATIVE"].includes(role) && orgIds.length > 0) { // authorization-exempt
       where.OR = [{ ownerId: userId }, { organizationId: { in: orgIds } }];
-    } else if (["SUPER_ADMIN", "ADMIN"].includes(role)) {
+    } else if (isPlatformAdmin(role)) {
       // admins via this endpoint still see own farms; full view via admin metrics
       where.ownerId = userId;
     } else {
@@ -89,8 +126,8 @@ farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express"
     const data = req.body as z.infer<typeof farmBody>;
     if (data.organizationId) {
       const member = await prisma.organizationMember.findFirst({ where: { organizationId: data.organizationId, userId: getAuth(req).userId } });
-      const isPrivileged = ["SUPER_ADMIN", "ADMIN"].includes(getAuth(req).role);
-      if (!member && !isPrivileged) throw forbidden("Not a member of the target organization");
+      // authorization-exempt: a TENANT predicate, not the gate — the caller is already authenticated and this decides which organisation a new farm may attach to.
+      if (!member && !isPlatformAdmin(getAuth(req).role)) throw forbidden("Not a member of the target organization");
     }
     const farm = await prisma.farm.create({
       data: {
@@ -113,7 +150,7 @@ farmsRouter.post("/", validate({ body: farmBody }), async (req: import("express"
 
 farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
-    await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+    await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role, "write");
     // organizationId is NOT patchable by owners — org linking is an
     // admin/organization flow; otherwise a farmer could attach their farm to
     // an arbitrary org and leak visibility.
@@ -127,8 +164,11 @@ farmsRouter.patch("/:id", validate({ body: farmBody.partial() }), async (req: im
 
 farmsRouter.delete("/:id", async (req, res, next) => {
   try {
-    await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+    const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role, "delete");
     await prisma.farm.delete({ where: { id: req.params.id } });
+    // A farm delete cascades plots, crop cycles and the digital record — a
+    // destructive, unrecoverable mutation that had no trail at all (F-72).
+    await audit({ actorId: getAuth(req).userId, action: "FARM_DELETED", entityType: "Farm", entityId: req.params.id, meta: { name: farm.name, ownerId: farm.ownerId, organizationId: farm.organizationId } });
     ok(res, { deleted: true });
   } catch (e) {
     next(e);
@@ -148,7 +188,7 @@ export function plotsRouter() {
     .post("/plots", validate({ body: plotBody }), async (req, res, next) => {
       try {
         const body = req.body as z.infer<typeof plotBody>;
-        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role, "write");
         // Plots collectively must fit inside the farm's declared total area.
         if (farm.totalAreaBigha != null) {
           const area = body.areaBigha;
@@ -187,7 +227,7 @@ export function plotsRouter() {
     })
     .patch("/plots/:plotId", validate({ body: plotBody.partial() }), async (req, res, next) => {
       try {
-        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
+        const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role, "write");
         const existing = await prisma.plot.findFirst({ where: { id: req.params.plotId, farmId: farm.id } });
         if (!existing) throw notFound("Plot");
         // Same shape as the validated plotBody.partial — every field optional.
@@ -286,8 +326,9 @@ export function cropsRouter() {
         const body = req.body as z.infer<typeof cropBody>;
         const plot = await prisma.plot.findUnique({ where: { id: body.plotId } });
         if (!plot) throw notFound("Plot");
-        // Same access rule as plots: owner, privileged, or org member.
-        await assertFarmAccess(plot.farmId, getAuth(req).userId, getAuth(req).role);
+        // Same access rule as plots: owner, privileged, or an org member whose
+        // membership role carries WRITE (F-06).
+        await assertFarmAccess(plot.farmId, getAuth(req).userId, getAuth(req).role, "write");
 
         const active = await prisma.cropCycle.count({ where: { plotId: plot.id, status: "ACTIVE" } });
         if (active > 0) throw conflict("This plot already has an active crop cycle");
@@ -354,8 +395,9 @@ export function cropsRouter() {
             include: { plot: { select: { farmId: true } } },
           });
           if (!existing) throw notFound("Crop cycle");
-          // Same access rule as plots: owner, privileged, or org member.
-          await assertFarmAccess(existing.plot.farmId, getAuth(req).userId, getAuth(req).role);
+          // Same access rule as plots: owner, privileged, or an org member whose
+          // membership role carries WRITE (F-06).
+          await assertFarmAccess(existing.plot.farmId, getAuth(req).userId, getAuth(req).role, "write");
           const body = req.body as z.infer<typeof cropUpdateBody>;
           // The lifecycle is forward-only: HARVESTED and FAILED are terminal.
           // Without this guard a PATCH could reopen a harvested cycle or set a
@@ -409,16 +451,16 @@ export function eventsRouter() {
 
   const getEventsHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
-      const userId = getAuth(req).userId;
-      const orgMemberships = await prisma.organizationMember.findMany({ where: { userId }, select: { organizationId: true } });
-      const orgIds = orgMemberships.map((m: { organizationId: string }) => m.organizationId);
-      const where = orgIds.length
-        ? { OR: [{ farm: { ownerId: userId } }, { farm: { organizationId: { in: orgIds } } }] }
-        : { farm: { ownerId: userId } };
+      // The route is farm-scoped and now behaves that way: `:id` is validated
+      // and used. Before F-64 the parameter was read nowhere, so
+      // `GET /farms/<any id>/events` returned the caller's events across ALL
+      // their farms and never 404'd an id they did not own — a lying contract
+      // (the file comment claimed farm scoping) and a dead parameter.
       const limitQ = eventQuery.safeParse(req.query);
       if (!limitQ.success) throw badRequest("Invalid query");
+      const farm = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role);
       const events = await prisma.farmEvent.findMany({
-        where,
+        where: { farmId: farm.id },
         include: { plot: { select: { name: true } }, cropCycle: { select: { cropName: true } } },
         orderBy: { occurredAt: "desc" },
         take: limitQ.data.limit ?? 50,
@@ -432,7 +474,11 @@ export function eventsRouter() {
   const postEventHandler = async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
     try {
       const body = req.body as z.infer<typeof eventBody>;
-      const farm = await prisma.farm.findFirst({ where: { id: req.params.id, ownerId: getAuth(req).userId } });
+      // The event author is the farm owner (the pre-F-06 predicate), but the
+      // access answer stays centralised in assertFarmAccess: an org VIEWER/MEMBER
+      // still learns nothing about a farm they are not a member of (same 404).
+      const accessible = await assertFarmAccess(req.params.id, getAuth(req).userId, getAuth(req).role, "write");
+      const farm = accessible.ownerId === getAuth(req).userId ? accessible : null;
       if (!farm) throw notFound("Farm");
 
       // Same-farm binding: an event could previously reference any plot or

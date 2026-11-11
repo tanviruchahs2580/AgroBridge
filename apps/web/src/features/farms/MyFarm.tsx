@@ -147,7 +147,7 @@ export default function MyFarm() {
                   );
                 }) : <p className="mt-2 text-xs text-stone-500">{t("noPlotsYet", lang)}</p>}
                 <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setCropPlotId(cropPlotId===plot.id?null:plot.id)}>+ {t("addCrop", lang)}</Button>
-                {cropPlotId===plot.id && <form onSubmit={createCrop} className="mt-2 grid gap-2 rounded-xl bg-surface-card p-3 shadow-sm"><Select name="crop" defaultValue="" required aria-label={t("cropName", lang)}><option value="" disabled>{t("cropName", lang)}</option>{CROPS.map((c)=><option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>)}</Select><Input name="date" type="date" required aria-label={t("plantedAtLabel", lang)} /><Button type="submit" loading={busy}>{t("submit", lang)}</Button></form>}
+                {cropPlotId===plot.id && <form onSubmit={createCrop} className="mt-2 grid gap-2 rounded-xl bg-surface-card p-3 shadow-sm"><Select name="crop" defaultValue="" required aria-label={t("cropName", lang)}><option value="" disabled>{t("selectCropPrompt", lang)}</option>{CROPS.map((c)=><option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>)}</Select><Input name="date" type="date" required aria-label={t("plantedAtLabel", lang)} /><Button type="submit" loading={busy}>{t("submit", lang)}</Button></form>}
               </div>
             ))}
           </div>

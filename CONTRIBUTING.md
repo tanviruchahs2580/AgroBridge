@@ -48,8 +48,11 @@ ci(deploy): verify production is running the reviewed commit
    + unit tests + typecheck + build, Playwright e2e, Android debug APK, gitleaks, npm audit
    (moderate+ on production deps), Trivy, CodeQL, and the deploy-verification job on `main`.
 3. Behaviour changes need tests: journey tests in `apps/api/tests`, e2e in `apps/web/e2e`.
-4. Update `CHANGELOG.md` (under `[Unreleased]`) and the affected `docs/` file in the same PR —
-   stale docs are treated as a defect, not a follow-up.
+4. Update the affected `docs/` file in the same PR — stale docs are treated as a defect, not a
+   follow-up. **`CHANGELOG.md` is not a per-PR file**: it is a release artefact, written at release
+   time together with the release record (see the preamble in `CHANGELOG.md` and `AGENTS.md` §7 —
+   the changelog owner is the Principal Architect). Work in flight stays under `[Unreleased]`
+   until a release record cuts it out; an individual PR does not add an entry of its own.
 5. Never commit `.env`, keystores, `key.properties`, real personal data or release binaries.
 
 ## Changing an API response

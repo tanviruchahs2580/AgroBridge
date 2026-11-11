@@ -50,7 +50,7 @@ published policy (`apps/web/src/features/legal/content.ts`) and the Console form
 | Financial info → Other financial info | Yes | No | Required | App functionality (wallet balance and ledger) |
 | Photos and videos → Photos | Yes | **Yes** | Optional | App functionality. Only photos the user attaches for disease review; stored by our cloud storage provider and read by the reviewer role. |
 | Messages → Other in-app messages | Yes | **Yes** (only when a third-party AI provider is configured) | Optional | App functionality. The question text is sent to the configured OpenAI-compatible provider to generate the answer; with the built-in offline engine nothing leaves our servers. |
-| App activity → App interactions | Yes | No | Required | Analytics (first-party, aggregate product metrics) |
+| App activity → App interactions | Yes | No | Required | Analytics (first-party product metrics, written with the account's user id — `apps/api/src/modules/analytics/routes.ts`; no third-party SDK) |
 
 Device or other IDs: **not collected**.
 

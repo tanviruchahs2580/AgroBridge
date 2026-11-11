@@ -162,6 +162,8 @@ model FarmEvent {
   // (farms/routes.ts getEventsHandler) — [farmId] alone forces a sort.
   @@index([farmId, occurredAt])
   @@index([cropCycleId])
+  // F-58: FK index — plot-scoped timeline reads.
+  @@index([plotId])
 }
 
 model AdvisoryQuery {
@@ -204,6 +206,8 @@ model DiseaseCase {
 
   @@index([userId])
   @@index([status])
+  // F-58: FK index — crop-cycle disease history.
+  @@index([cropCycleId])
 }
 
 model Product {
@@ -291,6 +295,9 @@ model OrderItem {
   product        Product @relation(fields: [productId], references: [id])
 
   @@index([orderId])
+  // F-58: FK index — the relation walk from a product to its order lines
+  // (product deletion checks, sales reporting) was a scan without it.
+  @@index([productId])
 }
 
 model Service {
@@ -346,6 +353,11 @@ model Booking {
 
   @@index([userId])
   @@index([status])
+  // F-58: FK indexes — every `include:` that walks these relations (farm
+  // bookings, per-service demand, provider schedule) was a scan without them.
+  @@index([farmId])
+  @@index([serviceId])
+  @@index([providerId])
 }
 
 model ProcurementOrder {
@@ -370,6 +382,8 @@ model ProcurementOrder {
 
   @@index([userId])
   @@index([status])
+  // F-58: FK index — farm-scoped procurement history walks this relation.
+  @@index([farmId])
 }
 
 model Payment {
@@ -385,11 +399,20 @@ model Payment {
   refundedAt  DateTime?
   refundRef   String?
   metaStr     String?
+  // Client Idempotency-Key that created this intent, as a real column (F-03):
+  // the unique index below is the database backstop that stops two concurrent
+  // same-key requests from each creating a payable intent — the loser replays
+  // the winner's row. NULL keys stay unconstrained (both engines treat NULLs
+  // as distinct in a unique index). Rows created before 2026-11-10 carry the
+  // key inside metaStr: the migration lifts it here, and the read path still
+  // falls back to the metaStr containment for rows the lift could not parse.
+  intentKey   String?
   createdAt   DateTime @default(now())
   requestId   String? // request correlation id (X-Request-Id) for support/audit joins
   updatedAt   DateTime @updatedAt
   user        User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  @@unique([userId, intentKey])
   @@index([userId])
   @@index([purposeType, purposeId])
 
@@ -433,6 +456,12 @@ model Withdrawal {
   status      String    @default("PENDING") // PENDING|APPROVED|REJECTED|PAID
   channel     String    @default("BKASH") // BKASH|NAGAD|BANK
   destination String? // masked payout destination (e.g., 017***4567)
+  // Client idempotency key for THIS request — `Idempotency-Key` header or body
+  // `clientRequestId` (F-01), the withdrawal analogue of Order.clientRequestId.
+  // A retried (or offline-replayed) submission replays the original row instead
+  // of reserving a second hold; the unique index below is the DB backstop. NULL
+  // for keyless requests, which stay unconstrained.
+  clientRequestId String?
   note        String?
   decidedBy   String?
   decidedAt   DateTime?
@@ -440,6 +469,7 @@ model Withdrawal {
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  @@unique([userId, clientRequestId])
   @@index([userId, status])
 
   @@index([status, createdAt])
@@ -530,6 +560,8 @@ model AiUsageLog {
   kbVersion  String?
 
   @@index([createdAt])
+  // F-58: FK index — per-user AI usage/cost reporting (budget audits).
+  @@index([userId])
 }
 
 model Organization {

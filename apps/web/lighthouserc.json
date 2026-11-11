@@ -34,25 +34,29 @@
         "first-contentful-paint": [
           "error",
           {
-            "maxNumericValue": 3000
+            "maxNumericValue": 3000,
+            "aggregationMethod": "pessimistic"
           }
         ],
         "largest-contentful-paint": [
           "error",
           {
-            "maxNumericValue": 5000
+            "maxNumericValue": 5000,
+            "aggregationMethod": "pessimistic"
           }
         ],
         "total-blocking-time": [
           "error",
           {
-            "maxNumericValue": 500
+            "maxNumericValue": 500,
+            "aggregationMethod": "pessimistic"
           }
         ],
         "cumulative-layout-shift": [
           "error",
           {
-            "maxNumericValue": 0.1
+            "maxNumericValue": 0.1,
+            "aggregationMethod": "pessimistic"
           }
         ]
       }

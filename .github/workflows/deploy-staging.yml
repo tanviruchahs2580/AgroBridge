@@ -1,12 +1,26 @@
-# ⚠️ STAGING SCAFFOLD — fill secrets before use.
-# Required GitHub secrets before this workflow will work:
+# ⚠️ STAGING SCAFFOLD — fill the secrets and the variable before use.
+#
+# Required repository SECRETS (Settings > Secrets and variables > Actions):
 #   STAGING_HOST      — VM hostname/IP
 #   STAGING_USER      — SSH user with docker group membership
 #   STAGING_SSH_KEY   — private key (PEM) of a deploy-only key
-# Optional repo VARIABLE: STAGING_BASE_URL (defaults to the placeholder below).
+# Required repository VARIABLE:
+#   STAGING_BASE_URL  — public HTTPS origin of the staging stack. There is no
+#                       placeholder default on purpose: the gate used to fall
+#                       back to https://staging.agro.example.com, which does not
+#                       resolve, so the workflow would have failed a third way
+#                       after the secrets landed (F-19).
+#
+# The VM itself must have ~/agrobridge/.env with the stack's settings
+# (POSTGRES_PASSWORD, API_DATABASE_URL, MIGRATE_DATABASE_URL, JWT_*_SECRET,
+# WEB_ORIGIN, TLS_CERTS_DIR — see docker-compose.prod.yml's header and
+# .env.example). The workflow refuses to deploy without it and never writes it:
+# a deploy job must not be the transport for a database password.
 #
 # Deploys images built from this repo to the staging VM using docker-compose.prod.yml
-# (see docs/deployment.md §5). Migrations stay manual by design — see echo hint in the deploy step.
+# (see docs/deployment.md §5). Schema changes are a separate, explicit step here
+# and are NOT applied on boot: the `migrate` service is profile-gated and the api
+# runtime image carries no Prisma CLI by design (F-18).
 #
 # Rollback: every image is pushed with an immutable `sha-<commit>` tag beside its
 # semver tag, so a bad release goes back by pinning the previous commit and
@@ -33,12 +47,17 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  # The tag compose requires. `type=sha,format=long` in the metadata steps below
+  # produces exactly this string, so the stack that gets deployed is the commit
+  # that was built — not a mutable tag anyone can re-point.
+  API_IMAGE_TAG: sha-${{ github.sha }}
+  WEB_IMAGE_TAG: sha-${{ github.sha }}
 
 jobs:
   build-push:
     name: Build & push images to GHCR
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    # Docker buildx builds of two images: 30 min (docker class, see docker-build in ci.yml).
+    # Docker buildx builds of three images: 30 min (docker class, see docker-build in ci.yml).
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
@@ -52,13 +71,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The image namespace here and the image names in docker-compose.prod.yml
+      # must be the same string. They were not — compose pulled
+      # ghcr.io/agrobridge/agrobridge/*, a namespace this project does not own,
+      # with a `:latest` default that nothing ever pushed (F-18). The compose
+      # side is now guarded by `${API_IMAGE_TAG:?}`/`${WEB_IMAGE_TAG:?}` and
+      # validated in CI (compose-smoke job), so the two cannot drift silently.
       - name: Extract metadata (api)
         id: meta-api
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/api
           tags: |
-            type=sha
+            type=sha,format=long
             type=semver,pattern={{version}}
 
       - name: Build & push api image
@@ -66,9 +91,32 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
+
+      # Same Dockerfile, `migrate` stage: the Prisma CLI without the server. It
+      # is what applies schema changes, because the runtime stage deliberately
+      # ships no npm/npx and no Prisma CLI (F-18).
+      - name: Extract metadata (api-migrate)
+        id: meta-migrate
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/api-migrate
+          tags: |
+            type=sha,format=long
+            type=semver,pattern={{version}}
+
+      - name: Build & push api-migrate image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # pin v7.4.0
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          target: migrate
+          push: true
+          tags: ${{ steps.meta-migrate.outputs.tags }}
+          labels: ${{ steps.meta-migrate.outputs.labels }}
 
       - name: Extract metadata (web)
         id: meta-web
@@ -76,7 +124,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/web
           tags: |
-            type=sha
+            type=sha,format=long
             type=semver,pattern={{version}}
 
       - name: Build & push web image
@@ -92,50 +140,70 @@ jobs:
     name: Deploy to staging VM
     needs: [build-push]
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    # Remote docker compose pull/up + two post-deploy gates: 30 min (docker class).
+    # Remote docker compose pull/migrate/up + two post-deploy gates: 30 min (docker class).
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
-      - name: Guard — staging secrets must be configured
+      - name: Guard — staging secrets and variable must be configured
         env:
           STAGING_HOST: ${{ secrets.STAGING_HOST }}
           STAGING_USER: ${{ secrets.STAGING_USER }}
           STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
         run: |
           missing=""
-          [ -z "$STAGING_HOST" ]    && missing="$missing STAGING_HOST"
-          [ -z "$STAGING_USER" ]    && missing="$missing STAGING_USER"
-          [ -z "$STAGING_SSH_KEY" ] && missing="$missing STAGING_SSH_KEY"
+          [ -z "$STAGING_HOST" ]     && missing="$missing STAGING_HOST"
+          [ -z "$STAGING_USER" ]     && missing="$missing STAGING_USER"
+          [ -z "$STAGING_SSH_KEY" ]  && missing="$missing STAGING_SSH_KEY"
+          [ -z "$STAGING_BASE_URL" ] && missing="$missing STAGING_BASE_URL(variable)"
           if [ -n "$missing" ]; then
-            echo "::error::Missing required GitHub secrets:$missing — this is a STAGING SCAFFOLD until filled."
+            echo "::error::Missing required GitHub secrets/variables:$missing — this is a STAGING SCAFFOLD until filled."
             exit 1
           fi
 
-      - name: Copy production compose file to VM
+      # The compose file mounts ./docker/postgres-init and
+      # ./docker/web.nginx.prod.conf and reads .env; shipping only the compose
+      # file made docker create a *directory* where the nginx config belongs and
+      # nginx fail to read it (F-18). .env is deliberately NOT shipped: the VM
+      # owns it (see the header).
+      - name: Copy the deploy bundle to the VM
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # pin v1
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
-          source: docker-compose.prod.yml
+          source: "docker-compose.prod.yml,docker/web.nginx.prod.conf,docker/postgres-init"
           target: ~/agrobridge/
           overwrite: true
 
-      - name: Pull & restart stack
+      - name: Migrate, then pull & restart the stack
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # pin v1
+        env:
+          API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
+          WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: API_IMAGE_TAG,WEB_IMAGE_TAG
           script: |
             set -e
             cd ~/agrobridge
-            docker compose -f docker-compose.prod.yml pull
+            test -f .env || { echo "::error::~/agrobridge/.env is missing — see docker-compose.prod.yml's header for the variable names (the deploy job never writes it)"; exit 1; }
+
+            echo "Pulling release images (API_IMAGE_TAG=$API_IMAGE_TAG WEB_IMAGE_TAG=$WEB_IMAGE_TAG)"
+            docker compose -f docker-compose.prod.yml --profile migrate pull
+
+            # Schema first, code second, each observable on its own. `migrate
+            # deploy` is idempotent and append-only; -T because this shell has
+            # no TTY. A failure here stops the deploy before `up -d`, so a bad
+            # migration never ships half a release.
+            echo "Applying migrations (forward-only; rollback does not reverse them)"
+            docker compose -f docker-compose.prod.yml --profile migrate run --rm -T migrate
+
             docker compose -f docker-compose.prod.yml up -d
-            echo "NOTE: migrations are NOT applied on boot."
-            echo "Apply manually if the release contains migrations:"
-            echo "  docker compose -f docker-compose.prod.yml exec api npx prisma migrate deploy"
+            echo "Stack up. Rollback: API_IMAGE_TAG=sha-<previous-commit> WEB_IMAGE_TAG=sha-<previous-commit> docker compose -f docker-compose.prod.yml up -d"
 
       - name: Post-deploy gate — health & readiness
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # pin v1
@@ -153,7 +221,10 @@ jobs:
 
       - name: Post-deploy gate — public HTTPS reachability
         env:
-          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL || 'https://staging.agro.example.com' }} # PLACEHOLDER domain
+          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
         run: |
-          curl -fsS --max-time 15 "${STAGING_BASE_URL}/" | grep -q '<div id="root">'
+          set -euo pipefail
+          # -L: the stack answers 301 from :80 to :443, and a TLS-terminating
+          # front proxy (if the operator uses one) may redirect once more.
+          curl -fsSL --max-time 15 "${STAGING_BASE_URL}/" | grep -q '<div id="root">'
           echo "Web OK at ${STAGING_BASE_URL}"

@@ -4,7 +4,7 @@
 // so the payload carries only what the endpoint accepts (name + props) —
 // never a client-supplied identity or `ts` the server would ignore anyway.
 import { API_BASE, refreshAccessToken } from "./api";
-import { getTokens } from "./sessionManager";
+import { getTokens, onChange } from "./sessionManager";
 
 interface EventRecord {
   name: string;
@@ -18,6 +18,33 @@ const MAX_BUFFERED = 200;
 
 let buffer: EventRecord[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
+
+/** Drop everything buffered and stop the pending timer. */
+function resetBuffer(): void {
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  buffer = [];
+}
+
+/**
+ * A batch carries no identity of its own — the endpoint derives the user from
+ * the bearer token. So a buffer that outlived its session could be flushed under
+ * the NEXT account's token: events buffered while farmer A was signed in (route
+ * paths included) were attributed to whoever signed in on the same device next.
+ * The shared-phone case the offline queue documents for writes applies to
+ * telemetry too, so the buffer dies when the token that produced it does.
+ *
+ * Keyed on the token, not on the session: `setTokens` also fires on every
+ * rotation, and a rotation must NOT drop the buffer. A *second* identity that
+ * arrives without a sign-out in between is the residual gap — seeing it would
+ * need the userId the session manager only learns once its `setSession` wiring
+ * lands (sessionManager.setSession is not called in production yet).
+ */
+onChange(({ tokens }) => {
+  if (!tokens.accessToken) resetBuffer();
+});
 
 function scheduleFlush() {
   if (timer !== null) return;

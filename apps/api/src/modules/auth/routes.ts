@@ -6,7 +6,7 @@ import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, 
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
-import { isDev, isProd, isTest, env } from "../../config/env.js";
+import { isDev, isTest, env, devAuthShortcuts } from "../../config/env.js";
 import { ok } from "../../middleware/context.js";
 import rateLimit from "express-rate-limit";
 import type { Store } from "express-rate-limit";
@@ -227,7 +227,11 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
         passwordHash,
         langPref,
         role: "FARMER", // self-service registration is farmer-only
-        phoneVerified: !isProd,
+        // F-77: auto-verification is a dev-only shortcut behind an EXPLICIT
+        // opt-in (`DEV_AUTH_SHORTCUTS=1`), not merely "not production". NODE_ENV
+        // defaults to development, so a deployment that omitted the variable
+        // used to create pre-verified accounts with no OTP step.
+        phoneVerified: devAuthShortcuts,
         farmerProfile: { create: {} },
         wallet: { create: {} },
       },
@@ -529,7 +533,7 @@ authRouter.post("/otp/request", requireAuth, otpLimiter, async (req, res, next) 
     ok(res, {
       sent: true,
       expiresAt: challenge.expiresAt,
-      ...(isProd ? {} : { devCode: env.SMS_PROVIDER === "none" ? undefined : code }),
+      ...(devAuthShortcuts ? { devCode: env.SMS_PROVIDER === "none" ? undefined : code } : {}),
     });
   } catch (e) {
     next(e);
@@ -579,7 +583,7 @@ authRouter.post("/password/forgot", forgotLimiter, validate({ body: z.object({ p
       const { code } = await issueOtpChallenge(user, "PASSWORD_RESET");
       await sendSms(user.phone, otpSmsText(code));
       await audit({ actorId: user.id, action: "PASSWORD_RESET_REQUESTED", entityType: "User", entityId: user.id, ip: req.ip });
-      return void ok(res, { sent: true, expiresInMinutes: OTP_TTL_MINUTES, ...(isProd ? {} : { devCode: code }) });
+      return void ok(res, { sent: true, expiresInMinutes: OTP_TTL_MINUTES, ...(devAuthShortcuts ? { devCode: code } : {}) });
     }
     ok(res, { sent: true, expiresInMinutes: OTP_TTL_MINUTES });
   } catch (e) {
@@ -634,13 +638,25 @@ authRouter.post(
 /**
  * Anonymizes identity fields and disables the account while retaining
  * financial/ledger rows for legal integrity (see docs/data-protection.md).
- * Irreversible; blocks when a withdrawal is still in flight.
+ * Irreversible; blocks when an order or withdrawal is still in flight.
  *
- * completion: also clears the location/profile fields the schema has
- * (User.region, FarmerProfile address/district/upazila/nidLast4), deletes the
- * OTP challenges for the pre-anonymization phone, and purges the user's
- * uploaded disease photos from the storage provider (best-effort, logged —
- * see below).
+ * What is anonymised (in the same transaction as the identity rewrite):
+ *   - `User` identity and `FarmerProfile` address fields;
+ *   - `Farm.address/district/upazila/lat/lng` — the farm location the privacy
+ *     policy and the Play data-safety table both promise is deletable (F-12);
+ *   - `FarmEvent.title/notes/metadata` for events this user authored, and
+ *     `AdvisoryQuery.question/answer` — the free text the user wrote;
+ *   - `Notification.body` for this user's rows (rows are kept; the body quoted
+ *     order/booking details).
+ * Then: OTP challenges for the pre-anonymization phone are deleted, refresh
+ * tokens revoked, and the user's uploaded disease photos purged from the
+ * storage provider (best-effort, logged — see below).
+ *
+ * Recorded residual: `AuditLog` rows keep the actor id and the request `ip`
+ * for the 180-day security-trail window. Those rows are the audit of record —
+ * rewriting them would weaken the trail this endpoint's own `ACCOUNT_DELETED`
+ * event depends on. `LoginAttempt.phoneKey` is a salted hash (no plaintext
+ * phone) and rows purge on the existing 24-hour/unlock schedule.
  */
 authRouter.delete("/me", requireAuth, async (req, res, next) => {
   try {
@@ -675,6 +691,38 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
         where: { userId },
         data: { address: null, district: null, upazila: null, nidLast4: null },
       });
+      // F-12: the same documented promise applied to the FARM.
+      // `docs/data-protection.md` says account/profile data — "incl. `region`,
+      // address fields" — is deleted or anonymised at deletion, and the Play
+      // data-safety table marks "Physical address (farm location/GPS)"
+      // Deletable: Yes. Before this the handler touched only User and
+      // FarmerProfile, so a deleted user's farm address and coordinates stayed
+      // queryable indefinitely. The farm ROW is retained (bookings and
+      // procurement orders reference it, and those are financial records);
+      // its location fields are cleared, which is the anonymisation those two
+      // documents describe.
+      await tx.farm.updateMany({
+        where: { ownerId: userId },
+        data: { address: null, district: null, upazila: null, lat: null, lng: null },
+      });
+      // The user's own words in the digital record and in advisory history.
+      // AdvisoryQuery rows are retained up to 180 days by policy, and used to
+      // keep the question and answer verbatim for that whole window.
+      // Structured, non-personal columns (confidence, provider, kbVersion,
+      // occurredAt, type) are deliberately kept — they are what makes the row
+      // auditable.
+      await tx.farmEvent.updateMany({
+        where: { actorId: userId },
+        data: { title: "[removed]", notes: null, metadataStr: null },
+      });
+      await tx.advisoryQuery.updateMany({
+        where: { userId },
+        data: { question: "[removed]", answer: "[removed]", feedbackReason: null },
+      });
+      // Notification bodies quote order, booking and wallet details. The row is
+      // kept (the user's own surface, carrying no other account's data); the
+      // body text is not.
+      await tx.notification.updateMany({ where: { userId }, data: { body: "" } });
       await tx.user.update({
         where: { id: userId },
         data: {

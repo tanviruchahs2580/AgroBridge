@@ -8,6 +8,7 @@ import { formatBDT, formatDateTime, takaToPaisa } from "../../lib/format";
 import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel, tierLabel, withdrawalStatusLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
+import { uuid } from "../../lib/uuid";
 import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Wallet } from "lucide-react";
 import {
   Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
@@ -15,6 +16,42 @@ import {
 
 const MIN_WITHDRAWAL_PAISA = 10_000; // mirrors API rule
 const CHANNELS = ["BKASH", "NAGAD", "BANK"] as const;
+
+const PENDING_WITHDRAWAL_KEY = "withdrawal:pendingReqId";
+
+/**
+ * One idempotency key per withdrawal attempt, reused across retries and even a
+ * page reload (F-01): the API dedupes on it, so a retried or double-tapped
+ * request replays the original withdrawal instead of reserving a second hold.
+ * The shipped `api()` helper cannot set an `Idempotency-Key` header, so the key
+ * travels in the body's `clientRequestId` field — the same contract checkout
+ * already uses. Mirrors Market.tsx's checkout key, with the same `uuid()` helper
+ * (never a bare `crypto.randomUUID()`, which throws on old WebViews).
+ */
+function pendingWithdrawalKey(): string {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(PENDING_WITHDRAWAL_KEY);
+  } catch {
+    /* storage blocked (private mode) — no persisted key to reuse */
+  }
+  if (stored) return stored;
+  const id = uuid();
+  try {
+    localStorage.setItem(PENDING_WITHDRAWAL_KEY, id);
+  } catch {
+    /* not persisted: still idempotent within this page's life */
+  }
+  return id;
+}
+
+function clearPendingWithdrawalKey(): void {
+  try {
+    localStorage.removeItem(PENDING_WITHDRAWAL_KEY);
+  } catch {
+    /* storage blocked — nothing to clear */
+  }
+}
 
 export default function WalletPage() {
   const { session, refresh } = useSession();
@@ -105,8 +142,9 @@ export default function WalletPage() {
 
   function submitWithdraw(e: React.FormEvent) {
     e.preventDefault();
-    // A withdrawal POST is not idempotent; the button's `loading` state only
-    // appears after a re-render, which is a window a second tap can use.
+    // The busy guard still prevents a second dialog submit, but the request
+    // itself is now idempotent server-side (a stable key per attempt), so even
+    // a lost response or an offline-queue-style replay cannot double-reserve.
     if (wdBusy) return;
     const taka = Number(wdAmount);
     const paisa = takaToPaisa(taka);
@@ -124,8 +162,13 @@ export default function WalletPage() {
 
   async function doWithdraw(amountPaisa: number) {
     setWdBusy(true);
+    // Reused across retries and reloads; only cleared once the server has
+    // created or replayed the withdrawal.
+    const clientRequestId = pendingWithdrawalKey();
     try {
-      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel });
+      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel, clientRequestId });
+      // Created or replayed — this key is spent.
+      clearPendingWithdrawalKey();
       track("withdrawal_requested", { channel: wdChannel });
       toast.success(t("withdrawRequestedToast", lang));
       setWdOpen(false);

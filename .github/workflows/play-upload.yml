@@ -35,6 +35,11 @@ concurrency:
 permissions:
   contents: read
 
+# Workflow-wide: every npm invocation enforces the install-script allow-list in
+# package.json (see the note on the pin step; F-88).
+env:
+  NPM_CONFIG_STRICT_ALLOW_SCRIPTS: "true"
+
 jobs:
   upload:
     name: Build signed AAB & upload to Play
@@ -78,6 +83,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # F-88 — see the full note in ci.yml's api-quality job: `allowScripts` is an
+      # npm 11 surface, Node 22 bundles npm 10, and NPM_CONFIG_STRICT_ALLOW_SCRIPTS
+      # (workflow env) only means anything once npm is pinned to the version
+      # package.json declares.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
 
       # Before any build minutes are spent: Play rejects a versionCode that was
       # ever used, and version.json is hand-bumped (docs/play/release-runbook.md).

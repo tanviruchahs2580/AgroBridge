@@ -120,7 +120,7 @@ Ordered roughly by points-per-effort; the parameter ID is the catalog row each i
 
 ```
 python docs/qa/score-current.py                 # the rating, from committed artifacts
-python .audit/v2/score-v2.py                    # the unmerged branch's 63.13 (local artifact)
+python .audit/v2/score-v2.py                    # the unmerged branch's 63.13 (local artifact; .audit/ is not in this repository)
 gh pr view 40 --json state,mergedAt             # the controlling fact
 npm run typecheck && npm run test --workspace apps/api   # 373/373 on PG17 (see docs/testing.md)
 ```

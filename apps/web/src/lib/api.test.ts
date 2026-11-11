@@ -643,3 +643,68 @@ describe("lib/api — cross-tab refresh rotation (AUD-V3 M-3)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // no pointless retry loop
   });
 });
+
+describe("lib/api — apiBlob goes through the shared transport (folded audit item)", () => {
+  let mod: typeof import("./api.js");
+  beforeEach(async () => {
+    vi.resetModules();
+    localStorage.clear();
+    mod = await import("./api.js");
+    mod.clearTokens();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the response body as a Blob (the bytes never round-trip through JSON)", async () => {
+    // The body is built from bytes and typed by the response header: the jsdom
+    // environment's `Blob` and the runtime's `Response` are different realms, so
+    // wrapping one in the other would silently stringify it.
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    const fetchMock = vi.fn(
+      async () => new Response(bytes, { status: 200, headers: { "Content-Type": "image/jpeg" } })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const blob = await mod.apiBlob("/disease/cases/c1/photo");
+
+    expect(blob.size).toBe(bytes.byteLength);
+    expect(blob.type).toBe("image/jpeg");
+    expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([...bytes]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("times out through the shared 45s ceiling instead of hanging the viewer forever", async () => {
+    // A request that never settles unless aborted: the old apiBlob called fetch
+    // directly, so it had no timeout at all and its `instanceof NetworkError`
+    // branches could never be taken.
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("The operation was aborted.", "AbortError"))
+          );
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+
+    const pending = mod.apiBlob("/disease/cases/c1/photo");
+    // Attach the rejection expectation BEFORE the abort fires, or the rejected
+    // promise is unhandled for a tick and vitest reports it as a stray error.
+    const outcome = expect(pending).rejects.toMatchObject({ status: 0, code: "NETWORK_TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(45_000);
+    await outcome;
+  });
+
+  it("maps a non-abort network failure to NETWORK_ERROR", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      })
+    );
+    await expect(mod.apiBlob("/disease/cases/c1/photo")).rejects.toMatchObject({ status: 0, code: "NETWORK_ERROR" });
+  });
+});

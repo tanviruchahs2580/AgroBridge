@@ -46,13 +46,13 @@ Item for the owner: record which tool/version produced the subsets.
 
 | Asset | Where used | Provenance status |
 |---|---|---|
-| `brand/logo-mark.png` | App shell, splash, auth shell (`apps/web/src/App.tsx:157`, `Splash.tsx:96,187`, `AuthShell.tsx:48,177`) | No provenance record in the repository. **UNKNOWN — owner must supply licence or asset must be removed.** If it was commissioned or AI-generated for AgroBridge, record that fact and the terms here. |
-| `brand/logo-emblem.png` | Auth shell (`AuthShell.tsx:150`) | same as above |
-| `brand/login-bg-desktop.webp`, `brand/login-bg-mobile.webp`, `brand/login-bg-mobile-full.webp` | Auth shell (`AuthShell.tsx:92,106-107`) | Photographic login backgrounds with no provenance record. **UNKNOWN — owner must supply licence (photographer/stock ID/URL) or replace with an in-repo-licensed image.** |
+| `brand/logo-mark.png` | App shell, splash, auth shell (`apps/web/src/App.tsx`, `Splash.tsx`, `AuthShell.tsx`) | No provenance record in the repository. **UNKNOWN — owner must supply licence or asset must be removed.** If it was commissioned or AI-generated for AgroBridge, record that fact and the terms here. |
+| `brand/logo-emblem.png` | Auth shell (`AuthShell.tsx`) | same as above |
+| `brand/login-bg-desktop.webp`, `brand/login-bg-mobile.webp`, `brand/login-bg-mobile-full.webp` | Auth shell (`AuthShell.tsx`) | Photographic login backgrounds with no provenance record. **UNKNOWN — owner must supply licence (photographer/stock ID/URL) or replace with an in-repo-licensed image.** |
 | `icon.svg` | Source vector (masthead-style mark drawn as SVG paths) | In-repo authored SVG; covered by the repository's MIT `LICENSE`. No separate attribution recorded. |
 | `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable.png` | PWA manifest (`public/manifest.webmanifest` icons) | Derivative of the brand mark; same open question as `logo-mark.png`. **UNKNOWN — owner must record origin.** |
 | `icons/apple-touch-icon.png`, `icons/favicon-64.png` | Platform icon slots | same as `icon.svg`/brand derivatives; **UNKNOWN — owner must record origin.** |
-| `images/services/agronomist.jpg`, `combine.jpg`, `drone.jpg`, `land-leveller.png`, `power-tiller.jpg`, `soil-test.jpg`, `thresher.jpg`, `tractor.jpg` | Referenced by `apps/web/src/components/service/ServiceCard.tsx:25-33` and `apps/web/src/features/services/Services.tsx:405-414` | No provenance record in the repository. **UNKNOWN — owner must supply licence or asset must be removed.** These are the images the Play listing and the services page render. |
+| `images/services/agronomist.jpg`, `combine.jpg`, `drone.jpg`, `land-leveller.png`, `power-tiller.jpg`, `soil-test.jpg`, `thresher.jpg`, `tractor.jpg` | Referenced by the services feature (`apps/web/src/components/service/ServiceCard.tsx`, `apps/web/src/features/services/Services.tsx`) | No provenance record in the repository. **UNKNOWN — owner must supply licence or asset must be removed.** These are the images the Play listing and the services page render. |
 
 ## Unreferenced service images (flagged)
 

@@ -93,17 +93,28 @@ export function requestContext(req: Request, res: Response, next: NextFunction) 
  * Absent header → null. A PRESENT but malformed value is a 400, never
  * silently ignored: the client sent it expecting replay protection, and
  * dropping it would turn its retry into a duplicate-side-effect request.
- * 8..128 visible-ASCII characters; the bounds keep hostile clients from
- * stuffing unbounded keys into the uniqueness/meta columns.
+ *
+ * ONE validator for this header (F-74). There used to be two —
+ * `/^[\x21-\x7e]{8,100}$/` here and `/^[\x20-\x7e]{8,128}$/` in the mapper —
+ * so the same key could be accepted on one money route and refused on another,
+ * and `101..128`-character keys were documented as valid but rejected wherever
+ * the mapper ran. The single bound is the stricter one, matching the checkout
+ * key schema (`clientRequestId` is `min(8).max(100)` and lands in the same
+ * column): 8–100 visible ASCII characters with no spaces, so a key is always a
+ * safe single token for a header, a log field and a database value.
  */
+export function assertIdempotencyKey(value: string): string {
+  if (!/^[\x21-\x7e]{8,100}$/.test(value)) {
+    throw badRequest("Idempotency-Key must be 8-100 printable ASCII characters");
+  }
+  return value;
+}
+
 export function idempotencyKeyOf(req: Request): string | null {
   const header = req.headers["idempotency-key"];
   if (header === undefined) return null;
   const value = Array.isArray(header) ? header[0] ?? "" : header;
-  if (!/^[\x20-\x7e]{8,128}$/.test(value)) {
-    throw badRequest("Idempotency-Key must be 8-128 visible ASCII characters");
-  }
-  return value;
+  return assertIdempotencyKey(value);
 }
 
 export function ok(res: Response, data: unknown, status = 200) {

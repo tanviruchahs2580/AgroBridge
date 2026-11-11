@@ -293,6 +293,7 @@ erDiagram
     datetime refundedAt
     string refundRef
     string metaStr
+    string intentKey
     datetime createdAt
     string requestId "request correlation id (X-Request-Id) for support/audit joins"
     datetime updatedAt
@@ -323,6 +324,7 @@ erDiagram
     string status "PENDING|APPROVED|REJECTED|PAID"
     string channel "BKASH|NAGAD|BANK"
     string destination "masked payout destination (e.g., 017***4567)"
+    string clientRequestId
     string note
     string decidedBy
     datetime decidedAt
@@ -453,10 +455,10 @@ erDiagram
 | `ServiceProvider` | 11 | 3 |
 | `Booking` | 20 | 4 |
 | `ProcurementOrder` | 18 | 2 |
-| `Payment` | 16 | 1 |
+| `Payment` | 17 | 1 |
 | `Wallet` | 6 | 1 |
 | `WalletTransaction` | 9 | 1 |
-| `Withdrawal` | 13 | 1 |
+| `Withdrawal` | 14 | 1 |
 | `OtpChallenge` | 10 | 1 |
 | `AnalyticsEvent` | 7 | 1 |
 | `MembershipPlan` | 6 | 0 |

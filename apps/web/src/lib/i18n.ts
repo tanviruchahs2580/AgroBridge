@@ -11,7 +11,7 @@ export const dict = {
   phone: { bn: "মোবাইল নম্বর", en: "Mobile number" },
   password: { bn: "পাসওয়ার্ড", en: "Password" },
   home: { bn: "হোম", en: "Home" },
-  myFarm: { bn: "আমার ফার্ম", en: "My Farm" },
+  myFarm: { bn: "আমার খামার", en: "My Farm" },
   aiAgent: { bn: "এআই কৃষি সহকারী", en: "AI Agro Agent" },
   market: { bn: "বাজার", en: "Market" },
   profile: { bn: "প্রোফাইল", en: "Profile" },
@@ -22,7 +22,7 @@ export const dict = {
   membership: { bn: "মেম্বারশিপ", en: "Membership" },
   notifications: { bn: "নোটিফিকেশন", en: "Notifications" },
   admin: { bn: "অ্যাডমিন", en: "Admin" },
-  addFarm: { bn: "নতুন ফার্ম", en: "Add Farm" },
+  addFarm: { bn: "নতুন খামার", en: "Add Farm" },
   addPlot: { bn: "নতুন প্লট", en: "Add Plot" },
   addCrop: { bn: "নতুন ফসল", en: "Add Crop" },
   cart: { bn: "কার্ট", en: "Cart" },
@@ -33,12 +33,16 @@ export const dict = {
   date: { bn: "তারিখ", en: "Date" },
   submit: { bn: "জমা দিন", en: "Submit" },
   cropName: { bn: "ফসলের নাম", en: "Crop name" },
+  // Select placeholders. A `<select>` whose empty option repeats the field's own
+  // label renders as a chosen value ("Farm" / "Crop name") and hides what the
+  // empty state means; these name the action instead.
+  selectCropPrompt: { bn: "ফসল নির্বাচন করুন", en: "Select a crop" },
   quantityKg: { bn: "পরিমাণ (কেজি)", en: "Quantity (kg)" },
   qualityGrade: { bn: "মানের গ্রেড", en: "Quality grade" },
   moisturePct: { bn: "আর্দ্রতা (%)", en: "Moisture (%)" },
   netPayable: { bn: "নীট পরিশোধযোগ্য", en: "Net payable" },
   payNow: { bn: "পেমেন্ট করুন", en: "Pay now" },
-  askPlaceholder: { bn: "আপনার প্রশ্ন লিখুন...", en: "Ask your question..." },
+  askPlaceholder: { bn: "আপনার প্রশ্ন লিখুন…", en: "Ask your question…" },
   send: { bn: "পাঠান", en: "Send" },
   lowConfidence: { bn: "নিশ্চিত উত্তর নয় — বিশেষজ্ঞের পরামর্শ নিন", en: "Low confidence — verify with an expert" },
   uploadPhoto: { bn: "ছবি আপলোড করুন", en: "Upload photo" },
@@ -48,13 +52,13 @@ export const dict = {
   pendingReview: { bn: "বিশেষজ্ঞ পর্যালোচনাধীন", en: "Pending expert review" },
   reviewed: { bn: "পর্যালোচিত", en: "Reviewed" },
   farmers: { bn: "কৃষক", en: "Farmers" },
-  farms: { bn: "ফার্ম", en: "Farms" },
+  farms: { bn: "খামার", en: "Farms" },
   orders: { bn: "অর্ডার", en: "Orders" },
   bookings: { bn: "বুকিং", en: "Bookings" },
   revenue: { bn: "রাজস্ব", en: "Revenue" },
   users: { bn: "ব্যবহারকারী", en: "Users" },
   auditLogs: { bn: "অডিট লগ", en: "Audit Logs" },
-  loading: { bn: "লোড হচ্ছে...", en: "Loading..." },
+  loading: { bn: "লোড হচ্ছে…", en: "Loading…" },
   errorGeneric: { bn: "এই মুহূর্তে সেবাটি পাওয়া যাচ্ছে না। কিছুক্ষণ পরে আবার চেষ্টা করুন।", en: "Service unavailable right now. Please try again shortly." },
 
   // ── Auth pages ──
@@ -102,7 +106,10 @@ export const dict = {
   careRoutine: { bn: "রুটিন", en: "Routine" },
   totalLand: { bn: "মোট জমি (বিঘা)", en: "Total land (bigha)" },
   themeToggleAria: { bn: "ডার্ক / লাইট মোড বদলান", en: "Toggle dark mode" },
-  langToggleAria: { bn: "ভাষা বদলান", en: "Switch language" },
+  // `langToggleAria` ("Switch language") lost its only two callers to the
+  // Label-in-Name fix below and was deleted with them: the language control's
+  // accessible name is now `<visible text> — <langSwitchAria>`, because a name
+  // that does not contain the visible text fails WCAG 2.5.3.
   errInvalidCredentials: { bn: "মোবাইল নম্বর বা পাসওয়ার্ড সঠিক নয়।", en: "Wrong mobile number or password." },
   errPhoneTaken: { bn: "এই নম্বরে একটি অ্যাকাউন্ট আছে — লগইন করুন।", en: "An account with this number already exists — log in." },
   errWeakPassword: { bn: "পাসওয়ার্ড দুর্বল — কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", en: "Weak password — use at least 8 strong characters." },
@@ -132,7 +139,7 @@ export const dict = {
   casePhotoAlt: { bn: "আপলোড করা ফসলের ছবি", en: "Uploaded crop photo" },
 
   // ── Toasts / system messages ──
-  saved: { bn: "সংরক্ষিত হয়েছে ✓", en: "Saved ✓" },
+  saved: { bn: "সংরক্ষিত হয়েছে", en: "Saved" },
   sessionExpired: { bn: "সেশনের মেয়াদ শেষ — আবার লগইন করুন।", en: "Session expired — please log in again." },
   confirmTitle: { bn: "আপনি কি নিশ্চিত?", en: "Are you sure?" },
   // Honest about what the queue actually covers (ADR-0009): only cart writes
@@ -215,7 +222,7 @@ export const dict = {
   checkoutStepPayment: { bn: "পেমেন্ট", en: "Payment" },
   checkoutStepReview: { bn: "পুনরায় দেখুন", en: "Review" },
   checkoutPlaceOrder: { bn: "অর্ডার নিশ্চিত করুন", en: "Place order" },
-  checkoutOrderPlaced: { bn: "অর্ডার সফলভাবে জমা হয়েছে ✓", en: "Order placed successfully ✓" },
+  checkoutOrderPlaced: { bn: "অর্ডার সফলভাবে জমা হয়েছে", en: "Order placed successfully" },
 
   // ── Sell-crop pipeline (stepper) ──
 
@@ -237,10 +244,10 @@ export const dict = {
   prefCategoryCritical: { bn: "অত্যন্ত গুরুত্বপূর্ণ সতর্কতা", en: "Critical alerts" },
   prefCategoryAction: { bn: "পদক্ষেপ প্রয়োজন এমন বার্তা", en: "Action-needed messages" },
   prefCategoryInfo: { bn: "সাধারণ তথ্য", en: "General info" },
-  prefsSavedToast: { bn: "নোটিফিকেশন সেটিংস সংরক্ষিত ✓", en: "Notification preferences saved ✓" },
+  prefsSavedToast: { bn: "নোটিফিকেশন সেটিংস সংরক্ষিত", en: "Notification preferences saved" },
 
   // ── Admin regions ──
-  regionSavedToast: { bn: "অঞ্চল সংরক্ষিত হয়েছে ✓", en: "Region saved ✓" },
+  regionSavedToast: { bn: "অঞ্চল সংরক্ষিত হয়েছে", en: "Region saved" },
 
   // ── Misc pages ──
   onboarding: { bn: "প্রোফাইল সেটআপ", en: "Profile setup" },
@@ -310,11 +317,19 @@ export const dict = {
   // Screen-reader-only heading for the marketplace product grid (its cards are
   // h3 under the page h1, so the grid needs an h2 of its own).
   marketCatalogSr: { bn: "পণ্যের তালিকা", en: "Product catalogue" },
+  // ── Pagination ──
+  // The catalogue is a Paged response (total/totalPages) and the list used to
+  // render page 1 only, silently: the remaining products existed in the payload
+  // and nothing on screen said they did.
+  pagerPrev: { bn: "আগের", en: "Previous" },
+  pagerNext: { bn: "পরের", en: "Next" },
+  pagerPageOf: { bn: "পাতা {page} / {total}", en: "Page {page} of {total}" },
+  marketTotalProducts: { bn: "মোট {n}টি পণ্য", en: "{n} products in total" },
   // Text equivalent for the unread-notification tint, which was colour-only.
   notifUnread: { bn: "না পড়া", en: "Unread" },
-  regularFarmVisit: { bn: "নিয়মিত ফার্ম পরিদর্শন করুন", en: "Regular farm visit" },
+  regularFarmVisit: { bn: "নিয়মিত খামার পরিদর্শন করুন", en: "Regular farm visit" },
   viewDetails: { bn: "বিস্তারিত দেখুন", en: "View details" },
-  aiFarmHealthy: { bn: "আপনার ফার্ম সুস্থ আছে", en: "Your farm is healthy" },
+  aiFarmHealthy: { bn: "আপনার খামার সুস্থ আছে", en: "Your farm is healthy" },
   farmReadiness: { bn: "খামার প্রস্তুতি", en: "Farm readiness" },
   aiFarmEmptyTitle: { bn: "শুরু করতে খামার যোগ করুন", en: "Add a farm to get started" },
   aiFarmEmptyMeter: { bn: "খামার যোগ করলে প্রস্তুতি দেখা যাবে", en: "Readiness appears once a farm exists" },
@@ -344,7 +359,7 @@ export const dict = {
   weatherRiskHEAT_WARNING: { bn: "→ সকাল-বিকেলে হালকা সেচ দিন", en: "→ light irrigation morning/evening" },
   weatherRiskIRRIGATION_ADVICE: { bn: "→ ফসলের পানির চাহিদা অনুযায়ী সেচ দিন", en: "→ irrigate per crop water demand" },
   weatherRiskDISEASE_RISK: { bn: "→ প্রতিরোধমূলক ছত্রাকনাশক বিবেচনা করুন", en: "→ consider preventive fungicide" },
-  weatherRiskINFO: { bn: "→ নিয়মিত ফার্ম পরিদর্শন করুন", en: "→ keep up regular farm visits" },
+  weatherRiskINFO: { bn: "→ নিয়মিত খামার পরিদর্শন করুন", en: "→ keep up regular farm visits" },
   // ── Weather provenance) — when the data was fetched, from
   // which source, and whether it is a cached copy. The time shown is the
   // ORIGINAL fetch time even on a cache hit; the cached copy is labelled.
@@ -380,7 +395,7 @@ export const dict = {
   deliveryAddressLabel: { bn: "ডেলিভারি ঠিকানা", en: "Delivery address" },
   addressLabel: { bn: "ঠিকানা", en: "Address" },
   sandboxPaymentNote: { bn: "স্যান্ডবক্স মোড — কোনো প্রকৃত অর্থ লেনদেন হবে না।", en: "Sandbox mode — no real money will move." },
-  paymentSuccessTitle: { bn: "পেমেন্ট সম্পন্ন হয়েছে ✓", en: "Payment complete ✓" },
+  paymentSuccessTitle: { bn: "পেমেন্ট সম্পন্ন হয়েছে", en: "Payment complete" },
   paymentPendingNote: { bn: "অর্ডার তৈরি হয়েছে — অনলাইন পেমেন্ট শীঘ্রই চালু হবে; এর আগে নোটিফিকেশন দেখুন।", en: "Order created — online payment is coming soon; watch your notifications meanwhile." },
   checkoutStepSuccess: { bn: "সম্পন্ন", en: "Success" },
 
@@ -421,7 +436,7 @@ export const dict = {
   showLess: { bn: "কম দেখুন", en: "Show less" },
   expandDetails: { bn: "বিস্তারিত দেখুন", en: "Expand details" },
   collapseDetails: { bn: "বিস্তারিত লুকান", en: "Collapse details" },
-  compressingImage: { bn: "ছবি প্রস্তুত করা হচ্ছে...", en: "Preparing image..." },
+  compressingImage: { bn: "ছবি প্রস্তুত করা হচ্ছে…", en: "Preparing image…" },
   questionInputLabel: { bn: "আপনার প্রশ্ন", en: "Your question" },
   // Which provider/mode answered and the KB content version it
   // was grounded in. Never a score/percentage — see supportLabel.ts.
@@ -446,9 +461,10 @@ export const dict = {
   tabAll: { bn: "সব", en: "All" },
 
   // ── Services page ──
-  needFarmFirst: { bn: "বুকিং দিতে আগে “আমার ফার্ম”-এ ফার্ম যোগ করুন।", en: 'Add a farm under "My Farm" before booking.' },
+  needFarmFirst: { bn: "বুকিং দিতে আগে “আমার খামার”-এ খামার যোগ করুন।", en: 'Add a farm under "My Farm" before booking.' },
   bookingReceivedToast: { bn: "বুকিং গৃহীত হয়েছে!", en: "Booking received!" },
-  farmLabel: { bn: "ফার্ম", en: "Farm" },
+  farmLabel: { bn: "খামার", en: "Farm" },
+  selectFarmPrompt: { bn: "খামার নির্বাচন করুন", en: "Select a farm" },
   scheduleLabel: { bn: "সময় নির্বাচন", en: "Schedule" },
   providerDefaultOption: { bn: "সেবাদাতা (পরে নিয়োগ)", en: "Provider (assign later)" },
   providerLabel: { bn: "সেবাদাতা", en: "Provider" },
@@ -504,16 +520,16 @@ export const dict = {
   cropPOTATO: { bn: "আলু", en: "Potato" },
 
   // ── MyFarm ──
-  farmNamePh: { bn: "ফার্মের নাম", en: "Farm name" },
+  farmNamePh: { bn: "খামারের নাম", en: "Farm name" },
   districtPh: { bn: "জেলা", en: "District" },
   bighaShort: { bn: "বিঘা", en: "bigha" },
   plotNamePh: { bn: "প্লটের নাম", en: "Plot name" },
   soilTypePh: { bn: "মাটির ধরন", en: "Soil type" },
   noPlotsYet: { bn: "এখনো কোনো ফসল নাই।", en: "No crops on this plot yet." },
-  noFarmsYet: { bn: "কোনো ফার্ম নেই — উপরের বোতাম থেকে যোগ করুন।", en: "No farms yet — use the button above to add one." },
-  farmCreatedToast: { bn: "ফার্ম যোগ হয়েছে ✓", en: "Farm created ✓" },
-  plotCreatedToast: { bn: "প্লট যোগ হয়েছে ✓", en: "Plot created ✓" },
-  cropCreatedToast: { bn: "ফসল যোগ হয়েছে ✓", en: "Crop created ✓" },
+  noFarmsYet: { bn: "কোনো খামার নেই — উপরের বোতাম থেকে যোগ করুন।", en: "No farms yet — use the button above to add one." },
+  farmCreatedToast: { bn: "খামার যোগ হয়েছে", en: "Farm created" },
+  plotCreatedToast: { bn: "প্লট যোগ হয়েছে", en: "Plot created" },
+  cropCreatedToast: { bn: "ফসল যোগ হয়েছে", en: "Crop created" },
   plantedAtLabel: { bn: "রোপণের তারিখ", en: "Planted on" },
   myFarmViewHarvester: { bn: "হারভেস্টার দেখুন", en: "View harvester" },
   myFarmViewInputs: { bn: "ইনপুট দেখুন", en: "View inputs" },
@@ -556,14 +572,14 @@ export const dict = {
   suspendConfirmTitle: { bn: "ব্যবহারকারীকে বরখাস্ত করবেন?", en: "Suspend this user?" },
   suspendConfirmBody: { bn: "{name} সাথে সাথে লগআউট হয়ে যাবেন এবং প্রবেশ করতে পারবেন না।", en: "{name} will be logged out immediately and blocked from signing in." },
   reactivateConfirmTitle: { bn: "অ্যাকাউন্ট পুনরায় চালু করবেন?", en: "Reactivate this account?" },
-  userUpdatedToast: { bn: "ব্যবহারকারী হালনাগাদ হয়েছে ✓", en: "User updated ✓" },
+  userUpdatedToast: { bn: "ব্যবহারকারী হালনাগাদ হয়েছে", en: "User updated" },
   withdrawalsQueue: { bn: "উত্তোলন অনুমোদন", en: "Withdrawal approvals" },
   noWithdrawals: { bn: "অপেক্ষমাণ উত্তোলনের অনুরোধ নেই।", en: "No pending withdrawal requests." },
   actionApprove: { bn: "অনুমোদন", en: "Approve" },
   actionReject: { bn: "প্রত্যাখ্যান", en: "Reject" },
   wdApproveConfirmBody: { bn: "অনুমোদন করলে ব্যবহারকারীর ওয়ালেট থেকে {amount} ডেবিট হবে।", en: "Approving debits {amount} from the user's wallet." },
   wdRejectConfirmBody: { bn: "এই উত্তোলনের অনুরোধ প্রত্যাখ্যান করা হবে।", en: "This withdrawal request will be rejected." },
-  withdrawalApprovedToast: { bn: "উত্তোলন অনুমোদিত ✓", en: "Withdrawal approved ✓" },
+  withdrawalApprovedToast: { bn: "উত্তোলন অনুমোদিত", en: "Withdrawal approved" },
   withdrawalRejectedToast: { bn: "উত্তোলন প্রত্যাখ্যাত।", en: "Withdrawal rejected." },
   analyticsSummary: { bn: "অ্যানালিটিকস সারসংক্ষেপ ({days} দিন)", en: "Analytics summary ({days} days)" },
   statusACTIVE: { bn: "সক্রিয়", en: "Active" },
@@ -582,12 +598,12 @@ export const dict = {
   areaExample: { bn: "যেমনঃ ৫", en: "e.g. 5" },
   obDistrictTitle: { bn: "এলাকা / জেলা", en: "Area / District" },
   obAreaTitle: { bn: "জমির পরিমাণ (বিঘা)", en: "Land size (bigha)" },
-  obFarmTitle: { bn: "প্রথম ফার্ম তৈরি করুন", en: "Create first farm" },
+  obFarmTitle: { bn: "প্রথম খামার তৈরি করুন", en: "Create first farm" },
 
   // ── Splash (v2: bilingual, respects pre-login language choice) ──
-  splashStatusConnect: { bn: "ফার্ম ডেটা সংযুক্ত হচ্ছে...", en: "Connecting farm data..." },
-  splashStatusAi: { bn: "আপনার তথ্য প্রস্তুত হচ্ছে...", en: "Preparing your data..." },
-  splashStatusReady: { bn: "আপনার ফার্ম প্রস্তুত", en: "Your farm is ready" },
+  splashStatusConnect: { bn: "খামার ডেটা সংযুক্ত হচ্ছে…", en: "Connecting farm data…" },
+  splashStatusAi: { bn: "আপনার তথ্য প্রস্তুত হচ্ছে…", en: "Preparing your data…" },
+  splashStatusReady: { bn: "আপনার খামার প্রস্তুত", en: "Your farm is ready" },
   // The splash's screen-reader progress announcement. `{status}` is already
   // localized by statusFor(); the sentence around it used to be a hardcoded
   // English literal inside an aria-live region, so Bengali users heard English.
@@ -601,6 +617,7 @@ export const dict = {
   svcSearchPh: { bn: "সেবা খুঁজুন… (ড্রোন, ট্রাক্টর, মাটি)", en: "Search services… (drone, tractor, soil)" },
   svcSearchLabel: { bn: "সেবা খুঁজুন", en: "Search services" },
   svcSortLabel: { bn: "সাজান", en: "Sort" },
+  svcSortDefault: { bn: "ডিফল্ট ক্রম", en: "Default order" },
   svcSortAsc: { bn: "দাম: কম থেকে বেশি", en: "Price: Low to High" },
   svcSortDesc: { bn: "দাম: বেশি থেকে কম", en: "Price: High to Low" },
   svcCount: { bn: "{n} টি সেবা", en: "{n} services" },
@@ -625,6 +642,11 @@ export const dict = {
   ordItemsTitle: { bn: "পণ্যসমূহ", en: "Items" },
   ordLastUpdated: { bn: "সর্বশেষ হালনাগাদ", en: "Last updated" },
   ordNoAddress: { bn: "এই অর্ডারে ডেলিভারি ঠিকানা লেখা হয়নি।", en: "No delivery address was recorded for this order." },
+  // GET /orders answers with a capped slice (100) plus X-Total-Count, so a
+  // longer history is truncated by the API and the screen must say so instead of
+  // presenting a partial list as the whole one. There is no page parameter on
+  // that route, so this states the window rather than offering a pager.
+  ordersTruncatedNotice: { bn: "সর্বশেষ {shown}টি অর্ডার দেখানো হচ্ছে — আপনার মোট {total}টি অর্ডার আছে।", en: "Showing your latest {shown} orders — you have {total} in total." },
   ordPaymentLabel: { bn: "পেমেন্ট", en: "Payment" },
   ordReceiverLabel: { bn: "গ্রহণকারী", en: "Recipient" },
 
@@ -673,7 +695,7 @@ export const dict = {
   dataExportTitle: { bn: "আমার ডেটা", en: "My data" },
   // Scope in one line: what is in the file, and the one thing that is not.
   dataExportHint: {
-    bn: "প্রোফাইল, ফার্ম, অর্ডার ও ওয়ালেট — পাসওয়ার্ড ছাড়া, JSON ফাইলে।",
+    bn: "প্রোফাইল, খামার, অর্ডার ও ওয়ালেট — পাসওয়ার্ড ছাড়া, JSON ফাইলে।",
     en: "Profile, farms, orders, wallet — everything but your password, as JSON.",
   },
   downloadMyData: { bn: "আমার ডেটা ডাউনলোড করুন", en: "Download my data" },

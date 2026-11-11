@@ -35,6 +35,14 @@
  *    `bg-warning` (the `warning` group has no DEFAULT key) and
  *    `decoration-link/40` (a bare `var(--color-*)` cannot take an opacity
  *    modifier). Scanner: scripts/lib/dead-classes.mjs.
+ * 6. **A Lighthouse budget that cannot fail.** Every numeric budget in
+ *    `lighthouserc.json` must assert with `aggregationMethod: "pessimistic"`.
+ *    LHCI's default ("optimistic") filters out any run that produced no value at
+ *    all, so a collection where Chrome never painted (the recorded NO_LCP runs
+ *    of 2026-11-10) still passed the LCP/TBT/CLS assertions — a vacuous gate.
+ *    With "pessimistic", `@lhci/utils/src/assertions.js` fails the assertion as
+ *    soon as one run has no finite value (`passed: false`, `actual: NaN`). This
+ *    check is what keeps a future edit from quietly weakening it back.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -264,6 +272,32 @@ if (!cssPath) {
     );
   } else {
     pass(`every Tailwind class in src/ resolves in the built CSS (${checked} checked)`);
+  }
+}
+
+// ── 6. the Lighthouse budget cannot pass by measuring nothing ───────────────
+// See the file header, family 6. `aggregationMethod` lives inside each numeric
+// assertion's options object; a missing one silently defaults to "optimistic",
+// which drops the runs that produced no value at all.
+const LHCI_NUMERIC_ASSERTIONS = ["first-contentful-paint", "largest-contentful-paint", "total-blocking-time", "cumulative-layout-shift"];
+const lhciConfigPath = join(WEB, "lighthouserc.json");
+if (!existsSync(lhciConfigPath)) {
+  fail("apps/web/lighthouserc.json is missing — the performance budget has no config to enforce");
+} else {
+  const assertions = readJson(lhciConfigPath)?.ci?.assert?.assertions ?? {};
+  const notPessimistic = LHCI_NUMERIC_ASSERTIONS.filter((id) => {
+    const cfg = assertions[id];
+    return !Array.isArray(cfg) || cfg[1]?.aggregationMethod !== "pessimistic";
+  });
+  if (notPessimistic.length) {
+    fail(
+      `Lighthouse assertion(s) without \`aggregationMethod: "pessimistic"\` (${notPessimistic.join(", ")}):\n     ` +
+        `LHCI's default "optimistic" aggregation filters out any run that produced no value, so a collection ` +
+        `where Chrome never painted (the recorded NO_LCP runs) still passes a budget that claims to be measured. ` +
+        `Add the aggregation method to each assertion in lighthouserc.json.`
+    );
+  } else {
+    pass(`every Lighthouse numeric budget asserts pessimistically (${LHCI_NUMERIC_ASSERTIONS.length} checked)`);
   }
 }
 

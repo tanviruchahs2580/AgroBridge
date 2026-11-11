@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit";
 import { createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
-import { requirePermission } from "../../middleware/rbac.js";
+import { requirePermission, hasPermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { notFound, unprocessable, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable } from "../../shared/errors/index.js";
 import { ok, idempotencyKeyOf } from "../../middleware/context.js";
@@ -20,7 +20,9 @@ import { env, isProd } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
-import { assertMayActOnProcurementOffer } from "../../lib/separationOfDuties.js";
+import { assertMayActOnProcurementOffer, assertNotSelfDealing } from "../../lib/separationOfDuties.js";
+import { paymentMetaOf, idempotencyKeyOfMeta, voidPendingIntents } from "../../lib/pendingIntents.js";
+import { claimPendingPayment } from "./meta.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
@@ -54,11 +56,10 @@ function maskDestination(phone: string): string {
   return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
 }
 
-/** Client idempotency key as stored in a payment's metaStr JSON (null when absent). */
-function idempotencyKeyOfMeta(metaStr: string | null): string | null {
-  const key = paymentMetaOf(metaStr).idempotencyKey;
-  return typeof key === "string" ? key : null;
-}
+// The meta helpers live in lib/pendingIntents.ts (shared with the void paths in
+// other modules); re-exported here because existing importers reach for
+// `paymentMetaOf` on this module's public entry point.
+export { paymentMetaOf } from "../../lib/pendingIntents.js";
 
 /** Checkout URL stored at creation time, so a keyed replay resumes the same session. */
 function metaRedirectUrl(metaStr: string | null): string | undefined {
@@ -71,15 +72,24 @@ type PaymentFinder = Pick<typeof prisma, "payment">;
 
 /**
  * Keyed replay lookup: one `Idempotency-Key` = one payment for its lifetime
- * (the payments analogue of checkout's one key = one order). metaStr is the
- * key's only column, so a containment prefilter narrows the rows and the
- * parsed value confirms the exact match — a JSON substring can never be
- * mistaken for the key itself.
+ * (the payments analogue of checkout's one key = one order).
+ *
+ * Primary lookup is the indexed `intentKey` column (F-03): since 2026-11-10
+ * every intent stores its key there, so the exact-match confirmation is a
+ * single equality. Legacy rows created before that date carry the key only
+ * inside `metaStr`; the migration lifts the keys it can parse, and for the rest
+ * (corrupt JSON) a containment prefilter narrows the rows and the parsed value
+ * confirms the exact match — a JSON substring can never be mistaken for the key
+ * itself. Restricting the fallback to `intentKey: null` keeps it off rows the
+ * column already answers for.
  */
 async function findPaymentByClientKey(db: PaymentFinder, userId: string, key: string): Promise<Payment | null> {
+  const byColumn = await db.payment.findFirst({ where: { userId, intentKey: key }, orderBy: { createdAt: "desc" } });
+  if (byColumn) return byColumn;
+
   const fragment = `"idempotencyKey":${JSON.stringify(key)}`;
   const candidates = await db.payment.findMany({
-    where: { userId, metaStr: { contains: fragment } },
+    where: { userId, intentKey: null, metaStr: { contains: fragment } },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
@@ -106,14 +116,23 @@ function paymentIntentEnvelope(payment: Payment, redirectUrl?: string) {
 }
 
 /**
- * Absolute URL of this API, used for gateway callbacks. Prefers the explicit
- * `API_PUBLIC_URL` (stable behind any proxy); otherwise derives it from the
- * request, honouring the configured trust-proxy so the scheme reflects the
- * edge that terminated TLS.
+ * Base URL of the MOUNTED API, used to build gateway callback URLs. Prefers the
+ * explicit `API_PUBLIC_URL` (stable behind any proxy); otherwise derives it
+ * from the request, honouring the configured trust-proxy so the scheme reflects
+ * the edge that terminated TLS.
+ *
+ * The `/api/v1` mount prefix is appended here, and here only: `API_PUBLIC_URL`
+ * is documented in three places (config/env.ts, .env.example,
+ * docs/env-reference.md) as the API's public base WITHOUT the mount path, while
+ * the gateway routes live under `/api/v1` (`app.ts` mounts every router on that
+ * prefix). Building the callback without it sent the buyer to
+ * `/payments/gateway/return/...` → 404 after a successful charge (F-04).
  */
+const API_MOUNT_PREFIX = "/api/v1";
+
 function apiPublicBaseUrl(req: import("express").Request): string {
-  if (env.API_PUBLIC_URL) return env.API_PUBLIC_URL.replace(/\/+$/, "");
-  return `${req.protocol}://${req.get("host")}`;
+  const origin = env.API_PUBLIC_URL ? env.API_PUBLIC_URL.replace(/\/+$/, "") : `${req.protocol}://${req.get("host")}`;
+  return `${origin}${API_MOUNT_PREFIX}`;
 }
 
 /**
@@ -225,7 +244,9 @@ paymentsRouter.post(
   }),
   async (req, res, next) => {
     try {
-      const { purposeType, purposeId } = req.body as { purposeType: string; purposeId: string };
+      // The body is validated by zod above; the cast narrows it to the same
+      // union the schema enforces (voidPendingIntents is typed against it).
+      const { purposeType, purposeId } = req.body as { purposeType: "ORDER" | "BOOKING" | "MEMBERSHIP"; purposeId: string };
       const userId = getAuth(req).userId;
       const clientKey = idempotencyKeyOf(req);
 
@@ -270,9 +291,8 @@ paymentsRouter.post(
       // Ask the configured gateway for a session BEFORE persisting the payment,
       // so a gateway outage leaves no orphaned PENDING row behind.
       const provider = getPaymentProvider();
-      const customerPhone = (
-        await prisma.user.findUnique({ where: { id: userId }, select: { phone: true } })
-      )?.phone ?? "";
+      const customer = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true, fullName: true } });
+      const customerPhone = customer?.phone ?? "";
       let gatewayRedirectUrl: string | undefined;
       let gatewayRef: string;
       let gatewayMeta: Record<string, unknown> = { mode: env.PAYMENT_PROVIDER };
@@ -281,7 +301,15 @@ paymentsRouter.post(
         const returnBaseUrl = apiPublicBaseUrl(req);
         let intent: Awaited<ReturnType<typeof provider.createPayment>>;
         try {
-          intent = await provider.createPayment({ amountPaisa, refNo: paymentRefNo, customerPhone, returnBaseUrl });
+          intent = await provider.createPayment({
+            amountPaisa,
+            refNo: paymentRefNo,
+            customerPhone,
+            // SSLCommerz v4 expects cus_name; the buyer's own name is what the
+            // hosted page shows them back (F-05 payload).
+            customerName: customer?.fullName ?? undefined,
+            returnBaseUrl,
+          });
         } catch (e) {
           throw paymentGatewayUnavailable({ reason: (e as Error).message });
         }
@@ -295,43 +323,70 @@ paymentsRouter.post(
         gatewayRef = `SBX-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       }
 
-      const { payment, replayed } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // Re-check inside the transaction: two same-key requests that both
-        // passed the fast path must still produce exactly ONE payment — the
-        // loser replays the winner's row instead of superseding it. (In a
-        // live-gateway race the loser's just-created gateway session is
-        // orphaned; it holds no payment row, so a webhook for it can never
-        // settle anything.)
-        if (clientKey) {
-          const existing = await findPaymentByClientKey(tx, userId, clientKey);
-          if (existing) return { payment: existing, replayed: true };
-        }
+      let payment: Payment;
+      let replayed = false;
+      try {
+        const claim = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          // Re-check inside the transaction: two same-key requests that both
+          // passed the fast path must still produce exactly ONE payment — the
+          // loser replays the winner's row instead of superseding it. (In a
+          // live-gateway race the loser's just-created gateway session is
+          // orphaned; it holds no payment row, so a webhook for it can never
+          // settle anything.)
+          if (clientKey) {
+            const existing = await findPaymentByClientKey(tx, userId, clientKey);
+            if (existing) return { payment: existing, replayed: true };
+          }
 
-        // Cancel any stale PENDING intents for the same purpose so exactly one
-        // live intent exists at a time (prevents double-confirm double-spend).
-        // Scoped to THIS user: purposeId is a shared business key (e.g. the
-        // membership tier), so an unscoped supersede would cancel other users'
-        // in-flight checkouts.
-        await tx.payment.updateMany({
-          where: { purposeType, purposeId, userId, status: "PENDING" },
-          data: { status: "FAILED", metaStr: JSON.stringify({ cancelledReason: "superseded_by_new_intent" }) },
+          // Cancel any stale PENDING intents for the same purpose so exactly one
+          // live intent exists at a time (prevents double-confirm double-spend).
+          // Scoped to THIS user: purposeId is a shared business key (e.g. the
+          // membership tier), so an unscoped supersede would cancel other users'
+          // in-flight checkouts. The void merges rather than replaces metaStr so
+          // a superseded keyed intent still answers a keyed retry (F-23).
+          await voidPendingIntents(tx, { purposeType, purposeId, userId, reason: "superseded_by_new_intent" });
+
+          const created = await tx.payment.create({
+            data: {
+              refNo: paymentRefNo,
+              userId,
+              purposeType,
+              purposeId,
+              amountPaisa,
+              method: "MOBILE_WALLET",
+              providerRef: gatewayRef,
+              // The key lands in BOTH places on purpose: `intentKey` is the
+              // indexed, enforced column (F-03), while metaStr keeps the shape
+              // older clients and support tooling already read. The replay
+              // lookup prefers the column.
+              ...(clientKey ? { intentKey: clientKey } : {}),
+              metaStr: JSON.stringify(clientKey ? { ...gatewayMeta, idempotencyKey: clientKey } : gatewayMeta),
+              // Correlation for support/audit joins (X-Request-Id of this request).
+              requestId: req.requestId,
+            },
+          });
+          return { payment: created, replayed: false };
         });
-        const created = await tx.payment.create({
-          data: {
-            refNo: paymentRefNo,
-            userId,
-            purposeType,
-            purposeId,
-            amountPaisa,
-            method: "MOBILE_WALLET",
-            providerRef: gatewayRef,
-            metaStr: JSON.stringify(clientKey ? { ...gatewayMeta, idempotencyKey: clientKey } : gatewayMeta),
-            // Correlation for support/audit joins (X-Request-Id of this request).
-            requestId: req.requestId,
-          },
-        });
-        return { payment: created, replayed: false };
-      });
+        payment = claim.payment;
+        replayed = claim.replayed;
+      } catch (e) {
+        // Lost-race replay on the new (userId, intentKey) unique index (F-03):
+        // under PostgreSQL READ COMMITTED two same-key requests can both pass
+        // the lookups above without seeing each other's uncommitted row, so the
+        // database backstop makes the loser's INSERT fail with P2002. The
+        // violation itself proves the winner committed (its index entry is what
+        // blocked this INSERT), so the replay lookup finds it and answers the
+        // SAME intent — no second payable intent, no second gateway charge. A
+        // P2002 from any other index finds nothing here and rethrows.
+        if (clientKey) {
+          const replay = await findPaymentByClientKey(prisma, userId, clientKey).catch(() => null);
+          if (replay) {
+            ok(res, paymentIntentEnvelope(replay, metaRedirectUrl(replay.metaStr)), 200);
+            return;
+          }
+        }
+        throw e;
+      }
       if (!replayed) paymentIntentsTotal.inc({ purpose_type: purposeType, status: "created" });
       // Intent creation is a security-adjacent money event: without a trail row,
       // a stale-intent supersede (right above) is invisible to the audit log.
@@ -365,18 +420,12 @@ export async function claimAndApplyPayment(
 ): Promise<boolean> {
   let claimed = false;
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // A client idempotency key (when one was supplied) rides in metaStr and
-    // must survive confirmation: a client retrying intent creation after a
-    // lost response still has to find THIS payment once it is no longer
-    // PENDING, and metaStr is the key's only column.
-    const before = await tx.payment.findUnique({ where: { id: payment.id }, select: { metaStr: true } });
-    const clientKey = idempotencyKeyOfMeta(before?.metaStr ?? null);
-    const res = await tx.payment.updateMany({
-      where: { id: payment.id, status: "PENDING" },
-      data: { status: "SUCCEEDED", metaStr: JSON.stringify(clientKey ? { ...meta, idempotencyKey: clientKey } : meta) },
-    });
-    if (res.count !== 1) return;
-    claimed = true;
+    // The claim itself (claimPendingPayment) merges the row's current meta, so
+    // a client idempotency key survives settlement — a client retrying intent
+    // creation after a lost response still has to find THIS payment once it is
+    // no longer PENDING (F-02; the webhook calls the same helper).
+    claimed = await claimPendingPayment(tx, payment.id, meta);
+    if (!claimed) return;
     await applyPaymentSideEffects(tx, payment);
   }, { timeout: 15000, maxWait: 8000 });
 
@@ -447,17 +496,6 @@ export async function reconcileLiveVerdict(
   return claimed ? { reconciled: true } : { reconciled: false };
 }
 
-/** Parses a payment's stored metaStr, tolerating null/corrupt JSON. */
-export function paymentMetaOf(metaStr: string | null): Record<string, unknown> {
-  if (!metaStr) return {};
-  try {
-    const parsed = JSON.parse(metaStr) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
 /**
  * Sandbox confirm: simulates the gateway return path. Only available when the
  * sandbox provider is actually in use, and — in production — only for a
@@ -526,7 +564,14 @@ paymentsRouter.get("/:id/status", validate({ params: idParams }), async (req, re
 
 paymentsRouter.get("/", async (req, res, next) => {
   try {
-    const isPrivileged = ["ADMIN", "SUPER_ADMIN"].includes(getAuth(req).role);
+    // F-08: the inline `["ADMIN","SUPER_ADMIN"]` list is replaced by the
+    // declared `payments:read:any` capability (held by the ADMIN tier only, so
+    // the granted set is identical). The permission decides the SCOPE here
+    // rather than gating the route: this one route serves both the buyer's own
+    // list and the admin/finance all-rows view, so a route-level gate would
+    // 403 a farmer's own Wallet list. tests/permission-migration-equivalence
+    // asserts the 13-role access matrix is unchanged by this swap.
+    const isPrivileged = hasPermission(getAuth(req).role, "payments:read:any");
     // X-Total-Count: admin/finance see ALL payments while a user
     // sees their own; either way the body is a capped slice (100) and the
     // header carries the scope's true total so truncation is visible.
@@ -586,6 +631,12 @@ paymentsRouter.post(
 
       const payment = await prisma.payment.findUnique({ where: { id: req.params.id } });
       if (!payment) throw notFound("Payment");
+      // Separation of duties (F-75): the permission gate above decides WHO may
+      // refund; this decides WHOSE. One actor must not be both the holder of
+      // the payment and the one who records its refund. SUPER_ADMIN remains the
+      // documented break-glass exception inside assertNotSelfDealing.
+      // (assertNotSelfDealing is synchronous; it throws `forbidden`.)
+      assertNotSelfDealing(getAuth(req).userId, payment.userId, getAuth(req).role, "This refund");
       if (payment.purposeType === "MEMBERSHIP") {
         throw unprocessable("Membership purchases are non-refundable while active (see Terms)");
       }
@@ -638,7 +689,11 @@ paymentsRouter.post(
         action: "PAYMENT_REFUNDED",
         entityType: "Payment",
         entityId: payment.id,
-        meta: { reason, ...(liveGateway ? { gatewayRef, gatewayRefund: true } : {}) },
+        meta: {
+          reason,
+          walletImpact: "PLATFORM_BOOKKEEPING_DEBIT",
+          ...(liveGateway ? { gatewayRef, gatewayRefund: true } : {}),
+        },
       });
       await notify({
         userId: payment.userId,
@@ -646,24 +701,30 @@ paymentsRouter.post(
         category: "CRITICAL",
         // Honest copy, mode-specific: sandbox is a wallet adjustment (not
         // gateway money); live is a record of a refund the operator already
-        // issued in the gateway dashboard (the wallet entry documents it).
+        // issued in the gateway dashboard (the wallet entry documents it). Both
+        // say plainly that the ledger entry is platform bookkeeping, not a
+        // wallet movement the buyer made (F-25).
         ...(liveGateway
           ? {
               titleBn: "রিফান্ড রেকর্ড হয়েছে (গেটওয়ে)",
               titleEn: "Refund recorded (gateway)",
-              bodyBn: `গেটওয়ে রেফারেন্স ${gatewayRef} দিয়ে রিফান্ড রেকর্ড করা হয়েছে; প্ল্যাটফর্ম ওয়ালেটের ডেবিট এন্ট্রি এটির নথি।`,
-              bodyEn: `Refund recorded with gateway reference ${gatewayRef}; the platform-wallet debit entry documents it.`,
+              bodyBn: `গেটওয়ে রেফারেন্স ${gatewayRef} দিয়ে রিফান্ড রেকর্ড করা হয়েছে; প্ল্যাটফর্ম ওয়ালেটের ডেবিট এন্ট্রি এটির নথি (প্ল্যাটফর্ম হিসাবরক্ষণ, ওয়ালেট থেকে অর্থ উত্তোলন নয়)।`,
+              bodyEn: `Refund recorded with gateway reference ${gatewayRef}; the platform-wallet debit entry documents it (platform bookkeeping, not a wallet movement).`,
             }
           : {
               titleBn: "রিফান্ড রেকর্ড (স্যান্ডবক্স)",
               titleEn: "Refund recorded (sandbox)",
-              bodyBn: "স্যান্ডবক্স রিফান্ড — প্ল্যাটফর্ম ওয়ালেট থেকে সমপরিমাণ অর্থ ডেবিট এন্ট্রি হয়েছে; প্রকৃত গেটওয়ে অর্থ ফেরত নয়।",
-              bodyEn: "Sandbox refund — the amount was recorded as a platform-wallet debit entry; no real gateway money was returned.",
+              bodyBn: "স্যান্ডবক্স রিফান্ড — প্ল্যাটফর্ম ওয়ালেট থেকে সমপরিমাণ অর্থ ডেবিট এন্ট্রি হয়েছে; প্রকৃত গেটওয়ে অর্থ ফেরত নয় (প্ল্যাটফর্ম হিসাবরক্ষণ, ওয়ালেট থেকে অর্থ উত্তোলন নয়)।",
+              bodyEn: "Sandbox refund — the amount was recorded as a platform-wallet debit entry; no real gateway money was returned (platform bookkeeping, not a wallet movement).",
             }),
         refType: "PAYMENT",
         refId: payment.id,
       });
-      ok(res, updated);
+      // F-25 (policy, behaviour deliberately unchanged — BR-35 and tested): the
+      // compensating wallet debit is platform bookkeeping, not a wallet movement
+      // the buyer made. The response labels it so a farmer (or a client reading
+      // the payload) cannot mistake it for a withdrawal of their funds.
+      ok(res, { ...updated, walletImpact: "PLATFORM_BOOKKEEPING_DEBIT" });
     } catch (e) {
       next(e);
     }
@@ -822,49 +883,133 @@ const MIN_WITHDRAWAL_PAISA = 10_000; // ৳100
 const withdrawalSchema = z.object({
   amountPaisa: z.number().int().min(MIN_WITHDRAWAL_PAISA),
   channel: z.enum(["BKASH", "NAGAD", "BANK"]).default("BKASH"),
+  // Same key contract as checkout (ARC-10): the `Idempotency-Key` header is
+  // mapped onto this field by acceptIdempotencyKeyHeader, and the body field
+  // stays supported for clients that cannot set headers (the shipped web
+  // `api()` helper sends it in the body). Bounded 8..100 so a hostile client
+  // cannot stuff unbounded keys into the unique index.
+  clientRequestId: z.string().min(8).max(100).optional(),
 });
 
-walletRouter.post("/withdrawals", financialLimiter, validate({ body: withdrawalSchema }), async (req, res, next) => {
+/** Replay lookup used both up-front and after a lost race: one key = one withdrawal. */
+async function findWithdrawalByClientKey(userId: string, clientRequestId: string) {
+  return prisma.withdrawal.findFirst({ where: { userId, clientRequestId } });
+}
+
+/**
+ * Reserves the hold and creates the Withdrawal row atomically.
+ *
+ * Serialize all hold maintenance behind the wallet row's write lock: the no-op
+ * increment UPDATE locks the row (PG) / defers the next writer (SQLite) until
+ * this transaction commits. Re-reading AFTER the lock is what closes the
+ * previous race where two parallel requests both passed the aggregate
+ * availability check with the same pre-lock snapshot.
+ */
+async function createWithdrawalWithHold(params: {
+  userId: string;
+  phone: string;
+  amountPaisa: number;
+  channel: string;
+  clientRequestId?: string;
+}) {
+  const { userId, phone, amountPaisa, channel, clientRequestId } = params;
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.wallet.upsert({
+      where: { userId },
+      update: { heldPaisa: { increment: 0 } },
+      create: { userId },
+    });
+    const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId } });
+    const available = wallet.balancePaisa - wallet.heldPaisa;
+    if (amountPaisa > available) {
+      throw unprocessable("Insufficient available balance (pending withdrawals are held)");
+    }
+    await tx.wallet.update({
+      where: { userId },
+      data: { heldPaisa: { increment: amountPaisa } },
+    });
+    return tx.withdrawal.create({
+      data: {
+        refNo: refNo("WDL"),
+        userId,
+        amountPaisa,
+        channel,
+        destination: maskDestination(phone),
+        ...(clientRequestId ? { clientRequestId } : {}),
+      },
+    });
+  }, { timeout: 15000, maxWait: 8000 });
+}
+
+/**
+ * Withdrawal request. Idempotent when a key is supplied (F-01): the first
+ * request that creates a withdrawal with a key owns it, and a retry —
+ * sequential, after a network failure, or racing in parallel — replays THAT
+ * row with 200 and reserves no second hold. The `@@unique([userId,
+ * clientRequestId])` index is the database backstop; the balance/hold check
+ * below is unchanged for keyless requests and is what bounds a duplicate at
+ * the available balance, but with a key it is no longer the only guard.
+ */
+walletRouter.post(
+  "/withdrawals",
+  financialLimiter,
+  // A malformed key is a 400, not silently ignored — the client sent it
+  // expecting replay protection.
+  acceptIdempotencyKeyHeader,
+  validate({ body: withdrawalSchema }),
+  async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
     if (!user) throw notFound("User");
     if (!user.phoneVerified && isProd) throw phoneNotVerified();
 
-    const { amountPaisa, channel } = req.body as { amountPaisa: number; channel: string };
+    const { amountPaisa, channel, clientRequestId: bodyKey } = req.body as {
+      amountPaisa: number;
+      channel: string;
+      clientRequestId?: string;
+    };
+    // The header wins when both are present; either way the value lands in the
+    // same column, so replays from header- and body-carrying clients resolve
+    // through the same lookup (mirrors checkout).
+    const clientRequestId = idempotencyKeyOf(req) ?? bodyKey;
 
-    const withdrawal = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Serialize all hold maintenance behind the wallet row's write lock:
-      // the no-op increment UPDATE locks the row (PG) / defers the next writer
-      // (SQLite) until this transaction commits. Re-reading AFTER the lock is
-      // what closes the previous race where two parallel requests both passed
-      // the aggregate availability check with the same pre-lock snapshot.
-      await tx.wallet.upsert({
-        where: { userId: getAuth(req).userId },
-        update: { heldPaisa: { increment: 0 } },
-        create: { userId: getAuth(req).userId },
-      });
-      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: getAuth(req).userId } });
-      const available = wallet.balancePaisa - wallet.heldPaisa;
-      if (amountPaisa > available) {
-        throw unprocessable("Insufficient available balance (pending withdrawals are held)");
+    // Fast path: this key already produced a withdrawal — replay it before any
+    // hold is reserved.
+    if (clientRequestId) {
+      const replay = await findWithdrawalByClientKey(getAuth(req).userId, clientRequestId);
+      if (replay) {
+        ok(res, replay);
+        return;
       }
-      await tx.wallet.update({
-        where: { userId: getAuth(req).userId },
-        data: { heldPaisa: { increment: amountPaisa } },
-      });
-      return tx.withdrawal.create({
-        data: {
-          refNo: refNo("WDL"),
-          userId: getAuth(req).userId,
-          amountPaisa,
-          channel,
-          destination: maskDestination(user.phone),
-        },
-      });
-    }, { timeout: 15000, maxWait: 8000 });
+    }
 
-    await audit({ actorId: getAuth(req).userId, action: "WITHDRAWAL_REQUESTED", entityType: "Withdrawal", entityId: withdrawal.id, meta: { amountPaisa } });
-    ok(res, withdrawal, 201);
+    try {
+      const withdrawal = await createWithdrawalWithHold({
+        userId: getAuth(req).userId,
+        phone: user.phone,
+        amountPaisa,
+        channel,
+        ...(clientRequestId ? { clientRequestId } : {}),
+      });
+
+      await audit({ actorId: getAuth(req).userId, action: "WITHDRAWAL_REQUESTED", entityType: "Withdrawal", entityId: withdrawal.id, meta: { amountPaisa } });
+      ok(res, withdrawal, 201);
+    } catch (e) {
+      // Lost-race replay: P2002 on (userId, clientRequestId) — or an
+      // availability refusal that a racing same-key attempt already won —
+      // means the winner's row exists. Replay it with 200; the loser's hold
+      // was rolled back with its aborted transaction, so no funds stay held
+      // for a withdrawal that was never created. Without a key this branch is
+      // skipped and the original error stands.
+      if (clientRequestId) {
+        const replay = await findWithdrawalByClientKey(getAuth(req).userId, clientRequestId).catch(() => null);
+        if (replay) {
+          ok(res, replay);
+          return;
+        }
+      }
+      throw e;
+    }
   } catch (e) {
     next(e);
   }

@@ -39,8 +39,9 @@ Evidence that the application control holds today (the negative tests):
 - `tests/security-matrix.test.ts` — IDOR sweep across order, booking,
   procurement and notification endpoints plus the RBAC matrix
   (elevated roles cannot exceed their grants).
-- `tests/rbac-fixes.test.ts`, `tests/farm-event-sync-scoping.test.ts` — the
-  scoping regressions found in earlier passes stay fixed.
+- `tests/booking-and-procurement-scope.test.ts`, `tests/farm-event-sync-scoping.test.ts` — the
+  scoping regressions found in earlier passes stay fixed. (The first file was named
+  `rbac-fixes.test.ts` until the 2026-11-10 domain-named suite renames, F-92.)
 
 ## Decision
 

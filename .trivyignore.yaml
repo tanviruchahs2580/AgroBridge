@@ -1,37 +1,67 @@
-# Trivy accepted-risk suppressions for the IaC/config scan (ci.yml `iac-scan`).
+# Trivy accepted-risk suppressions for BOTH scans in ci.yml.
 #
-# Format: trivy's YAML ignore file. Note the CLI default ignore file is
-# `.trivyignore` (plain) — a YAML ignore file is NOT auto-loaded, so ci.yml
-# passes this one explicitly via trivy-action's `trivyignores` input.
+# One file with two sections: `vulnerabilities:` is the image scan
+# (ci.yml `trivy-scan` — HIGH/CRITICAL, on the built API image) and
+# `misconfigurations:` is the IaC config scan (ci.yml `iac-scan`, scan-ref: .).
+# Both steps pass this file explicitly via the action's `trivyignores` input,
+# because the CLI only auto-loads the plain `.trivyignore`.
+#
+# Until 2026-11-10 there were two files — a plain `.trivyignore` (the vitest
+# GHSA) and this one (the nginx root master) — i.e. two formats and two dates
+# for a single register that SECURITY_WAIVERS.md has to be kept in sync with by
+# hand (F-96). The entries are unchanged in substance; only their location is.
+#
 # Every entry MUST cross-reference SECURITY_WAIVERS.md — the register is the
 # governing table; an entry here without a register row is a violation, not a
 # policy. Expired entries fail review: renew or fix.
-#
-# This file covers CONFIG findings only. Vulnerability suppressions (image scan)
-# stay in ./.trivyignore.
+
+vulnerabilities:
+  # vitest dev-only test dependency (Moderate) — never installed in production
+  # images; see SECURITY_WAIVERS.md (expiry 2026-12-31, renewed 2026-10-18).
+  # The runtime stage installs with --omit=dev, so today's scan does not reach
+  # it; the entry stays because the register row and the scan config must agree,
+  # and because a future dev dependency in the image would need it again.
+  # NOT LOCALLY EXERCISED (2026-11-10): matching this ID requires the image scan,
+  # which needs a container runtime — the id is carried over verbatim from the
+  # plain file that CI did match.
+  - id: GHSA-5xrq-8626-4rwp
+    statement: >-
+      vitest (+@vitest/*) is a dev-only test dependency, never installed in a
+      production image; the finding is Moderate and the fix is a major
+      test-framework bump scheduled on its own. Registered in
+      SECURITY_WAIVERS.md.
+    expired_at: 2026-12-31
 
 misconfigurations:
-  # The web runtime image is nginx:1-alpine-slim listening on 80/443 (TLS
-  # termination happens in this container; docker-compose.prod.yml mounts
-  # /etc/letsencrypt and publishes 80/443). Its master process runs as root —
-  # the upstream nginx model. Running it unprivileged means changing the listen
-  # ports and the public port mapping, or swapping the base image for
-  # nginx-unprivileged: a deployment-topology change (certbot paths, compose
-  # healthcheck, deploy gates), not a Dockerfile tweak, and it is scheduled
-  # separately. Accepted 2026-10-18; the matching SECURITY_WAIVERS.md row
-  # ("AVD-DS-0002 (Trivy config)", same expiry) is registered — the cross-reference
-  # required above is satisfied, and this comment names where to re-check it.
-  # Compensating controls: no NEW_PRIVILEGED caps, no host PID/network, the
-  # container is the only one publishing ports, and the api/db network is
-  # internal. Expiry aligns with the register's other rows.
+  # The web runtime image is nginx:1-alpine-slim. Since 2026-11-10 it also
+  # terminates TLS: docker-compose.prod.yml mounts the certificate directory
+  # (TLS_CERTS_DIR, required, read-only) at /etc/nginx/tls and publishes 80+443,
+  # and docker/web.nginx.prod.conf serves 443 with fullchain.pem/privkey.pem
+  # while port 80 does nothing but redirect. Before that the file had no
+  # `ssl_certificate` at all, so the previous version of this waiver described a
+  # compensating control the artefact did not implement (F-87).
+  #
+  # Master as root is the upstream nginx model; the unprivileged variant
+  # (nginx-unprivileged + listen remap) stays a separate reviewed change.
+  # Accepted 2026-10-18; the matching SECURITY_WAIVERS.md row ("AVD-DS-0002
+  # (Trivy config)", same expiry) is registered, and that row now names the TLS
+  # private key this container mounts — the cost of terminating TLS here rather
+  # than in a front proxy.
+  # Compensating controls: no NEW_PRIVILEGED caps, no host PID/network, this is
+  # the only container publishing ports, the api/db network is internal, the
+  # certificate directory is mounted read-only, the container serves static
+  # assets and proxies /api only, and every location ships the shared security
+  # header set (docker/nginx/security-headers.conf).
   - id: AVD-DS-0002
     paths:
       # glob: matched relative to the scan root, which differs between a scan of
       # the repo (docker/web.Dockerfile) and a targeted scan (web.Dockerfile)
       - "**/web.Dockerfile"
     statement: >-
-      nginx TLS-termination container runs its master process as root (upstream
-      image model). Ephemeral, cert-mounted, no privileged capabilities; the
-      unprivileged-base migration is scheduled separately. Registered in
-      SECURITY_WAIVERS.md (AVD-DS-0002 row, expires with this entry).
+      The nginx TLS-termination container runs its master process as root
+      (upstream image model); it holds the TLS private key as a read-only mount.
+      Ephemeral, cert-mounted, no privileged capabilities; the unprivileged-base
+      migration is scheduled separately, and the TLS-in-front alternative (no key
+      in this container) is an operator choice recorded in docs/deployment.md.
+      Registered in SECURITY_WAIVERS.md (AVD-DS-0002 row, expires with this entry).
     expired_at: 2027-01-31

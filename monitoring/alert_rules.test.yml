@@ -29,13 +29,17 @@ tests:
               description: 'Error ratio 50% over the last 5m. Check API logs by requestId and recent deploys.'
               runbook: docs/operations.md
 
-  # A healthy deployment fires nothing.
+  # A healthy deployment fires nothing. The auth series is present and BELOW
+  # the threshold on purpose: one refused request a minute is a person
+  # mistyping a password, not an incident (F-27's quiet case).
   - interval: 1m
     input_series:
-      - series: 'agrobridge_http_requests_total{status="200"}'
+      - series: 'agobridge_http_requests_total{status="200"}'
         values: '0+10x10'
-      - series: 'agrobridge_db_up'
+      - series: 'agobridge_db_up'
         values: '1+0x10'
+      - series: 'agobridge_auth_failures_total{route="/api/v1/auth/login",reason="invalid_credentials"}'
+        values: '0+1x10'
     alert_rule_test:
       - eval_time: 10m
         alertname: High5xxRate
@@ -46,6 +50,10 @@ tests:
       - eval_time: 10m
         alertname: PaymentFailures
         exp_alerts: []
+      - eval_time: 10m
+        alertname: AuthFailureSpike
+        exp_alerts: []
+
 
   # The database gauge stuck at 0 past `for: 2m` fires DbDown.
   - interval: 1m
@@ -117,3 +125,25 @@ tests:
               summary: "Scrape target down"
               description: "Prometheus cannot reach api:4000 for 3m. Container may be crashed or network partitioned."
               runbook: docs/runbooks/live-deployment.md
+
+  # F-27: a 401/403 burst on one route+reason fires AuthFailureSpike. 60 refused
+  # requests a minute (1/s) on /auth/login with reason invalid_credentials goes
+  # pending at t+1m — once the 5m rate window has two samples — and fires after
+  # `for: 10m`. The API does not emit this metric yet (see the rule's comment);
+  # the series here is synthetic, exactly as the other rules are exercised.
+  - interval: 1m
+    input_series:
+      - series: 'agobridge_auth_failures_total{route="/api/v1/auth/login",reason="invalid_credentials"}'
+        values: '0+60x15'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: AuthFailureSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              route: "/api/v1/auth/login"
+              reason: "invalid_credentials"
+            exp_annotations:
+              summary: "Sustained 401/403 rate on one route (>0.1/s for 10m)"
+              description: "/api/v1/auth/login is refusing requests with reason invalid_credentials. Check the API logs for that reason and recent RBAC or session changes before it becomes a lockout; a mass 401 after a deploy is usually JWT-secret rotation (docs/runbooks/secret-rotation.md)."
+              runbook: docs/operations.md

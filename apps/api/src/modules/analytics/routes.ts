@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
+import { ok } from "../../middleware/context.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 /**
@@ -39,7 +40,10 @@ analyticsRouter.post("/events", requireAuth, validate({ body: eventSchema }), (r
         })),
       })
       .catch(() => undefined);
-    res.status(202).json({ ok: true, data: { accepted: events.length }, requestId: req.requestId });
+    // The standard envelope helper, not a hand-rolled 202 body (F-70): the
+    // literal shape happened to match today, but a change to `ok` (a new
+    // field, a renamed key) would silently miss this one route.
+    ok(res, { accepted: events.length }, 202);
   } catch (e) {
     next(e);
   }

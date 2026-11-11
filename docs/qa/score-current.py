@@ -172,9 +172,10 @@ DELTAS = {
     # (uploads durability AUD-165, KB sourcing AUD-127/128) named — not all
     # residuals have dedicated tests, so 2, not 3.
     "ARC-16": (2, "STRIDE threat model with controls mapped to tests (docs/threat-model.md); residuals named"),
-    # Traceparent correlation + X-Trace-Id echo (hardening-round11) and SLOs
+    # Traceparent correlation + X-Trace-Id echo (audit-events-and-trace.test.ts,
+    # renamed from hardening-round11 on 2026-11-10, F-92) and SLOs
     # proposed (docs/slo.md); no vendor tracing/external sink — 2, not 3.
-    "ARC-14": (2, "traceparent↔X-Trace-Id correlation (hardening-round11) + SLOs proposed (docs/slo.md); no vendor tracing/sink"),
+    "ARC-14": (2, "traceparent↔X-Trace-Id correlation (audit-events-and-trace.test.ts) + SLOs proposed (docs/slo.md); no vendor tracing/sink"),
     # SLOs/SLIs with budgets and enforcement (docs/slo.md); owner sign-off pending —
     # 2, exactly per the parameter's own definition.
     "OPS-01": (2, "SLIs/SLOs + error budgets proposed with enforcement (docs/slo.md); owner sign-off pending"),

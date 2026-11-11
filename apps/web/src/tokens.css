@@ -220,8 +220,10 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-shake { animation: none; }
 }
-@keyframes agro-pulse { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.35); } 100% { box-shadow: 0 0 0 8px rgba(22,163,74,0); } }
-.animate-success-pulse { animation: agro-pulse 0.5s ease-out; }
+
+/* `@keyframes agro-pulse` + `.animate-success-pulse` were removed: no component
+   ever applied the class, so the keyframes shipped in every bundle for nothing
+   (and unlike `.animate-shake` there was no reduced-motion branch to keep). */
 
 /* Dark mode: the designed dark token set lives in dark.css (imported after
    index.css in main.tsx). It re-points every semantic token above — see the

@@ -92,12 +92,28 @@ export default defineConfig({
   // production-build pass points it at the `vite preview` instance on :4173).
   // Starting the dev server in that case would be wrong twice over: the URL is
   // not the dev server's, and the two servers would contend for nothing.
+  //
+  // `reuseExistingServer` is OFF by default, and that is the fix, not a
+  // side-effect. Port 5173 is shared with a sibling project (AGENTS.md §3: 5173
+  // is also Bangla GPT's dev port, and the two must not run at the same time), so
+  // reuse turned that collision into a GREEN run against the wrong application:
+  // Playwright found *something* answering on 5173, skipped starting this dev
+  // server, and drove the sibling's UI. The baseURL comment above records an
+  // earlier instance of the same failure mode (IPv6 shadowing on this port). With
+  // reuse off, an occupied port fails loudly — the `--strictPort` dev server
+  // cannot bind — which is what the project instructions ask for.
+  //
+  // The escape hatch is explicit rather than conditional: set
+  // PLAYWRIGHT_REUSE_SERVER=1 when you know the server on 5173 is this app's.
+  // A build-identity probe (`GET /version.json` vs VITE_GIT_COMMIT) would be
+  // better, but Playwright's webServer takes only a URL health check, so an
+  // honest opt-in beats a probe that cannot be written here.
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
         command: "npm run dev -- --port 5173 --strictPort",
         url: "http://localhost:5173",
-        reuseExistingServer: true,
+        reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
         timeout: 120_000,
       },
 });

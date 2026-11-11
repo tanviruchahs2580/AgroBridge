@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
-import { requirePermission } from "../../middleware/rbac.js";
+import { requirePermission, hasPermission } from "../../middleware/rbac.js";
 import { validate } from "../../middleware/validate.js";
 import { forbidden, notFound, unprocessable } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
@@ -93,9 +93,16 @@ procurementRouter.get("/", async (req, res, next) => {
     // omission that actorRegionLimit logs and ODL-007 owns); farmers see only
     // their own offers. The predicate lives in lib/territory so this list and the
     // mutation guards cannot drift apart about who counts as scoped.
+    // F-08: the inline `["ADMIN","SUPER_ADMIN"]` list is replaced by the declared
+    // `procurement:read:any` capability, held by exactly the same two roles, so
+    // the granted set is identical. The permission decides the SCOPE here rather
+    // than gating the route: this route serves both a buyer's own offers and the
+    // admin/finance all-rows queue, so a route-level gate would 403 the buyer.
+    // tests/permission-migration-equivalence asserts the 13-role access matrix is
+    // unchanged by this swap (same proof as payments:read:any).
     const role = getAuth(req).role;
     let where: Record<string, unknown>;
-    if (["ADMIN", "SUPER_ADMIN"].includes(role)) {
+    if (hasPermission(role, "procurement:read:any")) {
       where = {};
     } else if (isTerritoryScopedRole(role)) {
       const region = await actorRegionLimit(getAuth(req).userId, role);

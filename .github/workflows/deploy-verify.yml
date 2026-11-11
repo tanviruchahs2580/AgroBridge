@@ -34,7 +34,13 @@ concurrency:
 
 env:
   WEB_URL: https://agrobridge-web.vercel.app
-  API_URL: https://agro-bridge-api.vercel.app
+  # One canonical API host for the whole delivery path (F-78). Both
+  # `agro-bridge-api.vercel.app` and `agro-bridge-api-vantiq-systems.vercel.app`
+  # answer for the same project (verified 2026-11-10: same commit, same env), but
+  # ci.yml and apps/web/.env.production bake the team-scoped one and both docs
+  # name only it, so the gates agree with them. A second name in a gate is how a
+  # CSP or allow-list edit ends up touching two strings.
+  API_URL: https://agro-bridge-api-vantiq-systems.vercel.app
 
 jobs:
   verify-production:

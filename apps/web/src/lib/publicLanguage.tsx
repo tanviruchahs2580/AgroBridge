@@ -47,12 +47,19 @@ export function usePublicLang(): [Lang, (l: Lang) => void] {
   return [lang, update];
 }
 
-/** Language pill — outlined on plain surfaces, white-glass over the auth gradient. */
+/**
+ * Language pill — outlined on plain surfaces, white-glass over the auth gradient.
+ *
+ * The accessible name starts with the visible label. It used to be the action
+ * alone ("Switch to English") on a control that reads "EN", which fails WCAG
+ * 2.5.3 Label in Name: a speech-input user saying the visible name cannot
+ * activate it, and the name they hear describes nothing they can see.
+ */
 export function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
   return (
     <button
       type="button"
-      aria-label={t("langSwitchAria", lang)}
+      aria-label={`${t("langToggleButton", lang)} — ${t("langSwitchAria", lang)}`}
       onClick={() => onChange(otherLang(lang))}
       className="inline-flex min-h-[44px] items-center rounded-chip border border-surface-border-strong bg-surface-card px-3 text-xs font-semibold text-stone-700 shadow-sm transition-colors hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none"
     >

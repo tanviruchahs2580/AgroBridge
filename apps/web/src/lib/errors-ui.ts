@@ -128,8 +128,10 @@ const FIELD_LABELS: Record<string, { bn: string; en: string }> = {
   upazila: { bn: "উপজেলা", en: "Upazila" },
   area: { bn: "জমির পরিমাণ", en: "Land area" },
   areaBigha: { bn: "জমির পরিমাণ", en: "Land area" },
-  farm: { bn: "ফার্ম", en: "Farm" },
-  farmId: { bn: "ফার্ম", en: "Farm" },
+  // Same Bengali term for "Farm" as the dictionary (খামার, not ফার্ম): a field
+  // label in an error must not disagree with the label above the input.
+  farm: { bn: "খামার", en: "Farm" },
+  farmId: { bn: "খামার", en: "Farm" },
   service: { bn: "সেবা", en: "Service" },
   serviceId: { bn: "সেবা", en: "Service" },
   plot: { bn: "প্লট", en: "Plot" },
@@ -189,10 +191,18 @@ function mapValidationError(err: ApiError, lang: Lang): string | null {
     fields[d.field] = (fields[d.field] ? fields[d.field] + "; " : "") + msg;
   }
 
-  // If there's a single field, show just that field's message
+  // If there's a single field, show just that field's message.
+  //
+  // It used to be prefixed with `errFieldRequired` ("This field is required."),
+  // which turned every single-field 400 into a contradiction: a password the
+  // server rejected for its length produced "This field is required: password is
+  // too short". The prefix is dropped — the message already names its field
+  // through `fieldLabel`, and "required" is only true when the mapped message
+  // itself says so (`errValidationRequired`, produced by the ordering in
+  // mapValidationMessage below).
   const keys = Object.keys(fields);
   if (keys.length === 1) {
-    return `${t("errFieldRequired", lang)}: ${fields[keys[0]]}`;
+    return fields[keys[0]];
   }
 
   // Multiple fields: list them compactly
@@ -203,14 +213,18 @@ function mapValidationError(err: ApiError, lang: Lang): string | null {
 function mapValidationMessage(msg: string, field: string | undefined, lang: Lang): string | null {
   const m = msg.toLowerCase();
   const label = fieldLabel(field, lang);
-  if (m.includes("required") || m.includes("must be")) return t("errValidationRequired", lang, { label });
-  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return t("errValidationInvalid", lang, { label });
-  if (m.includes("too short") || m.includes("less than")) return t("errValidationTooShort", lang, { label });
-  if (m.includes("too long")) return t("errValidationTooLong", lang, { label });
+  // Order matters: "must be" appears in length/format messages too
+  // ("String must contain at least 8 character(s)", "must be a valid email"), so
+  // the specific rules run before the generic required/format ones. Lenient
+  // first was the bug — every length error was reported as "is required".
+  if (m.includes("too short") || m.includes("less than") || m.includes("at least")) return t("errValidationTooShort", lang, { label });
+  if (m.includes("too long") || m.includes("at most")) return t("errValidationTooLong", lang, { label });
   if (m.includes("must be a number") || m.includes("must be numeric") || m.includes("invalid number")) return t("errValidationNumber", lang, { label });
   if (m.includes("must be positive") || m.includes("must be greater than 0")) return t("errValidationPositive", lang, { label });
-  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return t("errValidationEmailUrl", lang, { label });
   if (m.includes("duplicate") || m.includes("already")) return t("errValidationDuplicate", lang, { label });
+  if (m.includes("required")) return t("errValidationRequired", lang, { label });
+  if (m.includes("invalid") || m.includes("not valid") || m.includes("malformed")) return t("errValidationInvalid", lang, { label });
+  if (m.includes("must be a valid") && (m.includes("email") || m.includes("url"))) return t("errValidationEmailUrl", lang, { label });
   if (m.includes("password")) return t("errValidationPassword", lang);
   return null;
 }

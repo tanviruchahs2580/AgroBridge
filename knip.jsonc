@@ -7,7 +7,12 @@
 // The `ignoreIssues` blocks suppress exported symbols that ARE intentional
 // surface, each for a stated reason. They are deliberately per-path (not a
 // blanket `includeEntryExports: false`) so a genuinely unused new export still
-// fails the gate unless someone adds it here with a reason:
+// fails the gate unless someone adds it here with a reason. F-67 removed the
+// former blanket `src/lib/*.ts` entry: its hidden findings are now enumerated
+// by file and symbol in scripts/knip-gate.mjs's KNOWN_EXPORTS baseline, which
+// the gate checks on every run.
+//
+// The remaining per-path entries, each with its reason:
 //   metrics.ts / schemaState.ts / resilience.ts — exported for prom-client
 //     registration and for tests' state resets; static analysis sees no reader.
 //   shared/errors — factory surface consumed by tests and future modules.
@@ -53,7 +58,6 @@
         "src/middleware/rbac.ts": ["exports"],
         "src/providers/ai/knowledge.ts": ["exports"],
         "src/modules/organizations/**": ["exports", "types"],
-        "src/lib/*.ts": ["exports", "types"],
         "src/providers/health.ts": ["exports", "types"],
         "tests/ai-eval-metrics.ts": ["exports", "types"],
         "tests/upload-helper.ts": ["exports"]

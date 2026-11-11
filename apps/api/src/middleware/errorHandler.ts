@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { AppError } from "../shared/errors/index.js";
 import { logger } from "../lib/logger.js";
 import { isProd } from "../config/env.js";
@@ -13,18 +13,36 @@ function referenceCode(): string {
   return `AB-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
+/**
+ * The correlation id for an error response, guaranteed present.
+ *
+ * `requestContext` generates it, but an error raised BEFORE that middleware runs
+ * — a body-parser rejection used to be the live example (F-73), and a failure
+ * inside requestContext itself would be the same shape — must still answer with
+ * a correlation handle. This is the backstop: it mints an id and echoes it, so
+ * `requestId: undefined` and a missing `X-Request-Id` are no longer possible on
+ * any error path. Kept in one place rather than repeated in all nine branches.
+ */
+function correlationId(req: Request, res: Response): string {
+  const id = req.requestId || randomUUID();
+  req.requestId = id;
+  if (!res.headersSent && !res.getHeader("X-Request-Id")) res.setHeader("X-Request-Id", id);
+  return id;
+}
+
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   const reference = referenceCode();
+  const requestId = correlationId(req, res);
 
   if (err instanceof AppError) {
-    logger.info({ requestId: req.requestId, method: req.method, path: req.path, reference, code: err.code, status: err.status }, "app error");
+    logger.info({ requestId, method: req.method, path: req.path, reference, code: err.code, status: err.status }, "app error");
     return fail(res, err.status, err.code, err.message, err.details, reference);
   }
 
   // Prisma known errors -> structured API errors (avoid leaking internals)
   const anyErr = err as { code?: string; message?: string };
   if (anyErr?.code === "P2002") {
-    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma P2002 conflict");
+    logger.warn({ requestId, method: req.method, path: req.path, reference }, "prisma P2002 conflict");
     return fail(res, 409, "CONFLICT", "A record with these unique values already exists", undefined, reference);
   }
   if (anyErr?.code === "P2025") {
@@ -34,7 +52,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   // not be cascaded (e.g. a farm with bookings or purchase orders). Without
   // this mapping the conflict surfaced as a raw 500.
   if (anyErr?.code === "P2003") {
-    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma P2003 foreign key restriction");
+    logger.warn({ requestId, method: req.method, path: req.path, reference }, "prisma P2003 foreign key restriction");
     return fail(
       res,
       409,
@@ -51,7 +69,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   // that reads as "the server is broken" (F-06). Retry-After is short because a
   // pool frees up as soon as the in-flight queries drain.
   if (anyErr?.code === "P2024") {
-    logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "prisma pool timeout — shedding");
+    logger.warn({ requestId, method: req.method, path: req.path, reference }, "prisma pool timeout — shedding");
     res.setHeader("Retry-After", "2");
     return fail(
       res,
@@ -73,7 +91,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   logger.error(
-    { requestId: req.requestId, method: req.method, path: req.path, reference, err: anyErr?.message, stack: anyErr instanceof Error ? anyErr.stack : undefined },
+    { requestId, method: req.method, path: req.path, reference, err: anyErr?.message, stack: anyErr instanceof Error ? anyErr.stack : undefined },
     "unhandled error"
   );
 
@@ -90,6 +108,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 
 export function notFoundHandler(req: Request, res: Response) {
   const reference = referenceCode();
-  logger.warn({ requestId: req.requestId, method: req.method, path: req.path, reference }, "route not found");
+  const requestId = correlationId(req, res);
+  logger.warn({ requestId, method: req.method, path: req.path, reference }, "route not found");
   fail(res, 404, "ROUTE_NOT_FOUND", `No route for ${req.method} ${req.path}`, undefined, reference);
 }

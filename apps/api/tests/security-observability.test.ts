@@ -88,7 +88,11 @@ describe("Observability & security baseline", () => {
       .post("/api/v1/auth/login")
       .set("Content-Type", "application/json")
       .send({ a: big });
-    expect([400, 413]).toContain(res.status);
+    // docs/testing.md states the contract: oversized payload → 413. The old
+    // `[400, 413]` accepted a 400 envelope, so a regression that stopped
+    // mapping `entity.too.large` to PAYLOAD_TOO_LARGE would have passed.
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe("PAYLOAD_TOO_LARGE");
   });
 
   it("protected resources reject forged tokens", async () => {

@@ -6,6 +6,7 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, Input } from "../../components/ui";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
+import type { AuthSession } from "../../lib/api-types";
 import { AuthShell } from "./AuthShell";
 import { usePublicLang } from "../../lib/publicLanguage";
 
@@ -15,7 +16,11 @@ export default function Register() {
   const [fullName, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [langPref, setLangPref] = useState<"bn" | "en">("bn");
+  // Seeded from the language the visitor is actually reading, not a hard "bn":
+  // a visitor who switched to English on /login registered in an English UI but
+  // persisted `bn`, so the whole app flipped to Bengali the moment they signed
+  // in. The explicit radio still wins over the seed.
+  const [langPref, setLangPref] = useState<"bn" | "en">(uiLang);
   const [consent, setConsent] = useState(false);
   const [fieldErrs, setFieldErrs] = useState<{ fullName?: string; phone?: string; password?: string; consent?: string }>({});
   const [error, setError] = useState("");
@@ -51,7 +56,9 @@ export default function Register() {
     setBusy(true);
     setError("");
     try {
-      const data = await api<{ accessToken: string; refreshToken: string }>("POST", "/auth/register", {
+      // The declared contract shape (lib/api-types) — the registration response is
+      // the same session envelope as login's, not a second hand-written subset.
+      const data = await api<AuthSession>("POST", "/auth/register", {
         fullName: fullName.trim(), phone: phone.trim(), password, langPref, consent: true,
       });
       setTokens(data.accessToken, data.refreshToken);

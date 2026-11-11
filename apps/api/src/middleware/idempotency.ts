@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { fail } from "./context.js";
+import { fail, assertIdempotencyKey } from "./context.js";
 
 /**
  * Accepts a standard `Idempotency-Key` header (RFC-draft style) on money-mutating
@@ -10,9 +10,10 @@ import { fail } from "./context.js";
  *
  * Rules, deliberately strict:
  *  - the body field wins when both are present (it is the existing contract);
- *  - a header must be 8-100 chars of printable-ASCII-without-quotes, the same
- *    bounds the checkout key schema enforces — a hostile header cannot become
- *    an unbounded storage key;
+ *  - the header bound is `assertIdempotencyKey`'s — ONE validator for this
+ *    header across the codebase (F-74: this file and `context.ts` used to
+ *    disagree, so a 101-128 character key was accepted on some money routes
+ *    and refused on others). The bound matches the checkout key schema;
  *  - a malformed header is a 400, not silently ignored: a caller that sends a key
  *    means to be idempotent, and silently dropping it would replay side effects.
  */
@@ -20,8 +21,11 @@ export function acceptIdempotencyKeyHeader(req: Request, res: Response, next: Ne
   const header = req.headers["idempotency-key"];
   if (header === undefined) return next();
 
-  const key = Array.isArray(header) ? header[0] : header;
-  if (!/^[\x21-\x7e]{8,100}$/.test(key)) {
+  const raw = Array.isArray(header) ? (header[0] ?? "") : header;
+  let key: string;
+  try {
+    key = assertIdempotencyKey(raw);
+  } catch {
     return fail(res, 400, "INVALID_IDEMPOTENCY_KEY", "Idempotency-Key must be 8-100 printable ASCII characters");
   }
 

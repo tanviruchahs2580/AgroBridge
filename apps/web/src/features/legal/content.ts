@@ -8,6 +8,12 @@
  * Console data-safety form and the Data safety answers are derived from it
  * (see docs/play/data-safety.md).
  *
+ * This module is the single source of the privacy text: `PRIVACY_POLICY.md` at
+ * the repo root is its markdown mirror and must be reconciled in the same
+ * change. The two had drifted apart — the mirror claimed analytics carried "no
+ * identifying data", omitted the weather/AI providers, and misstated the
+ * hosting region — see docs/audit/2026-11-10-full-qa-audit.md F-10/F-11.
+ *
  * OWNER ACTION before submission: replace every value in LEGAL_ENTITY with the
  * registered business details and a monitored contact address, and set
  * SUPPORT_URL/DATA_REQUEST_URL to pages on your own domain. Play review reads
@@ -27,7 +33,7 @@ export const LEGAL_ENTITY = {
 } as const;
 
 const VERSION = "1.1";
-const UPDATED = "2026-10-17";
+const UPDATED = "2026-11-10";
 
 type Bi = { bn: string; en: string };
 
@@ -169,14 +175,18 @@ const privacy: LegalDoc = {
           bn: "আর্থিক রেকর্ড (অর্ডার, পেমেন্ট, ওয়ালেট, উত্তোলন) — আইন অনুযায়ী ৫ বছর, আপনার পরিচয় ছাড়াই এন্ট্রি-হিসেবে সংরক্ষিত।",
           en: "Financial records (orders, payments, wallet, withdrawals) — kept 5 years as required by law, in anonymised form, without your identifying details.",
         },
+        {
+          bn: "নিরাপত্তা ও ব্যবহারের রেকর্ড (লগইন/অডিট ইভেন্ট, অ্যানালিটিক্স, নোটিফিকেশন, AI প্রশ্নের লগ) — সর্বোচ্চ ১৮০ দিন, এরপর আমাদের দৈনিক রিটেনশন কাজ স্বয়ংক্রিয়ভাবে তা মুছে ফেলে।",
+          en: "Security and usage records (login/audit events, analytics, notifications, AI query logs) — up to 180 days, then deleted automatically by our daily retention job.",
+        },
       ],
     },
     {
       heading: { bn: "৬. কারা তথ্য দেখে", en: "6. Who else processes it" },
       bullets: [
         {
-          bn: "ক্লাউড হোস্টিং ও ডেটাবেস প্রোভাইডার — অ্যাপ ও ডেটা চালু রাখতে।",
-          en: "Cloud hosting and database providers — to run the app and store the data.",
+          bn: "ক্লাউড হোস্টিং ও ডেটাবেস প্রোভাইডার — অ্যাপ চালু রাখতে ও ডেটা সংরক্ষণ করতে। আমাদের সার্ভার ও প্রধান ডেটাবেস যুক্তরাষ্ট্রের (US East) একটি ডেটা সেন্টারে চলে; স্ট্যাটিক ফাইল আপনার কাছের সার্ভার থেকে আসে।",
+          en: "Cloud hosting and database providers — to run the app and store the data. Our servers and primary database are in a data centre region in the United States (US East); static files are served from a location closer to you.",
         },
         {
           bn: "পেমেন্ট গেটওয়ে (SSLCommerz) — আপনি অনলাইনে পেমেন্ট করলে তা প্রক্রিয়াকরণের জন্য। গেটওয়ে সেট না থাকলে অ্যাপ অনলাইন পেমেন্ট নেয় না।",
@@ -196,6 +206,10 @@ const privacy: LegalDoc = {
         },
       ],
       paragraphs: [
+        {
+          bn: "আমাদের সার্ভার ও প্রধান ডেটাবেস যুক্তরাষ্ট্রে চলে, তাই ধারা ২-এর তথ্য (মোবাইল নম্বর, নাম, খামার ও প্লটের তথ্য, অর্ডার, পেমেন্ট, ওয়ালেটের হিসাব, ছবি, অ্যাপ ব্যবহারের ইভেন্ট এবং — হোস্টেড AI প্রোভাইডার চালু থাকলে — আপনি পাঠানো প্রশ্ন) বাংলাদেশের বাইরে স্থানান্তর ও প্রক্রিয়াকরণ করা হয়। ধারা ৪-এর ভিত্তিগুলোই এখানে প্রযোজ্য: আপনার চাওয়া সেবা চালানো ও তা নিরাপদ রাখার জন্য এই প্রক্রিয়াকরণ প্রয়োজন। সেবার প্রয়োজনের বেশি তথ্য আমরা স্থানান্তর করি না; সব যোগাযোগ এনক্রিপ্ট করা, পাসওয়ার্ড হ্যাশ করে রাখা হয়, প্রবেশাধিকার ভূমিকা অনুযায়ী নিয়ন্ত্রিত, আর ধারা ৫-এর সময়সূচি অনুযায়ী তথ্য মুছে ফেলা বা নাম-পরিচয়হীন করা হয়।",
+          en: "Because our servers and primary database run in the United States, the data described in section 2 (phone number, name, farm and plot details, orders, payments, wallet records, photos, app-usage events and — when a hosted AI provider is configured — the questions you send) is transferred to and processed outside Bangladesh. We rely on the same legal bases as in section 4: this processing is part of running the service you asked for, and of keeping it secure. We transfer no more than the service needs, encrypt traffic in transit, store passwords hashed, restrict access by role, and delete or anonymise data on the schedule in section 5.",
+        },
         {
           bn: "আমরা আপনার তথ্য কারও কাছে বিক্রি করি না এবং বিজ্ঞাপনের জন্য শেয়ার করি না।",
           en: "We never sell your data and never share it for advertising.",

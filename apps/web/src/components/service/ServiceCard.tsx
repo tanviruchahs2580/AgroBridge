@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Star, Users } from "lucide-react";
 import type { ServiceWithProviders } from "../../lib/api-types";
@@ -34,6 +35,13 @@ export function ServiceCard({
 }: Props) {
   const hero = serviceHeroImage(category);
   const providerCount = providers.length;
+  /**
+   * A hero image that 404s or is blocked. The old handler set `opacity: 0` on
+   * the broken `<img>`, which left its 44%-of-card slot as an empty tinted hole
+   * with no explanation — the largest area of the card, blank. The fallback
+   * stands in for it instead.
+   */
+  const [heroFailed, setHeroFailed] = useState(false);
 
   // Honest aggregated rating across providers — null if no ratings yet (fixes A1)
   const totals = providers.reduce(
@@ -59,16 +67,23 @@ export function ServiceCard({
     >
       {/* Hero — fixed 16:10, consistent visual grammar (fixes A7) */}
       <div className="relative h-44 w-full overflow-hidden rounded-t-card bg-surface-subdued">
-        <img
-          src={hero}
-          alt={`${title} — ${catLabel}`}
-          className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.02] motion-reduce:transition-none"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.opacity = "0";
-          }}
-        />
+        {heroFailed ? (
+          // Decorative: the card's h3 names the service and the category label
+          // sits directly below this slot, so the stand-in repeats nothing the
+          // user cannot already read.
+          <div aria-hidden className="flex h-full w-full items-center justify-center">
+            <AgriIconBox category={category} size={48} />
+          </div>
+        ) : (
+          <img
+            src={hero}
+            alt={`${title} — ${catLabel}`}
+            className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.02] motion-reduce:transition-none"
+            loading="lazy"
+            decoding="async"
+            onError={() => setHeroFailed(true)}
+          />
+        )}
         {/* subtle top highlight, not heavy overlay — keeps contrast WCAG AA */}
         <div className="absolute inset-0 rounded-t-card bg-gradient-to-t from-black/10 via-transparent to-transparent" aria-hidden />
       </div>
@@ -76,7 +91,7 @@ export function ServiceCard({
       <div className="flex flex-1 flex-col p-5">
         {/* Category — distinct from title (fixes A3) */}
         <div className="flex items-center gap-2">
-          <AgriIconBox category={category} size={32} withMotion={false} />
+          <AgriIconBox category={category} size={32} />
           <p className="text-xs font-semibold uppercase tracking-[0.06em] text-link">{catLabel}</p>
         </div>
 

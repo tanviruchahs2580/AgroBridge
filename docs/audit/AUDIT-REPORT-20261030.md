@@ -1,5 +1,17 @@
 # AgroBridge audit — public report
 
+> **SUPERSEDED — banner added 2026-11-10. Not the current audit.** The tested SHA `a5f29a8` is
+> **not an ancestor of `main`**: it exists only on the unmerged branch
+> `chore/agrobridge-enterprise-hardening-20261030`
+> (`git merge-base --is-ancestor a5f29a8 origin/main` → non-zero; `git branch --contains a5f29a8`
+> lists only that branch — the branch also carries the same PR number, #88, as `main`'s `7a718c5`).
+> The baseline `b8ae2b0` does resolve from `main`; the tested SHA does not, so this report's
+> `INCOMPLETE — FAIL` verdict and 95.07 score describe the unmerged branch, **not** `main`, and are
+> superseded by the current audit: **`docs/audit/2026-11-10-full-qa-audit.md`**. This file is a
+> byte-identical copy (EOL-normalised) of the untracked `.audit/reports/PUBLIC.md`
+> (`tr -d '\r' < file | md5sum` agrees on both). Kept for the decision trail — do not quote its
+> verdict or score as current.
+
 Verdict: **INCOMPLETE — FAIL** (computed by the audit tooling, not declared by the auditor).
 Baseline `b8ae2b0` → tested `a5f29a8`. Achieved score: **95.07 / 100** (baseline 57.51). Confidence
 LOW (73.3 % execution-backed; the tool reserves HIGH for >=95 %). Band: n/a under an INCOMPLETE verdict.

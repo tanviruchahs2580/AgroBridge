@@ -14,10 +14,28 @@ const PRIVATE_RANGES = [
 ];
 
 /** Constant-time bearer comparison (same discipline as the webhook digest). */
-function bearerMatches(header: string, token: string): boolean {
+export function bearerMatches(header: string, token: string): boolean {
   const provided = Buffer.from(header, "utf8");
   const expected = Buffer.from(`Bearer ${token}`, "utf8");
   return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
+
+/**
+ * May this caller read the ops-detail surface? Producers of internal
+ * deployment state (`/ready`'s schema/storage/payment introspection, and the
+ * registry behind `/metrics`) use this single rule.
+ *
+ * The `METRICS_TOKEN` bearer is the only credential: it is the deployment's
+ * existing ops token, and inventing a second one would mean two operators'
+ * secrets to rotate. `null` when it is unset, so the caller decides the
+ * non-production convenience — the token's own guard (below) fails closed in
+ * production, and a deployment that reports detail to anonymous callers must be
+ * a deliberate, non-production one.
+ */
+export function hasOpsDetailAccess(req: Request): boolean {
+  const token = env.METRICS_TOKEN;
+  if (!token) return false;
+  return bearerMatches(req.headers.authorization ?? "", token);
 }
 
 /**

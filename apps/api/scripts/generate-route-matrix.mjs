@@ -59,6 +59,8 @@ export const PUBLIC_ROUTES = {
     "public tier catalogue (price/benefits only, no user data); shown before login to drive sign-up",
   "GET /ops/retention":
     "scheduled-operations trigger for the platform cron; no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset (AUD-V3)",
+  "GET /ops/reconcile-wallet":
+    "scheduled-operations trigger for the platform cron (`0 4 * * *` in apps/api/vercel.json, F-20); no session auth by design — guarded by the CRON_SECRET bearer (constant-time) and fail-closed when unset, exactly like /ops/retention",
 };
 
 // ---------------------------------------------------------------------------

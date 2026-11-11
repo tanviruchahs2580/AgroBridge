@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { m, AnimatePresence, useReducedMotion } from "framer-motion";
 import { t } from "../lib/i18n";
 import type { DictKey, Lang } from "../lib/i18n";
+// One home for the storage key: this file used to repeat the literal
+// "agrobridge.auth_lang" while lib/publicLanguage.tsx declared PUBLIC_LANG_KEY,
+// so an edit to either name would have split the splash from the auth screens.
+import { PUBLIC_LANG_KEY } from "../lib/publicLanguage";
 
 interface SplashProps {
   onDone?: () => void;
@@ -9,10 +13,10 @@ interface SplashProps {
   staticOnly?: boolean;
 }
 
-/** Pre-login language (same key as AuthShell) so the splash respects the user's choice. */
+/** Pre-login language (the key AuthShell's public-language hook owns) so the splash respects the user's choice. */
 function splashLang(): Lang {
   try {
-    const stored = localStorage.getItem("agrobridge.auth_lang");
+    const stored = localStorage.getItem(PUBLIC_LANG_KEY);
     if (stored === "bn" || stored === "en") return stored;
   } catch {
     // ignore storage errors (private mode)

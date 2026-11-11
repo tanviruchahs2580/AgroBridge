@@ -15,6 +15,16 @@ concurrency:
 permissions:
   contents: read
 
+# Workflow-wide: every npm invocation below runs with the install-script
+# allow-list enforced. `allowScripts` in package.json is an npm 11 surface, so
+# this variable only bites once the runner's npm is pinned to the version
+# package.json declares — each job does that in the step right after
+# actions/setup-node (F-88). Verified on npm 11.17.0: with this set, a package
+# with an install script that is NOT in allowScripts fails the install
+# (ESTRICTALLOWSCRIPTS) instead of silently running it.
+env:
+  NPM_CONFIG_STRICT_ALLOW_SCRIPTS: "true"
+
 jobs:
   api-quality:
     name: API — Lint · TypeCheck · Tests (SQLite)
@@ -36,13 +46,46 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
+
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
 
-      - name: Approve build scripts (prisma engines/esbuild)
+      # Install scripts must run for the approved packages, and only for those:
+      # `NPM_CONFIG_STRICT_ALLOW_SCRIPTS` (workflow env) makes an unlisted
+      # package's script fail the install, and this step then asserts the
+      # approved ones actually completed. It used to read
+      # `npm config set ignore-scripts false || true` followed by
+      # `npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true` — a
+      # step that could not fail, carrying a second hard-coded copy of the list
+      # (F-88). The list now comes from package.json `allowScripts`, so a
+      # missing Prisma engine fails here instead of as an unexplained failure
+      # several steps later.
+      - name: Assert the approved install scripts ran (allowScripts)
         run: |
-          npm config set ignore-scripts false || true
-          npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true
+          set -euo pipefail
+          test "$(npm config get ignore-scripts)" = "false" \
+            || { echo "::error::ignore-scripts is not false — dependency install scripts would be skipped"; exit 1; }
+          pkgs=$(node -e 'const a=require("./package.json").allowScripts||{};const n=[...new Set(Object.keys(a).map(k=>k.slice(0,k.lastIndexOf("@"))))].sort();if(!n.length){console.error("package.json allowScripts is empty — refusing an unbounded rebuild");process.exit(1)}process.stdout.write(n.join(" "))')
+          echo "Approved install-script packages: $pkgs"
+          npm rebuild $pkgs
+          echo "approved install scripts completed"
 
       - name: Prisma generate + validate
         working-directory: apps/api
@@ -69,7 +112,9 @@ jobs:
   # Dependency/dead-code/duplication/licence/migration-drift gates (CID-06, SLP-02).
   # Each threshold sits at the measured baseline with a document ratchet: knip
   # findings are gated through scripts/knip-gate.mjs (reviewed baseline + reasons),
-  # jscpd fails above 3% (measured 2.47%), the licence allow-list is
+  # jscpd fails above 3% (measured 0.66% — 156 duplicated lines in 134 files on
+  # 2026-11-10, `npx jscpd --silent --threshold 3 apps/api/src apps/web/src`; the
+  # number this comment carried before was 2.47%), the licence allow-list is
   # scripts/licence-allowlist.json, and the migration chain must reproduce the
   # schema with zero drift (scripts/drift-check.mjs).
   quality-gates:
@@ -85,6 +130,24 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
       - run: npm ci
       - name: knip (dead files, unused deps, unlisted)
         run: node scripts/knip-gate.mjs
@@ -113,6 +176,13 @@ jobs:
         run: node scripts/drift-check.mjs
       - name: no TODO/FIXME markers in shipped source
         run: node scripts/todo-gate.mjs
+      # The release workflows run this before building an AAB (android-release.yml,
+      # play-upload.yml); on a pull request nothing did, so a versionCode fork was
+      # only discovered at upload time, when Play rejects the build. This job is
+      # where it belongs: it is the one that fetches full tag history
+      # (fetch-depth: 0), which the check needs to compare against the newest v* tag.
+      - name: versionCode is monotonic vs the newest v* tag
+        run: npm run qa:versioncode
       - name: eslint warning ratchet (api 143 / web 0)
         run: node scripts/qa/lint-budget.mjs
       - name: generated docs freshness (route matrix + ERD)
@@ -152,6 +222,24 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
 
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
@@ -204,6 +292,24 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
+
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/api --include-workspace-root --no-audit --no-fund
 
@@ -231,9 +337,10 @@ jobs:
   web-quality:
     name: Web — Lint · Unit · Build
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19
-    # 25 (not 20): the Lighthouse run after the build starts a preview server
-    # and measures the built bundle three times.
-    timeout-minutes: 25
+    # 20 (was 25): the Lighthouse collections that justified the extra headroom
+    # are gone (see the note above `Release preflight`). The remaining steps —
+    # install, unit tests with coverage, build, preflight — sit near 8 minutes.
+    timeout-minutes: 20
     env:
       VITE_API_BASE_URL: https://agro-bridge-api-vantiq-systems.vercel.app/api/v1
     steps:
@@ -243,6 +350,24 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
 
       - name: Install dependencies
         run: npm ci --workspace @agrobridge/web --include-workspace-root --no-audit --no-fund
@@ -294,44 +419,29 @@ jobs:
         working-directory: apps/web
         run: npm run preflight
 
-      # Real measurements for the built bundle (WEB-01). The caller owns the
-      # server: vite's own readiness line is ANSI-coloured, which defeats
-      # LHCI's stdout pattern, so this step starts the preview build and waits
-      # on HTTP instead — deterministic in CI. lighthouserc.json then runs
-      # three collections and asserts the accessibility floor as an error and
-      # the performance/best-practices budgets as warnings. The step is skipped
-      # until that config exists, so a missing config degrades the gate instead
-      # of failing the build. The @lhci/cli version is pinned here rather than
-      # carried in the lockfile: it has not shipped a release in over a year,
-      # so the pin is what keeps the budget from changing under a floating npx.
-      - name: Start preview server for Lighthouse
-        if: hashFiles('apps/web/lighthouserc.json') != ''
-        working-directory: apps/web
-        run: |
-          nohup npx vite preview --port 4173 --strictPort --host 127.0.0.1 > /tmp/agro-lhci-preview.log 2>&1 &
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4173/ || true)
-            [ "$code" = "200" ] && exit 0
-            sleep 1
-          done
-          echo "::error::preview server never answered on 127.0.0.1:4173"; cat /tmp/agro-lhci-preview.log; exit 1
-
-      # ADVISORY, not the enforced perf gate (2026-10-30). On this runner family
-      # Lighthouse now intermittently cannot obtain a first paint at all —
-      # "NO_FCP", every collection attempt NaN, retry included — while the exact
-      # same bundle measures green locally (`npx @lhci/cli autorun`, all budgets
-      # PASS) and passes the CDP-throttled Playwright gate below. The budgets in
-      # lighthouserc.json are unchanged and the reports still upload; a real
-      # regression still fails the build through `perf-throttled.spec.ts` in the
-      # web-e2e job, which measures the production build on :4173 under 4x CPU +
-      # Slow-4G with LCP/JS/page-byte budgets. `continue-on-error` here keeps
-      # the extra signal without letting an unmeasurable runner paint block the
-      # required checks; revisit when the runner's Chrome paints reliably.
-      - name: Lighthouse CI (advisory budgets for the built bundle)
-        if: hashFiles('apps/web/lighthouserc.json') != ''
-        continue-on-error: true
-        working-directory: apps/web
-        run: npx --yes @lhci/cli@0.15.1 autorun
+      # Lighthouse is NOT run here, and that is the F-33 decision rather than an
+      # omission (2026-11-10). The step that used to sit here carried
+      # `continue-on-error: true`: on this runner family Chrome intermittently
+      # never paints (NO_FCP, every collection NaN, retry included), so the
+      # accessibility floor and the FCP/LCP/TBT/CLS assertions in
+      # apps/web/lighthouserc.json could not fail a build — and with the
+      # pessimistic aggregation the web stream added, a non-painting collection
+      # now fails them *every* time, which would turn a required check flaky.
+      #
+      # Nothing that step claimed is ungated:
+      #   · byte budgets (entry bundle, total JS/CSS gzip, fonts, images) are
+      #     enforced by apps/web/scripts/preflight.mjs in the step above;
+      #   · LCP/TBT/CLS/page weight under 4x CPU + Slow-4G are measured and
+      #     enforced by apps/web/e2e/perf-throttled.spec.ts in the required
+      #     `Web — E2E (Playwright)` job;
+      #   · accessibility is axe-checked by apps/web/e2e/a11y.spec.ts in that
+      #     same required job;
+      #   · lighthouserc.json itself stays gated: preflight.mjs fails if a numeric
+      #     assertion loses `aggregationMethod: "pessimistic"` (and
+      #     apps/web/src/config-invariants.test.ts asserts the same).
+      # When a Lighthouse number is wanted for the record, run
+      # `npx @lhci/cli@0.15.1 autorun` from apps/web against a preview build on
+      # :4173; that is a measurement, not a gate.
 
   web-e2e:
     name: Web — E2E (Playwright)
@@ -351,6 +461,15 @@ jobs:
       # the API suites.
       RATE_LIMIT_MAX: "2000"
       LOGIN_RATE_LIMIT_MAX: "500"
+      # The suite runs twice in this job (dev pass, then the production-build
+      # pass). playwright.config.ts defaults reuseExistingServer to false (F-42 —
+      # locally 5173 is shared with a sibling project, and reuse would silently
+      # test the wrong app), but the first pass's `npm run dev` grandchild can
+      # outlive Playwright's teardown on the runner and hold the port, which made
+      # the second pass fail with "already used". This job owns the port: reuse
+      # is the correct behaviour here, and it is the escape hatch the config
+      # documents — a local run without this variable still refuses to reuse.
+      PLAYWRIGHT_REUSE_SERVER: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
@@ -359,19 +478,69 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
+
       - name: Install dependencies (all workspaces)
         run: npm ci --include-workspace-root --no-audit --no-fund
 
-      - name: Approve build scripts (prisma engines/esbuild)
+      # Install scripts must run for the approved packages, and only for those:
+      # `NPM_CONFIG_STRICT_ALLOW_SCRIPTS` (workflow env) makes an unlisted
+      # package's script fail the install, and this step then asserts the
+      # approved ones actually completed. It used to read
+      # `npm config set ignore-scripts false || true` followed by
+      # `npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true` — a
+      # step that could not fail, carrying a second hard-coded copy of the list
+      # (F-88). The list now comes from package.json `allowScripts`, so a
+      # missing Prisma engine fails here instead of as an unexplained failure
+      # several steps later.
+      - name: Assert the approved install scripts ran (allowScripts)
         run: |
-          npm config set ignore-scripts false || true
-          npm rebuild @prisma/engines prisma esbuild 2>/dev/null || true
+          set -euo pipefail
+          test "$(npm config get ignore-scripts)" = "false" \
+            || { echo "::error::ignore-scripts is not false — dependency install scripts would be skipped"; exit 1; }
+          pkgs=$(node -e 'const a=require("./package.json").allowScripts||{};const n=[...new Set(Object.keys(a).map(k=>k.slice(0,k.lastIndexOf("@"))))].sort();if(!n.length){console.error("package.json allowScripts is empty — refusing an unbounded rebuild");process.exit(1)}process.stdout.write(n.join(" "))')
+          echo "Approved install-script packages: $pkgs"
+          npm rebuild $pkgs
+          echo "approved install scripts completed"
 
       # WebKit and Firefox run only the two smoke specs (see the projects in
       # apps/web/playwright.config.ts); chromium owns the full suite.
+      # The retry is not decoration: on 2026-11-11 this exact step failed three
+      # PR runs in a row on runner-side flakiness (a hung download that ate the
+      # 45-minute job timeout twice, then an apt mirror returning exit 100
+      # twice) — the browsers themselves never changed. Three bounded attempts
+      # with a backoff turn a CDN/apt blip into a wait instead of a blocked
+      # release; the loop re-enters `playwright install` idempotently, so an
+      # attempt that already downloaded some browsers resumes rather than
+      # restarts.
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: |
+          for i in 1 2 3; do
+            if npx playwright install --with-deps chromium firefox webkit; then
+              exit 0
+            fi
+            echo "::warning::Playwright browser install attempt $i failed (runner-side CDN/apt flake) — retrying in 90s"
+            sleep 90
+          done
+          echo "::error::Playwright browser install failed after 3 attempts"
+          exit 1
 
       - name: Provision seeded SQLite database + API client
         working-directory: apps/api
@@ -390,6 +559,34 @@ jobs:
           NODE_ENV=test nohup node dist/server.js > /tmp/agro-api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:4000/ready && break; sleep 1; done
           curl -sf http://localhost:4000/health
+
+      # AUTH-04 ("demo credentials never authenticate against a
+      # production-configured service") self-skips unless something answers on
+      # 127.0.0.1:4100, and nothing started it — so a security scenario the
+      # register counted as PASS was skipped on every CI run while the run still
+      # reported green (F-15). The probe boots a second API in NODE_ENV=production
+      # against its own fresh, unseeded SQLite file; it is not part of the stack
+      # under test and the e2e specs reach it directly over HTTP.
+      - name: Start production-config probe (AUTH-04, :4100)
+        run: |
+          set -euo pipefail
+          # If something already answers here, the scenario would be driving an
+          # unknown service and could pass for the wrong reason. Fail instead.
+          if curl -sf --max-time 3 http://127.0.0.1:4100/health > /dev/null; then
+            echo "::error::something is already answering on 127.0.0.1:4100 — AUTH-04 must own this port"
+            exit 1
+          fi
+          nohup node apps/web/e2e/prod-config-probe.mjs > /tmp/agro-prod-probe.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf --max-time 3 http://127.0.0.1:4100/health > /dev/null; then
+              echo "prod-config probe answered /health on :4100"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the production-config probe never answered on :4100"
+          cat /tmp/agro-prod-probe.log
+          exit 1
 
       - name: Start Web dev server
         working-directory: apps/web
@@ -463,6 +660,24 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
+
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # pin v6.1.0
         with:
           distribution: temurin
@@ -529,6 +744,7 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: false
           tags: agrobridge-api:ci
           # loaded into the local daemon so the SBOM step below can scan it
@@ -616,6 +832,53 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
+      # Both compose files are operator entry points and nothing in CI parsed them
+      # until now: docker-compose.yml is what a laptop runs, docker-compose.prod.yml
+      # is what the staging VM runs, and a wrong image namespace, a missing
+      # required-variable guard or a bad YAML type was only discovered at deploy
+      # time (F-18). `config` needs no daemon, so this costs seconds.
+      - name: Validate both compose files render (required-variable contract included)
+        run: |
+          set -euo pipefail
+          # The prod file's `env_file: .env` is part of its contract; a CI checkout
+          # has no .env, and this gate must never read a real one.
+          test ! -f .env || { echo "::error::a .env file is present in the CI checkout"; exit 1; }
+          trap 'rm -f .env' EXIT
+          cat > .env <<'EOF'
+          # CI placeholders for the CONTRACT only — never deployed. Names, not values.
+          POSTGRES_PASSWORD=ci-password
+          API_DATABASE_URL=postgresql://agrobridge:ci-password@db:5432/agrobridge?schema=public
+          MIGRATE_DATABASE_URL=postgresql://agrobridge:ci-password@db:5432/agrobridge?schema=public
+          JWT_ACCESS_SECRET=ci-access-secret-0123456789abcdef
+          JWT_REFRESH_SECRET=ci-refresh-secret-fedcba9876543210
+          WEB_ORIGIN=https://ci.invalid
+          TLS_CERTS_DIR=/etc/ci-placeholder-certs
+          EOF
+          API_IMAGE_TAG=sha-ci WEB_IMAGE_TAG=sha-ci docker compose -f docker-compose.prod.yml config --quiet
+          echo "docker-compose.prod.yml renders with the required variables"
+          docker compose -f docker-compose.yml config --quiet
+          echo "docker-compose.yml renders"
+
+      # The guards are the deliverable, not a formality: without the image tags
+      # the prod file must REFUSE to render rather than fall back to a mutable
+      # `latest` under a namespace this project does not own, and without a
+      # certificate directory it must not publish 443 at all (F-18, F-87).
+      - name: The prod compose must refuse to render without its guards
+        run: |
+          set -euo pipefail
+          test ! -f .env || { echo "::error::a .env file is present in the CI checkout"; exit 1; }
+          trap 'rm -f .env' EXIT
+          printf 'TLS_CERTS_DIR=/etc/ci-placeholder-certs\nPOSTGRES_PASSWORD=ci-password\n' > .env
+          if API_IMAGE_TAG= WEB_IMAGE_TAG= docker compose -f docker-compose.prod.yml config --quiet 2>/dev/null; then
+            echo "::error::docker-compose.prod.yml rendered without API_IMAGE_TAG/WEB_IMAGE_TAG — the fail-closed image-tag guard is gone"
+            exit 1
+          fi
+          if TLS_CERTS_DIR= API_IMAGE_TAG=sha-ci WEB_IMAGE_TAG=sha-ci docker compose -f docker-compose.prod.yml config --quiet 2>/dev/null; then
+            echo "::error::docker-compose.prod.yml rendered without TLS_CERTS_DIR — the TLS mount guard is gone"
+            exit 1
+          fi
+          echo "prod compose refuses to render without the image tags and the TLS certificate directory"
+
       - name: Build and start db + api
         run: docker compose -f docker-compose.yml up -d --build db api
 
@@ -653,6 +916,7 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: false
           tags: agrobridge-api:scan
           load: true
@@ -662,7 +926,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       # Fail the build on HIGH/CRITICAL findings; accepted risks live in
-      # /.trivyignore and must cross-reference SECURITY_WAIVERS.md.
+      # /.trivyignore.yaml and must cross-reference SECURITY_WAIVERS.md. The
+      # ignore file is now the single one for both scan jobs (F-96), so it is
+      # passed explicitly — the CLI's default plain `.trivyignore` is gone.
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # pin v0.36.0
         with:
@@ -671,6 +937,7 @@ jobs:
           exit-code: 1
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          trivyignores: .trivyignore.yaml
 
   iac-scan:
     name: Security — IaC config scan
@@ -684,11 +951,11 @@ jobs:
       # images; this covers *how* the image and hosts are configured — a root
       # user or a missing healthcheck is invisible to vulnerability scanning
       # of packages, because it is not a package.
-      # Accepted findings live in /.trivyignore.yaml (one entry today: the nginx
-      # TLS container's root master process, AVD-DS-0002) with a required
-      # SECURITY_WAIVERS.md cross-reference — the same process as /.trivyignore.
-      # The CLI does not auto-load the YAML ignore file, so it is passed
-      # explicitly via the action's trivyignores input.
+      # Accepted findings live in /.trivyignore.yaml — ONE file for both scan
+      # jobs since 2026-11-10 (F-96), with a required SECURITY_WAIVERS.md
+      # cross-reference. The CLI does not auto-load the YAML ignore file, so it
+      # is passed explicitly via the action's trivyignores input; the
+      # vulnerability scan above passes the same file.
       - name: Run Trivy config scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # pin v0.36.0
         with:
@@ -711,6 +978,24 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # F-88 — why CI installs its own npm instead of using the one Node 22
+      # bundles: the install-script allow-list (`allowScripts` in package.json)
+      # is an npm 11 surface, and npm 10 runs EVERY dependency install script
+      # regardless of the list. Pinning the runner to the version package.json
+      # declares is what makes NPM_CONFIG_STRICT_ALLOW_SCRIPTS (workflow env)
+      # a gate rather than a no-op, and it means CI and a developer's machine
+      # resolve dependencies with the same toolchain. The version comes from
+      # package.json — there is no second copy to drift. The same step appears
+      # in every job that installs dependencies, and in the Android workflows.
+      - name: Pin npm to the package.json packageManager version
+        run: |
+          set -euo pipefail
+          want=$(node -p "require('./package.json').packageManager")
+          case "$want" in npm@*) ;; *) echo "::error::package.json has no npm packageManager pin (got: $want)"; exit 1 ;; esac
+          npm install --global "$want"
+          test "npm@$(npm --version)" = "$want" || { echo "::error::npm pin did not take effect: wanted $want, got npm@$(npm --version)"; exit 1; }
+          echo "npm is $want"
 
       - name: npm audit — production deps must be clean (fail on moderate+)
         run: npm audit --omit=dev --audit-level=moderate

@@ -27,6 +27,7 @@ vi.mock("../../lib/analytics.js", () => ({ track: () => {} }));
 
 import Register from "./Register";
 import { dict } from "../../lib/i18n";
+import { PUBLIC_LANG_KEY } from "../../lib/publicLanguage";
 
 function mount(node: React.ReactElement) {
   const container = document.createElement("div");
@@ -60,11 +61,13 @@ async function fillValidForm() {
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  localStorage.removeItem(PUBLIC_LANG_KEY);
   mockApi.mockClear();
   mockSetTokens.mockClear();
 });
 afterEach(() => {
   document.body.innerHTML = "";
+  localStorage.removeItem(PUBLIC_LANG_KEY);
 });
 
 describe("Register — consent capture (PRD-05/AUD-150)", () => {
@@ -109,6 +112,30 @@ describe("Register — consent capture (PRD-05/AUD-150)", () => {
       langPref: "bn",
       consent: true,
     });
+    mounted.unmount();
+  }, 15_000);
+
+  it("registers in the language the visitor actually chose, not a hard-coded Bengali (F-36)", async () => {
+    // The visitor switched to English on /login, so the public screens stored it.
+    // The form used to seed `langPref` with a literal "bn" regardless, so the
+    // account was created in English and the whole app flipped to Bengali the
+    // moment they signed in.
+    localStorage.setItem(PUBLIC_LANG_KEY, "en");
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Register)));
+    await fillValidForm();
+
+    await act(async () => {
+      must<HTMLInputElement>("#consent").click();
+    });
+    await act(async () => {
+      must<HTMLButtonElement>('button[type="submit"]').click();
+    });
+
+    expect(mockApi).toHaveBeenCalledWith(
+      "POST",
+      "/auth/register",
+      expect.objectContaining({ langPref: "en" })
+    );
     mounted.unmount();
   }, 15_000);
 });

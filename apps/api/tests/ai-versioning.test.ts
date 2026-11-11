@@ -11,6 +11,11 @@ import { OfflineAgroEngine } from "../src/providers/ai/offline-engine.js";
  * — which prompt template produced it (`promptVersion`). The offline engine
  * omits `promptVersion`; its `model` id ("kb-retrieval-v1") is the template
  * identity. See docs/ai.md §Versioning.
+ *
+ * PROMPT_VERSION "v2" (2026-11-10): F-07 moved the farm-context fields from the
+ * instruction region into the delimited untrusted-reference block and made the
+ * language line a fixed literal per enum value. A prompt change and its version
+ * bump land in the same commit so stored answers stay attributable.
  */
 
 afterEach(() => {
@@ -28,7 +33,7 @@ describe("KB_VERSION", () => {
   it("changes when KB content changes", () => {
     const reduced = KNOWLEDGE_BASE.slice(0, -1);
     expect(kbVersionOf(reduced)).not.toBe(KB_VERSION);
-    const edited = [{ ...KNOWLEDGE_BASE[0]!, answerEn: KNOWLEDGE_BASE[0]!.answerEn + " Edited." }, ...KNOWLEDGE_BASE.slice(1)];
+    const edited = [{ ...KNOWLEDGE_BASE[0], answerEn: KNOWLEDGE_BASE[0].answerEn + " Edited." }, ...KNOWLEDGE_BASE.slice(1)];
     expect(kbVersionOf(edited)).not.toBe(KB_VERSION);
   });
 });
@@ -46,7 +51,7 @@ describe("advisory responses carry the version fields", () => {
   });
 
   it("the offline engine reports the version of its own (evaluation) corpus", async () => {
-    const single = [KNOWLEDGE_BASE[0]!];
+    const single = [KNOWLEDGE_BASE[0]];
     const engine = new OfflineAgroEngine({ corpus: single });
     const answer = await engine.ask("rice blast", { lang: "en" });
     expect(answer.kbVersion).toBe(kbVersionOf(single));
@@ -54,7 +59,7 @@ describe("advisory responses carry the version fields", () => {
   });
 
   it("the hosted adapter reports PROMPT_VERSION and the production KB_VERSION", async () => {
-    expect(PROMPT_VERSION).toBe("v1");
+    expect(PROMPT_VERSION).toBe("v2");
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -64,9 +69,14 @@ describe("advisory responses carry the version fields", () => {
       }))
     );
     const provider = new OpenAiCompatibleProvider({ retryDelayMs: 1 });
-    expect(provider.promptVersion).toBe("v1");
+    expect(provider.promptVersion).toBe("v2");
     const answer = await provider.ask("When should I apply urea to my rice field?", { lang: "en" });
     expect(answer.promptVersion).toBe(PROMPT_VERSION);
     expect(answer.kbVersion).toBe(KB_VERSION);
+    // The hosted answer still carries every AiAnswer provenance field the
+    // response contract promises; F-43/F-44 added fields are additive.
+    for (const field of ["answer", "confidence", "provider", "model", "lowConfidenceFlag", "groundedRefs", "kbVersion"] as const) {
+      expect(answer, field).toHaveProperty(field);
+    }
   });
 });

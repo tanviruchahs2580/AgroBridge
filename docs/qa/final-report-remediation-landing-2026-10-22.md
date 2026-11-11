@@ -74,7 +74,8 @@ Probed after the alias flipped to the new deploy:
 
 - Pre-merge main (10k-hardening line): **40.32** (inherited round-4 catalog snapshot).
 - Merged tree, evaluated by the remediation wave's own 113-parameter V2 catalog runner
-  (`.audit/v2/score-v2.py`, the same evaluator that scored `audit/v2-remediation` at 63.13):
+  (`.audit/v2/score-v2.py` — a local artifact, not in this repository; the same evaluator that
+  scored `audit/v2-remediation` at 63.13):
   **63.13 / 100** — identical to the branch's own measurement, i.e. the union preserved every
   catalog-measured property while restoring the 10k-audit fixes on top.
 - Open caps (documented, unchanged): open S2 without a signed waiver caps at ≤70; incomplete

@@ -1,5 +1,16 @@
 # COMPLETE — VERIFIED AT c163de5
 
+> **SUPERSEDED — banner added 2026-11-10. Not the current audit.** The verified SHA `c163de5` (and
+> the candidate SHA `980bf41`) is **not an ancestor of `main`**: both commits exist only on the
+> unmerged branch `chore/agrobridge-enterprise-hardening-20261029`
+> (`git merge-base --is-ancestor c163de5 origin/main` → non-zero; `git branch --contains c163de5`
+> lists only that branch). Because no SHA in this report resolves from `main`, its `COMPLETE`
+> verdict and score are **not reproducible from this repository's history** and are superseded by
+> the current audit: **`docs/audit/2026-11-10-full-qa-audit.md`**. Kept for the decision trail —
+> do not quote its verdict or score as current. The `.audit/**` evidence paths cited below are
+> machine-local and are not in this repository (F-21; see `docs/STATUS.md` §Where the evidence
+> lives).
+
 AgroBridge enterprise SWE audit, remediation and release-readiness review.
 Repository: https://github.com/tanviruchahs2580/AgroBridge
 Report date: 2026-10-29. Prompt: *Master Prompt V3* (catalog v3, 185 items).

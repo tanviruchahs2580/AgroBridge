@@ -60,7 +60,10 @@ export default function Onboarding() {
           h2 below it. */}
       <h1 className="sr-only">{t("onboarding", lang)}</h1>
       <div className="h-2 w-full rounded-full bg-stone-200">
-        <div className="h-2 rounded-full bg-action transition-all" style={{ width: `${progress}%` }} />
+        {/* Only the width changes between steps, so only the width transitions:
+            `transition-all` put background, radius and every inherited property
+            on the same 150 ms transition and forced a layout read per step. */}
+        <div className="h-2 rounded-full bg-action transition-[width]" style={{ width: `${progress}%` }} />
       </div>
       <p className="text-center text-xs text-stone-600">
         {t("obStepOf", lang, { step: step + 1, total })} ·{" "}

@@ -1,6 +1,6 @@
 # Architecture
 
-> **Owner:** engineering · **Purpose:** as-built system design and the ADR index · **Last verified:** 2026-10-19 (branch `audit/v2-remediation`; re-verify with the claims/link checks in CI).
+> **Owner:** engineering · **Purpose:** as-built system design and the ADR index · **Last verified:** 2026-11-10 (citation re-resolution for F-21, module inventory for F-51 — both in `docs/audit/2026-11-10-full-qa-audit.md`; re-verify with the claims/link checks in CI).
 
 
 See also: [threat-model.md](threat-model.md) · [slo.md](slo.md) · [runtime-contract.md](runtime-contract.md)
@@ -19,7 +19,7 @@ AgroBridge API  (Express + TypeScript, modular monolith, apps/api)
  │        → requestContext (X-Request-Id) → metricsMiddleware → rate limit /api/*
  │        → routers (per-router requireAuth → requirePermission → validate)
  ├── modules: auth · farms · weather · aiagent · disease · marketplace · services
- │        · procurement · payments · notifications · admin · organizations · analytics
+ │        · procurement · payments · notifications · admin · organizations · analytics · ops
  │        (membership is a service; membershipRouter is exported by payments/routes.ts)
  ├── providers (swappable adapters):
  │    WeatherProvider      mock | openweather
@@ -33,7 +33,7 @@ AgroBridge API  (Express + TypeScript, modular monolith, apps/api)
 SQLite (dev/test) · PostgreSQL (production, Neon — see docs/runbooks/live-deployment.md)
 ```
 
-The pipeline order above is `apps/api/src/app.ts:57-87,133-151`; it is the corrected form of the
+The pipeline order above is the order of the middleware mounts in `apps/api/src/app.ts`; it is the corrected form of the
 previously documented order (`request-id → helmet → cors → rate-limit → auth → RBAC → validation
 → metrics`), which did not match the code: the body parsers run before `requestContext`, both run
 before `metricsMiddleware`, the rate limiter is mounted only on `/api/*`, and auth/RBAC/validation
@@ -97,9 +97,10 @@ flowchart TB
   prom -->|"GET /metrics, token-guarded"| api
 ```
 
-Region evidence: live `X-Vercel-Id: bom1::iad1::…` (`.audit/evidence/E-V2-live-probes.txt:40`);
-platform limits and the absence of `maxDuration`/`regions` config are documented in
-[runtime-contract.md](runtime-contract.md).
+Region evidence: live `X-Vercel-Id: bom1::iad1::…` — the 2026-10-19 probe file is **not in this
+repository**; the 2026-11-10 full-qa audit re-observed the same regions
+(`docs/audit/2026-11-10-full-qa-audit.md` §2.4). Platform limits and the absence of
+`maxDuration`/`regions` config are documented in [runtime-contract.md](runtime-contract.md).
 
 ## C4 level 3 — API components (sketch)
 
@@ -124,10 +125,12 @@ flowchart LR
   payments --> walletrouter["wallet and membership routers<br/>exported from payments/routes.ts"]
 ```
 
-Module directories: `apps/api/src/modules/*` (admin, aiagent, analytics, auth, disease, farms,
-marketplace, membership, notifications, organizations, payments, procurement, services, weather).
+Module directories: `apps/api/src/modules/*` — **15**, matching
+`ls -d apps/api/src/modules/*/` (admin, aiagent, analytics, auth, disease, farms, marketplace,
+membership, notifications, ops, organizations, payments, procurement, services, weather).
 `membership` contains only `service.ts`; the membership router is exported from
-`apps/api/src/modules/payments/routes.ts`.
+`apps/api/src/modules/payments/routes.ts`; `ops/routes.ts` carries the retention trigger — a
+data-deletion surface.
 
 ## Sequence diagrams
 
@@ -160,8 +163,8 @@ sequenceDiagram
   end
 ```
 
-Source of truth: `apps/api/src/modules/auth/routes.ts:168-224` (login at 168, rotation claim at
-206-218, reuse detection at 211-216).
+Source of truth: `apps/api/src/modules/auth/routes.ts` — the login handler, the refresh handler's
+claim-atomic rotation, and its reuse-detection branch (revoke the whole family).
 
 ### Checkout and idempotency
 
@@ -190,9 +193,9 @@ sequenceDiagram
   Note over O,DB: a lost race replays the winner by key with 200
 ```
 
-Source of truth: `apps/api/src/modules/marketplace/routes.ts:341-482` (replay lookup at 341-343,
-checkout handler at 356, cart claim at 392-395, stock decrement at 400-408, totals at 411-413,
-lost-race replay at 470-478).
+Source of truth: the `POST /orders/checkout` handler in `apps/api/src/modules/marketplace/routes.ts`
+(`findOrderByClientKey` replay, the cart-as-token claim, the conditional stock decrement,
+`orderTotals` from `apps/api/src/shared/utils/money.ts`, and the lost-race replay).
 
 ### Payment confirm and gateway webhook
 
@@ -222,9 +225,9 @@ sequenceDiagram
   end
 ```
 
-Source of truth: `apps/api/src/modules/payments/webhook.ts:26-110` (signature at 36-43, amount
-check at 60-72, claim at 85-92). The sandbox confirm path (`POST /payments/:id/confirm`) funnels
-through the same `claimAndApplyPayment` claim in `apps/api/src/modules/payments/routes.ts:217-251`.
+Source of truth: `apps/api/src/modules/payments/webhook.ts` (signature check, amount/currency
+cross-check, `PENDING → SUCCEEDED` claim). The sandbox confirm path (`POST /payments/:id/confirm`)
+funnels through the same `claimAndApplyPayment` claim in `apps/api/src/modules/payments/routes.ts`.
 
 ### Procurement payout
 
@@ -249,8 +252,8 @@ sequenceDiagram
   P-->>M: 201 payment and new wallet balance
 ```
 
-Source of truth: `apps/api/src/modules/payments/routes.ts:461-539` (atomic claim at 484-490,
-wallet credit and ledger at 504-519).
+Source of truth: `POST /payments/payouts` in `apps/api/src/modules/payments/routes.ts` (atomic
+COLLECTED → PAID claim; wallet credit + `WalletTransaction` ledger row).
 
 ### Offline sync replay
 
@@ -284,8 +287,8 @@ sequenceDiagram
   end
 ```
 
-Source of truth: `apps/web/src/lib/offlineQueue.ts:199-243` (allow-list at 25-43, enqueue dedupe
-at 154-180, flush semantics at 199-235).
+Source of truth: `apps/web/src/lib/offlineQueue.ts` (the allow-list, enqueue dedupe by
+`clientUuid`/payload hash, and `flushAll`'s per-status semantics).
 
 ### AI advisory
 
@@ -318,9 +321,9 @@ sequenceDiagram
   R-->>C: ok answer with kbVersion and promptVersion
 ```
 
-Source of truth: `apps/api/src/modules/aiagent/routes.ts:33-80` and
-`apps/api/src/providers/ai/gateway.ts:38-90` (budget guard at 25-31, fallback only outside
-production at 70-88).
+Source of truth: `apps/api/src/modules/aiagent/routes.ts` (the advisory route) and
+`apps/api/src/providers/ai/gateway.ts` (the budget guard; offline fallback only outside
+production).
 
 ## Design decisions
 
@@ -328,7 +331,7 @@ production at 70-88).
    extracted later without touching call sites because cross-domain access goes through the API layer.
 2. **Provider abstraction everywhere** (weather/AI/payment/notification/storage). Business logic never
    imports a concrete vendor SDK: adapters use `fetch` directly
-   (`apps/api/src/providers/ai/openai-compat.ts:163`, `apps/api/src/providers/weather/openweather.ts:13`).
+   (`apps/api/src/providers/ai/openai-compat.ts`, `apps/api/src/providers/weather/openweather.ts`).
 3. **Money as integers** (`*_Paisa`) to avoid float errors. Quantities are floats only for physical
    measures (kg, bigha).
 4. **Transactional consistency** where it matters: checkout decrements stock and creates the order in
@@ -338,13 +341,13 @@ production at 70-88).
 6. **AI safety**: input sanitization, grounded retrieval, confidence thresholds with mandatory expert-
    verification notes, no direct action execution by the AI (orders/payments require explicit user flows).
    The offline fallback to `OfflineAgroEngine` is a non-production path only; production surfaces
-   `AI_PROVIDER_UNAVAILABLE` instead of silently degrading (`apps/api/src/providers/ai/gateway.ts:70-83`).
+   `AI_PROVIDER_UNAVAILABLE` instead of silently degrading (the error path in `apps/api/src/providers/ai/gateway.ts`).
 7. **No fake production data**: demo/mock providers are selected explicitly via env; sandbox payment
    responses are labelled `providerMode: "sandbox"`; `sslcommerz` adapter implements signature verification and is only instantiated when creds present.
 8. **Observability:** Prometheus `/metrics` with metric names as actually registered —
    `agrobridge_http_requests_total`, `agrobridge_http_request_duration_seconds`, `agrobridge_db_up`,
    `agrobridge_ai_requests_total`, `agrobridge_payment_intents_total` plus default process metrics
-   (`apps/api/src/infrastructure/metrics.ts:6-38`). Alert rules are materialized in
+   (`apps/api/src/infrastructure/metrics.ts`). Alert rules are materialized in
    `monitoring/alert_rules.yml` (narrated in `docs/operations.md`).
 9. **Storage abstraction:** `StorageProvider` interface with `local | s3 | db` implementations
    (`apps/api/src/providers/storage/index.ts`); disease images via `getStorageProvider()` — `db` is the
@@ -352,7 +355,7 @@ production at 70-88).
 
 ## Architecture Decision Records (`docs/adr/`)
 
-- [0001 — Marketplace catalog is login-gated by design](adr/ADR-0001-login-gated-marketplace-catalog.md)
+- [0001 — Marketplace catalog is login-gated by design](adr/0001-login-gated-marketplace-catalog.md)
 - [0002 — Hand-rolled web data layer](adr/0002-hand-rolled-data-layer.md) (`api()` + `useResource`, no query library)
 - [0003 — Token storage in localStorage](adr/0003-token-storage-in-localstorage.md) (accepted XSS risk; cookie migration trigger)
 - [0004 — Dual-dialect Prisma](adr/0004-dual-dialect-prisma.md) (SQLite dev / PostgreSQL prod; every schema copy must be updated)
@@ -365,6 +368,11 @@ production at 70-88).
 - [0011 — Data retention](adr/0011-data-retention.md) (financial rows retained; deletion anonymizes identity)
 - [0012 — Durable uploads in the database](adr/0012-durable-uploads-in-database.md) (`STORAGE_PROVIDER=db`; the release gate rejects instance-disk uploads)
 - [0013 — Admin/payout step-up decision](adr/0013-admin-payout-step-up-decision.md) (risk accepted with compensating controls; re-decide at the named triggers)
-- [0014 — OpenAPI contract strategy](adr/0014-openapi-contract-strategy.md) (docs/api.md + the response-contract fixture are the gate; generated OpenAPI deferred with triggers)
-- [0015 — Tenancy / RLS decision](adr/0015-tenancy-rls-decision.md) (application scoping now; RLS prototype plan with `SET LOCAL app.user_id`)
+- [0014 — OpenAPI contract strategy](adr/0014-openapi-contract-strategy.md) — **superseded by 0019**; kept for the decision trail
+- [0015 — Tenancy / RLS decision](adr/0015-tenancy-rls-decision.md) — **superseded by 0020**; kept for the decision trail
 - [0016 — Payment provider selection](adr/0016-payment-provider-selection.md) (SSLCommerz; hosted checkout keeps PCI scope out; activation is an owner gate)
+- [0017 — Payment provider dual mode](adr/0017-payment-provider-dual-mode.md) (sandbox/live boundary; simulated money is never invisible to the caller)
+- [0018 — Hosting topology, one region](adr/0018-hosting-topology-single-region.md) (Vercel functions + Neon primary co-located in `iad1`)
+- [0019 — Contract strategy and generated inventories](adr/0019-contract-strategy-and-generated-inventories.md) (generated route/ERD inventories + one response contract; supersedes 0014)
+- [0020 — Row-level security](adr/0020-row-level-security.md) (RLS deferred; app-level tenancy is the enforced layer; supersedes 0015)
+- [0021 — OpenAPI deferral and doc freshness](adr/0021-openapi-deferral-and-doc-freshness.md) (no hand-written OpenAPI; generated-doc freshness gates instead)

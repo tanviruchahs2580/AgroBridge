@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/modules/**/routes.ts",
-  "total": 86,
+  "total": 88,
   "summary": {
     "requirePermission:admin:metrics": 3,
     "requirePermission:audit:read": 1,
@@ -8,19 +8,22 @@
     "requirePermission:users:read": 1,
     "requirePermission:finance:withdrawals": 2,
     "requireAuth (file-level use on aiRouter)": 3,
-    "requireAuth": 9,
-    "PUBLIC": 8,
+    "requireAuth": 10,
+    "PUBLIC": 9,
     "requireAuth (file-level use on diseaseRouter)": 4,
     "requirePermission:disease:review": 1,
-    "requireAuth (file-level use on farmsRouter)": 4,
+    "requireAuth (file-level use on farmsRouter)": 3,
     "requireAuth (file-level use on cropsRouter)": 3,
     "requireAuth (file-level use on eventsRouter)": 2,
     "requireAuth (file-level use on plotsRouter)": 3,
     "requireAuth (file-level use on ordersRouter)": 5,
+    "requirePermission:products:manage": 1,
     "requireAuth (file-level use on productsRouter)": 1,
     "requireAuth (file-level use on cartRouter)": 3,
     "requireAuth (file-level use on notificationsRouter)": 4,
-    "requireAuth (file-level use on organizationsRouter)": 6,
+    "requirePermission:farm:read:org": 1,
+    "requirePermission:org:manage": 3,
+    "requirePermission:org:read": 2,
     "requireAuth (file-level use on paymentsRouter)": 4,
     "requirePermission:payments:refund": 1,
     "requireAuth (file-level use on walletRouter)": 4,
@@ -345,7 +348,7 @@
       "method": "GET",
       "path": "/",
       "router": "farmsRouter",
-      "auth": "requireAuth (file-level use on farmsRouter)"
+      "auth": "requireAuth"
     },
     {
       "module": "farms",
@@ -370,6 +373,14 @@
       "path": "/:id/cancel",
       "router": "ordersRouter",
       "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "PATCH",
+      "path": "/:id",
+      "router": "productsRouter",
+      "auth": "requirePermission:products:manage"
     },
     {
       "module": "marketplace",
@@ -406,14 +417,6 @@
     {
       "module": "marketplace",
       "file": "src/modules/marketplace/routes.ts",
-      "method": "POST",
-      "path": "/",
-      "router": "productsRouter",
-      "auth": "requireAuth,requirePermission:products:manage"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
       "method": "GET",
       "path": "/",
       "router": "ordersRouter",
@@ -434,6 +437,14 @@
       "path": "/items",
       "router": "cartRouter",
       "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "POST",
+      "path": "/",
+      "router": "productsRouter",
+      "auth": "requireAuth,requirePermission:products:manage"
     },
     {
       "module": "marketplace",
@@ -479,6 +490,14 @@
       "module": "ops",
       "file": "src/modules/ops/routes.ts",
       "method": "GET",
+      "path": "/reconcile-wallet",
+      "router": "opsRouter",
+      "auth": "PUBLIC"
+    },
+    {
+      "module": "ops",
+      "file": "src/modules/ops/routes.ts",
+      "method": "GET",
       "path": "/retention",
       "router": "opsRouter",
       "auth": "PUBLIC"
@@ -489,7 +508,7 @@
       "method": "GET",
       "path": "/:id/farms",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:farm:read:org"
     },
     {
       "module": "organizations",
@@ -497,7 +516,7 @@
       "method": "DELETE",
       "path": "/:id/members/:userId",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:org:manage"
     },
     {
       "module": "organizations",
@@ -505,7 +524,7 @@
       "method": "POST",
       "path": "/:id/members",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:org:manage"
     },
     {
       "module": "organizations",
@@ -513,7 +532,7 @@
       "method": "GET",
       "path": "/:id",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:org:read"
     },
     {
       "module": "organizations",
@@ -521,7 +540,7 @@
       "method": "POST",
       "path": "/",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:org:manage"
     },
     {
       "module": "organizations",
@@ -529,7 +548,7 @@
       "method": "GET",
       "path": "/",
       "router": "organizationsRouter",
-      "auth": "requireAuth (file-level use on organizationsRouter)"
+      "auth": "requirePermission:org:read"
     },
     {
       "module": "payments-webhook",

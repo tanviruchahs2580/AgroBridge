@@ -3,8 +3,14 @@ export interface CreatePaymentInput {
   refNo: string;
   customerPhone: string;
   /**
-   * Absolute base URL the gateway returns the buyer to (no trailing slash);
-   * the provider appends its own success/fail/cancel paths.
+   * Buyer's display name, where the gateway wants one (SSLCommerz v4
+   * `cus_name`). Optional: a caller without it still gets a session.
+   */
+  customerName?: string;
+  /**
+   * Absolute base URL of the MOUNTED API (includes the `/api/v1` prefix, no
+   * trailing slash); the provider appends its own success/fail/cancel callback
+   * paths and the IPN `notify_url`.
    */
   returnBaseUrl: string;
   /** Sandbox hook: deterministic outcome for testing both paths. */

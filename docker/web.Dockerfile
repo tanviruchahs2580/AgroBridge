@@ -21,4 +21,10 @@ FROM nginx:1-alpine-slim@sha256:ebd058041a732a2b2dc0b606e34572dd8e0034de6a4aa4d5
 RUN apk upgrade --no-cache
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY docker/web.nginx.prod.conf /etc/nginx/conf.d/default.conf
+# The security-header set is an include (see docker/nginx/security-headers.conf)
+# so a location that adds its own Cache-Control cannot silently drop it — the
+# defect F-87 found. Both configs (this prod one, and the local
+# docker/web.nginx.conf that docker-compose.yml mounts) include this path.
+COPY docker/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 EXPOSE 80
+EXPOSE 443

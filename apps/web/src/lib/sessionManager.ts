@@ -191,12 +191,18 @@ if (typeof window !== "undefined") {
  * Read current tokens. Single truth replaces `lib/api.ts:31` module vars
  * and `lib/session.tsx:33` direct localStorage read.
  * Always returns strings (empty if logged out).
+ *
+ * This DOES re-sync from localStorage on every call, deliberately — and the
+ * comment here used to claim otherwise while doing the opposite. The re-read is
+ * the safety net for writers this module never saw: a browser restore that
+ * rehydrates storage without running the top-level read below, a test harness
+ * planting `ab_at`/`ab_rt` directly, a same-tab tool clearing them. Two
+ * synchronous storage reads is the price of never serving a stale token, so hot
+ * paths read once per request and reuse the value (see rawRequest in api.ts)
+ * instead of calling this per header.
  */
 export function getTokens(): Tokens {
-  // Re-sync from storage defensively (covers external mutation without event)
-  // but prefer in-memory value for speed.
   if (canUseStorage()) {
-    // lazy re-read only if in-memory is empty but storage has value (tab restored)
     const sAt = readStorage(AT_KEY);
     const sRt = readStorage(RT_KEY);
     if (sAt !== _at || sRt !== _rt) {

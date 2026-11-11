@@ -1,10 +1,14 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * AUD-201 acceptance (run only in the audit's candidate clone, not shipped):
- * the farmer uploads a photo, sees the honest pending-review state, and can
- * view the stored image through the new control. Screenshots land under the
- * external acceptance directory so the audit evidence bundle carries them.
+ * AUD-201 acceptance: the farmer uploads a photo, sees the honest pending-review
+ * state, and can view the stored image through the new control.
+ *
+ * Screenshot output: `ACCEPT_DIR` (set it to the external acceptance directory so
+ * an evidence bundle carries them). The default is `test-results/`, which
+ * Playwright creates for every run and `.gitignore` already covers — it used to
+ * be `.`, which wrote `apps/web/IMG-01/screenshots/*.png` into the working tree
+ * as untracked files that nothing ignored.
  *
  * 1×1 transparent PNG — a real, decodable image with the correct magic bytes
  * (the upload path sniffs content, not filenames, so the bytes must be real).
@@ -14,7 +18,7 @@ const PNG = Buffer.from(
   "base64"
 );
 
-const OUT = process.env.ACCEPT_DIR ?? ".";
+const OUT = process.env.ACCEPT_DIR ?? "test-results";
 
 test.describe("disease photo round-trip (AUD-201)", () => {
   test("upload shows pending review and the stored photo is viewable", async ({ page }, testInfo) => {

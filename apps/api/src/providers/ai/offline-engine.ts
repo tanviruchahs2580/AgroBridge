@@ -4,10 +4,11 @@ import {
   AiAnswer,
   expertVerificationNote,
   unreviewedTreatmentNote,
-  containsAgrochemGuidance,
+  unreviewedTreatmentRequired,
   LOW_CONFIDENCE_THRESHOLD,
   AiProvider,
 } from "./types.js";
+import { retrievalConfidence } from "./scoring.js";
 
 /**
  * Deterministic, grounded, offline AI engine.
@@ -71,28 +72,30 @@ export class OfflineAgroEngine implements AiProvider {
     // multi-hit / phrase matches; a single keyword hit lands in "probably right
     // topic" territory. Reporting the stored value verbatim (the old behaviour)
     // advertised off-topic answers at 85% just because one keyword matched.
-    const topScore = scores[0] ?? 0;
-    const matchQuality = Math.min(1, 0.75 + Math.max(0, topScore - 1.5) * 0.125);
-    const confidence = Math.min(0.95, primary.confidence * matchQuality + (entries.length > 1 ? 0.03 : 0));
+    // Scores are TOPICAL: the farm-context hint only breaks ranking ties and is
+    // excluded here, so farm state cannot inflate the reported confidence.
+    const confidence = Number(retrievalConfidence(entries, scores).toFixed(2));
+    const lowConfidenceFlag = confidence < LOW_CONFIDENCE_THRESHOLD;
 
     let text = answer;
-    if (confidence < LOW_CONFIDENCE_THRESHOLD) {
+    if (lowConfidenceFlag) {
       text += expertVerificationNote(ctx.lang);
     }
     // A4-09: an answer that names or doses an agrochemical input must be either
     // source-reviewed or explicitly flagged unverified. Every built-in entry is
     // currently UNSOURCED, so chemical guidance carries the review-pending note
-    // regardless of the (heuristic) confidence band.
-    if (primary.status === "UNSOURCED" && containsAgrochemGuidance(answer)) {
+    // regardless of the (heuristic) confidence band. Shared with the hosted
+    // adapter via `unreviewedTreatmentRequired` (F-44).
+    if (unreviewedTreatmentRequired(answer, entries)) {
       text += unreviewedTreatmentNote(ctx.lang);
     }
 
     return {
       answer: text,
-      confidence: Number(confidence.toFixed(2)),
+      confidence,
       provider: this.name,
       model: this.model,
-      lowConfidenceFlag: confidence < LOW_CONFIDENCE_THRESHOLD,
+      lowConfidenceFlag,
       groundedRefs: entries.map((e) => e.id),
       groundedSources: entries.map(sourceRefOf),
       kbVersion: this.kbVersion,

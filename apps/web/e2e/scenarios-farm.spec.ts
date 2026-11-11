@@ -14,7 +14,7 @@ test.describe("Scenario acceptance — farm", () => {
     await page.goto("/farm");
 
     // Create the farm through the form.
-    await page.getByRole("button", { name: /নতুন ফার্ম|Add Farm/ }).first().click();
+    await page.getByRole("button", { name: /নতুন খামার|Add Farm/ }).first().click();
     await page.fill("#fm-name", "ইকে২ই খামার");
     await page.fill("#fm-district", "রংপুর");
     await page.fill("#fm-area", "2.5");
@@ -66,7 +66,7 @@ test.describe("Scenario acceptance — farm", () => {
     await page.goto("/farm");
 
     // Invalid area (0) is refused with a visible error and nothing is created.
-    await page.getByRole("button", { name: /নতুন ফার্ম|Add Farm/ }).first().click();
+    await page.getByRole("button", { name: /নতুন খামার|Add Farm/ }).first().click();
     await page.fill("#fm-name", "ভুল খামার");
     await page.fill("#fm-area", "0");
     await page.locator("form button[type='submit']").first().click();

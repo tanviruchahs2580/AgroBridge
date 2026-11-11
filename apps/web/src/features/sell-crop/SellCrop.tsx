@@ -7,7 +7,7 @@ import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import type { DictKey } from "../../lib/i18n";
 import { formatBDT } from "../../lib/format";
-import { CROPS, CROP_KEYS, cropLabel, PROC_PIPELINE, procurementStatusLabel } from "../../lib/labels";
+import { CROPS, CROP_KEYS, cropLabel, GRADES, PROC_PIPELINE, procurementStatusLabel, qualityGradeLabel } from "../../lib/labels";
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { Coins, Sprout } from "lucide-react";
@@ -19,7 +19,6 @@ const PIPE_KEYS: Record<string, DictKey> = {
   SUBMITTED: "pipeSUBMITTED", QC: "pipeQC", PURCHASE_ORDER: "pipePO",
   COLLECTED: "pipeCOLLECTED", PAID: "pipePAID",
 };
-const GRADE_KEYS: Record<string, DictKey> = { A: "gradeA", B: "gradeB", C: "gradeC" };
 
 export default function SellCrop() {
   const { session } = useSession();
@@ -112,7 +111,7 @@ export default function SellCrop() {
         <form onSubmit={submit} noValidate className="grid gap-3 sm:grid-cols-2">
           <Field label={t("farmLabel", lang)} htmlFor="of-farm" error={formErrs.farm} required>
             <Select id="of-farm" name="farm" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.farm; return n; })} aria-invalid={Boolean(formErrs.farm)} aria-describedby={formErrs.farm ? "of-farm-err" : undefined}>
-              <option value="" disabled>{t("farmLabel", lang)}</option>
+              <option value="" disabled>{t("selectFarmPrompt", lang)}</option>
               {farms.map((f) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
@@ -120,7 +119,7 @@ export default function SellCrop() {
           </Field>
           <Field label={t("cropName", lang)} htmlFor="of-crop" error={formErrs.crop} required>
             <Select id="of-crop" name="crop" defaultValue="" onChange={() => setFormErrs((prev) => { const n = { ...prev }; delete n.crop; return n; })} aria-invalid={Boolean(formErrs.crop)} aria-describedby={formErrs.crop ? "of-crop-err" : undefined}>
-              <option value="" disabled>{t("cropName", lang)}</option>
+              <option value="" disabled>{t("selectCropPrompt", lang)}</option>
               {CROPS.map((c) => (
                 <option key={c} value={c}>{t(CROP_KEYS[c], lang)}</option>
               ))}
@@ -136,8 +135,8 @@ export default function SellCrop() {
             <div>
               <Label htmlFor="of-grade">{t("qualityGrade", lang)}</Label>
               <Select id="of-grade" name="grade" defaultValue="A">
-                {(["A", "B", "C"] as const).map((g) => (
-                  <option key={g} value={g}>{t(GRADE_KEYS[g], lang)}</option>
+                {GRADES.map((g) => (
+                  <option key={g} value={g}>{qualityGradeLabel(g, lang)}</option>
                 ))}
               </Select>
             </div>
@@ -171,7 +170,7 @@ export default function SellCrop() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                        {o.qualityGrade ? t(GRADE_KEYS[o.qualityGrade], lang) : "—"}
+                        {o.qualityGrade ? qualityGradeLabel(o.qualityGrade, lang) : "—"}
                         <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                       </div>
                       <div className="flex items-center gap-2 text-right">
@@ -188,7 +187,7 @@ export default function SellCrop() {
                   <div className="mb-3 flex items-center justify-between gap-2 text-sm">
                     <div className="min-w-0">
                       <span className="break-words font-bold text-stone-800 [overflow-wrap:anywhere]">{cropLabel(o.cropName, lang)}</span> · {o.quantityKg} {t("kgUnit", lang)} ·{" "}
-                      {o.qualityGrade ? t(GRADE_KEYS[o.qualityGrade], lang) : "—"}
+                      {o.qualityGrade ? qualityGradeLabel(o.qualityGrade, lang) : "—"}
                       <p className="break-all text-xs text-stone-500 [overflow-wrap:anywhere]">{o.poNo}</p>
                     </div>
                     <p className="font-bold text-accent">{formatBDT(o.netPayablePaisa, lang)}</p>

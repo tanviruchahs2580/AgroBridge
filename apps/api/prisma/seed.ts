@@ -85,13 +85,22 @@ export async function seedReferenceData(prisma: PrismaClient, log: Log = console
   }
 
   // Membership plans (admin-configurable, Section 25)
+  // F-62: SILVER/GOLD used to advertise "Unlimited AI advisory" while every
+  // account was capped at AI_HOURLY_LIMIT. The quota is now multiplied per tier
+  // (modules/aiagent/limits.ts: BRONZE ×1, SILVER ×4, GOLD ×10) and the copy
+  // states the real grant — an hourly cap exists on every tier.
   const plans = [
     { tier: "BRONZE", pricePaisa: 0, benefitsStr: JSON.stringify(["Basic AI advisory", "Weekly weather digest"]) },
-    { tier: "SILVER", pricePaisa: 50_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "3% marketplace discount", "Priority soil testing"]) },
-    { tier: "GOLD", pricePaisa: 120_000, benefitsStr: JSON.stringify(["Unlimited AI advisory", "5% marketplace discount", "Free drone spraying per season", "Dedicated agronomist hotline"]) },
+    { tier: "SILVER", pricePaisa: 50_000, benefitsStr: JSON.stringify(["AI advisory limit ×4 (Silver)", "3% marketplace discount", "Priority soil testing"]) },
+    { tier: "GOLD", pricePaisa: 120_000, benefitsStr: JSON.stringify(["AI advisory limit ×10 (Gold)", "5% marketplace discount", "Free drone spraying per season", "Dedicated agronomist hotline"]) },
   ];
   for (const p of plans) {
-    await prisma.membershipPlan.upsert({ where: { tier: p.tier }, update: {}, create: p });
+    // `benefitsStr` is part of `update` so an already-seeded database (the
+    // pilot's included) converges on the corrected F-62 copy — `update: {}`
+    // would leave "Unlimited AI advisory" on every existing SILVER/GOLD row
+    // forever. There is no admin write path for plans; like the products and
+    // services above, the seed is the authority for this copy.
+    await prisma.membershipPlan.upsert({ where: { tier: p.tier }, update: { benefitsStr: p.benefitsStr }, create: p });
   }
 
   log(`Seed (reference): ${products.length} products, ${servicesData.length} services, ${plans.length} membership plans`);
