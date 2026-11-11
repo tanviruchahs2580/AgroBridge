@@ -38,6 +38,10 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      # The Dockerfile's LAST stage is the one-shot `migrate` stage, so the
+      # target must be named: without it Compose builds and runs the migrate
+      # image as the api service, and /health never answers (2026-11-11).
+      target: runtime
     # /ready is the api's healthcheck and it needs the db; without this the api
     # container could start against a not-yet-ready database and only recover
     # by luck of request ordering.

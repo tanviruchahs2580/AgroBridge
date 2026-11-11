@@ -6,7 +6,9 @@
 #   2. `docker compose -f docker-compose.prod.yml up -d`
 #
 # Requires an .env beside this file (see .env.example for the full list) plus:
-#   POSTGRES_PASSWORD, API_DATABASE_URL (postgresql://agrobridge_app:...@db:5432/agrobridge?schema=public),
+#   POSTGRES_PASSWORD, API_DATABASE_URL (the app-role connection URL for
+#   db:5432/agrobridge?schema=public — spelled out in the VM's .env, never here:
+#   a scheme://user:pass@host literal in a tracked file trips the CI secret scan),
 #   MIGRATE_DATABASE_URL (owner role — required by the `migrate` service on a
 #   two-role split; defaults to API_DATABASE_URL, whose role cannot DDL),
 #   JWT_ACCESS_SECRET, JWT_REFRESH_SECRET (64-char random), WEB_ORIGIN,

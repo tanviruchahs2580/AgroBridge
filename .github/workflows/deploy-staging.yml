@@ -91,6 +91,7 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}

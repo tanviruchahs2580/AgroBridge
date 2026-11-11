@@ -461,6 +461,15 @@ jobs:
       # the API suites.
       RATE_LIMIT_MAX: "2000"
       LOGIN_RATE_LIMIT_MAX: "500"
+      # The suite runs twice in this job (dev pass, then the production-build
+      # pass). playwright.config.ts defaults reuseExistingServer to false (F-42 —
+      # locally 5173 is shared with a sibling project, and reuse would silently
+      # test the wrong app), but the first pass's `npm run dev` grandchild can
+      # outlive Playwright's teardown on the runner and hold the port, which made
+      # the second pass fail with "already used". This job owns the port: reuse
+      # is the correct behaviour here, and it is the escape hatch the config
+      # documents — a local run without this variable still refuses to reuse.
+      PLAYWRIGHT_REUSE_SERVER: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 
@@ -718,6 +727,7 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: false
           tags: agrobridge-api:ci
           # loaded into the local daemon so the SBOM step below can scan it
@@ -889,6 +899,7 @@ jobs:
         with:
           context: .
           file: docker/api.Dockerfile
+          target: runtime  # the Dockerfile's last stage is `migrate` — name the runtime stage
           push: false
           tags: agrobridge-api:scan
           load: true

@@ -47,6 +47,11 @@ COPY --from=build /app/apps/api/prisma/schema.prisma ./apps/api/prisma/schema.pr
 COPY --from=build /app/apps/api/prisma/postgres ./apps/api/prisma/postgres
 COPY --from=build /app/apps/api/prisma/migrations ./apps/api/prisma/migrations
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+# The ops module's scheduled reconciliation imports the production script
+# (dist/modules/ops/routes.js -> apps/api/scripts/reconcile-wallet.mjs), so the
+# file must ship with dist or the API crashes at module load and /health never
+# answers — which is exactly how the compose smoke failed on 2026-11-11.
+COPY --from=build /app/apps/api/scripts/reconcile-wallet.mjs ./apps/api/scripts/reconcile-wallet.mjs
 # No npm/npx and no Prisma CLI in the shipped runtime image — a deliberate
 # choice, and the reason migrations are a separate step: schema changes run from
 # the `migrate` stage below (docker-compose.prod.yml service `migrate`, profile
