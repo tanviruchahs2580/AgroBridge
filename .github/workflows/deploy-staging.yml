@@ -65,7 +65,7 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # pin v4.4.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # pin v3
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # pin v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -79,7 +79,7 @@ jobs:
       # validated in CI (compose-smoke job), so the two cannot drift silently.
       - name: Extract metadata (api)
         id: meta-api
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # pin v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/api
           tags: |
@@ -101,7 +101,7 @@ jobs:
       # ships no npm/npx and no Prisma CLI (F-18).
       - name: Extract metadata (api-migrate)
         id: meta-migrate
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # pin v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/api-migrate
           tags: |
@@ -120,7 +120,7 @@ jobs:
 
       - name: Extract metadata (web)
         id: meta-web
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # pin v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # pin v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/web
           tags: |
