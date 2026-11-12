@@ -493,7 +493,7 @@ export default function Market() {
 
       {/* Sticky cart bar: safe-area aware, clears the mobile BottomNav */}
       {cart.length > 0 && !wizardOpen && (
-        <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 md:bottom-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="sticky bottom-[calc(var(--shell-nav-offset)+env(safe-area-inset-bottom))] z-20 md:bottom-[calc(1rem+env(safe-area-inset-bottom))]">
           <Card className="flex items-center justify-between gap-3 border-brand-200 ring-1 ring-brand-100">
             <p aria-live="polite" aria-atomic="true" className="text-sm font-semibold text-stone-700">
               <ShoppingBasket className="mr-1 inline h-5 w-5" aria-hidden /> {t("cartItemsCount", lang, { n: cart.length })} · {formatBDT(subtotalPaisa, lang)}

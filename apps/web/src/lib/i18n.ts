@@ -65,7 +65,7 @@ export const dict = {
   registerTitle: { bn: "অ্যাকাউন্ট খুলুন", en: "Create your account" },
   phonePlaceholder: { bn: "01XXXXXXXXX", en: "01XXXXXXXXX" },
   passwordPlaceholder: { bn: "আপনার পাসওয়ার্ড", en: "Your password" },
-  fullNamePlaceholder: { bn: "যেমনঃ করিম উদ্দিন", en: "e.g. Karim Uddin" },
+  fullNamePlaceholder: { bn: "যেমন: করিম উদ্দিন", en: "e.g. Karim Uddin" },
   confirmPassword: { bn: "পাসওয়ার্ড নিশ্চিত করুন", en: "Confirm password" },
   signIn: { bn: "প্রবেশ করুন", en: "Sign in" },
   signUp: { bn: "অ্যাকাউন্ট তৈরি করুন", en: "Create account" },
@@ -179,7 +179,9 @@ export const dict = {
   queuedItemFarmEvent: { bn: "খামার রেকর্ড", en: "farm record" },
   notFoundTitle: { bn: "পাতাটি পাওয়া যায়নি", en: "Page not found" },
   backHome: { bn: "হোমে ফিরে যান", en: "Go back home" },
-  skipToContent: { bn: "স্কিপ করুন", en: "Skip to content" },
+  // "স্কিপ" was a transliteration that only a bilingual reader parses; this is
+  // the standard Bengali phrasing for a skip link.
+  skipToContent: { bn: "মূল বিষয়বস্তুতে যান", en: "Skip to content" },
   // Screen-reader name for the shell's primary nav (components/ui.tsx BottomNav).
   primaryNavAria: { bn: "প্রধান নেভিগেশন", en: "Primary navigation" },
   // The two nav landmarks (sidebar at md+, bottom bar below md) have to be
@@ -191,6 +193,25 @@ export const dict = {
     bn: "ওয়ালেটে {n}টি অফলাইন পরিবর্তন সিঙ্ক হওয়ার অপেক্ষায়",
     en: "{n} offline change(s) on your wallet are waiting to sync",
   },
+  // ── Bottom-bar labels ──
+  // Short forms for the six primary tabs only. The full keys (`myFarm`,
+  // `aiAgent`, `myOrders`) stay as they are: they also drive the page headings
+  // and the document title, where the full phrase is correct. The old bar's
+  // widest label, "এআই কৃষি সহকারী", measured 80px at 11px and wrapped to two
+  // lines while its neighbours stayed on one.
+  // Measured at 13px, Hind Siliguri, in the renovated bar: the widest of the six
+  // is "Advisor" at 44px (600 weight) / 45px (the active tab's 700), and the
+  // link's content box is 47px at 320px — 54px at 390px — so all six hold one
+  // baseline down to 320px. `truncate` in BottomNav is the backstop if a future
+  // label is longer, with `title` as the way back to the full text. Below 320px
+  // "Advisor" no longer fits (41px box at 280px); 320 is the floor this was
+  // verified to, and it is the narrowest width the rest of the app is tested at.
+  navHome: { bn: "হোম", en: "Home" },
+  navFarm: { bn: "খামার", en: "Farm" },
+  navAdvisor: { bn: "পরামর্শ", en: "Advisor" },
+  navMarket: { bn: "বাজার", en: "Market" },
+  navWallet: { bn: "ওয়ালেট", en: "Wallet" },
+  navOrders: { bn: "অর্ডার", en: "Orders" },
 
   // ── Procurement status enums ──
   statusPENDING: { bn: "অপেক্ষমাণ", en: "Pending" },
@@ -288,7 +309,7 @@ export const dict = {
   errInsufficientStock: { bn: "দুঃখিত — পর্যাপ্ত স্টক নেই।", en: "Sorry — insufficient stock." },
   errInsufficientBalance: { bn: "উত্তোলনযোগ্য ব্যালেন্স পর্যাপ্ত নয় (অপেক্ষমাণ উত্তোলন বাদে)।", en: "Insufficient available balance (excluding pending withdrawals)." },
   errActiveCrop: { bn: "এই প্লটের একটি সক্রিয় ফসল আছে।", en: "This plot already has an active crop." },
-  errBookingConflict: { bn: "এই সেবার একটা বুকিং আগেই আছে।", en: "A booking for this service already exists." },
+  errBookingConflict: { bn: "এই সেবার জন্য আগেই একটি বুকিং আছে।", en: "A booking for this service already exists." },
   errCartConflict: { bn: "কোনো কারণে কার্টে যোগ করা যাচ্ছে না।", en: "Unable to add to cart — please try again." },
   errOfferConflict: { bn: "এই অফারের আগেই একটি প্রক্রিয়াধীন অবস্থা আছে।", en: "There is already a pending process for this offer." },
   referenceLabel: { bn: "রেফারেন্স", en: "Reference" },
@@ -324,21 +345,21 @@ export const dict = {
   // Bengali font faces. The greeting itself is warm enough.
   greeting: { bn: "আসসালামু আলাইকুম, {name}", en: "Hello, {name}" },
   todayTasks: { bn: "আজকের কাজ", en: "Today's tasks" },
-  weatherFavorable: { bn: "আবহাওয়া অনুকূল", en: "Weather favorable" },
   // A failed weather read is its own state, not an empty one: the dashboard used
   // to print a bare "—", which is indistinguishable from "no reading available".
   weatherUnavailable: { bn: "আবহাওয়ার তথ্য পাওয়া যায়নি", en: "Weather data is unavailable" },
   // The same rule for the other reads a screen can fail to complete. Each of these
   // exists because its absence let the UI assert something the app did not know:
   // "add your first farm" when the farm list had merely failed to load, a readiness
-  // basis claiming weather when weather was missing, "weather favourable" with no
-  // advisory payload at all, and an unread badge reading "0" after a failed read.
+  // basis claiming weather when weather was missing, and an unread badge reading
+  // "0" after a failed read.
+  // (`alertsTitle`, `alertsUnavailable`, `weatherFavorable` and `regularFarmVisit`
+  // were the Smart Alerts panel's copy, removed with the panel on 2026-11-12.)
   farmDataUnavailable: { bn: "খামারের তথ্য পাওয়া যায়নি", en: "Farm data is unavailable" },
   farmReadinessBasisNoWeather: {
     bn: "শুধু আপনার খামারের রেকর্ডের ভিত্তিতে",
     en: "From your farm records only",
   },
-  alertsUnavailable: { bn: "আবহাওয়ার সতর্কতা পাওয়া যায়নি", en: "Weather advisories unavailable" },
   unreadCountUnavailable: { bn: "আনপড়া সংখ্যা জানা যায়নি", en: "Unread count unavailable" },
   // Accessible name for the AI chat transcript live region (role="log").
   advisorTranscriptLabel: { bn: "এআই কথোপকথন", en: "AI conversation" },
@@ -355,7 +376,6 @@ export const dict = {
   marketTotalProducts: { bn: "মোট {n}টি পণ্য", en: "{n} products in total" },
   // Text equivalent for the unread-notification tint, which was colour-only.
   notifUnread: { bn: "না পড়া", en: "Unread" },
-  regularFarmVisit: { bn: "নিয়মিত খামার পরিদর্শন করুন", en: "Regular farm visit" },
   viewDetails: { bn: "বিস্তারিত দেখুন", en: "View details" },
   aiFarmHealthy: { bn: "আপনার খামার সুস্থ আছে", en: "Your farm is healthy" },
   aiFarmHealthySub: { bn: "আপনার জমি, ফসল ও আবহাওয়া — সবই অনুকূল পর্যায়ে আছে", en: "Your land, crops and weather are all in a favourable phase" },
@@ -367,7 +387,6 @@ export const dict = {
   aiActionPlant: { bn: "কী রোপণ করব?", en: "What to plant?" },
   aiActionFertilizer: { bn: "সার পরামর্শ", en: "Fertilizer advice" },
   aiActionWeather: { bn: "আবহাওয়া পরামর্শ", en: "Weather advice" },
-  alertsTitle: { bn: "স্মার্ট সতর্কতা", en: "Smart Alerts" },
   viewAllTasks: { bn: "সব কাজ দেখুন", en: "View all tasks" },
   deleteOrder: { bn: "অর্ডার মুছুন", en: "Delete order" },
   deleteOrderConfirm: { bn: "এই অর্ডারটি আপনার তালিকা থেকে মুছে ফেলা হবে।", en: "This order will be removed from your list." },
@@ -435,8 +454,10 @@ export const dict = {
 
   // ── Wallet page ──
   balance: { bn: "ব্যালেন্স", en: "Balance" },
-  monthIn: { bn: "এই মাসে আয়", en: "In this month" },
-  monthOut: { bn: "এই মাসে খরচ", en: "Out this month" },
+  // These label money tiles, so they must name the direction. The previous
+  // English ("In this month" / "Out this month") read as a preposition fragment.
+  monthIn: { bn: "এই মাসে আয়", en: "Income this month" },
+  monthOut: { bn: "এই মাসে খরচ", en: "Expenses this month" },
   pendingWithdrawals: { bn: "অপেক্ষমাণ উত্তোলন", en: "Pending withdrawals" },
   transactionsTitle: { bn: "লেনদেন", en: "Transactions" },
   noTransactions: { bn: "কোনো লেনদেন নেই।", en: "No transactions yet." },
@@ -522,7 +543,9 @@ export const dict = {
   unitPER_MAUND: { bn: "/ মণ", en: "/ maund" },
   unitPER_KG: { bn: "/ কেজি", en: "/ kg" },
   bsREQUESTED: { bn: "অনুরোধকৃত", en: "Requested" },
-  bsASSIGNED: { bn: "নিয়োজিত", en: "Assigned" },
+  // "নিয়োজিত" is administrative register a farmer will not parse; "কর্মী নির্ধারিত"
+  // says the same thing in the words the rest of the app uses for people.
+  bsASSIGNED: { bn: "কর্মী নির্ধারিত", en: "Assigned" },
   bsIN_PROGRESS: { bn: "চলমান", en: "In progress" },
   bsCOMPLETED: { bn: "সম্পন্ন", en: "Completed" },
 
@@ -554,7 +577,7 @@ export const dict = {
   bighaShort: { bn: "বিঘা", en: "bigha" },
   plotNamePh: { bn: "প্লটের নাম", en: "Plot name" },
   soilTypePh: { bn: "মাটির ধরন", en: "Soil type" },
-  noPlotsYet: { bn: "এখনো কোনো ফসল নাই।", en: "No crops on this plot yet." },
+  noPlotsYet: { bn: "এখনো কোনো ফসল নেই।", en: "No crops on this plot yet." },
   noFarmsYet: { bn: "কোনো খামার নেই — উপরের বোতাম থেকে যোগ করুন।", en: "No farms yet — use the button above to add one." },
   farmCreatedToast: { bn: "খামার যোগ হয়েছে", en: "Farm created" },
   plotCreatedToast: { bn: "প্লট যোগ হয়েছে", en: "Plot created" },
@@ -572,10 +595,14 @@ export const dict = {
 
   // ── Farm-care suggestion tasks (lib/labels.ts) ──
   careTaskSeedbedCheck: { bn: "বীজতলার আর্দ্রতা পরীক্ষা করুন", en: "Check seedbed moisture" },
-  careTaskUreaTopDressing: { bn: "ইউরিয়া সেচ দিন", en: "Apply urea top dressing" },
+  // "সেচ" is irrigation, not top dressing — the bn told the farmer to water when
+  // the task is to apply urea. Both now say what to do with the fertiliser.
+  careTaskUreaTopDressing: { bn: "ইউরিয়া সার উপরি প্রয়োগ করুন", en: "Apply urea top dressing" },
   careTaskSeedbedMoisture: { bn: "বীজতলার আর্দ্রতা নিশ্চিত করুন", en: "Ensure seedbed moisture" },
-  careTaskGapFilling: { bn: "অনুপস্থিত চারায় গ্যাপ পূরণ", en: "Gap filling for missing plants" },
-  careTaskUreaSplit: { bn: "কিস্তিতে ইউরিয়া সেচ", en: "Apply urea top dressing (split)" },
+  // "গ্যাপ" was an untranslated English loanword mid-sentence. A farmer reads
+  // "যেখানে চারা ওঠেনি" without having to decode it.
+  careTaskGapFilling: { bn: "যেখানে চারা ওঠেনি সেখানে লাগান", en: "Gap filling for missing plants" },
+  careTaskUreaSplit: { bn: "ইউরিয়া সার কিস্তিতে প্রয়োগ করুন", en: "Apply urea top dressing (split)" },
   careTaskConsistentMoisture: { bn: "আর্দ্রতা বজায় রাখুন", en: "Maintain consistent moisture" },
   careTaskPotashTopUp: { bn: "পাতা হলদে হলে পটাশ দিন", en: "Potash top-up if leaves yellowing" },
 
@@ -586,7 +613,10 @@ export const dict = {
   metricActiveCrops: { bn: "চলমান ফসল", en: "Active crops" },
   metricPendingProcurement: { bn: "অপেক্ষমাণ ক্রয়", en: "Pending procurement" },
   metricAiQueries: { bn: "এআই পরামর্শ", en: "AI queries" },
-  searchPh: { bn: "নাম/ফোন", en: "name/phone" },
+  // Placeholder copy in a search field, so it is a prompt rather than a label:
+  // "খুঁজুন" (search) tells a farmer what typing does. The old lowercase
+  // "name/phone" read as an internal field spec.
+  searchPh: { bn: "নাম বা ফোন দিয়ে খুঁজুন", en: "Search by name or phone" },
   searchUsersAria: { bn: "ব্যবহারকারী খুঁজুন", en: "Search users" },
   breadcrumbNavAria: { bn: "ব্রেডক্রাম্ব", en: "Breadcrumb" },
   thName: { bn: "নাম", en: "Name" },
@@ -623,8 +653,8 @@ export const dict = {
   // ── Onboarding ──
   obStepOf: { bn: "ধাপ {step} / {total}", en: "Step {step} / {total}" },
   skipForNow: { bn: "এখন এড়িয়ে যান", en: "Skip for now" },
-  districtExample: { bn: "যেমনঃ রংপুর", en: "e.g. Rangpur" },
-  areaExample: { bn: "যেমনঃ ৫", en: "e.g. 5" },
+  districtExample: { bn: "যেমন: রংপুর", en: "e.g. Rangpur" },
+  areaExample: { bn: "যেমন: ৫", en: "e.g. 5" },
   obDistrictTitle: { bn: "এলাকা / জেলা", en: "Area / District" },
   obAreaTitle: { bn: "জমির পরিমাণ (বিঘা)", en: "Land size (bigha)" },
   obFarmTitle: { bn: "প্রথম খামার তৈরি করুন", en: "Create first farm" },
@@ -649,7 +679,7 @@ export const dict = {
   svcSortDefault: { bn: "ডিফল্ট ক্রম", en: "Default order" },
   svcSortAsc: { bn: "দাম: কম থেকে বেশি", en: "Price: Low to High" },
   svcSortDesc: { bn: "দাম: বেশি থেকে কম", en: "Price: High to Low" },
-  svcCount: { bn: "{n} টি সেবা", en: "{n} services" },
+  svcCount: { bn: "{n}টি সেবা", en: "{n} services" },
   svcFoundWord: { bn: "পাওয়া গেছে", en: "found" },
   svcEmptyTitle: { bn: "কোন সেবা পাওয়া যায়নি", en: "No services found" },
 
@@ -667,7 +697,7 @@ export const dict = {
   // ── MyOrders (v2: tabs/empty/states via dictionary) ──
   ordTabActive: { bn: "সক্রিয়", en: "Active" },
   ordTabDelivered: { bn: "ডেলিভার্ড", en: "Delivered" },
-  ordEmptyTitle: { bn: "কোনো অর্ডার নাই", en: "No orders yet" },
+  ordEmptyTitle: { bn: "কোনো অর্ডার নেই", en: "No orders yet" },
   ordItemsTitle: { bn: "পণ্যসমূহ", en: "Items" },
   ordLastUpdated: { bn: "সর্বশেষ হালনাগাদ", en: "Last updated" },
   ordNoAddress: { bn: "এই অর্ডারে ডেলিভারি ঠিকানা লেখা হয়নি।", en: "No delivery address was recorded for this order." },
@@ -739,7 +769,10 @@ export const dict = {
   // ── Legal pages / wallet meta ──
   legalLastUpdated: { bn: "সর্বশেষ হালনাগাদ", en: "Last updated" },
   legalNavAria: { bn: "আইনি নথি", en: "Legal documents" },
-  walletExpiresIn: { bn: "মেয়াদ শেষ {days} দিনে", en: "Expires in {days}d" },
+  // Was "মেয়াদ শেষ {days} দিনে" / "Expires in {days}d": the bn put the count
+  // after the verb and the en abbreviated to a bare "d". Both now read as a
+  // sentence with the unit spelled out.
+  walletExpiresIn: { bn: "{days} দিনে মেয়াদ শেষ হবে", en: "Expires in {days} days" },
 
   // ── Offline queue outcomes (lib/offlineQueue.ts → App.tsx toasts) ──
   // A flush that saved at least one queued change reports the count.

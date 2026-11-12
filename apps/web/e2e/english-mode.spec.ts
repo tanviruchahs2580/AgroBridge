@@ -33,7 +33,12 @@ test.describe("English mode toggle", () => {
     await enButton.click();
 
     // Primary nav labels render in English (sidebar on desktop, bottom nav on mobile).
-    for (const label of ["Home", "My Farm", "Market", "Wallet"]) {
+    // These are the six bottom-bar labels from dict.nav* (i18n.ts), which are the
+    // SHORT forms: the bar was renovated on 2026-11-12, and "My Farm" — the old
+    // label for /farm, measured at 80px — no longer fits its slot at 320px. The full
+    // phrases still label the pages themselves ("My Farm" is /farm's <h1>, asserted
+    // by visual-contract.spec.ts with that same marker), so this list tracks nav*.
+    for (const label of ["Home", "Farm", "Advisor", "Market", "Wallet", "Orders"]) {
       await expect(page.getByRole("link", { name: new RegExp(`^\\S*\\s*${label}$`, "u") }).first()).toBeVisible();
     }
 

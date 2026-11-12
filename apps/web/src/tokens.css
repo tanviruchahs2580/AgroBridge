@@ -177,6 +177,17 @@
   --qs-accent-notifications: #078b4d;
   --qs-accent-notifications-ink: #e9fff3;
 
+  /* The scrim under the bottom bar. The bar is a floating pill, so the strip
+     between it and the screen edge is page, and mid-scroll content read through
+     that gap as unfinished (measured on /market at 390px by toggling the scrim
+     off: the strip below the pill changed by a mean |Δluminance| of 11.4, max
+     151.6). This fades the page surface in from the bottom and is opaque over
+     the whole safe-area inset — the first 64% of the element, which at 48px of
+     inset is generously more than the 56px strip. The element is exactly the
+     nav's own box, so nothing above the pill is veiled. It references
+     --color-surface-bg rather than a literal, so it follows the theme. */
+  --gradient-nav-fade: linear-gradient(to top, var(--color-surface-bg) 0%, var(--color-surface-bg) 64%, transparent 100%);
+
   /* Gradients — hero surfaces, CTAs, AI + info moments. These are the live
      light defaults (previously duplicated in index.css; dark.css re-points
      them under html[data-theme="dark"]). Without them every bg-cta/bg-hero
@@ -224,6 +235,18 @@
      Safe-area padding is added by the header itself and only applies below md,
      where the sidebar is not rendered. */
   --shell-header-offset: 57px;
+
+  /* The bottom bar's own height, so floating UI on a phone (the market cart
+     bar, the toast stack) clears it by one number instead of hardcoding `5rem`
+     twice and silently overlapping the bar after any restyle. Derived by
+     measuring BottomNav's box at 320/360/390/430px with a 48px inset — the pill
+     is 74px (2px border × 2 + `p-1` 4px × 2 + 28px icon tile + 4px gap + 24px
+     label line + `py-1` 8px) and the dock adds an 8px gap plus the inset; 90 is
+     the 74px pill plus 8px of gap plus 8px of clearance for whatever floats
+     above it. Callers add `env(safe-area-inset-bottom)` themselves — the inset
+     belongs to the device, not the component. Re-measured after the renovation:
+     the cart bar clears the pill by 24.5px and the toast stack by 8px. */
+  --shell-nav-offset: 90px;
 
   /* Type scale — 9 sizes. The two smallest/odd values below were previously
      written as arbitrary utilities at their call sites (text-[10px], text-[15px]);

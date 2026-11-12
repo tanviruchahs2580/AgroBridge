@@ -14,6 +14,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 
 /**
  * framer-motion pass-through (test-only). jsdom never completes the exit
@@ -61,7 +62,7 @@ vi.mock("framer-motion", async () => {
 vi.mock("./session", () => ({ useSession: () => null }));
 vi.mock("./api.js", () => ({ api: () => Promise.resolve({}), hasToken: () => true, API_BASE: "/api/v1" }));
 
-import { ConfirmProvider, Modal, ToastProvider, useConfirm, useToast } from "./ui";
+import { ConfirmProvider, Modal, ToastProvider, useConfirm, useToast, BottomNav } from "./ui";
 
 function mount(node: React.ReactElement) {
   const container = document.createElement("div");
@@ -309,4 +310,145 @@ describe("dialog a11y — inert scope", () => {
     }
     mounted.unmount();
   }, 15_000);
+});
+
+/**
+ * Bottom bar contract.
+ *
+ * The bar is the only navigation on a phone, so every regression here is a
+ * dead end for the user. The 2026-11-12 renovation changed its structure (the
+ * list became `ul > li > a`, the icon sits in a tile, labels can be shortened)
+ * — these tests pin the parts the rest of the app and the e2e suite rely on, so
+ * a later restyle cannot quietly drop them:
+ *
+ *  - one link per tab, each carrying its label as its accessible name;
+ *  - `aria-current="page"` on exactly the active tab (the e2e suite and screen
+ *    readers both locate the current tab this way);
+ *  - the offline-write badge keeps a text equivalent OUTSIDE the aria-hidden
+ *    icon, because inside it the badge was colour-only;
+ *  - `min-h-[44px]` on the link, the WCAG 2.2 target minimum;
+ *  - the safe-area inset stays on the positioning wrapper, not on the glass
+ *    surface — on the surface it produced 52px of empty glass under the pill.
+ */
+function mountNav(items: React.ComponentProps<typeof BottomNav>["items"], route = "/") {
+  return mount(
+    React.createElement(
+      MemoryRouter,
+      { initialEntries: [route] },
+      React.createElement(BottomNav, { items, ariaLabel: "Primary navigation" })
+    )
+  );
+}
+
+const NAV_ITEMS: React.ComponentProps<typeof BottomNav>["items"] = [
+  { to: "/", label: "হোম", icon: React.createElement("svg", { "data-icon": "home" }) },
+  { to: "/farm", label: "খামার", icon: React.createElement("svg", { "data-icon": "farm" }) },
+  { to: "/market", label: "বাজার", icon: React.createElement("svg", { "data-icon": "market" }) },
+];
+
+describe("BottomNav", () => {
+  it("renders one link per tab, named by its label", () => {
+    const mounted = mountNav(NAV_ITEMS);
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-testid="bottom-nav"] a'));
+    expect(links).toHaveLength(NAV_ITEMS.length);
+    for (const [i, item] of NAV_ITEMS.entries()) {
+      expect(links[i]!.textContent).toContain(item.label);
+    }
+    expect(document.querySelector('[data-testid="bottom-nav"]')!.getAttribute("aria-label")).toBe(
+      "Primary navigation"
+    );
+    mounted.unmount();
+  });
+
+  it("flags exactly the active tab with aria-current=page", () => {
+    const mounted = mountNav(NAV_ITEMS, "/market");
+    const active = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('[data-testid="bottom-nav"] a[aria-current="page"]')
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0]!.textContent).toContain("বাজার");
+    mounted.unmount();
+  });
+
+  it("gives each link the 44px minimum touch target", () => {
+    const mounted = mountNav(NAV_ITEMS);
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('[data-testid="bottom-nav"] a')) {
+      expect(a.className).toContain("min-h-[44px]");
+    }
+    mounted.unmount();
+  });
+
+  it("leaves a way back to a label that truncate would clip", () => {
+    // The conventions forbid clipping Bangla copy with no recovery path. The six
+    // labels fit today; `title` is what keeps a longer one honest.
+    const mounted = mountNav(NAV_ITEMS);
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('[data-testid="bottom-nav"] a')) {
+      const label = a.querySelector("span:last-of-type")?.textContent ?? "";
+      expect(label.length).toBeGreaterThan(0);
+      expect(a.getAttribute("title")).toBe(label);
+    }
+    mounted.unmount();
+  });
+
+  it("keeps the badge's meaning as text outside the aria-hidden icon", () => {
+    const mounted = mountNav(
+      [
+        ...NAV_ITEMS,
+        {
+          to: "/wallet",
+          label: "ওয়ালেট",
+          icon: React.createElement("svg", { "data-icon": "wallet" }),
+          badge: true,
+          badgeCount: 2,
+          badgeLabel: "ওয়ালেটে ২টি অফলাইন পরিবর্তন সিঙ্ক হওয়ার অপেক্ষায়",
+        },
+      ],
+      "/wallet"
+    );
+    const wallet = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-testid="bottom-nav"] a')).find(
+      (a) => a.getAttribute("href") === "/wallet"
+    );
+    expect(wallet, "the wallet tab did not render").toBeTruthy();
+    // The count is visible, inside the decorative icon wrapper.
+    const icon = wallet!.querySelector('[aria-hidden="true"]');
+    expect(icon!.textContent).toContain("2");
+    // And the explanation is a real text node the AT tree still sees.
+    expect(wallet!.textContent).toContain("সিঙ্ক হওয়ার অপেক্ষায়");
+    mounted.unmount();
+  });
+
+  it("puts no Bengali label in a line box tighter than the font", () => {
+    const mounted = mountNav(NAV_ITEMS);
+    for (const span of document.querySelectorAll<HTMLElement>('[data-testid="bottom-nav"] a > span:last-of-type')) {
+      // `leading-none` was the measured defect: 11px Bengali in an 11px box.
+      expect(span.className).not.toContain("leading-none");
+      expect(span.className).toContain("truncate");
+    }
+    mounted.unmount();
+  });
+
+  it("keeps the safe-area inset off the glass surface", () => {
+    const mounted = mountNav(NAV_ITEMS);
+    const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]')!;
+    expect(nav.style.paddingBottom).toContain("env(safe-area-inset-bottom)");
+    // The glass pill must not inherit the inset. Target it by tag, not by
+    // position: the nav also carries the decorative fade scrim under the pill.
+    const surface = nav.querySelector<HTMLElement>("ul")!;
+    expect(surface).not.toBeNull();
+    expect(surface.style.paddingBottom).toBe("");
+    mounted.unmount();
+  });
+
+  it("fades the page out beneath the floating pill", () => {
+    const mounted = mountNav(NAV_ITEMS);
+    const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]')!;
+    // Without this the gesture strip under the pill is bare page, and
+    // mid-scroll content reads through it (measured on /market at 390px).
+    const scrim = nav.querySelector<HTMLElement>(":scope > span")!;
+    expect(scrim.getAttribute("aria-hidden")).toBe("true");
+    expect(scrim.style.backgroundImage).toBe("var(--gradient-nav-fade)");
+    // Decorative only: it must never intercept a tap meant for the page.
+    expect(scrim.className).toContain("pointer-events-none");
+    mounted.unmount();
+  });
 });
