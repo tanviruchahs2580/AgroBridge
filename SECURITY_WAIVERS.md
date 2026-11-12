@@ -8,6 +8,9 @@ must be re-reviewed or remediated. Reviewed monthly alongside `npm audit` (docs/
 |---|---|---|---|---|---|
 | GHSA-5xrq-8626-4rwp | vitest (+@vitest/*) | Moderate | Dev-only test dependency — never installed in production images (runtime stage uses `npm ci --omit=dev`); fix requires a major-version test-framework bump scheduled separately | Not exposed to network traffic; CI-only execution; production tree audited clean (`npm audit --omit=dev` = 0 findings, verified 2026-09-15) | **2026-12-31** |
 | — | @capacitor/cli, autocannon | Moderate | Dev/ops tooling only (Android build, local load test) — not present in any shipped image | Local execution only; not reachable from production | **2026-12-31** |
+| GHSA-w5hq-g745-h8pq | uuid (via `xcode`, `hyperid`) | Moderate | Missing bounds check in **v3/v5/v6 when the caller passes a `buf`**. Both consumers call `v4()` only (`xcode/lib/pbxProject.js:90` `uuid.v4()`; `hyperid/uuid-node.js` exports `uuid.v4`) — the vulnerable functions are never invoked. No non-major fix exists: patched is 11.1.1, and the fix path is autocannon 7→9 and @capacitor/cli 8.5→8.6 (which pulls xcode 4). Barred by the release-stabilisation window ("no major dependency bumps", CONTRIBUTING §Dependency policy) | Dev/ops tooling only — xcode serves iOS, which this Android-only repo never builds; autocannon runs only in the local `scripts/loadtest.mjs`. Production tree audited clean (`npm audit --omit=dev` = 0, 2026-11-12) | **2027-01-31** |
+| GHSA-g3hv-75wg-m249 | minimatch (via `@typescript-eslint/typescript-estree`) | Moderate | ReDoS-shaped DoS in glob matching. Patched is 11.0.1; the installed 10.2.6 comes from `minimatch@^10.2.2`, declared by the **latest published** typescript-eslint (8.72.2) — no released version accepts 11.x, so clearing it needs a transitive major bump, barred during the stabilisation window | Lint tooling only, executed locally and in CI over the repository's own file paths — no attacker-supplied glob ever reaches it. Production tree audited clean (`npm audit --omit=dev` = 0, 2026-11-12) | **2027-01-31** |
+| GHSA-gcqx-w48m-w2h4 | deepmerge (via `vite-plugin-pwa` → `workbox-build` → `@rollup/plugin-node-resolve`) | Low | Prototype pollution in `mergeObject()`. **No fixed release exists** — 4.3.1 is the newest published version, so there is nothing to bump to. Reachable only through `vite-plugin-pwa`, a devDependency this repo deliberately never enables (the service worker is a kill switch; `vite.config.ts` does not list `VitePWA`) | The polluted merge needs attacker-controlled objects in a build config; the only inputs are this repo's own `vite.config.ts` values. Removing the unused devDependency would clear it, but that is a deliberate documented decision (AGENTS.md §8) and an owner call. Production tree audited clean (`npm audit --omit=dev` = 0, 2026-11-12) | **2027-01-31** |
 
 ## Static-analysis (CodeQL / gitleaks) triage — 2026-10-18 audit
 
@@ -42,6 +45,21 @@ qs (GHSA via body-parser/express/superagent `~6.15.x`) and deepmerge-ts (`@prism
 were pulled to fixed versions via root `overrides` in `package.json`
 (`qs@^6.16.0`, `deepmerge-ts@^8.0.0`); `npm audit --omit=dev` is now **0 findings**
 and CI fails the build on any moderate+ production finding.
+
+Resolved by remediation (2026-11-12) — 12 of the 15 Dependabot alerts open on `main`, cleared by
+`npm update` inside the ranges their parents already declared (no `overrides` needed, no major
+moved, so the release-stabilisation window is respected):
+
+| Package | Was | Now | Cleared |
+|---|---|---|---|
+| undici (via jsdom) | 8.10.2 | **8.12.4** | 4 high + 1 moderate — GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm, GHSA-xjj6-f33q-929c, GHSA-9fm3-97px-rjf6 |
+| fast-uri (via ajv, @commitlint/config-validator) | 3.1.8 | **3.1.9** | 1 moderate + 3 low — GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr, GHSA-333x-w4r6-6crp |
+| postcss-selector-parser (via tailwindcss, postcss-nested) | 6.1.4 | **6.1.6** | 1 moderate — GHSA-rj75-hqrm-r3gf |
+| serialize-javascript (via `@rollup/plugin-terser`) | 7.1.1 | **7.1.4** | 2 low — GHSA-m5mm-p8h7-m29v, GHSA-gfhx-hw2g-v5hg |
+
+The four replaced their existing Dependabot PRs (`undici-8.12.3`, `fast-uri-3.1.9`,
+`postcss-selector-parser-6.1.5`, `serialize-javascript-7.1.4`), which can be closed as superseded.
+`npm audit --omit=dev` remains **0 findings**.
 
 Rules:
 
