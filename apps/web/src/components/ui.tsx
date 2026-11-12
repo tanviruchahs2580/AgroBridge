@@ -426,15 +426,55 @@ export function BlockError({ error, retryLabel, onRetry }: { error: string | nul
 // ── Navigation shells — Enterprise Refinement ──
 /** `ariaLabel` is passed in rather than hardcoded: the shell must not announce
  * an English landmark name on a Bengali screen (App.tsx supplies the copy).
- * `badgeLabel` names what the dot means, and is rendered *outside* the
+ * `badgeLabel` names what the badge means, and is rendered *outside* the
  * `aria-hidden` icon span — inside it, the text was invisible to assistive
  * technology and the badge became colour-only, and it also said "new
- * notifications" on a tab whose badge is the offline write queue. */
+ * notifications" on a tab whose badge is the offline write queue.
+ *
+ * Renovated 2026-11-12 from a measured defect report (390×844, CDP safe-area
+ * emulation at 48px). Four things were wrong with the old bar, and each fix
+ * below is tied to the measurement that found it:
+ *
+ * 1. **The glass absorbed the safe-area inset.** The pill was `bottom-3` with
+ *    the inset added to its own `padding-bottom`, so on a gesture-bar phone it
+ *    measured 120px tall with 52px of empty translucent glass under the pill's
+ *    content. The inset is now padding on a transparent dock and the glass
+ *    surface stops above the gesture bar.
+ * 2. **Bengali labels got a line box as tall as the font.** The label span
+ *    carried `leading-none`, so `line-height === font-size` and the font's own
+ *    em box overhung the line box — measured on the 15px header wordmark that
+ *    carried the same class, the em box is 21px in an 18.75px line box, and
+ *    Hind Siliguri's ink came within 1px of the clip edge that `truncate`'s
+ *    `overflow:hidden` creates. The line box here is now the 24px one that
+ *    `text-sm` (13px) is paired with, and no call site sets `leading-none` on
+ *    text that can be Bengali. (A later 3×-DPR pass by an independent reviewer
+ *    could not reproduce actual ink clipping at an 18px or 20px box either —
+ *    the em box, not the ink, is what overhung — so this is belt-and-braces
+ *    rather than a repaired cut.)
+ * 3. **Six labels in six slots collided.** The widest old label measured 80px
+ *    at 11px ("এআই কৃষি সহকারী"), so it wrapped to two lines while its
+ *    neighbours stayed on one and the baselines did not line up. The bar now
+ *    uses short labels (App.tsx `navFarm`, `navAdvisor`, `navOrders`); `truncate`
+ *    is the backstop. The slot is what matters: at 320px the link's content box
+ *    is 47px once the link carries no horizontal padding, and the widest of the
+ *    six labels ("Advisor", 44px) fits with 3px spare. An earlier revision kept
+ *    `px-1` on the link, which left a 39px box and ellipsized three labels at
+ *    320px — found by the independent QA pass, not by the first measurement,
+ *    which had read the link's width instead of the label's.
+ * 4. **The active state was a pale wash.** `bg-brand-50` on a white pill reads
+ *    as a hover, not as "you are here". The active tab now fills an icon tile
+ *    with `--color-action` and switches its label to bold accent — a shape and
+ *    weight change as well as a colour change, so the current tab is not
+ *    signalled by colour alone.
+ *
+ * The badge is a count pill rather than a bare 2px dot: a dot says "something"
+ * without saying what, and this one means "offline wallet changes still waiting
+ * to sync" (`queuePendingBadge`). */
 export function BottomNav({
   items,
   ariaLabel,
 }: {
-  items: { to: string; label: string; icon: ReactNode; badge?: boolean; badgeLabel?: string }[];
+  items: { to: string; label: string; icon: ReactNode; badge?: boolean; badgeCount?: number; badgeLabel?: string }[];
   ariaLabel: string;
 }) {
   if (import.meta.env.VITE_FEATURE_NEW_SHELL === "false") return null;
@@ -442,30 +482,79 @@ export function BottomNav({
     <nav
       aria-label={ariaLabel}
       data-testid="bottom-nav"
-      className="fixed inset-x-2 bottom-3 z-20 flex rounded-2xl border border-surface-border bg-[var(--glass-nav)] p-1 shadow-float backdrop-blur-md md:hidden"
-      style={{ paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom))" }}
+      className="fixed inset-x-0 bottom-0 z-20 px-2 md:hidden"
+      style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
     >
-      {items.map((it) => (
-        <NavLink
-          key={it.to}
-          to={it.to}
-          className={({ isActive }) =>
-            `flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
-              isActive ? "bg-brand-50 text-accent shadow-sm ring-1 ring-inset ring-brand-100" : "text-stone-600 hover:bg-stone-100 hover:text-link"
-            }`
-          }
-          style={{ minHeight: 44 }}
-        >
-          <span aria-hidden className="relative text-lg">
-            {it.icon}
-            {it.badge && (
-              <span className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-enterprise-critical ring-2 ring-[var(--color-surface-card)]" />
-            )}
-          </span>
-          <span className="leading-none tracking-[-0.01em]">{it.label}</span>
-          {it.badge && it.badgeLabel && <span className="sr-only">{it.badgeLabel}</span>}
-        </NavLink>
-      ))}
+      {/* The pill floats, so the strip between it and the screen edge is page,
+          not chrome — and mid-scroll content read through that gap (measured on
+          /market at 390px: toggling this element off changed the strip below the
+          pill by a mean |Δluminance| of 11.4, max 151.6). This scrim fades the
+          page surface in from the bottom edge and is opaque across the whole
+          safe-area inset. It is exactly the nav's own box (`inset-y-0`, not
+          taller): a first version overhung the pill by 2rem and a QA pass
+          measured it ghosting the last row of Home's dark Quick Services panel
+          (mean ΔL 38.6, max 109.6) while the pill covers that area anyway — the
+          only region it has to work on is the strip below the pill and the thin
+          margins beside it. The gradient is a token, so no hex lives here. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundImage: "var(--gradient-nav-fade)" }}
+      />
+      <ul className="relative flex items-stretch gap-0.5 rounded-card border border-surface-border bg-[var(--glass-nav)] p-1 shadow-float backdrop-blur-md">
+        {items.map((it) => (
+          <li key={it.to} className="flex min-w-0 flex-1">
+            <NavLink
+              to={it.to}
+              // `title` because of `truncate` on the label below: the frontend
+              // conventions forbid clipping Bangla copy with no way back to the
+              // full text. The six labels fit at 320px as measured below (`px-1`
+              // removed for exactly that reason), so this is the recovery path for
+              // a longer one, not a live tooltip.
+              title={it.label}
+              className={({ isActive }) =>
+                // No horizontal padding on the link: it is 4px each side out of a
+                // 47px slot at 320px, and the label below has to fit inside what is
+                // left. With `px-1` the content box was 39px and three labels
+                // ellipsized in a 320px viewport (measured: en "Advisor" 44px,
+                // en "Market" 41, bn "ওয়ালেট" 40 against a 39px box). Without it
+                // the box is 47px and the widest of the six fits with 3px spare.
+                // The label is `w-full truncate text-center` and the icon tile is
+                // centred, so nothing needed that padding.
+                `group flex min-h-[44px] w-full flex-col items-center justify-center gap-1 rounded-2xl py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+                  isActive ? "font-bold text-accent" : "font-semibold text-stone-600 hover:text-link"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    aria-hidden
+                    className={`relative flex h-7 w-10 items-center justify-center rounded-full transition-colors ${
+                      isActive ? "bg-action text-white shadow-button" : "group-hover:bg-stone-100"
+                    }`}
+                  >
+                    {it.icon}
+                    {it.badge && (
+                      <span className="absolute -right-1 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-enterprise-critical-strong px-1 text-2xs font-bold text-white shadow-sm">
+                        {it.badgeCount && it.badgeCount > 9 ? "9+" : (it.badgeCount ?? "")}
+                      </span>
+                    )}
+                  </span>
+                  {/* No `leading-none`: see (2) above. `leading-6` rather than the
+                      13/18 `sm` step: measured at 13px, Hind Siliguri's ink box for a
+                      Bengali label is 22px, so an 18px (or 20px) line box plus
+                      `truncate`'s `overflow:hidden` shaved the matras and descenders by
+                      1–2px. `truncate` stays as the horizontal backstop so a long
+                      label can never wrap into its neighbour. */}
+                  <span className="w-full truncate text-center leading-6">{it.label}</span>
+                  {it.badge && it.badgeLabel && <span className="sr-only">{it.badgeLabel}</span>}
+                </>
+              )}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
@@ -648,7 +737,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           "assertive"`, so errors sat inside two nested live regions and could be
           announced twice. Each toast now owns exactly one role, which is what
           decides politeness (`alert` = assertive, `status` = polite). */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--shell-nav-offset)+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 md:bottom-6">
         <AnimatePresence>
           {items.map((tst) => (
             <m.div

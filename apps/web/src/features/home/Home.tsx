@@ -9,7 +9,7 @@ import { useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import { careToneClass, cropLabel, stageLabel, weatherConditionLabel, weatherRiskActionLabel } from "../../lib/labels";
+import { careToneClass, cropLabel, stageLabel, weatherConditionLabel } from "../../lib/labels";
 import { actionableRisks } from "../../lib/weatherRisks";
 import { deriveTodayTasks } from "./todayTasks";
 import { weatherProvenanceLine } from "./weatherProvenance";
@@ -119,8 +119,13 @@ export default function Home() {
       {/* Greeting */}
       <section className="animate-enterprise px-1" style={{ animationDelay: "0ms" } as React.CSSProperties}>
         {/* On the scale: this was the only page <h1> sized off it (17px, not a
-            step, against the 20px every PageHeader screen uses). */}
-        <h1 className="text-lg font-bold leading-tight tracking-tight text-stone-800 sm:text-xl">
+            step, against the 20px every PageHeader screen uses).
+            `leading-snug`, not `leading-tight`: the greeting wraps to two lines at
+            320px, where 1.25 leading gave a measured 5px ink gap between the lines
+            (7px at 1.375). Tight for Bengali, where the second line's matras sit
+            directly under the first line's descenders — not overlapping, but the
+            snugger of the two is the safer reading at the smallest width. */}
+        <h1 className="text-lg font-bold leading-snug tracking-tight text-stone-800 sm:text-xl">
           {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
         <p className="mt-1 text-sm text-stone-600">{lang === "bn" ? todayBn : todayEn}</p>
@@ -302,11 +307,11 @@ export default function Home() {
                 <div className="relative mt-4 grid grid-cols-2 gap-2">
                   <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2">
                     <Droplets aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
-                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
+                    <span className="flex min-w-0 flex-col"><span className="truncate text-xs font-medium leading-4 text-stone-600">{t("humidityLabel", lang)}</span><span className="mt-0.5 text-sm font-bold leading-5 tabular-nums text-stone-700">{weather.current.humidityPct}%</span></span>
                   </span>
                   <span className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2">
                     <Wind aria-hidden className="h-4 w-4 shrink-0 text-sky-600" />
-                    <span className="flex min-w-0 flex-col leading-none"><span className="truncate text-xs font-medium text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
+                    <span className="flex min-w-0 flex-col"><span className="truncate text-xs font-medium leading-4 text-stone-600">{t("windLabel", lang)}</span><span className="mt-0.5 text-sm font-bold leading-5 tabular-nums text-stone-700">{weather.current.windKmh} km/h</span></span>
                   </span>
                 </div>
                 {/* Provenance: fetched time + source, "cached copy" when the
@@ -327,13 +332,16 @@ export default function Home() {
             )}
           </div>
           {/* No status strip here any more. It printed the same two strings as the
-              Smart Alerts section below it — when clear, the identical
-              "আবহাওয়া অনুকূল / নিয়মিত ফার্ম পরিশোধন" pair; when risky, the same
-              risk title and action. The advisory belongs to the advisory section,
-              so this card now carries the reading (temperature, condition, wind,
-              provenance) and nothing repeats. It also read `risks[0]` raw while
-              `hasRisk` used the filtered list, so an INFO-level favourable
-              advisory could take the warning branch on this very strip. */}
+              Smart Alerts section that used to sit below it — when clear, the
+              identical "আবহাওয়া অনুকূল / নিয়মিত ফার্ম পরিশোধন" pair; when risky,
+              the same risk title and action. The advisory belonged to the
+              advisory section, so this card carries the reading (temperature,
+              condition, wind, provenance) and nothing repeats. It also read
+              `risks[0]` raw while `hasRisk` used the filtered list, so an
+              INFO-level favourable advisory could take the warning branch on this
+              very strip. That section is now removed at the owner's request
+              (2026-11-12), so this card is the only weather surface on Home;
+              actionable risks still surface on MyFarm. */}
         </div>
 
         {/* চলমান ফসল */}
@@ -391,45 +399,13 @@ export default function Home() {
       {/* দ্রুত সেবা — owner-approved redesign (2026-11-12): dark forest-green
           panel, 2×2 cards, its own section-scoped tokens. The component is
           presentational; the destinations and the unread state below are the
-          same ones the inline tiles used, passed straight through. */}
-      <QuickServices lang={lang} unread={unread} unreadKnown={unreadKnown} />
+          same ones the inline tiles used, passed straight through.
 
-      {/* Smart Alerts — live weather risks only; a quiet state when clear */}
-      <section className="animate-enterprise rounded-card border border-surface-border bg-surface-card p-4 shadow-card" style={{ animationDelay: "260ms" } as React.CSSProperties}>
-        <h2 className="flex items-center gap-2 text-sm font-bold text-stone-800">
-          <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-warning-bg text-warning-text"><TriangleAlert className="h-3.5 w-3.5" /></span>
-          {t("alertsTitle", lang)}
-        </h2>
-        <ul className="mt-3 space-y-2">
-          {hasRisk && weather ? (
-            actionableRisks(weather).slice(0, 2).map((r) => (
-              <li key={`${r.type}-${r.severity}`} className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-enterprise-warning" aria-hidden />
-                <span className="text-xs leading-relaxed text-stone-700">
-                  {lang === "bn" ? r.titleBn : r.titleEn}
-                  {(() => {
-                    const action = weatherRiskActionLabel(r.type, lang);
-                    return action ? <span className="text-stone-500"> — {action}</span> : null;
-                  })()}
-                </span>
-              </li>
-            ))
-          ) : weather ? (
-            <li className="flex items-start gap-2 rounded-xl border border-surface-border bg-surface-subdued px-3 py-2.5">
-              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-success-border" aria-hidden />
-              <span className="text-xs leading-relaxed text-stone-700">{t("weatherFavorable", lang)} — {t("regularFarmVisit", lang)}</span>
-            </li>
-          ) : (
-            // hasRisk is false when the weather read failed or is still running,
-            // and this branch answered that with "Weather favorable" — an agronomic
-            // all-clear derived from no data at all.
-            <li className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-text" aria-hidden />
-              <span className="text-xs leading-relaxed text-warning-text">{t("alertsUnavailable", lang)}</span>
-            </li>
-          )}
-        </ul>
-      </section>
+          This is deliberately the last section on Home: the Smart Alerts panel
+          that used to follow it was removed at the owner's request on
+          2026-11-12 (it repeated the weather card and pushed the page's tail
+          under the fixed bottom nav on Android). */}
+      <QuickServices lang={lang} unread={unread} unreadKnown={unreadKnown} />
     </div>
   );
 }

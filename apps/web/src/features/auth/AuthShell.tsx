@@ -160,7 +160,9 @@ export function AuthShell({
             aria-hidden
             className="relative h-16 w-16 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
           />
-          <div className="relative mt-2.5 text-xl font-extrabold leading-none tracking-[-0.01em] drop-shadow-sm">
+          {/* `leading-none` on 18px Bengali clipped the matras; `leading-tight`
+              gives the line box room without shifting the stack. */}
+          <div className="relative mt-2.5 text-xl font-extrabold leading-tight tracking-[-0.01em] drop-shadow-sm">
             {t("appName", lang)}
           </div>
           <div className="relative mt-1.5 text-xs font-medium text-white/85 drop-shadow-sm">
@@ -196,7 +198,7 @@ export function AuthShell({
 
         <div className="relative flex items-center gap-3 p-10">
           <BrandMark />
-          <div className="text-base font-bold leading-none">{t("appName", lang)}</div>
+          <div className="text-base font-bold leading-tight">{t("appName", lang)}</div>
         </div>
 
         <p className="relative p-10 text-xs font-medium text-white/60">© {new Date().getFullYear()} {t("appName", lang)}</p>

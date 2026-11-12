@@ -126,13 +126,16 @@ function Shell({ children }: { children: ReactNode }) {
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   const lang = session.lang;
 
-  const primaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
-    { to: "/", key: "home", icon: <HomeIcon className="h-5 w-5" /> },
-    { to: "/farm", key: "myFarm", icon: <Tractor className="h-5 w-5" /> },
-    { to: "/advisor", key: "aiAgent", icon: <Bot className="h-5 w-5" /> },
-    { to: "/market", key: "market", icon: <ShoppingCart className="h-5 w-5" /> },
-    { to: "/wallet", key: "wallet", icon: <WalletIcon className="h-5 w-5" /> },
-    { to: "/orders", key: "myOrders", icon: <Package className="h-5 w-5" /> },
+  // `key` is the full phrase (page headings, document title). `navKey` is the
+  // short form the bottom bar needs to fit six tabs on one line — see the note
+  // above `navHome` in lib/i18n.ts for the measurements.
+  const primaryNav: { to: string; key: Parameters<typeof t>[0]; navKey: Parameters<typeof t>[0]; icon: ReactNode }[] = [
+    { to: "/", key: "home", navKey: "navHome", icon: <HomeIcon className="h-5 w-5" /> },
+    { to: "/farm", key: "myFarm", navKey: "navFarm", icon: <Tractor className="h-5 w-5" /> },
+    { to: "/advisor", key: "aiAgent", navKey: "navAdvisor", icon: <Bot className="h-5 w-5" /> },
+    { to: "/market", key: "market", navKey: "navMarket", icon: <ShoppingCart className="h-5 w-5" /> },
+    { to: "/wallet", key: "wallet", navKey: "navWallet", icon: <WalletIcon className="h-5 w-5" /> },
+    { to: "/orders", key: "myOrders", navKey: "navOrders", icon: <Package className="h-5 w-5" /> },
   ];
   const secondaryNav: { to: string; key: Parameters<typeof t>[0]; icon: ReactNode }[] = [
     { to: "/services", key: "services", icon: <Wrench className="h-5 w-5" /> },
@@ -142,9 +145,10 @@ function Shell({ children }: { children: ReactNode }) {
 
   const bottomItems = primaryNav.map((n) => ({
     to: n.to,
-    label: t(n.key, lang),
+    label: t(n.navKey, lang),
     icon: n.icon,
     badge: n.to === "/wallet" && queued > 0,
+    badgeCount: n.to === "/wallet" ? queued : undefined,
     // What the dot MEANS. It used to be a hardcoded "new notifications" inside
     // the aria-hidden icon span: wrong text (this badge is the offline write
     // queue) and invisible to assistive technology, so the badge was colour-only.
@@ -166,16 +170,31 @@ function Shell({ children }: { children: ReactNode }) {
         // the sticky header renders underneath the status bar.
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
+        {/* `flex-wrap` + a non-shrinking brand. Measured defect: the brand was
+            `min-w-0` inside a non-wrapping `justify-between` row, so it absorbed
+            ALL of the control cluster's width pressure and `truncate` rendered a
+            real ellipsis — "AgroBrid…" — at every width below 412px (390: 77/78,
+            375: 73/78, 360: 69/78, 320: 59/78). The ellipsis was width, not
+            leading: forcing `line-height:1` left the numbers identical. Wrapping
+            is the same fix the cluster below already uses, and it makes the header
+            SHORTER (108px vs 120px at 390) because the brand no longer steals a
+            line's worth of width from the row. */}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2.5">
             <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
               <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
             </span>
             {/* Name only. The tagline that sat under it was the one piece of brand
                 copy in the chrome: it said nothing about where the user is or what
                 they can do here, and it was the first thing to wrap at 360px. The
-                mark and the name are the identity. */}
-            <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
+                mark and the name are the identity.
+                `leading-none` removed: at 15px this put the wordmark's 21px em box
+                inside an 18.75px line box, with `truncate`'s `overflow:hidden` as
+                the clip. At 3× DPR the ink measured 1px clear of the edge, so the
+                old line box was not visibly cutting it — `leading-snug` (1.375)
+                removes the hazard without changing the header's height budget
+                (the 32px brand mark, not this line, sets that). */}
+            <div className="truncate text-[15px] font-bold leading-snug text-white">{t("appName", lang)}</div>
           </div>
           {/* The control cluster wraps instead of overflowing. Measured defect
               (Quick Services report §8.2): at ≤320px, and at 125% text scaling
@@ -261,7 +280,24 @@ function Shell({ children }: { children: ReactNode }) {
       )}
       <div className="mx-auto flex max-w-6xl">
         <Sidebar items={sidebarItems} ariaLabel={t("sidebarNavAria", lang)} />
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 pb-24 outline-none md:pb-5">{children}</main>
+        {/* The mobile bottom padding must clear the FIXED BottomNav, and the nav's
+            height is not a constant: it is its 72px of content plus
+            `env(safe-area-inset-bottom)`, sitting 12px above the viewport edge
+            (ui.tsx BottomNav). A flat `pb-24` (96px) therefore only cleared it on
+            a device with no inset — measured at 390×844 with CDP safe-area
+            emulation: 12px hidden at a 24px inset, 36px at 48px, 52px at 64px,
+            i.e. the last section of Home sat permanently behind the nav on every
+            Android device with gesture navigation or a punch-hole bar. The
+            padding now carries the same inset term as the nav, so the 12px of
+            slack it has without an inset is kept at every inset. `md:` is
+            unchanged: the nav is hidden from `md` up. */}
+        <main
+          id="main"
+          tabIndex={-1}
+          className="min-w-0 flex-1 px-4 py-5 pb-[calc(var(--shell-nav-offset)_+_1rem_+_env(safe-area-inset-bottom))] outline-none md:pb-5"
+        >
+          {children}
+        </main>
       </div>
       <BottomNav items={bottomItems} ariaLabel={t("primaryNavAria", lang)} />
     </div>

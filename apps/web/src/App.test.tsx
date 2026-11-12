@@ -136,6 +136,54 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+describe("App — the fixed bottom nav cannot cover page content (measured defect, 2026-11-12)", () => {
+  it("the main landmark clears the nav on every safe-area inset", async () => {
+    // On an Android device with a gesture bar, BottomNav grows by
+    // env(safe-area-inset-bottom) while #main kept a flat pb-24 — measured with
+    // CDP safe-area emulation at 390×844: 36px of Home's last panel sat
+    // permanently behind the nav at a 48px inset. The clearance must therefore
+    // carry the same inset term the nav does.
+    mockSession = authedFarmer;
+    mount("/");
+    await flush();
+
+    const main = document.getElementById("main");
+    expect(main).toBeTruthy();
+    const cls = main!.className;
+    // The inset term is present in the mobile padding…
+    expect(cls).toContain("env(safe-area-inset-bottom)");
+    // …with no bare pb-24 left to compete with it, and the desktop reset intact
+    // (the nav is hidden from `md` up, so a desktop gutter would be a regression).
+    expect(cls).not.toContain("pb-24");
+    expect(cls).toContain("md:pb-5");
+  });
+});
+
+describe("App — the header wordmark is never truncated (measured defect, 2026-11-12)", () => {
+  it("the brand does not shrink and the header row can wrap", async () => {
+    // The brand sat `min-w-0` inside a non-wrapping `justify-between` row, so it
+    // absorbed all of the control cluster's width pressure and `truncate` painted
+    // a real ellipsis — "AgroBrid…" — below 412px (390: 77/78, 375: 73/78,
+    // 360: 69/78, 320: 59/78). Width, not leading: forcing `line-height:1` left
+    // the numbers unchanged. The fix is the same shape the control cluster
+    // already uses — let the row wrap, and stop the brand from shrinking.
+    mockSession = authedFarmer;
+    mount("/");
+    await flush();
+
+    const row = document.querySelector("header > div");
+    expect(row).toBeTruthy();
+    expect(row!.className).toContain("flex-wrap");
+
+    const brand = row!.firstElementChild as HTMLElement;
+    expect(brand.className).toContain("shrink-0");
+    // The wordmark still asks for `truncate` — that is the safety net if the name
+    // ever outgrows the row again. It must simply have room, which `shrink-0`
+    // guarantees by moving the pressure to the cluster that can wrap.
+    expect(brand.querySelector(".truncate")?.textContent).toBe(dict.appName.bn);
+  });
+});
+
 describe("App — routing and guards (F-29)", () => {
   it("sends a guest from a protected route to /login and renders the sign-in form", async () => {
     mount("/farm");

@@ -23,6 +23,10 @@ let farmsResult: unknown;
 // "count unavailable" state.
 let notifResult: unknown;
 let notifRejects = false;
+// Weather is normally the benign clear-day payload; a test may swap it for a
+// risky one, or make the read reject to drive the unavailable branch.
+let weatherResult: unknown;
+let weatherFails = false;
 
 vi.mock("../../lib/session", () => ({
   useSession: () => ({
@@ -104,7 +108,9 @@ function mockApi(_method: unknown, path: string) {
   if (path === "/notifications") {
     return notifRejects ? Promise.reject(new Error("notifications unavailable")) : Promise.resolve(notifResult);
   }
-  if (path.startsWith("/weather")) return Promise.resolve(weather);
+  if (path.startsWith("/weather")) {
+    return weatherFails ? Promise.reject(new Error("weather unavailable")) : Promise.resolve(weatherResult);
+  }
   throw new Error("unexpected request in Home.test: " + path);
 }
 
@@ -128,6 +134,8 @@ beforeEach(() => {
   farmsResult = [farmWithCrop()];
   notifResult = { items: [], unread: 0, counts: { critical: 0, action: 0, info: 0 } };
   notifRejects = false;
+  weatherResult = weather;
+  weatherFails = false;
 });
 
 afterEach(() => {
@@ -205,6 +213,80 @@ describe("Home farm-readiness panel — the 2026-11-12 photo redesign", () => {
       /#[0-9a-fA-F]{3,8}\b/.test(el.getAttribute("style") ?? ""),
     );
     expect(hexInStyle).toBe(false);
+  });
+});
+
+describe("Home — the স্মার্ট সতর্কতা (Smart Alerts) panel is gone (owner request, 2026-11-12)", () => {
+  // The panel duplicated the weather card (it printed the same "weather
+  // favourable / regular farm visit" pair) and, sitting last, its tail was the
+  // part that disappeared under the fixed bottom nav on Android. Removing it is
+  // the owner's decision; what these tests pin is that nothing ELSE left with it
+  // — the weather reading, the readiness meter and the risk-driven heading all
+  // stay, and no orphan copy remains.
+  it("renders no Smart Alerts heading or advisory row", async () => {
+    const div = mount(<Home />);
+    await settle();
+    const text = div.textContent ?? "";
+    expect(text).not.toContain("স্মার্ট সতর্কতা");
+    expect(text).not.toContain("Smart Alerts");
+    // Neither of the panel's two quiet-state strings survives elsewhere.
+    expect(text).not.toContain("আবহাওয়া অনুকূল");
+    expect(text).not.toContain("নিয়মিত খামার পরিদর্শন করুন");
+    // …and the unavailable-state line is gone too.
+    expect(text).not.toContain("আবহাওয়ার সতর্কতা পাওয়া যায়নি");
+  });
+
+  it("removing the panel did NOT remove the weather capability behind it", async () => {
+    const div = mount(<Home />);
+    await settle();
+    const text = div.textContent ?? "";
+    // The weather card still renders its reading, district and provenance.
+    expect(text).toContain(dict.weather.bn);
+    expect(text).toContain("28°");
+    expect(text).toContain(dict.humidityLabel.bn);
+    // The readiness meter still scores from farms + weather and names its basis.
+    expect(text).toMatch(/\d+%/);
+    expect(text).toContain(dict.farmReadiness.bn);
+    // The three reads are unchanged — the panel's removal touched no request.
+    expect(calls.map((c) => c.path.split("?")[0])).toEqual(
+      expect.arrayContaining(["/farms", "/notifications", "/weather"]),
+    );
+  });
+
+  it("a failed weather read still says so in the weather card, with a retry", async () => {
+    // The panel used to be the place that admitted a failed advisory fetch. Its
+    // removal must not leave the screen silently claiming a clear day.
+    weatherFails = true;
+    const div = mount(<Home />);
+    await settle();
+    const text = div.textContent ?? "";
+    expect(text).toContain(dict.weatherUnavailable.bn);
+    const retry = [...div.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim() === dict.retry.bn);
+    expect(retry).toBeTruthy();
+  });
+
+  it("an actionable risk still drives the readiness heading, so the signal is not lost", async () => {
+    // `hasRisk` is the one thing the panel shared with the panel above it. With
+    // the weather payload carrying a real warning, the heading must say
+    // "attention" — proof the risk path still reaches the UI.
+    weatherResult = {
+      ...weather,
+      risks: [
+        {
+          type: "RAIN_WARNING",
+          severity: "HIGH",
+          titleBn: "ভারী বৃষ্টির সম্ভাবনা",
+          titleEn: "Heavy rain likely",
+          detailEn: "Postpone spraying.",
+        },
+      ],
+    };
+    const div = mount(<Home />);
+    await settle();
+    expect(div.textContent ?? "").toContain(dict.aiFarmAttention.bn);
+    // …and the advisory's own title is no longer printed on Home (that copy
+    // lived in the removed panel); it belongs to MyFarm.
+    expect(div.textContent ?? "").not.toContain("ভারী বৃষ্টির সম্ভাবনা");
   });
 });
 

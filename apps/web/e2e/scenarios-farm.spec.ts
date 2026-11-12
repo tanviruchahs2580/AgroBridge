@@ -42,7 +42,12 @@ test.describe("Scenario acceptance — farm", () => {
     const planted = new Date(Date.now() - 31 * 86_400_000).toISOString().slice(0, 10);
     await cropForm.locator('input[type="date"]').fill(planted);
     await cropForm.locator("button[type='submit']").click();
-    await expect(page.getByText(/ইউরিয়া সেচ দিন|Apply urea top dressing/).first()).toBeVisible({ timeout: 10_000 });
+    // The Bengali string tracks dict.careTaskUreaTopDressing, which was corrected
+    // on 2026-11-12: it read "ইউরিয়া সেচ দিন" — "সেচ" is irrigation, so the bn told
+    // the farmer to water when the task is to apply urea. Both literals below must
+    // move together: line 60 asserts the task DISAPPEARS after the stage advance,
+    // and a stale regex there would match nothing and pass vacuously.
+    await expect(page.getByText(/ইউরিয়া সার উপরি প্রয়োগ করুন|Apply urea top dressing/).first()).toBeVisible({ timeout: 10_000 });
 
     // Legitimate forward stage advance (ACTIVE cycle): FLOWERING → routine care
     // replaces the vegetative task, so the chip is driven by the real stage.
@@ -57,7 +62,7 @@ test.describe("Scenario acceptance — farm", () => {
     // Reload returns to the collapsed card; expand the plot list again.
     await page.getByRole("button", { name: /প্লট দেখুন|View plots/ }).first().click();
     await expect(page.getByText(/ধান • /).first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/ইউরিয়া সেচ দিন|Apply urea top dressing/)).toHaveCount(0);
+    await expect(page.getByText(/ইউরিয়া সার উপরি প্রয়োগ করুন|Apply urea top dressing/)).toHaveCount(0);
   });
 
   test("[FARM-02] invalid input and out-of-order transitions rejected; values persist", async ({ page, request }) => {

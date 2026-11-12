@@ -104,7 +104,7 @@ export function ServiceCard({
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold tabular-nums leading-none text-stone-800">{formatBDT(pricePaisa, lang)}</span>
+              <span className="text-lg font-bold tabular-nums leading-tight text-stone-800">{formatBDT(pricePaisa, lang)}</span>
               <span className="text-xs font-normal tabular-nums text-stone-500">{priceUnitLabel(priceUnit, lang)}</span>
             </div>
             {/* Honest meta — the rating only when there are ratings to average,
