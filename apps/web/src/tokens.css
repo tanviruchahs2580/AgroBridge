@@ -133,6 +133,36 @@
   --color-warning-border: #fde68a;
   --color-warning-text: #92400e;
 
+  /* Quick Services section (দ্রুত সেবা, owner-approved design 2026-11-12).
+     SECTION-SCOPED on purpose — the spec forbids changing the app-wide theme
+     for one section. The surface is a dark forest-green panel in both themes
+     (it reads as a deliberate contrast surface over stone-100 / stone-900, the
+     same class of exception the auth photo panel is), so unlike --gradient-hero
+     these are not re-pointed in dark.css; they are defined once here. Values
+     come from the owner's templates/quick-services-design-tokens.json, mapped
+     into the token layer so the component carries no hex. Contrast of every
+     text/icon pair over these surfaces is validated in the browser (the spec
+     requires validating the rendered result, not the token values). */
+  --qs-section-start: #062a20;
+  --qs-section-end: #082219;
+  --qs-section-border: rgba(62, 166, 113, 0.62);
+  --qs-card: rgba(38, 70, 58, 0.72);
+  --qs-card-fallback: #18392f;
+  --qs-card-border: rgba(126, 190, 157, 0.3);
+  --qs-card-hover: rgba(48, 86, 71, 0.82);
+  --qs-card-press: rgba(28, 56, 46, 0.9);
+  --qs-text-primary: #f4f7f3;
+  --qs-text-secondary: #dce8df;
+  --qs-text-muted: #b7c8be;
+  --qs-accent-ai: #00b85a;
+  --qs-accent-ai-ink: #e9fff2;
+  --qs-accent-services: #087ed0;
+  --qs-accent-services-ink: #f0f8ff;
+  --qs-accent-crop: #d99a08;
+  --qs-accent-crop-ink: #fff3c6;
+  --qs-accent-notifications: #078b4d;
+  --qs-accent-notifications-ink: #e9fff3;
+
   /* Gradients — hero surfaces, CTAs, AI + info moments. These are the live
      light defaults (previously duplicated in index.css; dark.css re-points
      them under html[data-theme="dark"]). Without them every bg-cta/bg-hero

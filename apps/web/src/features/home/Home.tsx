@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import {
-  Bell, Bot, CheckSquare, CloudSun, Coins, Droplets, FlaskConical, Leaf,
-  Sprout, Stethoscope, Tractor, TriangleAlert, Wind,
+  Bot, CheckSquare, CloudSun, Droplets, FlaskConical, Leaf,
+  Sprout, Stethoscope, TriangleAlert, Wind,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import type { FarmListItem, NotificationsData, WeatherData } from "../../lib/api-types";
@@ -16,6 +16,7 @@ import { weatherProvenanceLine } from "./weatherProvenance";
 import { getWeatherCoords, isDistrictResolved } from "../../lib/geo";
 import { Button, ErrorBanner, Skeleton } from "../../components/ui";
 import { RiceEarMedallion } from "../../components/icons/AgriIcons";
+import { QuickServices } from "./QuickServices";
 
 /**
  * Farm health indicator derived from the data actually loaded on this screen
@@ -387,56 +388,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* দ্রুত সেবা */}
-      <section className="animate-enterprise" style={{ animationDelay: "220ms" } as React.CSSProperties}>
-        <h2 className="mb-3 px-1 text-base font-bold text-stone-800">{t("quickActions", lang)}</h2>
-        {/* Icon over label, centred. Each tile used to carry a second line
-            explaining its own label ("Ask, get solutions" under "AI Agro Agent",
-            "Drone, Tractor, Harvester" under "Services") — four tiles, four
-            taglines, none of which told the user anything the label and the icon
-            had not. Removing them leaves a short label on a wide tile, which is
-            why the tile is now vertical: the shape fits the content. */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Link to="/advisor" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100" aria-hidden><Bot className="h-5 w-5" /></span>
-            <span className="text-sm font-bold leading-tight text-stone-800">{t("aiAgent", lang)}</span>
-          </Link>
-          <Link to="/services" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100" aria-hidden><Tractor className="h-5 w-5" /></span>
-            <span className="text-sm font-bold leading-tight text-stone-800">{t("services", lang)}</span>
-          </Link>
-          <Link to="/sell" className="flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-enterprise-ai-light text-enterprise-ai ring-1 ring-inset ring-indigo-100" aria-hidden><Coins className="h-5 w-5" /></span>
-            <span className="text-sm font-bold leading-tight text-stone-800">{t("sellCrop", lang)}</span>
-          </Link>
-          <Link to="/notifications" className="relative flex flex-col items-center gap-2 rounded-card border border-surface-border bg-surface-card p-3 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-cardHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            {/* info tones, not danger: reading your notifications is a neutral
-                action, and red is this system's danger/critical token. The tile
-                and its count used the danger surface and the `text-danger-text`
-                token as a background, so a mailbox looked like an alert. */}
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-iconBox bg-info-bg text-info-text ring-1 ring-inset ring-info-border" aria-hidden><Bell className="h-5 w-5" /></span>
-            <span className="text-sm font-bold leading-tight text-stone-800">{t("notifications", lang)}</span>
-            {/* `critical-strong` (filled danger surface), not `critical` (the
-                accent): white on the accent measures 3.77:1 and axe reported it as
-                a serious colour-contrast violation on this very element. The token
-                exists for exactly this case — a white label on a red fill. */}
-            {unreadKnown && unread > 0 && (
-              <span className="absolute right-2 top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-enterprise-critical-strong px-1 text-xs font-bold text-white">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            )}
-            {/* No badge means "no unread mail" — but only once the read succeeded.
-                A failed notifications read rendered the same badge-less tile as a
-                clean inbox, with the count missing and nothing saying so. */}
-            {!unreadKnown && (
-              <span className="absolute right-2 top-2 flex h-5 items-center justify-center rounded-full bg-warning-bg px-1.5 text-xs font-bold text-warning-text ring-1 ring-warning-border">
-                <span aria-hidden>!</span>
-                <span className="sr-only">{t("unreadCountUnavailable", lang)}</span>
-              </span>
-            )}
-          </Link>
-        </div>
-      </section>
+      {/* দ্রুত সেবা — owner-approved redesign (2026-11-12): dark forest-green
+          panel, 2×2 cards, its own section-scoped tokens. The component is
+          presentational; the destinations and the unread state below are the
+          same ones the inline tiles used, passed straight through. */}
+      <QuickServices lang={lang} unread={unread} unreadKnown={unreadKnown} />
 
       {/* Smart Alerts — live weather risks only; a quiet state when clear */}
       <section className="animate-enterprise rounded-card border border-surface-border bg-surface-card p-4 shadow-card" style={{ animationDelay: "260ms" } as React.CSSProperties}>

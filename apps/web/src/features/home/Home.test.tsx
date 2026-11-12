@@ -19,6 +19,10 @@ import { MemoryRouter } from "react-router-dom";
 const calls: { method: string; path: string }[] = [];
 // Mutable so a test can drive a different farm payload before mounting.
 let farmsResult: unknown;
+// Drive the notifications read: a payload, or a rejection for the
+// "count unavailable" state.
+let notifResult: unknown;
+let notifRejects = false;
 
 vi.mock("../../lib/session", () => ({
   useSession: () => ({
@@ -97,8 +101,9 @@ function farmWithCrop() {
 function mockApi(_method: unknown, path: string) {
   calls.push({ method: String(_method), path: String(path) });
   if (path === "/farms") return Promise.resolve(farmsResult);
-  if (path === "/notifications")
-    return Promise.resolve({ items: [], unread: 0, counts: { critical: 0, action: 0, info: 0 } });
+  if (path === "/notifications") {
+    return notifRejects ? Promise.reject(new Error("notifications unavailable")) : Promise.resolve(notifResult);
+  }
   if (path.startsWith("/weather")) return Promise.resolve(weather);
   throw new Error("unexpected request in Home.test: " + path);
 }
@@ -121,6 +126,8 @@ function mount(ui: ReactElement) {
 beforeEach(() => {
   calls.length = 0;
   farmsResult = [farmWithCrop()];
+  notifResult = { items: [], unread: 0, counts: { critical: 0, action: 0, info: 0 } };
+  notifRejects = false;
 });
 
 afterEach(() => {
@@ -198,5 +205,94 @@ describe("Home farm-readiness panel — the 2026-11-12 photo redesign", () => {
       /#[0-9a-fA-F]{3,8}\b/.test(el.getAttribute("style") ?? ""),
     );
     expect(hexInStyle).toBe(false);
+  });
+});
+
+describe("দ্রুত সেবা (Quick Services) — owner-approved redesign, 2026-11-12", () => {
+  function quickSection(div: HTMLElement): HTMLElement {
+    const s = div.querySelector<HTMLElement>("#quick-services-heading")?.closest("section");
+    if (!s) throw new Error("quick-services section not found");
+    return s;
+  }
+
+  it("renders the approved composition: heading, সব দেখুন action, and the four exact Bengali labels", async () => {
+    const div = mount(<Home />);
+    await settle();
+    const section = quickSection(div);
+    expect(section.textContent).toContain(dict.quickActions.bn); // দ্রুত সেবা
+    expect(section.textContent).toContain(dict.viewAll.bn); // সব দেখুন
+    for (const key of ["aiAgent", "services", "sellCrop", "notifications"] as const) {
+      expect(section.textContent, key).toContain(dict[key].bn);
+    }
+  });
+
+  it("all five actions reuse the existing destinations — no invented route", async () => {
+    const div = mount(<Home />);
+    await settle();
+    const hrefs = [...quickSection(div).querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    // Four cards, one per destination…
+    expect(hrefs).toEqual(expect.arrayContaining(["/advisor", "/services", "/sell", "/notifications"]));
+    // …and the header action reuses the existing services listing, because the
+    // repository has no separate all-services route (handoff §5 — never invent).
+    const header = quickSection(div).querySelector("header, div");
+    expect(header).toBeTruthy();
+    const servicesLinks = hrefs.filter((h) => h === "/services");
+    expect(servicesLinks.length).toBe(2); // card + header action
+  });
+
+  it("unread count shows on the notifications card, is absent at zero, and carries state to assistive tech", async () => {
+    notifResult = { items: [], unread: 3, counts: { critical: 3, action: 0, info: 0 } };
+    const div = mount(<Home />);
+    await settle();
+    const notifCard = [...quickSection(div).querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === "/notifications",
+    )!;
+    expect(notifCard.textContent).toContain("3");
+    // The sr-only text is what carries the state — colour alone never does.
+    expect(notifCard.textContent).toContain(dict.notifUnread.bn);
+    const srOnly = notifCard.querySelector(".sr-only");
+    expect(srOnly?.textContent).toContain("3");
+    // …and it must not sit inside an aria-hidden subtree, or assistive tech
+    // never hears the state at all (the defect the browser check caught).
+    let node: Element | null = srOnly;
+    while (node && node !== notifCard) {
+      expect(node.getAttribute("aria-hidden"), `${node.tagName} hides the unread state`).toBeNull();
+      node = node.parentElement;
+    }
+  });
+
+  it("no unread indicator at zero", async () => {
+    notifResult = { items: [], unread: 0, counts: { critical: 0, action: 0, info: 0 } };
+    const div = mount(<Home />);
+    await settle();
+    const notifCard = [...quickSection(div).querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === "/notifications",
+    )!;
+    expect(notifCard.textContent).not.toContain(dict.notifUnread.bn);
+    expect(notifCard.textContent).not.toContain("!");
+  });
+
+  it("a failed notifications read shows the honest unknown marker, never a clean inbox", async () => {
+    notifRejects = true;
+    const div = mount(<Home />);
+    await settle();
+    const notifCard = [...quickSection(div).querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === "/notifications",
+    )!;
+    expect(notifCard.textContent).toContain("!");
+    expect(notifCard.textContent).toContain(dict.unreadCountUnavailable.bn);
+  });
+
+  it("the section carries no raw hex — every surface comes from the --qs-* token layer", async () => {
+    const div = mount(<Home />);
+    await settle();
+    const styleAttrs = [...quickSection(div).querySelectorAll("[style]")].map(
+      (el) => el.getAttribute("style") ?? "",
+    );
+    expect(styleAttrs.some((s) => /#[0-9a-fA-F]{3,8}\b/.test(s))).toBe(false);
+    // …and the class names the CSS defines are present (the preflight
+    // dead-class gate reads the compiled CSS; this pins the contract in source).
+    expect(quickSection(div).className).toContain("qs-section");
+    expect(quickSection(div).querySelectorAll(".qs-card").length).toBe(4);
   });
 });

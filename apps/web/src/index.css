@@ -279,3 +279,42 @@ body {
     border-color: rgba(255, 255, 255, 0.25) !important;
   }
 }
+
+/* ── Quick Services (দ্রুত সেবা) — owner-approved design 2026-11-12.
+
+   Section-scoped classes, not global changes: the panel is its own dark
+   forest-green surface and every value comes from the --qs-* token group in
+   tokens.css (no hex here beyond the two atmosphere gradients, which are the
+   same rgba family and live here so the token block stays a plain value list).
+
+   Deliberate performance/fallback decisions:
+   - NO backdrop-filter anywhere. The card surface is plain alpha compositing
+     over a CSS gradient, which every supported engine renders; the spec's
+     "opaque fallback if transparency is unavailable" is therefore satisfied
+     structurally, and the low-end device cost of a blur is avoided entirely.
+     `.qs-card--opaque` is still declared for engines whose `background-color:
+     rgba()` support is reported absent (the same class of guard the auth skins
+     use), so readability never depends on a feature test passing.
+   - The atmosphere is two static radial gradients, no blur, no animation. */
+.qs-section {
+  background: linear-gradient(180deg, var(--qs-section-start) 0%, var(--qs-section-end) 100%);
+  border: 1px solid var(--qs-section-border);
+}
+.qs-atmosphere {
+  background-image:
+    radial-gradient(ellipse 60% 50% at 12% 0%, rgba(0, 184, 90, 0.14), transparent 70%),
+    radial-gradient(ellipse 50% 60% at 92% 100%, rgba(8, 126, 208, 0.1), transparent 72%);
+}
+.qs-card {
+  background-color: var(--qs-card);
+  border: 1px solid var(--qs-card-border);
+}
+.qs-card:hover {
+  background-color: var(--qs-card-hover);
+}
+.qs-card:active {
+  background-color: var(--qs-card-press);
+}
+@supports not (background-color: rgba(0, 0, 0, 0.5)) {
+  .qs-card { background-color: var(--qs-card-fallback); }
+}
