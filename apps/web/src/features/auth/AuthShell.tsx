@@ -84,12 +84,30 @@ function AuthFeatures({ lang }: { lang: Lang }) {
 
 /**
  * Unified auth surface: a branded split screen on desktop and, on mobile, the
- * owner-approved composition of 2026-11-12 — a golden-hour photo hero across
- * the top whose lower edge dissolves into the page's deep-green surface, the
- * credential panel (all four corners rounded) overlapping the hero's foot, and
- * the way to the other task below it. All three auth routes render inside it so
- * they speak one design language; a route brings its own title (and, where the
- * route has one, its own sub-line).
+ * owner-approved composition of 2026-11-12 — a golden-hour photo hero behind the
+ * whole first screen whose lower edge dissolves into the page's deep-green
+ * surface, the credential panel (all four corners rounded) overlapping the
+ * hero's foot, and the way to the other task below it. All three auth routes
+ * render inside it so they speak one design language; a route brings its own
+ * title (and, where the route has one, its own sub-line).
+ *
+ * FIXED, 2026-11-12 — the mobile hero was showing the wrong picture. The
+ * shipped `login-bg-mobile-full.webp` was a hand-recomposed variant of the
+ * scene, not the owner's photograph (docs/archive/2026-10-19/EXECUTION_LOG.md
+ * records the recomposition). Measured against the owner's original at the same
+ * frame: mean absolute difference 55.8, where shifting the original two pixels
+ * against itself only gives 11.0 — so the two are different pictures, not
+ * crops. On the page that put the drone on top of the wordmark and pushed the
+ * farmer off the left edge, which is what the owner reported. The asset is now
+ * recropped from the owner's photograph (scripts/login-hero-mobile-2026-11-12.py)
+ * to the composition of the mock they supplied, and the desktop panel's picture
+ * was already the photograph, so both sides finally show the same image.
+ *
+ * The band grew 52dvh → 85dvh with the panel's offset 14dvh → 46dvh so the
+ * photo runs behind the panel rather than stopping at its own fold; the pair
+ * keeps the panel's top edge at 39% of the viewport, which is where the mock
+ * puts it. Verified against the mock at its own 576x1280: the drone's body box
+ * lands within 1px of the mock's and its width matches exactly.
  *
  * REVERSAL, 2026-11-12 — the owner's approved login mock supersedes two calls
  * this file used to record:
@@ -140,7 +158,7 @@ export function AuthShell({
           fit. A block at the root has no such question — it is exactly as wide
           as the page. */}
       {!isDesktop && (
-        <div className="relative flex h-[52dvh] flex-col items-center overflow-hidden pt-[5dvh] text-center text-white md:hidden">
+        <div className="relative flex h-[85dvh] flex-col items-center overflow-hidden pt-[5dvh] text-center text-white md:hidden">
           <img
             src="/brand/login-bg-mobile-full.webp"
             alt=""
@@ -151,8 +169,10 @@ export function AuthShell({
             className="absolute inset-0 h-full w-full object-cover object-top"
           />
           <div className="absolute inset-0 bg-[image:var(--gradient-auth-scrim-mobile)]" aria-hidden />
-          {/* The hero's foot dissolves into the surface the panel sits on. */}
-          <div className="absolute inset-x-0 bottom-0 h-[45%] bg-[image:var(--gradient-auth-hero-fade)]" aria-hidden />
+          {/* The hero's foot dissolves into the surface the panel sits on. The
+              band is 85dvh, so the fade has to be a small share of it: at 45%
+              (the 52dvh-era value) it swallowed the whole field. */}
+          <div className="absolute inset-x-0 bottom-0 h-[14%] bg-[image:var(--gradient-auth-hero-fade)]" aria-hidden />
 
           <img
             src="/brand/logo-emblem.webp"
@@ -206,14 +226,18 @@ export function AuthShell({
 
       {/* Form side. No mobile min-height: the shell root already covers the
           viewport (min-h-[100dvh] + .agro-shell's surface), and the hero above
-          main has already spent 52dvh of it — a second 100dvh here scrolled the
+          main has already spent 85dvh of it — a second 100dvh here scrolled the
           page half a screen past its own content. */}
       <main
         id="main"
         tabIndex={-1}
         className="relative flex flex-col px-4 pb-8 outline-none sm:px-6 md:items-center md:justify-center md:px-8"
       >
-        <div className="auth-photo-mobile relative -mt-[14dvh] w-full max-w-md mx-auto md:mt-0">
+        {/* -46dvh keeps the panel's top edge where the owner's mock puts it:
+            85dvh − 46dvh = 39% down the viewport, unchanged from the 52dvh −
+            14dvh pair this replaces. The photo now runs behind the panel instead
+            of stopping at its own fold. */}
+        <div className="auth-photo-mobile relative -mt-[46dvh] w-full max-w-md mx-auto md:mt-0">
           {/* Desktop: toggle lives above the card, right-aligned*/}
           <div className="mb-3 hidden justify-end md:flex">
             <LangToggle lang={lang} onChange={onToggleLang} />
