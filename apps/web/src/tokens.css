@@ -89,6 +89,20 @@
   --gradient-auth-scrim-panel: linear-gradient(to top, rgba(1, 40, 35, 0.95), rgba(1, 40, 35, 0.7) 50%, rgba(1, 40, 35, 0.35));
   --color-auth-card: rgba(1, 40, 35, 0.85);
 
+  /* Mobile login composition — owner's approved mock, 2026-11-12. The photo
+     hero occupies the top band and its lower edge dissolves into the page
+     surface, so the credential panel over it reads as one piece with the page.
+     --color-auth-surface is the same value the auth-photo-mobile skin repoints
+     --color-surface-bg to (index.css), and the glass values are the quiet
+     outline the install control wears over it. Theme-invariant like the washes
+     above: the photo screens are their own dark design in both themes, so
+     dark.css does not re-point them. */
+  --color-auth-surface: #012823;
+  --gradient-auth-hero-fade: linear-gradient(to bottom, rgba(1, 40, 35, 0) 0%, rgba(1, 40, 35, 0.3) 40%, rgba(1, 40, 35, 0.82) 78%, var(--color-auth-surface) 100%);
+  --auth-glass: rgba(255, 255, 255, 0.08);
+  --auth-glass-strong: rgba(255, 255, 255, 0.16);
+  --auth-glass-border: rgba(255, 255, 255, 0.35);
+
   /* Home farm-readiness panel — photo scrim over the owner-supplied field
      photo (images/hero-farm.jpg, 2026-11-12), same rationale as the auth
      washes: photo and wash identical in both themes, rgba() lives here so the

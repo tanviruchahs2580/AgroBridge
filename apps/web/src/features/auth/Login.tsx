@@ -5,15 +5,20 @@ import { track } from "../../lib/analytics";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { Button, ErrorBanner, Field, IconButton, Input } from "../../components/ui";
-import { Eye, EyeOff, Lock, Phone } from "lucide-react";
+import { Download, Eye, EyeOff, Lock, Phone } from "lucide-react";
 import { BD_PHONE_RE, mapError } from "../../lib/errors-ui";
 import type { AuthSession } from "../../lib/api-types";
 import { AuthShell } from "./AuthShell";
 import { usePublicLang } from "../../lib/publicLanguage";
+import { useInstallPrompt } from "../../lib/installPrompt";
 
 export default function Login() {
   const { refresh } = useSession();
   const [lang, setLang] = usePublicLang();
+  // The browser's own install prompt, offered here because Chrome was not
+  // showing its own on this build (lib/installPrompt.ts). Purely additive: it
+  // touches no auth state and renders nothing when the prompt is unavailable.
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -59,10 +64,13 @@ export default function Login() {
 
   return (
     <AuthShell
-      // The task, not a welcome. "Welcome" over a login form names the user's
-      // arrival; "Login" names what the screen is for, and matches the page
-      // title, the nav entry and the button below it.
-      title={t("login", lang)}
+      // REVERSAL, 2026-11-12: the owner's approved login mock supersedes the
+      // "the task, not a welcome" call this prop used to carry. The h1 is the
+      // mock's welcome and the sub-line names the task, so both jobs are still
+      // done — in the other order. The route title (App.tsx) stays "লগইন".
+      title={t("authWelcome", lang)}
+      subline={t("authLoginSub", lang)}
+      features
       lang={lang}
       onToggleLang={setLang}
       footer={
@@ -77,6 +85,20 @@ export default function Login() {
             </Link>
           </p>
 
+          {/* Install: a quiet secondary control under the way to Register. It
+              exists only while Chrome holds a real install prompt; with none,
+              there is nothing to render and a button that cannot install would
+              be a lie. */}
+          {canInstall && (
+            <Button
+              type="button"
+              variant="outline"
+              className="auth-install mt-3 min-h-[44px] w-full"
+              onClick={() => void promptInstall()}
+            >
+              <Download className="h-4 w-4" aria-hidden /> {t("installApp", lang)}
+            </Button>
+          )}
         </>
       }
     >

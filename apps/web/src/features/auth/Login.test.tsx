@@ -1,5 +1,8 @@
 /**
- * Component test for the login form's validation path (E-06).
+ * Component test for the login form's validation path (E-06) and for the two
+ * later decisions that changed this screen: the owner's approved mock
+ * composition (2026-11-12) and the install affordance that renders only while
+ * the browser holds a real `beforeinstallprompt` (lib/installPrompt.ts).
  *
  * The audit asks that validation errors reach the user as visible, localized
  * copy — not just state. This mounts the real Login form (no testing-library in
@@ -83,10 +86,69 @@ function alerts(): string[] {
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  localStorage.clear();
   mockApi.mockClear();
 });
 afterEach(() => {
   document.body.innerHTML = "";
+});
+
+/**
+ * The owner's approved login mock (2026-11-12) reverses two earlier calls: the
+ * h1 is the welcome and the sub-line names the task, and the three value bullets
+ * sit below the way to Register. These assertions lock the mock's copy through
+ * the dictionary (never a literal in the test), so a future refactor cannot
+ * quietly drop a line the owner approved.
+ */
+describe("Login — the owner's approved mock composition", () => {
+  it("renders the welcome heading, the sub-line and the three feature bullets", () => {
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Login)));
+
+    expect(must<HTMLHeadingElement>("h1").textContent).toBe(dict.authWelcome.bn);
+    const body = document.body.textContent ?? "";
+    expect(body).toContain(dict.authLoginSub.bn);
+    expect(body).toContain(dict.authFeaturesHeading.bn);
+    for (const key of ["authFeatureDiseasePhoto", "authFeatureDirectMarket", "authFeatureServices"] as const) {
+      expect(body, `${key} bullet must render`).toContain(dict[key].bn);
+    }
+    // The two ways off the screen are still there.
+    expect(body).toContain(dict.authNoAccountPrefix.bn);
+    expect(body).toContain(dict.forgotPasswordLink.bn);
+
+    mounted.unmount();
+  });
+
+  it("offers the install affordance only while Chrome holds a prompt", async () => {
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Login)));
+
+    const findInstall = () =>
+      Array.from(document.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes(dict.installApp.bn));
+
+    // No event yet: nothing is rendered — a button that cannot install would be
+    // a claim the browser has not made.
+    expect(findInstall()).toBeUndefined();
+
+    const prompt = vi.fn(async () => {});
+    const event = Object.assign(new Event("beforeinstallprompt", { cancelable: true }), {
+      prompt,
+      userChoice: Promise.resolve({ outcome: "accepted", platform: "web" }),
+    });
+    await act(async () => {
+      window.dispatchEvent(event);
+    });
+
+    const install = findInstall();
+    expect(install, "the control appears once the browser offers a prompt").toBeTruthy();
+    expect(install?.textContent).toContain(dict.installApp.bn);
+
+    await act(async () => {
+      install?.click();
+    });
+    expect(prompt).toHaveBeenCalledTimes(1);
+    expect(findInstall()).toBeUndefined();
+
+    mounted.unmount();
+  });
 });
 
 describe("Login form — validation reaches the user", () => {
