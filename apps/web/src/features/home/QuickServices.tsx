@@ -157,5 +157,6 @@ export function QuickServices({
     </section>
   );
 }
-
-export default QuickServices;
+// No default export: Home imports the named one, and the strengthened knip gate
+// (F-67) correctly flagged a dead `export default` here on the first CI run —
+// fixed by deleting it rather than adding a baseline entry.
