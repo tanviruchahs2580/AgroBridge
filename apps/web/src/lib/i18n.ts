@@ -79,6 +79,34 @@ export const dict = {
   // ── Auth surfaces (v2 unified premium auth) ──
   showPassword: { bn: "পাসওয়ার্ড দেখান", en: "Show password" },
   hidePassword: { bn: "পাসওয়ার্ড লুকান", en: "Hide password" },
+  // ── Login hero, welcome copy and features (owner mock, 2026-11-12) ──
+  // The owner's approved login mock reverses two earlier calls, recorded at
+  // AuthShell/Login: the h1 is the welcome and the sub-line names the task
+  // (previously the other way round), and the three value bullets return below
+  // the way to Register. The English side says the same thing in the same
+  // register — no superlative the Bangla does not carry.
+  authWelcome: { bn: "স্বাগতম", en: "Welcome" },
+  authLoginSub: { bn: "আপনার অ্যাকাউন্টে লগইন করুন", en: "Sign in to your account" },
+  authBrandLine: { bn: "AI কৃষকের হাতে", en: "AI in the farmer's hands" },
+  authFeaturesHeading: {
+    bn: "বাংলাদেশের কৃষকের জন্য বিশিষ্ট ডিজিটাল সেবা",
+    en: "Distinctive digital services for Bangladesh's farmers",
+  },
+  authFeatureDiseasePhoto: {
+    bn: "ফসলের রোগের ছবি — কৃষি বিশেষজ্ঞের পর্যালোচনায়",
+    en: "Crop disease photos — reviewed by an agriculture expert",
+  },
+  authFeatureDirectMarket: {
+    bn: "সরাসরি বাজার — ন্যায্য দাম, মধ্যস্বত্বভোগী নেই",
+    en: "Direct market — fair prices, no middlemen",
+  },
+  authFeatureServices: {
+    bn: "যন্ত্রপাতি ও কৃষি সেবা এক অ্যাপেই",
+    en: "Machinery and farm services in one app",
+  },
+  // The install control's own label. The browser shows the prompt; the copy
+  // promises only what tapping it does.
+  installApp: { bn: "অ্যাপ ইনস্টল করুন", en: "Install app" },
   // ── Consent capture (registration, PRD-05/AUD-150) ──
   consentLead: { bn: "আমি সম্মত আছি", en: "I agree to the" },
   consentJoin: { bn: "এবং", en: "and" },

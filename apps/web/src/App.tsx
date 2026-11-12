@@ -166,8 +166,8 @@ function Shell({ children }: { children: ReactNode }) {
         // the sticky header renders underneath the status bar.
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <span aria-hidden className="h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/20">
               <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
             </span>
@@ -177,7 +177,15 @@ function Shell({ children }: { children: ReactNode }) {
                 mark and the name are the identity. */}
             <div className="truncate text-[15px] font-bold leading-none text-white">{t("appName", lang)}</div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* The control cluster wraps instead of overflowing. Measured defect
+              (Quick Services report §8.2): at ≤320px, and at 125% text scaling
+              on a 390px phone, this row extended past the viewport by 22px/8px
+              because it was `shrink-0` with no wrap. Wrapping is the fix that
+              needs no magic breakpoint: at every width where the controls fit
+              (all normal phone cases) nothing changes, and where they cannot,
+              they take a second line and the header grows — the header is
+              padding-height (py-3), not a fixed h-*, so nothing clips. */}
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* Account & settings: profile edit, phone verification, policies,
  and the in-app account-deletion path Google Play requires.*/}
             <NavLink

@@ -237,7 +237,10 @@ body {
 @media (max-width: 767px) {
   .auth-photo-mobile {
     --ring-color: rgba(110, 231, 183, 0.9);
-    --color-surface-bg: #012823;
+    /* The panel's own surface, from the token layer rather than a second
+       literal: --color-auth-surface is the same value the page below the hero
+       uses, so the two cannot drift apart. */
+    --color-surface-bg: var(--color-auth-surface);
     color: #fff;
   }
   .auth-photo-mobile label { color: rgba(255, 255, 255, 0.9) !important; }
@@ -277,6 +280,30 @@ body {
   .auth-photo-mobile .bg-glass {
     background-color: rgba(255, 255, 255, 0.1) !important;
     border-color: rgba(255, 255, 255, 0.25) !important;
+  }
+
+  /* Mobile login composition (owner mock, 2026-11-12): below the photo hero the
+     page is the same deep green as the panel skin, so the hero's bottom fade
+     (--gradient-auth-hero-fade) hands over without a seam. Re-pointing the
+     TOKEN, not the background property, is what makes this hold in both themes:
+     dark.css's `html[data-theme="dark"] .agro-shell` (0,2,1) outranks any single
+     class here and paints var(--color-surface-bg), so repointing that variable
+     keeps the surface one colour of green, light or dark. */
+  .auth-page-mobile {
+    --color-surface-bg: var(--color-auth-surface);
+  }
+
+  /* The install control (Login) wears the outline variant, whose hover pair —
+     brand-50 under the skin's #6ee7b7 label — measures 1.9:1. The skin keeps a
+     glass hover instead; everything else about the control is the shared
+     Button. Declared last in this block so it wins over the skin's own
+     .text-link repoint at equal specificity. */
+  .auth-photo-mobile .auth-install {
+    background-color: var(--auth-glass) !important;
+    border-color: var(--auth-glass-border) !important;
+  }
+  .auth-photo-mobile .auth-install:hover {
+    background-color: var(--auth-glass-strong) !important;
   }
 }
 
