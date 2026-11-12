@@ -12,12 +12,19 @@ Create the account first with:
 node scripts/play/create-reviewer-account.mjs --api https://<api-domain>/api/v1 --phone 01700000099 --password '<strong-password>'
 ```
 
-The script is idempotent: it registers the account if absent, resets the password if it
-already exists, sets the role to FARMER and status ACTIVE, seeds a farm + plot + one active
-crop cycle, credits a little wallet balance, and prints the credentials. Phone verification
-is deliberately **not** pre-verified — verify it with the same script's `--verify-phone`
-flag only if you want reviewers to test withdrawals (the code is written to the API log when
-`SMS_PROVIDER=sandbox`).
+The script is idempotent **for account creation**: it registers the account if absent, and on
+a re-run signs in with the supplied password and repairs the profile, farm, plot and crop
+cycle. It does **not** reset a forgotten password — if the stored password no longer matches
+it exits and says so; recover by anonymising the account (`DELETE /auth/me` with its own
+token) and re-running, or by choosing a different `--phone`. It also does not set the role
+(self-service registration is FARMER by definition) and does not credit a wallet balance —
+there is no top-up route, so a new account's wallet starts at 0.
+
+Phone verification is deliberately **not** pre-verified and cannot be completed on a
+deployment without a real SMS gateway: `/auth/otp/request` only echoes `devCode` when
+`DEV_AUTH_SHORTCUTS=1`, which production refuses. Withdrawals therefore stay **gated with
+403 `PHONE_NOT_VERIFIED`** on production, by design. Do not promise withdrawal testing to a
+reviewer unless a live SMS provider is configured and the phone is genuinely verified.
 
 ---
 

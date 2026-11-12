@@ -71,15 +71,23 @@ function fail(step, res) {
   process.exit(1);
 }
 
-const register = await call("POST", "/auth/register", { body: { fullName, phone, password, langPref: "bn" } });
+// `consent: true` is REQUIRED and must be literal: the API records the accepted
+// policy version as its own immutable audit event (PRD-05/AUD-150) and answers
+// 400 BAD_REQUEST for a registration without it. This script used to omit it, so
+// every run against a current deployment failed before creating anything.
+const register = await call("POST", "/auth/register", {
+  body: { fullName, phone, password, langPref: "bn", consent: true },
+});
 
 let accessToken;
 if (register.status === 201) {
   accessToken = register.body?.data?.accessToken;
   console.log(`✓ registered reviewer account ${phone}`);
 } else {
-  // Already exists (409) or another conflict: sign in and reset the password so
-  // a forgotten/stale credential can never block a review.
+  // Already exists. The API is deliberately enumeration-safe about this and
+  // answers `200 {needsLogin:true}` — never a 409 — so a taken phone is NOT an
+  // error here; it is the second half of the idempotent path. Sign in and, if
+  // the supplied password still matches, carry on repairing the profile below.
   const login = await call("POST", "/auth/login", { body: { phone, password } });
   if (login.status === 200) {
     accessToken = login.body?.data?.accessToken;
