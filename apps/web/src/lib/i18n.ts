@@ -88,8 +88,12 @@ export const dict = {
   authWelcome: { bn: "স্বাগতম", en: "Welcome" },
   authLoginSub: { bn: "আপনার অ্যাকাউন্টে লগইন করুন", en: "Sign in to your account" },
   authBrandLine: { bn: "AI কৃষকের হাতে", en: "AI in the farmer's hands" },
+  // Owner's correction, 2026-11-12: the mock's heading reads
+  // "বাংলাদেশের কৃষকের বিশিষ্ট ডিজিটাল সেবা" — no জন্য. The string had one; the
+  // English keeps "for", which says the same thing in the same register without
+  // the Bangla's tighter genitive.
   authFeaturesHeading: {
-    bn: "বাংলাদেশের কৃষকের জন্য বিশিষ্ট ডিজিটাল সেবা",
+    bn: "বাংলাদেশের কৃষকের বিশিষ্ট ডিজিটাল সেবা",
     en: "Distinctive digital services for Bangladesh's farmers",
   },
   authFeatureDiseasePhoto: {
