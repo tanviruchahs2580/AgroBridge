@@ -17,6 +17,73 @@ history: 86% of behaviour-changing commits had no entry (measured in
 > above. A future release record should move the older waves under dated headings — do not
 > delete them.
 
+## [1.4.3] — 2026-11-14
+
+### The Bangla face is Anek Bangla, and the type system behind it was rebuilt
+- **Owner verdict that drove this release: the app's Bangla did not read enterprise-grade.** The
+  primary face is now **Anek Bangla** (Ek Type's 2022 UI family) — one variable woff2 per script
+  subset (wght 100–800), self-hosted in `public/fonts/`, replacing Hind Siliguri's eight static
+  files. Total font payload drops ~351 KB → ~337 KB *including* the Noto fallback family kept for
+  glyph coverage, and the preflight budget headroom grows from 34 KB to 183 KB.
+- Behind the face, the typography system was rebuilt Bangla-first: a 9-step scale with explicit
+  Latin/`[lang="bn"]` line-height pairs (≥1.45× Latin, ≥1.55× Bengali — Bengali's matra zone and
+  stacked conjuncts need the room), heading roles (`.h1`/`.h2`/`.card-title`/`.stat`) binding
+  size + weight + tracking once, the fake-weight ladder removed (`font-extrabold` had silently
+  rendered as 700; every weight is now a real face of the variable font), negative tracking banned
+  on Bengali-capable text, and one numeral policy through `formatNumber` (Bengali digits in bn
+  mode). The metric-tuned `Anek Bangla Fallback` face (`size-adjust: 92%`, ascent 136% / descent
+  67% — measured against Anek's 1.866 em line box) kills the first-paint swap reflow on Slow-4G.
+  Documented in `docs/design-tokens.md`; the engineering conventions doc records the drift item.
+- Verified: full browser matrix (4 viewports × light + dark × 9 routes, locale `bn-BD`) — zero
+  console errors, zero horizontal overflow before one exception (below); the repo's a11y suite
+  (axe, light + dark, critical/serious blocking) green; `visual-contract`, `console-health` and
+  `splash-verify` e2e green; 44 web unit files / 310 tests and the 137-file API suite green.
+
+### Fixed (the splash logo's white corners, and one overflow the new metrics exposed)
+- **The launch screen showed white slivers around the logo on the green backdrop.** The native
+  splash bitmap drew a white *disc* behind the 16dp-radius logo tile; a circle can never cover a
+  rounded square, so the tile's corners exposed white — reported from the field by the owner. The
+  artwork is now a white rounded-square badge concentric with the tile (even 4dp rim, no slivers,
+  matching the Android app-icon shape), regenerated for all five densities by
+  `scripts/android-splash-icon.py`, and the in-app splash (`Splash.tsx`) renders the same badge so
+  the platform → WebView hand-over shows one continuous surface.
+- **Notifications overflowed 360px by 3px under the new metrics.** `PageHeader`'s action slot was
+  `shrink-0`, which pinned the badge + two buttons at max-content width even though the content
+  could wrap; the slot is now `min-w-0` so multi-control actions wrap (truncation stays banned on
+  Bengali-capable labels). Caught by the `visual-contract` e2e at 360×640, re-run green.
+
+### Fixed (API hardening — conservative, no dependency change)
+- **`GET /organizations` returned unbounded nested lists.** The module now caps one response body
+  (`ORG_LIST_CAPS`: 50 members/org, 50 farms/org, 50 plots/farm — the `FARM_LIST_CAPS` discipline)
+  and ships `_count.members` alongside the truncated slice so truncation is visible, pinned by
+  `tests/org-list-caps.test.ts`.
+- **Three routes parsed query strings by hand.** `GET /admin/audit-logs`, `GET /admin/withdrawals`
+  and `GET /notifications` now go through `validate({ query })` with explicit Zod schemas: the
+  audit-log filters (`entityType`/`actorId`/`action`) the indexes already support actually filter,
+  an unknown withdrawal status or notification category fails loud with 400 instead of silently
+  returning every row, and the documented AUD-116 clamp behaviour (malformed pagination clamps,
+  still 200) is preserved inside the schema — pinned by `tests/query-validation.test.ts`.
+- **`server.ts` closes idle HTTP keep-alive connections in the signal handler** so a shutdown
+  drains in-flight requests instead of waiting out the keep-alive timeout.
+- **`vitest.config.pg.ts` mirrors the SQLite coverage thresholds exactly** (82/72/84/84) — the
+  PostgreSQL profile could previously run without the ratchet.
+- Recorded as **ADR-0022** (`docs/adr/`): capped slice + `X-Total-Count` is the list contract, the
+  ok/fail envelope is the only response shape, list queries go through `validate({ query })`, and
+  Express stays on 4.x / OTel stays deferred until a sink exists.
+
+### Ship gates for this release
+- Local (Node 24.19.0 — the project pins Node 22 and this machine has no 22; results are
+  non-transferable to the pin): `npm run typecheck` clean; API suite 137 files / 759 passed /
+  1 skipped; web unit 44 files / 310 passed; web lint 0/0 and api eslint 0 errors (124 warnings ≤
+  143 budget); build + preflight green (entry 131.62 kB gzip ≤ 132, fonts 337 KB ≤ 520);
+  drift-check, todo-gate, version gates green; e2e subset (a11y, visual-contract, console-health,
+  splash-verify) green. knip: not run — the machine's memory cannot start its parser (known
+  constraint). Evidence: `qa-evidence/receipts/2026-11-13-typography-and-backend-hardening.md` and
+  `qa-evidence/receipts/2026-11-14-anek-bangla-splash-release.md`.
+- No schema or migration change is part of this release; none was pending.
+
+
+
 ## [Unreleased]
 
 ### Deployed (2026-10-29 production at 3e8b5c4 — PRs #81, #83; record #84)
