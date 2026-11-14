@@ -49,7 +49,7 @@
     "@types/node": "^22.10.2",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.12",
-    "autocannon": "^7.15.0",
+    "autocannon": "^9.0.0",
     "dotenv": "^16.4.7",
     "eslint": "^9.39.5",
     "fast-check": "^4.10.2",
