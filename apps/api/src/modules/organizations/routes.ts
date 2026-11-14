@@ -13,6 +13,15 @@ export const organizationsRouter = Router();
 organizationsRouter.use(requireAuth);
 
 /**
+ * Nesting caps for org-list responses (F-06, same discipline as FARM_LIST_CAPS
+ * in `farms/routes.ts`): they bound ONE response body, never the data — callers
+ * get more via pagination/filtering, not an unbounded include. Without them a
+ * large organisation (hundreds of members, hundreds of farms) returns an
+ * arbitrarily large payload from one request.
+ */
+export const ORG_LIST_CAPS = { membersPerOrg: 50, farmsPerOrg: 50, plotsPerFarm: 50 } as const;
+
+/**
  * Organisation membership is a second role axis (ADMIN|MEMBER|VIEWER on the
  * membership row), deliberately absent from `contracts/roles.json` — it is not
  * a platform role and grants nothing outside the organisation. The farm
@@ -68,7 +77,15 @@ organizationsRouter.get("/", requirePermission("org:read"), async (req, res, nex
     const isPrivileged = isPlatformAdmin(getAuth(req).role);
     const orgs = await prisma.organization.findMany({
       where: isPrivileged ? {} : { members: { some: { userId: getAuth(req).userId } } },
-      include: { members: { include: { user: { select: { id: true, fullName: true, role: true } } } }, _count: { select: { farms: true } } },
+      include: {
+        members: {
+          take: ORG_LIST_CAPS.membersPerOrg,
+          include: { user: { select: { id: true, fullName: true, role: true } } },
+        },
+        // _count.members tells the caller the total despite the truncated
+        // nested list — same contract as _count.plots on GET /farms.
+        _count: { select: { farms: true, members: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
     ok(res, orgs);
@@ -144,7 +161,11 @@ organizationsRouter.get("/:id/farms", requirePermission("farm:read:org"), valida
     const isPrivileged = isPlatformAdmin(getAuth(req).role);
     const isMember = org.members.some((m) => m.userId === getAuth(req).userId);
     if (!isPrivileged && !isMember) throw forbidden("Not a member");
-    const farms = await prisma.farm.findMany({ where: { organizationId: orgId }, include: { plots: true }, orderBy: { createdAt: "desc" } });
+    const farms = await prisma.farm.findMany({
+      where: { organizationId: orgId },
+      include: { plots: { take: ORG_LIST_CAPS.plotsPerFarm } },
+      orderBy: { createdAt: "desc" },
+    });
     ok(res, farms);
   } catch (e) {
     next(e);

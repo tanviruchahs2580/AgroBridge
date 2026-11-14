@@ -9,6 +9,8 @@ import { useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
+import type { Lang } from "../../lib/i18n";
+import { formatNumber } from "../../lib/format";
 import { careToneClass, cropLabel, stageLabel, weatherConditionLabel } from "../../lib/labels";
 import { actionableRisks } from "../../lib/weatherRisks";
 import { deriveTodayTasks } from "./todayTasks";
@@ -36,7 +38,7 @@ function computeHealthScore(farms: FarmListItem[], weather: WeatherData | null):
   return Math.min(96, score);
 }
 
-function HealthRing({ score }: { score: number }) {
+function HealthRing({ score, lang }: { score: number; lang: Lang }) {
   const r = 36;
   const c = 2 * Math.PI * r;
   const off = c - (score / 100) * c;
@@ -51,7 +53,7 @@ function HealthRing({ score }: { score: number }) {
             turns into a repaint budget problem on the devices this app targets. */}
         <circle cx="46" cy="46" r={r} stroke="var(--color-brand-400)" strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} className="drop-shadow-sm transition-[stroke-dashoffset] duration-700" />
       </svg>
-      <span className="absolute text-xl font-extrabold text-white">{score}%</span>
+      <span className="absolute text-xl font-bold text-white">{formatNumber(score, lang)}%</span>
     </div>
   );
 }
@@ -119,13 +121,12 @@ export default function Home() {
       {/* Greeting */}
       <section className="animate-enterprise px-1" style={{ animationDelay: "0ms" } as React.CSSProperties}>
         {/* On the scale: this was the only page <h1> sized off it (17px, not a
-            step, against the 20px every PageHeader screen uses).
-            `leading-snug`, not `leading-tight`: the greeting wraps to two lines at
-            320px, where 1.25 leading gave a measured 5px ink gap between the lines
-            (7px at 1.375). Tight for Bengali, where the second line's matras sit
-            directly under the first line's descenders — not overlapping, but the
-            snugger of the two is the safer reading at the smallest width. */}
-        <h1 className="text-lg font-bold leading-snug tracking-tight text-stone-800 sm:text-xl">
+            step, against the 20px every PageHeader screen uses). Now uses the
+            .h1 role. `leading-snug`, not `leading-tight`: the greeting wraps to
+            two lines at 320px — see the note below the scale in index.css; the
+            [lang="bn"] wiring loosens it further in Bangla mode. No tracking:
+            negative tracking compresses Bengali matras (audit F-typo). */}
+        <h1 className="h1 text-stone-800 sm:text-2xl">
           {t("greeting", lang, { name: session?.fullName ?? "" })}
         </h1>
         <p className="mt-1 text-sm text-stone-600">{lang === "bn" ? todayBn : todayEn}</p>
@@ -162,11 +163,11 @@ export default function Home() {
               it); it names the meter below, not the state — the heading above
               it carries the state, as documented when the previous pill was
               removed. */}
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-chip bg-action px-2.5 py-1 text-2xs font-bold tracking-wide text-white ring-1 ring-white/25">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-chip bg-action px-2.5 py-1 text-2xs font-bold text-white ring-1 ring-white/25">
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand-300" />
             {t("farmReadiness", lang)}
           </span>
-          <h2 className="text-lg font-extrabold leading-tight text-white sm:text-xl">
+          <h2 className="h2 text-white sm:text-2xl">
             {farmsUnavailable
               ? t("farmDataUnavailable", lang)
               : farms.length === 0
@@ -198,20 +199,20 @@ export default function Home() {
             // computed from an empty array would be a fabricated 60%.
             <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 text-left ring-1 ring-white/15 backdrop-blur">
               <TriangleAlert className="h-6 w-6 shrink-0 text-white/80" aria-hidden />
-              <span className="max-w-[24ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+              <span className="max-w-[24ch] text-xs font-medium leading-snug text-white/85">
                 {t("farmDataUnavailable", lang)}
               </span>
             </div>
           ) : farms.length === 0 ? (
             <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 text-left ring-1 ring-white/15 backdrop-blur">
               <Sprout className="h-6 w-6 shrink-0 text-white/80" aria-hidden />
-              <span className="max-w-[22ch] text-xs font-medium leading-snug tracking-wide text-white/85">
+              <span className="max-w-[22ch] text-xs font-medium leading-snug text-white/85">
                 {t("aiFarmEmptyMeter", lang)}
               </span>
             </div>
           ) : (
             <div className="mt-1 flex shrink-0 items-center gap-3 self-start rounded-card bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur">
-              <HealthRing score={healthScore} />
+              <HealthRing score={healthScore} lang={lang} />
               {/* The caption names the meter, and — when the weather read failed
                   and computeHealthScore therefore skipped that term — says so.
                   It used to be a sentence ("From your records and today's
@@ -300,7 +301,7 @@ export default function Home() {
               <>
                 <div className="relative mt-2 flex items-end justify-between gap-2">
                   <div>
-                    <div className="flex items-baseline gap-0.5"><span className="text-display font-extrabold leading-none tracking-tight text-stone-800 tabular-nums">{weather.current.tempC}°</span></div>
+                    <div className="flex items-baseline gap-0.5"><span className="stat text-display text-stone-800">{formatNumber(weather.current.tempC, lang)}°</span></div>
                     <p className="mt-1 text-sm text-stone-600">{weatherConditionLabel(weather.current.condition, lang)}</p>
                   </div>
                 </div>
@@ -357,7 +358,7 @@ export default function Home() {
                 <div className="min-w-0 text-left">
                   {/* `cropLabel`, like the task rows above: the raw API enum
                       ("RICE") was leaking into the Bengali UI. */}
-                  <p className="text-base font-extrabold leading-tight text-accent">{cropLabel(primaryCrop.cropName, lang)}</p>
+                  <p className="card-title text-accent">{cropLabel(primaryCrop.cropName, lang)}</p>
                   <span className="mt-1.5 inline-flex items-center gap-1 rounded-chip bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-accent ring-1 ring-inset ring-brand-100">
                     <Sprout aria-hidden className="h-3 w-3" strokeWidth={2} />
                     {stageLabel(primaryCrop.stage, lang)}
@@ -382,7 +383,7 @@ export default function Home() {
           {/* No "AI • AgroBridge" pill (the card already wears the AI accent and
               sits inside the app) and no "How can I help your farm today?" line —
               the four actions below are the answer to that question. */}
-          <h2 className="text-base font-extrabold text-stone-800">{t("aiAskTitle", lang)}</h2>
+          <h2 className="card-title text-stone-800 sm:text-lg">{t("aiAskTitle", lang)}</h2>
           <Link to="/advisor" className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-xl bg-enterprise-ai-strong px-5 py-2.5 text-sm font-bold text-white shadow-button hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enterprise-ai motion-reduce:hover:brightness-100">
             {t("askNow", lang)} <span aria-hidden className="ml-1">→</span>
           </Link>

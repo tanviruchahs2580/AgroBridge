@@ -3,78 +3,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Self-hosted Hind Siliguri (primary UI face: Bengali + Latin) ──
- * Downloaded from Google Fonts (v14) and served locally so the APK/offline
- * renders identically — the previous stack depended on the Google CSS link. */
+/* ── Self-hosted Anek Bangla (primary UI face: Bengali + Latin) ──
+ * Ek Type's 2022 UI family, served as ONE variable woff2 per script subset
+ * (wght 100–800) so every weight in the 400–700 ladder is a real face and the
+ * APK/offline renders identically — no Google CSS dependency. Owner choice
+ * (2026-11-14): replaces Hind Siliguri, which read as the generic BD-app
+ * default. Noto Sans Bengali stays below as the coverage fallback family. */
 @font-face {
-  font-family: "Hind Siliguri";
+  font-family: "Anek Bangla";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 800;
   font-display: swap;
-  src: url("/fonts/hind-siliguri-bengali-400.woff2") format("woff2");
+  src: url("/fonts/anek-bangla-bengali.woff2") format("woff2");
   unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
-    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
+    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1, U+11DF0-11DF1;
 }
 @font-face {
-  font-family: "Hind Siliguri";
+  font-family: "Anek Bangla";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 800;
   font-display: swap;
-  src: url("/fonts/hind-siliguri-latin-400.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-bengali-500.woff2") format("woff2");
-  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
-    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-latin-500.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-bengali-600.woff2") format("woff2");
-  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
-    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-latin-600.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-bengali-700.woff2") format("woff2");
-  unicode-range: U+0951-0952, U+0964-0965, U+0980-09FE, U+1CD0, U+1CD2, U+1CD5-1CD6, U+1CD8, U+1CE1, U+1CEA, U+1CED,
-    U+1CF2, U+1CF5-1CF7, U+200C-200D, U+20B9, U+25CC, U+A8F1;
-}
-@font-face {
-  font-family: "Hind Siliguri";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/hind-siliguri-latin-700.woff2") format("woff2");
+  src: url("/fonts/anek-bangla-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -135,13 +84,94 @@
 }
 
 :root {
-  font-family: "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* "Anek Bangla Fallback" (metric-tuned, defined below) precedes the system
+     stack so the swap reflow lands smaller. */
+  font-family: "Anek Bangla", "Anek Bangla Fallback", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 
   /* Brand gradients live in tokens.css (light defaults; dark.css re-points
      them under html[data-theme="dark"]). They were duplicated here until
      2026-10-16 — keep them single-sourced. */
 }
+
+/* ── Bangla line-height wiring ──
+   session.tsx sets documentElement.lang to "bn"|"en" on every language change,
+   so this attribute is app state, not a guess. Bengali needs looser leading
+   than Latin (tall matra zone, stacked conjuncts — see the ui.tsx line-box
+   note): the --leading-bn-* pairs in tokens.css are applied by re-pointing the
+   Tailwind-utility line-heights below whenever the app renders in Bangla. The
+   base (Latin) pairs remain the default so Latin-only surfaces — digit-heavy
+   stat rows, codes, prices — keep their tighter rhythm deliberately. */
+html[lang="bn"] body {
+  line-height: var(--leading-bn-base);
+}
+html[lang="bn"] .leading-2xs { line-height: var(--leading-bn-2xs); }
+html[lang="bn"] .leading-xs { line-height: var(--leading-bn-xs); }
+html[lang="bn"] .leading-sm { line-height: var(--leading-bn-sm); }
+html[lang="bn"] .leading-md { line-height: var(--leading-bn-md); }
+html[lang="bn"] .leading-base { line-height: var(--leading-bn-base); }
+html[lang="bn"] .leading-lg { line-height: var(--leading-bn-lg); }
+html[lang="bn"] .leading-xl { line-height: var(--leading-bn-xl); }
+html[lang="bn"] .leading-2xl { line-height: var(--leading-bn-2xl); }
+html[lang="bn"] .leading-display { line-height: var(--leading-bn-display); }
+
+/* ── Heading-role layer ──
+   One binding of size + weight + tracking per heading role. Before this layer
+   every screen re-invented its headings (page h1s ranged over 18px/bold and
+   20px/extrabold at the same document level) — the core "demo app" tell.
+   Roles, not call sites, decide typography. font-bold (700) only: the variable
+   axis goes to 800, but the sanctioned ladder stays 400–700 — heavier weights
+   crush Bengali counters at screen sizes. Weight-500 is reserved for the
+   medium instances where emphasis must be quieter. */
+.h1 {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 700;
+  letter-spacing: 0; /* negative tracking is banned on Bengali-capable text */
+}
+.h2 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 700;
+}
+.card-title {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: 700;
+}
+.stat {
+  /* Numerals only — Latin digits via formatNumber/tabular data. May tighten:
+     the display step's negative tracking is sanctioned here, not on bn text. */
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+html[lang="bn"] .h1 { line-height: var(--leading-bn-xl); }
+html[lang="bn"] .h2 { line-height: var(--leading-bn-lg); }
+html[lang="bn"] .card-title { line-height: var(--leading-bn-md); }
+html[lang="bn"] .stat { line-height: var(--leading-bn-2xl); }
+
+/* Fallback-metric tuning: while Anek Bangla loads (font-display: swap), the
+   system fallback renders with Roboto/Segoe metrics and the first paint
+   reflows when the real face arrives — visible on Slow-4G, the target network.
+   Measured (canvas advance widths, 2026-11-14): Anek's em runs ~92% of Segoe
+   UI's width, and its line box is 1.866 em (upm 2000, hhea 2500/-1232) —
+   ascent 1.25 em, descent 0.616 em. size-adjust: 92% matches the advance
+   widths; 136%/67% on the ADJUSTED em reproduce Anek's ascent/descent
+   (0.92 × 1.36 = 1.251, 0.92 × 0.67 = 0.616) so the baseline does not move
+   when the real face arrives. Latin-only targets: text is mostly Latin before
+   swap completes on first load. */
+@font-face {
+  font-family: "Anek Bangla Fallback";
+  src: local("Segoe UI"), local("Roboto"), local("Noto Sans");
+  size-adjust: 92%;
+  ascent-override: 136%;
+  descent-override: 67%;
+  line-gap-override: 0%;
+  font-display: swap;
+}
+
 
 html,
 body,

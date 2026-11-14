@@ -6,7 +6,7 @@ import { invalidate, useResource } from "../../lib/useResource";
 import { RESOURCE_KEYS } from "../../lib/resourceKeys";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
-import { dateLocale } from "../../lib/format";
+import { dateLocale, formatNumber } from "../../lib/format";
 import { CROPS, CROP_KEYS, careToneClass, cropLabel, stageLabel, farmCareSuggestion } from "../../lib/labels";
 import { actionableRisks } from "../../lib/weatherRisks";
 import { getWeatherCoords } from "../../lib/geo";
@@ -237,10 +237,13 @@ export default function MyFarm() {
       {/* My Farm Overview Grid */}
       {!farmsRes.loading && farms.length > 0 && (
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.crops}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><Sprout className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("myFarmActiveCropsStat", lang)}</p></Card>
-          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.plots}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><MapPin className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("myFarmPlotsStat", lang)}</p></Card>
-          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{Number(stats.totalBigha.toFixed(1))}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><ClipboardList className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("totalLand", lang)}</p></Card>
-          <Card variant="static" className="text-center"><p className="text-2xl font-extrabold text-accent">{stats.farms}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><HomeIcon className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("farms", lang)}</p></Card>
+          {/* Stat numerals flow through formatNumber: Bengali digits in bn mode,
+              matching the ৳ prices rendered beside them (audit: mixed digit
+              systems in one view). .stat owns size/weight/tabular-nums. */}
+          <Card variant="static" className="text-center"><p className="stat text-accent">{formatNumber(stats.crops, lang)}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><Sprout className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("myFarmActiveCropsStat", lang)}</p></Card>
+          <Card variant="static" className="text-center"><p className="stat text-accent">{formatNumber(stats.plots, lang)}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><MapPin className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("myFarmPlotsStat", lang)}</p></Card>
+          <Card variant="static" className="text-center"><p className="stat text-accent">{formatNumber(Math.round(stats.totalBigha * 10) / 10, lang)}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><ClipboardList className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("totalLand", lang)}</p></Card>
+          <Card variant="static" className="text-center"><p className="stat text-accent">{formatNumber(stats.farms, lang)}</p><p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-stone-600"><HomeIcon className="h-3.5 w-3.5 text-brand-600" aria-hidden /> {t("farms", lang)}</p></Card>
         </section>
       )}
 

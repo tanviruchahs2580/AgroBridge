@@ -228,7 +228,10 @@ export default function MyOrders() {
               <div className="border-t border-stone-100 bg-stone-50 px-4 py-3 text-sm">
                 {/* h2, not h3: the only heading above this on the page is its h1,
                     so h3 skipped a level (axe heading-order). */}
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                {/* No letter-spacing: the label is Bengali-capable
+                    ("পণ্যসমূহ") and tracking-wide spreads matras. Uppercase is
+                    a no-op on Bengali, harmless to keep for the English label. */}
+                <h2 className="mb-2 text-xs font-semibold uppercase text-stone-500">
                   {t("ordItemsTitle", lang)}
                 </h2>
                 <ul className="divide-y divide-stone-200">

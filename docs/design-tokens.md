@@ -43,9 +43,27 @@ Tailwind: `bg-brand-700`, `text-stone-600`, etc. map to `var(--color-*)`.
 
 ## Typography
 
-Stack: `"Hind Siliguri", "Noto Sans Bengali", system-ui` (self-hosted woff2 in `public/fonts/`, served offline — APK-safe). Hind Siliguri 400/500/600/700 covers Bengali + Latin; Noto Sans Bengali is the fallback (`U+0980-09FF` + required marks, latin + latin-ext subsets). See `src/index.css`.
+Stack: `"Anek Bangla", "Anek Bangla Fallback", "Noto Sans Bengali", system-ui` (self-hosted woff2 in `public/fonts/`, served offline — APK-safe). Primary face is **Anek Bangla** (owner choice, 2026-11-14, replacing Hind Siliguri): ONE variable woff2 per script subset (bengali + latin, wght 100–800 — every weight in the ladder is a real face; ~198 KB total vs Hind's ~351 KB of static files). Noto Sans Bengali is the coverage-fallback family (`U+0980-09FF` + required marks, latin + latin-ext subsets). The metric-tuned `Anek Bangla Fallback` face (`src/index.css`, size-adjust 92% / ascent 136% / descent 67%, measured against Anek's 1.866 em line box) reduces the swap reflow on slow networks. See `src/index.css`.
 
-Type scale (Step 7): `text-xs` 11px/16px, `sm` 13px/18px, `base` 16px/24px, `lg` 18px/28px, `xl` 20px/28px, `2xl` 28px/36px.
+Type scale — 9 steps, Bangla-first (rebuilt 2026-11-13; mirrors `--text-*`/`--leading-*` in `tokens.css` and the Tailwind `fontSize` map):
+
+| Step | Size / lh (Latin) | lh (bn, `[lang="bn"]`) | Notes |
+|---|---|---|---|
+| `2xs` | 11px / 16px | 18px | micro captions only |
+| `xs` | 12px / 18px | 19px | caption floor — Bengali below 12px is below the readability bar |
+| `sm` | 13px / 20px | 21px | secondary text |
+| `md` | 15px / 22px | 24px | compact card/section headings |
+| `base` | 16px / 25px | 26px | body |
+| `lg` | 18px / 28px | 29px | `.h2` role |
+| `xl` | 20px / 30px | 32px | `.h1` role |
+| `2xl` | 28px / 38px | 40px | `.stat` role |
+| `display` | 34px / 44px | 46px | hero numerals, Latin digits only |
+
+Rules:
+- **Heading roles** (`.h1` / `.h2` / `.card-title` / `.stat` in `index.css`) bind size + weight + line-height once; screens do not re-invent headings. Weight ladder is 400/500/600/700 only — the variable axis goes to 800, but heavier weights crush Bengali counters at screen sizes, so `font-extrabold` stays banned by role discipline.
+- **No negative letter-spacing on Bengali-capable text** — it compresses matras and stacked conjuncts. `--tracking-display` (-0.02em) is sanctioned only on Latin-digit display numerals. Positive tracking (`--tracking-xs`…`--tracking-wide`) only on uppercase Latin eyebrows or digit-only OTP inputs.
+- **One numeral policy**: any displayed number goes through `formatNumber(value, lang)` (`lib/format.ts`) so Bengali digits render in bn mode; raw `{value}` interpolation of user-visible numbers is banned. Money goes through `formatBDT`.
+- Body line-height ≥1.45× Latin, ≥1.55× Bengali (`--leading-bn-*` applied via the `[lang="bn"]` rules in `index.css`; `session.tsx` sets `documentElement.lang`).
 
 ## Focus
 

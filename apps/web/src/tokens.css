@@ -248,29 +248,66 @@
      the cart bar clears the pill by 24.5px and the toast stack by 8px. */
   --shell-nav-offset: 90px;
 
-  /* Type scale — 9 sizes. The two smallest/odd values below were previously
-     written as arbitrary utilities at their call sites (text-[10px], text-[15px]);
-     they are real steps of this scale, so they live here where they can be
-     reviewed. Every step is a deliberate size, not a one-off. */
-  --text-2xs: 10px;  /* line-height 14px — micro captions only (ring basis, order meta) */
-  --text-xs: 11px;   /* line-height 16px, letter-spacing 0.01em */
-  --text-sm: 13px;   /* line-height 18px */
-  --text-md: 15px;   /* line-height 20px — compact card/section headings */
-  --text-base: 16px; /* line-height 24px */
+  /* Type scale — 9 sizes, tuned Bangla-first (2026-11-13 rebuild; primary face
+     swapped Hind Siliguri → Anek Bangla on 2026-11-14, whose Bengali em box is
+     taller still — 1.866 em line box, see index.css fallback tuning — so these
+     leading pairs are re-verified against the current face). Every line-height
+     pair below sits at ≥1.45× and the bn variants (`[lang="bn"]`, applied on
+     <html> by the language toggle) loosen further to ≥1.55×. The two smallest
+     steps were raised from 10/11px: Bengali at 10–11px on a 390px Android
+     screen was below the readability floor and the design-tokens doc already
+     claimed a 12px caption minimum. Sizes are unchanged above sm so layouts do
+     not shift; the two raised steps were micro-copy only (order meta, ring
+     basis, tab labels). */
+  --text-2xs: 11px;  /* line-height 16px — micro captions only (ring basis, order meta) */
+  --text-xs: 12px;   /* line-height 18px, letter-spacing var(--tracking-xs) */
+  --text-sm: 13px;   /* line-height 20px */
+  --text-md: 15px;   /* line-height 22px — compact card/section headings */
+  --text-base: 16px; /* line-height 25px */
   --text-lg: 18px;   /* line-height 28px */
-  --text-xl: 20px;   /* line-height 28px */
-  --text-2xl: 28px;  /* line-height 36px */
-  --text-display: 34px; /* line-height 44px, tracking -0.02em — hero numerals */
-  --leading-2xs: 14px;
-  --leading-xs: 16px;
-  --leading-sm: 18px;
-  --leading-md: 20px;
-  --leading-base: 24px;
+  --text-xl: 20px;   /* line-height 30px */
+  --text-2xl: 28px;  /* line-height 38px */
+  --text-display: 34px; /* line-height 44px, tracking -0.02em — Latin digits only; never on Bengali strings */
+  /* Bangla-scoped pairs: looser leading so matras and stacked conjuncts never
+     clip. Kept as separate vars rather than overriding --text-* so a component
+     that renders Latin-only content (numerals, codes, Latin labels) can opt out
+     deliberately via the base pair. */
+  --text-bn-2xs: 11px;
+  --text-bn-xs: 12px;
+  --text-bn-sm: 13px;
+  --text-bn-md: 15px;
+  --text-bn-base: 16px;
+  --text-bn-lg: 18px;
+  --text-bn-xl: 20px;
+  --text-bn-2xl: 28px;
+  --text-bn-display: 34px;
+  --leading-2xs: 16px;
+  --leading-xs: 18px;
+  --leading-sm: 20px;
+  --leading-md: 22px;
+  --leading-base: 25px;
   --leading-lg: 28px;
-  --leading-xl: 28px;
-  --leading-2xl: 36px;
+  --leading-xl: 30px;
+  --leading-2xl: 38px;
   --leading-display: 44px;
+  --leading-bn-2xs: 18px;
+  --leading-bn-xs: 19px;
+  --leading-bn-sm: 21px;
+  --leading-bn-md: 24px;
+  --leading-bn-base: 26px;
+  --leading-bn-lg: 29px;
+  --leading-bn-xl: 32px;
+  --leading-bn-2xl: 40px;
+  --leading-bn-display: 46px;
+  /* Tracking set. Latin-only display text may tighten (the display step);
+     anything Bengali-capable uses the neutral or loose steps — negative
+     tracking compresses matras/conjunct stacks and is banned on bn text. */
   --tracking-xs: 0.01em;
+  --tracking-sm: 0.02em;
+  --tracking-md: 0.04em;
+  --tracking-lg: 0.06em;
+  --tracking-wide: 0.12em;  /* uppercase Latin eyebrows/codes only */
+  --tracking-display: -0.02em; /* Latin numerals at the display step only */
 }
 
 /* Motion — enterprise subtle entrance (Apple/Linear level) */

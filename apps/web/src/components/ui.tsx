@@ -570,7 +570,7 @@ export function Sidebar({ items, ariaLabel }: { items: { to: string; label: stri
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
+              `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] ${
                 isActive ? "bg-action text-white shadow-button" : "text-stone-700 hover:bg-brand-50 hover:text-accent"
               }`
             }
@@ -612,9 +612,14 @@ export function PageHeader({
             {icon}
           </span>
         )}
-        <h1 className="truncate text-xl font-extrabold tracking-[-0.01em] text-stone-800">{title}</h1>
+        <h1 className="h1 truncate text-stone-800">{title}</h1>
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {/* min-w-0 (was shrink-0): a shrink-locked action slot sits at its
+          max-content width even when the content could wrap, which pushed
+          Notifications' badge + two buttons ~3px past 360px under Anek Bangla
+          (visual-contract e2e). min-w-0 lets multi-control actions wrap and
+          single-control actions behave exactly as before. */}
+      {action && <div className="min-w-0">{action}</div>}
     </div>
   );
 }
@@ -623,7 +628,7 @@ export function PageHeader({
 export function SectionHeader({ title, action, className = "" }: { title: string; action?: ReactNode; className?: string }) {
   return (
     <div className={`mb-2.5 flex items-center justify-between gap-2 ${className}`}>
-      <h2 className="text-sm font-bold uppercase tracking-[0.04em] text-stone-500">{title}</h2>
+      <h2 className="text-sm font-bold uppercase tracking-[var(--tracking-md)] text-stone-500">{title}</h2>
       {action}
     </div>
   );
@@ -657,7 +662,7 @@ export function StatTile({
         {icon}
       </span>
       <div className="min-w-0">
-        <div className="truncate text-lg font-extrabold leading-6 tracking-[-0.01em] text-stone-800">{value}</div>
+        <div className="stat truncate text-stone-800">{value}</div>
         <div className="truncate text-xs text-stone-500">{label}</div>
       </div>
     </div>

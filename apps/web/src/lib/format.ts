@@ -64,6 +64,28 @@ export function formatDate(d: DateInput, lang: Lang): string {
   return new Intl.DateTimeFormat(DATE_LOCALE[lang], { dateStyle: "medium" }).format(toDate(d));
 }
 
+/**
+ * Locale-aware plain-number formatting — the single numeral policy. Money goes
+ * through formatBDT, but every other displayed quantity (farm stats, weather,
+ * percentages, readiness score) went through raw `{value}` interpolation and
+ * stayed Latin digits even in Bangla mode, sitting next to ৳১,৮৫০ prices
+ * rendered in Bengali numerals. Route any displayed number through here so a
+ * view never mixes digit systems. Same one-instance-per-locale caching as the
+ * BDT formatters above — this runs per stat per render on low-end Android.
+ */
+const numberFormatters = new Map<Lang, Intl.NumberFormat>();
+
+export function formatNumber(value: number, lang: Lang): string {
+  let fmt = numberFormatters.get(lang);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(CURRENCY_LOCALE[lang], {
+      maximumFractionDigits: 1,
+    });
+    numberFormatters.set(lang, fmt);
+  }
+  return fmt.format(value);
+}
+
 export function formatDateTime(d: DateInput, lang: Lang): string {
   return new Intl.DateTimeFormat(DATE_LOCALE[lang], { dateStyle: "medium", timeStyle: "short" }).format(toDate(d));
 }

@@ -203,18 +203,28 @@ export default {
         sky: "var(--gradient-sky)",
         warm: "var(--gradient-warm)",
       },
+      fontFamily: {
+        // Same stack as index.css :root — one source of truth per medium (CSS
+        // custom property cannot feed Tailwind's fontFamily). The mono usages
+        // (wallet ledger amounts, settings IDs) render Latin digits only, so
+        // the system mono stack is deliberate; no webfont is shipped for it.
+        sans: ['"Anek Bangla"', '"Anek Bangla Fallback"', '"Noto Sans Bengali"', "system-ui", "-apple-system", '"Segoe UI"', "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+      },
       fontSize: {
-        // 9 steps, mirroring --text-* in tokens.css. `2xs` and `md` were holes in
-        // the scale that call sites filled with arbitrary values (text-[10px],
-        // text-[15px]) — a named step is reviewable, an arbitrary one is not.
-        "2xs": ["10px", { lineHeight: "14px" }],
-        xs: ["11px", { lineHeight: "16px", letterSpacing: "0.01em" }],
-        sm: ["13px", { lineHeight: "18px" }],
-        md: ["15px", { lineHeight: "20px" }],
-        base: ["16px", { lineHeight: "24px" }],
+        // 9 steps, mirroring --text-* in tokens.css (Bangla-first rebuild,
+        // 2026-11-13: 2xs/xs raised to 11/12px, line-heights ≥1.45×). The
+        // Bengali-loose pairs live in index.css's [lang="bn"] rules — Tailwind
+        // emits one lh per utility, so the lang-scoped override cannot be
+        // expressed here without duplicating the whole scale per language.
+        "2xs": ["11px", { lineHeight: "16px" }],
+        xs: ["12px", { lineHeight: "18px", letterSpacing: "0.01em" }],
+        sm: ["13px", { lineHeight: "20px" }],
+        md: ["15px", { lineHeight: "22px" }],
+        base: ["16px", { lineHeight: "25px" }],
         lg: ["18px", { lineHeight: "28px" }],
-        xl: ["20px", { lineHeight: "28px" }],
-        "2xl": ["28px", { lineHeight: "36px" }],
+        xl: ["20px", { lineHeight: "30px" }],
+        "2xl": ["28px", { lineHeight: "38px" }],
         display: ["34px", { lineHeight: "44px", letterSpacing: "-0.02em", fontWeight: "700" }],
       },
     },

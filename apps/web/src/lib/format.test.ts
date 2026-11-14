@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBDT, paisaToTaka, takaToPaisa } from "./format";
+import { formatBDT, formatNumber, paisaToTaka, takaToPaisa } from "./format";
 
 /**
  * Regression guard for the money-line audit: every displayed amount comes from
@@ -72,5 +72,30 @@ describe("formatBDT", () => {
   it("takaToPaisa/paisaToTaka round-trip typical inputs", () => {
     expect(takaToPaisa(1844.5)).toBe(184450);
     expect(paisaToTaka(takaToPaisa(55.5))).toBe(55.5);
+  });
+});
+
+describe("formatNumber", () => {
+  it("renders Bengali numerals in bn, Latin in en (one numeral policy)", () => {
+    expect(formatNumber(1850, "bn")).toContain("১,৮৫০");
+    expect(formatNumber(1850, "en")).toBe("1,850");
+  });
+
+  it("groups thousands in both languages", () => {
+    // bn-BD uses the Indian grouping (12,34,567); en-GB the western one. Either
+    // way the digits must be grouped, not a bare run of 7 numerals.
+    expect(formatNumber(1234567, "en")).toContain(",");
+    expect(formatNumber(1234567, "bn")).toMatch(/১২[.,]৩৪/);
+  });
+
+  it("keeps decimals when the value carries them", () => {
+    expect(formatNumber(2.5, "en")).toBe("2.5");
+    expect(formatNumber(2.5, "bn")).toContain("২.৫");
+  });
+
+  it("handles 0 and small integers", () => {
+    expect(formatNumber(0, "bn")).toBe("০");
+    expect(formatNumber(0, "en")).toBe("0");
+    expect(formatNumber(7, "en")).toBe("7");
   });
 });
