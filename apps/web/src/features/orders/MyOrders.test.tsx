@@ -105,7 +105,9 @@ describe("features/orders — MyOrders derived UI", () => {
     // This screen used to hand-roll its h1 with the lucide icon inside it; the
     // shared PageHeader keeps the icon in its own decorative tile instead.
     expect(h1s[0]?.querySelector("svg")).toBeNull();
-    expect(h1s[0]?.className).toContain("text-xl");
+    // Size now comes from the heading-role class (typography rebuild,
+    // 2026-11-13) — PageHeader binds text-xl through .h1, not inline.
+    expect(h1s[0]?.className).toContain("h1");
   });
 
   it("states the truncation when X-Total-Count exceeds the returned slice (F-39)", () => {

@@ -242,7 +242,9 @@ describe("Home — the স্মার্ট সতর্কতা (Smart Alerts
     const text = div.textContent ?? "";
     // The weather card still renders its reading, district and provenance.
     expect(text).toContain(dict.weather.bn);
-    expect(text).toContain("28°");
+    // Temperatures follow the one-numeral policy — Bengali digits in bn mode
+    // (formatNumber), so the reading is ২৮°, not "28°".
+    expect(text).toContain("২৮°");
     expect(text).toContain(dict.humidityLabel.bn);
     // The readiness meter still scores from farms + weather and names its basis.
     expect(text).toMatch(/\d+%/);

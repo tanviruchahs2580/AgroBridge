@@ -188,7 +188,10 @@ export default function Notifications() {
         icon={<Bell className="h-5 w-5" aria-hidden />}
         title={t("notifications", lang)}
         action={
-          <div className="flex items-center gap-2">
+          // flex-wrap: under Anek Bangla the badge + two buttons overrun 360px
+          // by ~3px (visual-contract e2e); wrapping keeps every control whole —
+          // truncation is banned on Bengali-capable labels (see ui.tsx line-box note).
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {unread > 0 && (
               <Badge tone="danger" aria-live="polite" aria-atomic="true" aria-label={`${unread} ${t("notifUnreadSr", lang)}`}>
                 {unread}<span className="sr-only"> {t("notifUnreadSr", lang)}</span>

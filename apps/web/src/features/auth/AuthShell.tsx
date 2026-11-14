@@ -62,7 +62,7 @@ function AuthFeatures({ lang }: { lang: Lang }) {
   ];
   return (
     <section className="mt-7 md:hidden" aria-labelledby="auth-features-heading">
-      <h2 id="auth-features-heading" className="text-md font-extrabold leading-snug text-white">
+      <h2 id="auth-features-heading" className="card-title text-white">
         {t("authFeaturesHeading", lang)}
       </h2>
       <ul className="mt-3 space-y-2.5">
@@ -180,9 +180,10 @@ export function AuthShell({
             aria-hidden
             className="relative h-16 w-16 rounded-2xl object-cover shadow-float ring-1 ring-white/25"
           />
-          {/* `leading-none` on 18px Bengali clipped the matras; `leading-tight`
-              gives the line box room without shifting the stack. */}
-          <div className="relative mt-2.5 text-xl font-extrabold leading-tight tracking-[-0.01em] drop-shadow-sm">
+          {/* The app name is Bengali-capable: .h1 role, no negative tracking —
+              `tracking-[-0.01em]` compressed the matras (audit F-typo). The
+              [lang="bn"] wiring gives the line box its looser pair. */}
+          <div className="h1 relative mt-2.5 drop-shadow-sm">
             {t("appName", lang)}
           </div>
           <div className="relative mt-1.5 text-xs font-medium text-white/85 drop-shadow-sm">
@@ -249,7 +250,7 @@ export function AuthShell({
                 <span aria-hidden className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-iconBox ring-1 ring-brand-100 md:block">
                   <img src="/brand/logo-mark.webp" alt="" className="h-full w-full object-cover" />
                 </span>
-                <h1 className="text-xl font-extrabold tracking-[-0.01em] text-white md:text-stone-800">{title}</h1>
+                <h1 className="h1 text-white md:text-stone-800">{title}</h1>
               </div>
               {subline && <p className="mt-1.5 text-sm text-white/80 md:text-stone-600">{subline}</p>}
             </header>

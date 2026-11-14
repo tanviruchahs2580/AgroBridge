@@ -302,7 +302,8 @@ export default function Advisor() {
           <Skeleton className="h-10 w-full" />
         ) : cases.length > 0 ? (
           <div className="pt-1">
-            <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("myCases", lang)}</h2>
+            {/* Bengali-capable label ("আমার রোগের ছবি") — no tracking (see MyOrders). */}
+            <h2 className="mb-1.5 text-xs font-semibold uppercase text-stone-500">{t("myCases", lang)}</h2>
             <ul className="space-y-1.5">
               {visibleCases.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs">

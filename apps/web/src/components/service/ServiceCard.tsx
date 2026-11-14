@@ -92,7 +92,8 @@ export function ServiceCard({
         {/* Category — distinct from title (fixes A3) */}
         <div className="flex items-center gap-2">
           <AgriIconBox category={category} size={32} />
-          <p className="text-xs font-semibold uppercase tracking-[0.06em] text-link">{catLabel}</p>
+          {/* Bengali-capable category label — no tracking (see MyOrders h2). */}
+          <p className="text-xs font-semibold uppercase text-link">{catLabel}</p>
         </div>
 
         <h3 className="mt-1.5 line-clamp-1 text-balance text-base font-bold leading-6 text-stone-800">{title}</h3>

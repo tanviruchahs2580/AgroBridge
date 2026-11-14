@@ -82,7 +82,7 @@ export function QuickServices({
       <div aria-hidden className="qs-atmosphere pointer-events-none absolute inset-0" />
       <div className="relative p-3.5 sm:p-4">
         <div className="flex items-center justify-between gap-3 px-0.5">
-          <h2 id="quick-services-heading" className="text-base font-extrabold leading-tight text-[color:var(--qs-text-primary)] sm:text-lg">
+          <h2 id="quick-services-heading" className="card-title text-[color:var(--qs-text-primary)] sm:text-lg">
             {t("quickActions", lang)}
           </h2>
           {/* The repository has no all-services route; /services is the only
