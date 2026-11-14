@@ -42,10 +42,15 @@ process.on("uncaughtException", (err) => {
   setTimeout(() => process.exit(1), 5_000).unref();
 });
 
-// Graceful shutdown — drain in-flight requests before exiting
+// Graceful shutdown — drain in-flight requests before exiting. `close()` stops
+// new connections but waits for keep-alive sockets to time out on their own;
+// `closeIdleConnections()` (Node ≥18.2) releases the idle ones immediately so
+// the drain finishes in request time, not idle-timeout time. Connections with
+// an in-flight request are untouched, so nothing mid-write is dropped.
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     logger.info({ signal }, "shutting down gracefully");
+    server.closeIdleConnections();
     server.close(() => {
       void prisma.$disconnect().finally(() => process.exit(0));
     });

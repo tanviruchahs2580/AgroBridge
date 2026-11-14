@@ -9,12 +9,21 @@ import { getAuth } from "../../shared/auth-context.js";
 export const notificationsRouter = Router();
 notificationsRouter.use(requireAuth);
 
-notificationsRouter.get("/", async (req, res, next) => {
+const listQuery = z.object({
+  // Case-insensitive on input; unknown categories are rejected (400) instead of
+  // silently returning the unfiltered list (F-04).
+  category: z
+    .string()
+    .transform((s) => s.toUpperCase())
+    .pipe(z.enum(["CRITICAL", "ACTION", "INFO"]))
+    .optional(),
+});
+notificationsRouter.get("/", validate({ query: listQuery }), async (req, res, next) => {
   try {
-    const category = typeof req.query.category === "string" ? req.query.category.toUpperCase() : undefined;
+    const { category } = req.query as unknown as z.infer<typeof listQuery>;
     const where = {
       userId: getAuth(req).userId,
-      ...(category && ["CRITICAL", "ACTION", "INFO"].includes(category) ? { category } : {}),
+      ...(category ? { category } : {}),
     };
     const [notifications, unreadCritical, unreadAction, unreadInfo] = await Promise.all([
       prisma.notification.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 }),

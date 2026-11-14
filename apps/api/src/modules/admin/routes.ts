@@ -172,23 +172,58 @@ adminRouter.patch("/users/:id", requirePermission("users:manage"), validate({ bo
   }
 });
 
-/** Impersonation-free support view: issue a scoped read-only audit marker instead (security). */
-adminRouter.get("/audit-logs", requirePermission("audit:read"), async (req, res, next) => {
+/**
+ * Impersonation-free support view: issue a scoped read-only audit marker
+ * instead (security). Query is schema-validated (F-04): page/pageSize coerce
+ * with sane clamps, and entityType/actorId filter via the indexes the schema
+ * already carries (@@index([entityType, entityId]), @@index([actorId])) —
+ * before this, a support triage of "every ORG_* action" had to page the whole
+ * log by hand.
+ */
+/**
+ * AUD-116 (kept): malformed pagination clamps to sane integers — `page=abc`
+ * falls back to the default, `pageSize=100000` clamps to the cap — because a
+ * support view must never 500 on a fat-fingered URL. F-04 (new): the route
+ * still goes through validate(), and the entityType/actorId/action filters
+ * the schema already indexes are real filters.
+ */
+const clampedInt = (fallback: number, min: number, max: number) =>
+  z
+    .preprocess(
+      (v) => {
+        if (v === undefined || v === "") return undefined;
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.floor(n) : undefined;
+      },
+      z.number().int().optional(),
+    )
+    .transform((n) => Math.min(max, Math.max(min, n ?? fallback)));
+const auditLogQuery = z.object({
+  page: clampedInt(1, 1, 10_000),
+  pageSize: clampedInt(50, 1, 100),
+  entityType: z.string().trim().min(1).max(64).optional(),
+  actorId: z.string().trim().min(1).max(64).optional(),
+  action: z.string().trim().min(1).max(64).optional(),
+});
+adminRouter.get("/audit-logs", requirePermission("audit:read"), validate({ query: auditLogQuery }), async (req, res, next) => {
   try {
-    // Non-numeric query values previously flowed into skip/take as NaN
-    // (Prisma error → 500); clamp to sane integers instead.
-    const page = Math.max(1, Math.floor(Number(req.query.page ?? 1)) || 1);
-    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(req.query.pageSize ?? 50)) || 50));
+    const q = req.query as unknown as z.infer<typeof auditLogQuery>;
+    const where = {
+      ...(q.entityType ? { entityType: q.entityType } : {}),
+      ...(q.actorId ? { actorId: q.actorId } : {}),
+      ...(q.action ? { action: q.action } : {}),
+    };
     const [items, total] = await Promise.all([
       prisma.auditLog.findMany({
+        where,
         include: { actor: { select: { fullName: true, role: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
       }),
-      prisma.auditLog.count(),
+      prisma.auditLog.count({ where }),
     ]);
-    ok(res, { items, total, page, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
+    ok(res, { items, total, page: q.page, totalPages: Math.max(1, Math.ceil(total / q.pageSize)) });
   } catch (e) {
     next(e);
   }
@@ -209,10 +244,20 @@ adminRouter.get("/ai-usage", requirePermission("admin:metrics"), async (_req, re
 
 // ---- Withdrawal approvals (finance) ----
 
-adminRouter.get("/withdrawals", requirePermission("finance:withdrawals"), async (req, res, next) => {
+const withdrawalQuery = z.object({
+  // Case-insensitive on input (the old handler uppercased), but unknown
+  // statuses are rejected (400) instead of silently meaning "all rows" —
+  // finance filters must fail loud (F-04).
+  status: z
+    .string()
+    .transform((s) => s.toUpperCase())
+    .pipe(z.enum(["PENDING", "APPROVED", "REJECTED", "PAID"]))
+    .default("PENDING"),
+});
+adminRouter.get("/withdrawals", requirePermission("finance:withdrawals"), validate({ query: withdrawalQuery }), async (req, res, next) => {
   try {
-    const status = typeof req.query.status === "string" ? req.query.status.toUpperCase() : "PENDING";
-    const where = ["PENDING", "APPROVED", "REJECTED", "PAID"].includes(status) ? { status } : {};
+    const { status } = req.query as unknown as z.infer<typeof withdrawalQuery>;
+    const where = { status };
     // X-Total-Count: the queue body stays a capped slice (100); the
     // header is the selected status' true count so finance can see truncation.
     const [items, total] = await Promise.all([
