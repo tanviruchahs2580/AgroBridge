@@ -117,10 +117,10 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
   if (shouldReduce || staticOnly) {
     return (
       <div data-testid="splash" className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-b from-[var(--color-splash-from)] via-[var(--color-splash-via)] to-[var(--color-splash-to)] px-6 text-center" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 backdrop-blur">
-          <img src="/brand/logo-mark.webp" alt="" className="h-[76px] w-[76px] rounded-2xl object-cover shadow" />
+        <div className="flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-[27px] ring-1 ring-white/15 backdrop-blur">
+          <img src="/brand/logo-mark.webp" alt="" className="h-[76px] w-[76px] rounded-[21px] object-cover shadow" />
         </div>
-        <h1 className="mt-4 text-xl font-bold tracking-[-0.02em] text-white">{t("appName", lang)}</h1>
+        <h1 className="h1 text-white">{t("appName", lang)}</h1>
         <p className="mt-6 text-sm font-medium text-white/80">{statusFor(100, lang)}</p>
       </div>
     );
@@ -213,8 +213,12 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
               />
             </svg>
 
-            {/* Seed → stem → leaves */}
-            <div className="relative flex h-[64px] w-[64px] items-center justify-center rounded-full bg-white shadow-[0_8px_32px_rgba(0,0,0,0.18),0_1px_3px_rgba(0,0,0,0.2)] ring-1 ring-black/5">
+            {/* Seed → stem → leaves. White rounded-square badge (owner decision
+                2026-11-14): a circle behind the 16px-radius tile left white
+                slivers at the tile's corners on the green backdrop — the badge
+                is concentric with the tile, so the rim is even on all sides.
+                Mirrors the native splash bitmap (scripts/android-splash-icon.py). */}
+            <div className="relative flex h-[64px] w-[64px] items-center justify-center rounded-[18px] bg-white shadow-[0_8px_32px_rgba(0,0,0,0.18),0_1px_3px_rgba(0,0,0,0.2)] ring-1 ring-black/5">
               <img
               src="/brand/logo-mark.webp"
               alt=""
@@ -247,7 +251,10 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
             transition={{ duration: 0.5, delay: 0.9, ease: [0.16, 1, 0.3, 1] }}
             className="mt-5 text-center"
           >
-            <h1 className="text-2xl font-bold tracking-[-0.02em] text-white" style={{ fontFamily: "Hind Siliguri, Noto Sans Bengali, sans-serif" }}>
+            {/* Inline fontFamily removed: it was a third copy of the root stack
+                (index.css :root) and drifted from it — the audit's P2. The
+                inherit covers it; no negative tracking (Bengali-capable). */}
+            <h1 className="h1 mt-4 text-white">
               {t("appName", lang)}
             </h1>
           </m.div>
@@ -261,7 +268,7 @@ export function Splash({ onDone, staticOnly = false }: SplashProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="text-center text-sm font-medium tracking-[0.01em] text-white/85"
+                className="text-center text-sm font-medium text-white/85"
               >
                 {status}
               </m.p>

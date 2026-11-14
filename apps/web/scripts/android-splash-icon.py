@@ -6,10 +6,15 @@ pixel for pixel.
 The in-app splash (src/components/Splash.tsx) draws, centred on the brand
 backdrop:
 
-  * a 120 dp ring track — 3.5 dp stroke, rgba(255,255,255,0.12)
-  * a 64 dp white disc        — bg-white, rounded-full
-  * a 56 dp logo              — /brand/logo-mark.png, rounded-2xl (16 dp radius),
-                                object-cover inside the 56x56 box
+  * a 120 dp ring track            — 3.5 dp stroke, rgba(255,255,255,0.12)
+  * a 64 dp white rounded badge    — bg-white, rounded-[18px] (owner decision
+                                     2026-11-14, replacing the old white disc:
+                                     a circle behind a 16 dp-radius tile leaves
+                                     white slivers at the tile's corners on the
+                                     green backdrop; a concentric rounded square
+                                     gives an even 4 dp rim and no slivers)
+  * a 56 dp logo                   — /brand/logo-mark.png, rounded-2xl (16 dp
+                                     radius), object-cover inside the 56x56 box
 
 `object-cover` on the 256x207 source scales it to 69.26x56 and crops to the
 centre 56x56, i.e. it shows the centre 207x207 px of the source. This script
@@ -34,7 +39,8 @@ CANVAS = 288.0
 RING_D = 120.0
 RING_STROKE = 3.5
 RING_ALPHA = 0.12
-DISC_D = 64.0
+BADGE_D = 64.0
+BADGE_RADIUS = 18.0
 LOGO_D = 56.0
 LOGO_RADIUS = 16.0
 
@@ -91,8 +97,15 @@ def build(scale: float) -> Image.Image:
     # ring track
     stroke = RING_STROKE * scale * SS
     circle(RING_D - RING_STROKE, outline=(255, 255, 255, int(round(255 * RING_ALPHA))), width=int(round(stroke)))
-    # white disc
-    circle(DISC_D, fill=(255, 255, 255, 255))
+    # white rounded-square badge — concentric with the logo tile so the rim is
+    # even on all four sides and the tile's rounded corners never expose slivers
+    badge_d = BADGE_D * scale * SS
+    badge_r = BADGE_RADIUS * scale * SS
+    draw.rounded_rectangle(
+        (c - badge_d / 2, c - badge_d / 2, c + badge_d / 2, c + badge_d / 2),
+        radius=badge_r,
+        fill=(255, 255, 255, 255),
+    )
 
     logo_px = int(round(LOGO_D * scale * SS))
     tile = logo_tile(logo_px)
