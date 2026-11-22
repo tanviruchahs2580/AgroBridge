@@ -12,6 +12,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 import { registry, metricsMiddleware, dbUp, registerMountPrefixes } from "./lib/metrics.js";
+import { limiterStoreInfo } from "./infrastructure/metrics.js";
 import { createRedisStore } from "./lib/rateLimitRedis.js";
 import { readSchemaState } from "./infrastructure/schemaState.js";
 import { storageReadiness } from "./providers/storage/index.js";
@@ -32,6 +33,10 @@ const limiterStore: "redis" | "memory" = sharedStore ? "redis" : "memory";
 if (!sharedStore && isProd) {
   logger.warn("REDIS_URL is unset in production: rate-limit windows are per instance (documented fail-open)");
 }
+// The /ready payload reports this for humans; the gauge reports it for the
+// alert rules (WP-05): a production process running on memory windows is a
+// series that can fire instead of a JSON field nobody scrapes.
+limiterStoreInfo.set({ store: limiterStore }, 1);
 
 import { authRouter } from "./modules/auth/routes.js";
 import { farmsRouter } from "./modules/farms/routes.js";

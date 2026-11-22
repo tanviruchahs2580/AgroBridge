@@ -190,6 +190,14 @@ const schema = z.object({
    */
   STEP_UP_ENFORCEMENT: z.enum(["0", "1"]).optional(),
   /**
+   * WP-05: when "1", a production boot without REDIS_URL refuses to start —
+   * per-instance in-memory limiters are then a configuration error instead of
+   * a quiet fail-open (ADR-0010 stays: the store itself still fails open on
+   * Redis errors). Default off; the operator flips it after provisioning Redis
+   * (OA-03, docs/runbooks/redis-limiter.md).
+   */
+  REQUIRE_REDIS_LIMITER: z.enum(["0", "1"]).optional(),
+  /**
    * Generic HTTP SMS gateway (SMS_PROVIDER=http): a POST endpoint that
    * receives `{ to, text }` with an optional bearer token and sender id.
    * Keeping it provider-agnostic means activating real OTP delivery is an
@@ -294,6 +302,20 @@ export function liveGatewayPublicUrlProblem(cfg: { SSLCOMMERZ_SANDBOX?: string; 
   return null;
 }
 
+/**
+ * WP-05: the opt-in production requirement for the shared limiter store.
+ * Extracted for unit testing, like the other production guards — the boot
+ * block below is the only caller besides tests.
+ */
+export function redisLimiterRequirementProblem(cfg: { NODE_ENV?: string; REQUIRE_REDIS_LIMITER?: string; REDIS_URL?: string }): string | null {
+  if (cfg.NODE_ENV !== "production") return null;
+  if (cfg.REQUIRE_REDIS_LIMITER !== "1") return null;
+  if (!cfg.REDIS_URL) {
+    return "REQUIRE_REDIS_LIMITER=1 is set but REDIS_URL is missing in production — provision the shared limiter store (docs/runbooks/redis-limiter.md) or unset REQUIRE_REDIS_LIMITER to accept per-instance windows";
+  }
+  return null;
+}
+
 // Warn loudly if running with development defaults outside development.
 if (parsed.data.NODE_ENV === "production") {
   const weak =
@@ -354,6 +376,8 @@ if (parsed.data.NODE_ENV === "production") {
   }
   const aiCostProblem = hostedAiCostProblem(parsed.data);
   if (aiCostProblem) throw new Error(`${aiCostProblem} — startup aborted`);
+  const redisProblem = redisLimiterRequirementProblem(parsed.data);
+  if (redisProblem) throw new Error(`${redisProblem} — startup aborted`);
 }
 
 export const env = parsed.data;

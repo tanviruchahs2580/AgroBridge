@@ -19,7 +19,7 @@ full-qa audit's re-probe is cited alongside (`docs/audit/2026-11-10-full-qa-audi
 | Web SPA | Vercel static deployment, project `agrobridge-web` | `docs/runbooks/live-deployment.md` (topology table); `apps/web/vercel.json` (`framework: vite`, SPA rewrite, header set) |
 | API | Vercel Functions via `@vercel/node`, entry `api/index.js` importing `../dist/app.js` | `docs/runbooks/live-deployment.md` ("Function bundle facts"); `apps/api/vercel.json` |
 | Database | PostgreSQL on Neon (Vercel Marketplace integration) behind the API function; primary co-located with the functions in `iad1` (ADR-0018) | `docs/runbooks/live-deployment.md`; `/ready` reports `db: true` (the original 2026-10-19 probe file `.audit/evidence/E-V2-live-probes.txt` is not in this repository — see the evidence note above) |
-| Rate-limit store | In-process memory unless `REDIS_URL` is set; `/ready` publishes which is active | `limiterStore` selection in `apps/api/src/app.ts`; `/ready` reports `"limiterStore":"memory"` (the 2026-10-19 probe file is not in this repository — see the evidence note above) |
+| Rate-limit store | In-process memory unless `REDIS_URL` is set; `/ready` publishes which is active; `REQUIRE_REDIS_LIMITER=1` (optional, default off) makes production refuse to boot without `REDIS_URL` (WP-05) | `limiterStore` selection in `apps/api/src/app.ts`; `redisLimiterRequirementProblem` in `apps/api/src/config/env.ts`; `/ready` reports `"limiterStore":"memory"` (the 2026-10-19 probe file is not in this repository — see the evidence note above) |
 | Metrics | Prometheus scrape of `api:4000/metrics` (compose network); `/metrics` guarded in production | `monitoring/prometheus.yml`; `apps/api/src/middleware/metricsGuard.ts` |
 
 ## Observed regions (live probes, 2026-10-19)
@@ -108,7 +108,9 @@ Ordered by how little it takes to hit the limit, with the failure the user sees:
 3. **The rate limiter under scale-out.** Without `REDIS_URL` each instance enforces its own
    window, so the effective quota is instances × limit and the limiter fails open rather than
    closed (`limiterStore` selection in `apps/api/src/app.ts`, documented in `docs/security.md`). Production reports
-   `limiterStore: "memory"`.
+   `limiterStore: "memory"`, and the boot gauge `agrobridge_limiter_store_info` + the
+   `ProductionMemoryLimiter` alert rule make that state observable; `REQUIRE_REDIS_LIMITER=1`
+   (WP-05, default off) turns it into a boot refusal instead.
 4. **Connections to Neon under concurrency.** No pool configuration exists in code; if function
    concurrency rises faster than the Neon plan's connection ceiling, requests fail at connect
    time. Threshold **UNVERIFIED** (plan-dependent).
