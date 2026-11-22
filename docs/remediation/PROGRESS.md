@@ -43,7 +43,7 @@ Status vocabulary: `TODO` · `IN-PROGRESS` · `PR-OPEN` · `BLOCKED-DECISION (DR
 | QW-02 | Registration-response trade-off documented | **IN-PROGRESS** (2026-11-23) | |
 | QW-03 | Docs truthfulness | **PARTIAL** | ARC-07 tenancy reword done (PR #108); remaining checks land with the docs pass |
 | QW-04 | Literal `SSLCOMMERZ_SANDBOX` | **DONE** (PR #108) | |
-| QW-05 | Zod caps on single-amount inputs | **IN-PROGRESS** (2026-11-23) | |
+| QW-05 | Zod caps on single-amount inputs | **PR-OPEN** (2026-11-23) | MAX_SINGLE_AMOUNT_PAISA (2B) on product price, service base price, withdrawal amount; boundary tests; DAT-02 storage widening stays with WP-17 | |
 | QW-06 | No hand-written counts in docs | **IN-PROGRESS** (2026-11-23) | |
 | QW-07 | Android FileProvider/minify | **BLOCKED-OWNER (UJ-09)** | CI-only build; the card forbids merging without owner device verification |
 | QW-08 | Audit-narrative comments → why+ADR | **N/A (policy)** | ongoing discipline, applied when touching a file |

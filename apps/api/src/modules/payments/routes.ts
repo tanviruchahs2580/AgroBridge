@@ -10,7 +10,7 @@ import { validate } from "../../middleware/validate.js";
 import { notFound, unprocessable, forbidden, phoneNotVerified, conflict, paymentGatewayUnconfigured, paymentGatewayUnavailable, otpExpired } from "../../shared/errors/index.js";
 import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { acceptIdempotencyKeyHeader } from "../../middleware/idempotency.js";
-import { refNo } from "../../lib/money.js";
+import { refNo, MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE } from "../../lib/money.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { notify } from "../../providers/notification/service.js";
 import { audit } from "../../middleware/audit.js";
@@ -885,7 +885,7 @@ walletRouter.get("/summary", async (req, res, next) => {
 const MIN_WITHDRAWAL_PAISA = 10_000; // ৳100
 
 const withdrawalSchema = z.object({
-  amountPaisa: z.number().int().min(MIN_WITHDRAWAL_PAISA),
+  amountPaisa: z.number().int().min(MIN_WITHDRAWAL_PAISA).max(MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE),
   channel: z.enum(["BKASH", "NAGAD", "BANK"]).default("BKASH"),
   // Same key contract as checkout (ARC-10): the `Idempotency-Key` header is
   // mapped onto this field by acceptIdempotencyKeyHeader, and the body field
