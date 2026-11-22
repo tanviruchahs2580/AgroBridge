@@ -15,17 +15,23 @@ production-grade PITR (WAL archiving) remains UNVERIFIED until configured on rea
 
 Suggested RPO ≤ 24h (≤ minutes with WAL/PITR). Suggested RTO ≤ 2h.
 
-## Rehearsed evidence (2026-08-25, local PostgreSQL 17.5)
+## Rehearsed evidence
+
 `apps/api/scripts/backup-restore-rehearsal.mjs` performs a full application-level logical backup →
 destroy scratch DB → schema re-provision → data restore → per-table row-count verification +
-orphan-FK spot check:
+orphan-FK spot check + timed smoke queries, and writes a receipt with the timed phases. Numbers
+live in the drill receipts (`qa-evidence/receipts/`), never here — they change per machine and per
+data volume; the latest committed receipt is the evidence (2026-11-23 local drill:
+`qa-evidence/receipts/2026-11-23-restore-drill-local.md`, seeded-demo scope).
 
-```
-✅ RESTORE VERIFIED — 100% row integrity, no orphans
-Backup: 929ms · Restore: 670ms · Total rehearsal: 12.6s
-```
+The script **refuses non-disposable targets** (WP-13): the scratch host must be on
+`SCRATCH_HOST_ALLOW` (default: localhost addresses only) or explicitly allow-listed for a remote
+disposable branch (e.g. a Neon PITR endpoint), `SCRATCH_HOST_DENY` overrides, and
+`SCRATCH_URL == DATABASE_URL` is refused outright — a rehearsal can never drop the source
+database by accident.
 
-Re-run anytime:
+Re-run anytime (full procedure, RPO/RTO definitions and the signing step:
+`docs/runbooks/restore-drill.md`):
 ```bash
 DATABASE_URL=postgresql://…/agrobridge SCRATCH_URL=postgresql://…/agrobridge_restore_test \
   npm run pg:rehearse-backup   # inside apps/api
