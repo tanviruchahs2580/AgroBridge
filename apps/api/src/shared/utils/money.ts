@@ -1,5 +1,18 @@
 import { randomBytes } from "node:crypto";
 
+/**
+ * Upper bound for any single-amount request field (QW-05, DAT-02 immediate
+ * part): ৳20,000,000 in paisa, comfortably inside the int32 money columns the
+ * schema uses. Without an explicit cap an oversized integer passed validation
+ * and died inside Prisma as an overflow 500; a Zod `.max()` on every
+ * single-amount input turns it into a 400 with the cap named instead. The
+ * ledger work (WP-17) is what eventually widens storage; this cap only guards
+ * the request edge.
+ */
+export const MAX_SINGLE_AMOUNT_PAISA = 2_000_000_000;
+
+export const MAX_SINGLE_AMOUNT_MESSAGE = `exceeds the single-amount cap of ${MAX_SINGLE_AMOUNT_PAISA} paisa`;
+
 export function refNo(prefix: string): string {
   const t = new Date();
   const ymd = `${t.getFullYear()}${String(t.getMonth() + 1).padStart(2, "0")}${String(t.getDate()).padStart(2, "0")}`;

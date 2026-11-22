@@ -10,7 +10,7 @@ import { ok, idempotencyKeyOf } from "../../middleware/context.js";
 import { getActiveMembership } from "../../lib/membership.js";
 import { audit } from "../../middleware/audit.js";
 import { notify } from "../../providers/notification/service.js";
-import { refNo, orderTotals } from "../../lib/money.js";
+import { refNo, orderTotals, MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE } from "../../lib/money.js";
 import { env } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
@@ -51,7 +51,7 @@ const productBody = z.object({
   category: z.enum(["SEED", "FERTILIZER", "BIO_INPUT", "CROP_PROTECTION", "EQUIPMENT"]),
   description: z.string().trim().max(2000).optional(),
   unit: z.string().trim().max(20).default("KG"),
-  pricePaisa: z.number().int().positive(),
+  pricePaisa: z.number().int().positive().max(MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE),
   stockQty: z.number().int().min(0).default(0),
   batchNo: z.string().trim().max(60).optional(),
   expiryDate: z.coerce.date().optional(),
@@ -145,7 +145,7 @@ const productUpdateBody = z
     category: z.enum(["SEED", "FERTILIZER", "BIO_INPUT", "CROP_PROTECTION", "EQUIPMENT"]).optional(),
     description: z.string().trim().max(2000).optional(),
     unit: z.string().trim().max(20).optional(),
-    pricePaisa: z.number().int().positive().optional(),
+    pricePaisa: z.number().int().positive().max(MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE).optional(),
     stockQty: z.number().int().min(0).optional(),
     batchNo: z.string().trim().max(60).optional(),
     expiryDate: z.coerce.date().optional(),

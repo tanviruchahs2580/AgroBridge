@@ -7,7 +7,7 @@ import { validate } from "../../middleware/validate.js";
 import { notFound, forbidden, unprocessable, conflict } from "../../shared/errors/index.js";
 import { ok } from "../../middleware/context.js";
 import { audit } from "../../middleware/audit.js";
-import { refNo } from "../../lib/money.js";
+import { refNo, MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE } from "../../lib/money.js";
 import { notify } from "../../providers/notification/service.js";
 import { actorRegionLimit, assertSubjectInRegion } from "../../lib/territory.js";
 import { getAuth } from "../../shared/auth-context.js";
@@ -38,7 +38,7 @@ const serviceBody = z.object({
   code: z.string().trim().min(2).max(40),
   name: z.string().trim().min(2).max(120),
   category: z.enum(["DRONE", "TRACTOR", "COMBINE_HARVESTER", "RICE_TRANSPLANTER", "POWER_TILLER", "LAND_LEVELLER", "THRESHER", "SOIL_TESTING", "AGRONOMIST", "OTHER"]),
-  basePricePaisa: z.number().int().positive(),
+  basePricePaisa: z.number().int().positive().max(MAX_SINGLE_AMOUNT_PAISA, MAX_SINGLE_AMOUNT_MESSAGE),
   priceUnit: z.string().default("PER_BIGHA"),
   description: z.string().trim().max(1000).optional(),
 });
