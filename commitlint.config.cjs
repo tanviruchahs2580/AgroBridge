@@ -39,5 +39,31 @@ module.exports = {
       message.startsWith(
         "test(ai): coverage-map parity, advisory-rule boundaries and copy-safety gates; file Domain A evidence (#88)"
       ),
+    // Same policy, same reason: five headers on PR #108 (fix/p0-audit-
+    // remediation-2026-11) are over the 100-character limit — the remediation
+    // commits each carry a multi-fix subject naming the audit findings they
+    // close. Rewording them would need a force-push of an already-pushed
+    // branch (forbidden); they are exempted by EXACT header match, while
+    // `header-max-length` keeps applying to every new commit.
+    (message) =>
+      message.startsWith(
+        "fix(api): auth hardening — per-token refresh budget, atomic OTP cap, domain-separated pepper, masked audit PII, in-flight-only deletion guard"
+      ),
+    (message) =>
+      message.startsWith(
+        "fix(api): env guards and status vocabulary — live-gateway public URL, literal sandbox flag, REFUNDED in the schema comment"
+      ),
+    (message) =>
+      message.startsWith(
+        "feat(web,api): SEC-02 token storage — HttpOnly session cookies, CSRF double-submit, zero tokens in localStorage"
+      ),
+    (message) =>
+      message.startsWith(
+        "feat(web,api): SEC-04 (FIX-14) — TOTP for the admin tier and SMS step-up on withdrawals and account deletion"
+      ),
+    (message) =>
+      message.startsWith(
+        "fix(api): verify the TOTP code before branching — deny-by-default silences the user-controlled-bypass heuristic"
+      ),
   ],
 };

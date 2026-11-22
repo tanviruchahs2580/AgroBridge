@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, createUserWithRole, getAdmin, registerFarmer } from "./helpers.js";
+import { app, createUserWithRole, getAdmin, registerFarmer, requestStepUpCode } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 
 const MIN_WITHDRAWAL_PAISA = 10_000; // ৳100
@@ -14,8 +14,15 @@ async function seedBalance(userId: string, balancePaisa: number) {
   });
 }
 
+/**
+ * SEC-04: every first-time withdrawal POST carries a fresh step-up code — the
+ * gate consumes it after validation and before the hold. Every call site in
+ * this file is sequential, so minting per call is safe; parallel racers must
+ * share one minted code instead (see withdrawal-race.test.ts).
+ */
 async function requestWithdrawal(token: string, amountPaisa: number, channel = "BKASH") {
-  return request(app).post("/api/v1/wallet/withdrawals").set("Authorization", `Bearer ${token}`).send({ amountPaisa, channel });
+  const otp = await requestStepUpCode(token);
+  return request(app).post("/api/v1/wallet/withdrawals").set("Authorization", `Bearer ${token}`).send({ amountPaisa, channel, otp });
 }
 
 async function walletState(token: string) {

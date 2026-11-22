@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import fs, { rmSync } from "node:fs";
 import path from "node:path";
-import { app, registerFarmer, createUserWithRole, createFarmWithCrop, getAdmin, uniquePhone } from "./helpers.js";
+import { app, registerFarmer, createUserWithRole, createFarmWithCrop, getAdmin, uniquePhone, requestStepUpCode } from "./helpers.js";
 import { uploadImage, tinyPng } from "./upload-helper.js";
+import { totpAt } from "../src/lib/otp.js";
 import { prisma } from "../src/lib/prisma.js";
 
 /**
@@ -145,13 +146,42 @@ describe("API response shapes consumed by the web app", () => {
     await prisma.walletTransaction.create({
       data: { userId: farmer.user.id, direction: "CREDIT", amountPaisa: 50_000, balanceAfterPaisa: 50_000, reason: "contract-probe opening" },
     });
-    await request(app).post("/api/v1/wallet/withdrawals").set(auth).send({ amountPaisa: 10_000, channel: "BKASH" });
+    // SEC-04: the seeding withdrawal carries a fresh step-up code — the fixture
+    // shapes below are success shapes only and must not change.
+    await request(app)
+      .post("/api/v1/wallet/withdrawals")
+      .set(auth)
+      .send({ amountPaisa: 10_000, channel: "BKASH", otp: await requestStepUpCode(farmer.accessToken) });
+    // The admin queue is ordered createdAt ASC, so in a shared run the shape of
+    // its first element is whichever suite left the OLDEST PENDING row — and a
+    // keyed row (withdrawal-idempotency's clientRequestId set) would flip the
+    // fixture's `null` depending on vitest's per-run file order. Pin the row
+    // this file seeds as the oldest so the probe compares a shape this file
+    // controls, not another suite's leftover.
+    await prisma.withdrawal.updateMany({
+      where: { userId: farmer.user.id, status: "PENDING" },
+      data: { createdAt: new Date(0) },
+    });
 
     // A registration can only happen once per phone, so its session shape is captured
     // here rather than re-fetched in the probe list (F-68).
     const registerRes = await request(app)
       .post("/api/v1/auth/register")
       .send({ fullName: "Contract Probe", phone: uniquePhone(), password: "Test@1234", langPref: "bn", consent: true });
+
+    // SEC-04: the TOTP lifecycle probed end-to-end on a THROWAWAY admin —
+    // enabling the shared seeded admin would demand a code from every other
+    // suite's login (that admin is cached in helpers.getAdmin across suites
+    // sharing the database). enroll → activate → disable leaves the account
+    // exactly as found, and the disable probe runs after activate so the same
+    // code is still inside the ±1 verification window.
+    const totpAdmin = await createUserWithRole("ADMIN");
+    const totpAuth = { Authorization: `Bearer ${totpAdmin.accessToken}` };
+    const totpEnroll = await request(app).post("/api/v1/auth/totp/enroll").set(totpAuth);
+    const totpSecret = totpEnroll.body?.data?.secret as string | undefined;
+    const totpCode = totpSecret ? totpAt(totpSecret, Math.floor(Date.now() / 30_000)) : "000000";
+    const totpActivate = await request(app).post("/api/v1/auth/totp/activate").set(totpAuth).send({ code: totpCode });
+    const totpDisable = await request(app).post("/api/v1/auth/totp/disable").set(totpAuth).send({ code: totpCode });
 
     // A real element for GET /disease/cases (F-68); the upload response is the same
     // case element and is probed too. The stored image is removed after the run.
@@ -169,6 +199,10 @@ describe("API response shapes consumed by the web app", () => {
       { name: "auth/me", run: () => request(app).get("/api/v1/auth/me").set(auth) },
       { name: "auth/login", run: () => request(app).post("/api/v1/auth/login").send({ phone: farmer.phone, password: farmer.plainPassword }) },
       { name: "auth/register", run: async () => registerRes, ok: [201] },
+      { name: "auth/otp/stepup", run: () => request(app).post("/api/v1/auth/otp/stepup").set(auth) },
+      { name: "auth/totp/enroll", run: async () => totpEnroll, ok: [200] },
+      { name: "auth/totp/activate", run: async () => totpActivate, ok: [200] },
+      { name: "auth/totp/disable", run: async () => totpDisable, ok: [200] },
       { name: "auth/me:patch", run: () => request(app).patch("/api/v1/auth/me").set(auth).send({ fullName: farmer.user.fullName ?? "Test Farmer" }) },
       { name: "farms", run: () => request(app).get("/api/v1/farms").set(auth) },
       { name: "farms/:id/plots", run: () => request(app).get(`/api/v1/farms/${farm.farmId}/plots`).set(auth) },
@@ -289,6 +323,10 @@ describe("API response shapes consumed by the web app", () => {
       "POST /auth/login": "auth/login",
       "POST /auth/register": "auth/register",
       "PATCH /auth/me": "auth/me:patch",
+      "POST /auth/otp/stepup": "auth/otp/stepup",
+      "POST /auth/totp/enroll": "auth/totp/enroll",
+      "POST /auth/totp/activate": "auth/totp/activate",
+      "POST /auth/totp/disable": "auth/totp/disable",
       "GET /farms": "farms",
       "GET /farms/:id/plots": "farms/:id/plots",
       "GET /farms/crops": "farms/crops",

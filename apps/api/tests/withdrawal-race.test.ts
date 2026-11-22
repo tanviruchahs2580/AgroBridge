@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, registerFarmer, getAdmin } from "./helpers.js";
+import { app, registerFarmer, getAdmin, requestStepUpCode } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 
 /**
@@ -11,6 +11,14 @@ import { prisma } from "../src/lib/prisma.js";
  * the wallet. Withdrawals now reserve funds in `Wallet.heldPaisa` serialized
  * under the wallet row's write lock, so only one request can win the last of
  * the available balance.
+ *
+ * SEC-04 (FIX-14): each first-time withdrawal also consumes a step-up OTP
+ * after validation and before the hold. A fresh mint SUPERSEDES the previous
+ * live challenge (supersede-then-create), so a parallel batch must share ONE
+ * minted code — per-request mints would hand every racer but the last a dead
+ * code. With a shared correct code the racers reach the OTP gate together and
+ * the gate's attempt budget (OTP_MAX_ATTEMPTS) covers the batch; the wallet
+ * lock then serializes the holds exactly as before.
  */
 async function seedBalance(userId: string, balancePaisa: number) {
   await prisma.wallet.upsert({
@@ -20,8 +28,10 @@ async function seedBalance(userId: string, balancePaisa: number) {
   });
 }
 
-async function requestWithdrawal(token: string, amountPaisa: number) {
-  return request(app).post("/api/v1/wallet/withdrawals").set("Authorization", `Bearer ${token}`).send({ amountPaisa, channel: "BKASH" });
+async function requestWithdrawal(token: string, amountPaisa: number, otp?: string) {
+  // Sequential callers mint per request; parallel racers pass one shared code.
+  const code = otp ?? (await requestStepUpCode(token));
+  return request(app).post("/api/v1/wallet/withdrawals").set("Authorization", `Bearer ${token}`).send({ amountPaisa, channel: "BKASH", otp: code });
 }
 
 describe("Withdrawal race — holds are serialized under the wallet lock", () => {
@@ -29,13 +39,29 @@ describe("Withdrawal race — holds are serialized under the wallet lock", () =>
     const f = await registerFarmer();
     await seedBalance(f.user.id, 100_000); // ৳1000
 
-    const results = await Promise.all([requestWithdrawal(f.accessToken, 90_000), requestWithdrawal(f.accessToken, 90_000)]);
+    // One minted code for the batch (a fresh mint supersedes the previous live
+    // challenge). ADJUSTED FOR SEC-04, deliberately and in the open: the
+    // step-up gate runs BEFORE the hold, so where the loser's OTP lookup lands
+    // relative to the winner's consumption decides its refusal path —
+    //   - SQLite serialises writers, so the loser's findFirst usually runs
+    //     after the winner consumed the only live code -> 422 OTP_EXPIRED at
+    //     the gate, before the availability check;
+    //   - on PostgreSQL both racers can pass the gate and the wallet lock
+    //     decides -> 422 /insufficient/ as before.
+    // The MONEY-PATH assertions are unchanged and strict: exactly one
+    // withdrawal is created, the hold matches it, and the wallet is never
+    // over-committed. Only the loser's error MESSAGE is now path-dependent.
+    const otp = await requestStepUpCode(f.accessToken);
+    const results = await Promise.all([requestWithdrawal(f.accessToken, 90_000, otp), requestWithdrawal(f.accessToken, 90_000, otp)]);
     const created = results.filter((r) => r.status === 201);
     const rejected = results.filter((r) => r.status === 422);
 
     expect(created).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    expect(rejected[0]!.body.error.message).toMatch(/insufficient/i);
+    expect(
+      rejected[0].body.error.message.match(/insufficient/i) || rejected[0].body.error.code === "OTP_EXPIRED",
+      `loser answered neither insufficient-balance nor a step-up gate refusal: ${JSON.stringify(rejected[0].body.error)}`
+    ).toBeTruthy();
 
     // Invariants: wallet never over-committed; hold matches the one live request.
     const wallet = await prisma.wallet.findUniqueOrThrow({ where: { userId: f.user.id } });
@@ -51,7 +77,11 @@ describe("Withdrawal race — holds are serialized under the wallet lock", () =>
     const f = await registerFarmer();
     await seedBalance(f.user.id, 50_000);
 
-    const results = await Promise.all(Array.from({ length: 5 }, () => requestWithdrawal(f.accessToken, 15_000)));
+    // One minted code shared by the whole batch (see the file header): the OTP
+    // gate's 5-attempt budget covers exactly these 5 racers, and every
+    // assertion below is expressed against however many survive to the hold.
+    const otp = await requestStepUpCode(f.accessToken);
+    const results = await Promise.all(Array.from({ length: 5 }, () => requestWithdrawal(f.accessToken, 15_000, otp)));
     const created = results.filter((r) => r.status === 201);
 
     // 50k available, 15k each -> at most 3 can succeed.

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/modules/**/routes.ts",
-  "total": 88,
+  "total": 92,
   "summary": {
     "requirePermission:admin:metrics": 3,
     "requirePermission:audit:read": 1,
@@ -8,7 +8,7 @@
     "requirePermission:users:read": 1,
     "requirePermission:finance:withdrawals": 2,
     "requireAuth (file-level use on aiRouter)": 3,
-    "requireAuth": 10,
+    "requireAuth": 14,
     "PUBLIC": 9,
     "requireAuth (file-level use on diseaseRouter)": 4,
     "requirePermission:disease:review": 1,
@@ -18,8 +18,8 @@
     "requireAuth (file-level use on plotsRouter)": 3,
     "requireAuth (file-level use on ordersRouter)": 5,
     "requirePermission:products:manage": 1,
-    "requireAuth (file-level use on productsRouter)": 1,
     "requireAuth (file-level use on cartRouter)": 3,
+    "requireAuth (file-level use on productsRouter)": 1,
     "requireAuth (file-level use on notificationsRouter)": 4,
     "requirePermission:farm:read:org": 1,
     "requirePermission:org:manage": 3,
@@ -194,6 +194,14 @@
       "module": "auth",
       "file": "src/modules/auth/routes.ts",
       "method": "POST",
+      "path": "/otp/stepup",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
       "path": "/otp/verify",
       "router": "authRouter",
       "auth": "requireAuth"
@@ -229,6 +237,30 @@
       "path": "/register",
       "router": "authRouter",
       "auth": "PUBLIC"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/totp/activate",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/totp/disable",
+      "router": "authRouter",
+      "auth": "requireAuth"
+    },
+    {
+      "module": "auth",
+      "file": "src/modules/auth/routes.ts",
+      "method": "POST",
+      "path": "/totp/enroll",
+      "router": "authRouter",
+      "auth": "requireAuth"
     },
     {
       "module": "disease",
@@ -329,14 +361,6 @@
     {
       "module": "farms",
       "file": "src/modules/farms/routes.ts",
-      "method": "PATCH",
-      "path": "/plots/:plotId",
-      "router": "plotsRouter",
-      "auth": "requireAuth (file-level use on plotsRouter)"
-    },
-    {
-      "module": "farms",
-      "file": "src/modules/farms/routes.ts",
       "method": "POST",
       "path": "/plots",
       "router": "plotsRouter",
@@ -357,6 +381,14 @@
       "path": "/",
       "router": "farmsRouter",
       "auth": "requireAuth (file-level use on farmsRouter)"
+    },
+    {
+      "module": "farms",
+      "file": "src/modules/farms/routes.ts",
+      "method": "PATCH",
+      "path": "/plots/:plotId",
+      "router": "plotsRouter",
+      "auth": "requireAuth (file-level use on plotsRouter)"
     },
     {
       "module": "farms",
@@ -409,34 +441,18 @@
     {
       "module": "marketplace",
       "file": "src/modules/marketplace/routes.ts",
-      "method": "GET",
-      "path": "/",
-      "router": "productsRouter",
-      "auth": "requireAuth (file-level use on productsRouter)"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
-      "method": "GET",
-      "path": "/",
-      "router": "ordersRouter",
-      "auth": "requireAuth (file-level use on ordersRouter)"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
-      "method": "DELETE",
-      "path": "/items/:productId",
-      "router": "cartRouter",
-      "auth": "requireAuth (file-level use on cartRouter)"
-    },
-    {
-      "module": "marketplace",
-      "file": "src/modules/marketplace/routes.ts",
       "method": "POST",
       "path": "/items",
       "router": "cartRouter",
       "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "productsRouter",
+      "auth": "requireAuth (file-level use on productsRouter)"
     },
     {
       "module": "marketplace",
@@ -451,6 +467,22 @@
       "file": "src/modules/marketplace/routes.ts",
       "method": "GET",
       "path": "/",
+      "router": "cartRouter",
+      "auth": "requireAuth (file-level use on cartRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "GET",
+      "path": "/",
+      "router": "ordersRouter",
+      "auth": "requireAuth (file-level use on ordersRouter)"
+    },
+    {
+      "module": "marketplace",
+      "file": "src/modules/marketplace/routes.ts",
+      "method": "DELETE",
+      "path": "/items/:productId",
       "router": "cartRouter",
       "auth": "requireAuth (file-level use on cartRouter)"
     },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, registerFarmer } from "./helpers.js";
+import { app, registerFarmer, requestStepUpCode } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 
 /**
@@ -118,13 +118,22 @@ describe("account deletion (anonymize + disable)", () => {
     await prisma.withdrawal.create({
       data: { refNo: `WDL-DEL-${Date.now()}`, userId: f.user.id, amountPaisa: 25_000, channel: "BKASH" },
     });
-    const blocked = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    // SEC-04: the step-up gate runs BEFORE the withdrawal guard, so a valid,
+    // freshly consumed otp is what lets this request reach — and be blocked by —
+    // the in-flight-payout check.
+    const blocked = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(blocked.status).toBe(422);
     expect(blocked.body.error.message).toMatch(/withdrawal/i);
 
     await prisma.withdrawal.updateMany({ where: { userId: f.user.id }, data: { status: "REJECTED" } });
 
-    const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const del = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(del.status).toBe(200);
     expect(del.body.data.deleted).toBe(true);
 
@@ -141,7 +150,10 @@ describe("account deletion (anonymize + disable)", () => {
 
   it("deletion revokes all refresh tokens immediately", async () => {
     const f = await registerFarmer();
-    const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const del = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(del.status).toBe(200);
     const refresh = await request(app).post("/api/v1/auth/refresh").send({ refreshToken: f.refreshToken });
     expect(refresh.status).toBe(401);

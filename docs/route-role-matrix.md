@@ -32,7 +32,7 @@ Roles are derived from `src/middleware/rbac.ts`: a `requirePermission` route lis
 | Mount | Router | Module guard | Routes | Public |
 |---|---|---|---|---|
 | `/payments` | `paymentWebhookRouter` | no | 2 | 2 |
-| `/auth` | `authRouter` | no | 12 | 5 |
+| `/auth` | `authRouter` | no | 16 | 5 |
 | `/farms` | `farmsRouter` | yes | 12 | 0 |
 | `/weather` | `weatherRouter` | yes | 1 | 0 |
 | `/ai` | `aiRouter` | yes | 3 | 0 |
@@ -82,6 +82,10 @@ Source: `src/modules/auth/routes.ts`
 | POST | `/auth/otp/verify` | guard: route | — | any authenticated role | — |
 | POST | `/auth/password/forgot` | public | — | — | self-service recovery for a caller who cannot log in; always-200 response hides account existence |
 | POST | `/auth/password/reset` | public | — | — | completes recovery with the OTP issued by /auth/password/forgot; success revokes every refresh token |
+| POST | `/auth/otp/stepup` | guard: route | — | any authenticated role | — |
+| POST | `/auth/totp/enroll` | guard: route | — | any authenticated role | — |
+| POST | `/auth/totp/activate` | guard: route | — | any authenticated role | — |
+| POST | `/auth/totp/disable` | guard: route | — | any authenticated role | — |
 | DELETE | `/auth/me` | guard: route | — | any authenticated role | — |
 
 ### `/farms` → `farmsRouter`

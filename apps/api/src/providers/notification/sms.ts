@@ -1,13 +1,13 @@
 import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
 import { UpstreamHttpError, withResilience } from "../resilience.js";
+import { maskPhone } from "../../shared/utils/mask.js";
 
 export type SmsResult = { delivered: boolean; provider: string; error?: string };
 
-/** Mask a phone for logs: first three and last four digits only. */
-export function maskPhone(phone: string): string {
-  return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
-}
+// Re-exported: shared/utils/mask.ts is the single masking implementation
+// (SEC-10); the SMS provider's log masking keeps its public shape.
+export { maskPhone };
 
 /** OTP message text, bilingual — deliverable by any gateway as one ASCII-safe string. */
 export const otpSmsText = (code: string): string =>

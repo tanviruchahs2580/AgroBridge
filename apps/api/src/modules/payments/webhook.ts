@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../../lib/prisma.js";
 import { badRequest } from "../../shared/errors/index.js";
 import { ok, fail } from "../../middleware/context.js";
@@ -9,10 +10,28 @@ import { notify } from "../../providers/notification/service.js";
 import { paymentIntentsTotal } from "../../lib/metrics.js";
 import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
+import { createRedisStore } from "../../lib/rateLimitRedis.js";
+import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
 import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict } from "./routes.js";
 import { claimPendingPayment } from "./meta.js";
 import { paymentMetaOf } from "../../lib/pendingIntents.js";
 import { getPaymentProvider } from "../../providers/payment/index.js";
+
+// PAY-03: the webhook is exempt from the global per-address limiter (real IPNs
+// arrive from a handful of gateway addresses and must never 429), but it is
+// not unbounded either — this generous per-address flood cap exists so a
+// non-gateway flood cannot spin signature hashing and DB lookups for free.
+// The signature check below remains the webhook's real gate.
+const webhookStore = env.REDIS_URL ? createRedisStore(env.REDIS_URL, 15 * 60 * 1000, "payments-webhook") : undefined;
+const webhookLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: webhookStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many webhook posts. Please slow down." } },
+  handler: rateLimitHandler,
+});
 
 /**
  * SSLCommerz IPN/webhook endpoint — the ONLY path to success when a real
@@ -23,7 +42,10 @@ import { getPaymentProvider } from "../../providers/payment/index.js";
  */
 export const paymentWebhookRouter = Router();
 
-paymentWebhookRouter.post("/webhook/sslcommerz", async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+paymentWebhookRouter.post(
+  "/webhook/sslcommerz",
+  webhookLimiter,
+  async (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
   try {
     const params = (req.body ?? {}) as Record<string, string>;
     if (!params || typeof params !== "object") throw badRequest("Invalid webhook payload");

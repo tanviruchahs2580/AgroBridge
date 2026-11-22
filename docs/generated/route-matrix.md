@@ -10,7 +10,7 @@ or `PUBLIC` (rate-limited and validated, but unauthenticated by design — see d
 (`farmsRouter.use("/:id", eventsRouter())`), so `eventsRouter POST /events` is served at
 `/api/v1/farms/:id/events`. Resolve the prefix from app.ts, not from this column.
 
-Total: 88 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":10,"PUBLIC":9,"requireAuth (file-level use on diseaseRouter)":4,"requirePermission:disease:review":1,"requireAuth (file-level use on farmsRouter)":3,"requireAuth (file-level use on cropsRouter)":3,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on plotsRouter)":3,"requireAuth (file-level use on ordersRouter)":5,"requirePermission:products:manage":1,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on notificationsRouter)":4,"requirePermission:farm:read:org":1,"requirePermission:org:manage":3,"requirePermission:org:read":2,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:pay":1,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1,"requireAuth (file-level use on weatherRouter)":1}
+Total: 92 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermission:audit:read":1,"requirePermission:users:manage":1,"requirePermission:users:read":1,"requirePermission:finance:withdrawals":2,"requireAuth (file-level use on aiRouter)":3,"requireAuth":14,"PUBLIC":9,"requireAuth (file-level use on diseaseRouter)":4,"requirePermission:disease:review":1,"requireAuth (file-level use on farmsRouter)":3,"requireAuth (file-level use on cropsRouter)":3,"requireAuth (file-level use on eventsRouter)":2,"requireAuth (file-level use on plotsRouter)":3,"requireAuth (file-level use on ordersRouter)":5,"requirePermission:products:manage":1,"requireAuth (file-level use on cartRouter)":3,"requireAuth (file-level use on productsRouter)":1,"requireAuth (file-level use on notificationsRouter)":4,"requirePermission:farm:read:org":1,"requirePermission:org:manage":3,"requirePermission:org:read":2,"requireAuth (file-level use on paymentsRouter)":4,"requirePermission:payments:refund":1,"requireAuth (file-level use on walletRouter)":4,"requirePermission:procurement:pay":1,"requirePermission:procurement:review":1,"requireAuth (file-level use on procurementRouter)":2,"requirePermission:bookings:assign":1,"requireAuth (file-level use on bookingsRouter)":4,"requireAuth (file-level use on servicesRouter)":1,"requirePermission:services:manage":1,"requirePermission:providers:manage":1,"requireAuth (file-level use on weatherRouter)":1}
 
 | module | method | path | auth |
 |---|---|---|---|
@@ -33,11 +33,15 @@ Total: 88 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | auth | PATCH | /me | requireAuth |
 | auth | DELETE | /me | requireAuth |
 | auth | POST | /otp/request | requireAuth |
+| auth | POST | /otp/stepup | requireAuth |
 | auth | POST | /otp/verify | requireAuth |
 | auth | POST | /password/forgot | PUBLIC |
 | auth | POST | /password/reset | PUBLIC |
 | auth | POST | /refresh | PUBLIC |
 | auth | POST | /register | PUBLIC |
+| auth | POST | /totp/activate | requireAuth |
+| auth | POST | /totp/disable | requireAuth |
+| auth | POST | /totp/enroll | requireAuth |
 | disease | GET | /cases/:id/image | requireAuth (file-level use on diseaseRouter) |
 | disease | POST | /cases/:id/review | requirePermission:disease:review |
 | disease | GET | /cases/:id | requireAuth (file-level use on diseaseRouter) |
@@ -50,22 +54,22 @@ Total: 88 routes. Summary: {"requirePermission:admin:metrics":3,"requirePermissi
 | farms | GET | /crops | requireAuth (file-level use on cropsRouter) |
 | farms | GET | /events | requireAuth (file-level use on eventsRouter) |
 | farms | POST | /events | requireAuth (file-level use on eventsRouter) |
-| farms | PATCH | /plots/:plotId | requireAuth (file-level use on plotsRouter) |
 | farms | POST | /plots | requireAuth (file-level use on plotsRouter) |
 | farms | GET | / | requireAuth |
 | farms | POST | / | requireAuth (file-level use on farmsRouter) |
+| farms | PATCH | /plots/:plotId | requireAuth (file-level use on plotsRouter) |
 | farms | GET | /plots | requireAuth (file-level use on plotsRouter) |
 | marketplace | POST | /:id/cancel | requireAuth (file-level use on ordersRouter) |
 | marketplace | PATCH | /:id | requirePermission:products:manage |
 | marketplace | GET | /:id | requireAuth (file-level use on ordersRouter) |
 | marketplace | DELETE | /:id | requireAuth (file-level use on ordersRouter) |
 | marketplace | POST | /checkout | requireAuth (file-level use on ordersRouter) |
-| marketplace | GET | / | requireAuth (file-level use on productsRouter) |
-| marketplace | GET | / | requireAuth (file-level use on ordersRouter) |
-| marketplace | DELETE | /items/:productId | requireAuth (file-level use on cartRouter) |
 | marketplace | POST | /items | requireAuth (file-level use on cartRouter) |
+| marketplace | GET | / | requireAuth (file-level use on productsRouter) |
 | marketplace | POST | / | requireAuth,requirePermission:products:manage |
 | marketplace | GET | / | requireAuth (file-level use on cartRouter) |
+| marketplace | GET | / | requireAuth (file-level use on ordersRouter) |
+| marketplace | DELETE | /items/:productId | requireAuth (file-level use on cartRouter) |
 | notifications | GET | / | requireAuth (file-level use on notificationsRouter) |
 | notifications | GET | /preferences | requireAuth (file-level use on notificationsRouter) |
 | notifications | PATCH | /preferences | requireAuth (file-level use on notificationsRouter) |

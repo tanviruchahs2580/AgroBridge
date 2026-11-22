@@ -66,6 +66,15 @@ const schema = z.object({
    */
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   /**
+   * Refresh rotations per window per PRESENTED TOKEN (SEC-01). /refresh used to
+   * share the login limiter, whose key fell back to the shared address for a
+   * body with no phone — a few dozen users behind one carrier-NAT address could
+   * log each other out mid-session. Keyed on the token fingerprint now, so the
+   * budget belongs to the session rather than the address; address-level flood
+   * control remains on the global limiter (see middleware/rateLimitKeys.ts).
+   */
+  REFRESH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  /**
    * Account creations per window per ADDRESS. Deliberately still address-keyed:
    * this is the mass-registration control and the key would otherwise be
    * attacker-supplied. Raise it on deployments that legitimately serve a large
@@ -158,7 +167,10 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(["sandbox", "sslcommerz"]).default("sandbox"),
   SSLCOMMERZ_STORE_ID: z.string().optional(),
   SSLCOMMERZ_STORE_PASSWORD: z.string().optional(),
-  SSLCOMMERZ_SANDBOX: z.string().optional(),
+  // Only the literals are accepted (PAY-07): sslcommerzMode treats every value
+  // except the literal "false" as the sandbox host, so "False", "0" or "1"
+  // used to fall through to sandbox silently. Fail fast at parse time instead.
+  SSLCOMMERZ_SANDBOX: z.union([z.literal("true"), z.literal("false")]).optional(),
   /**
    * Explicit, auditable opt-in for simulated payments on a production
    * deployment (pilots/demos only). Without it, a production deployment with
@@ -253,6 +265,25 @@ export function paymentSandboxProblem(cfg: { SSLCOMMERZ_SANDBOX?: string }): str
   return 'SSLCOMMERZ_SANDBOX must be the literal "false" with PAYMENT_PROVIDER=sslcommerz in production — any other value routes payments to the SSLCommerz sandbox, where orders are confirmed PAID without real money moving';
 }
 
+/**
+ * SEC-05: when the live gateway is configured, the gateway callback/IPN URLs
+ * are built from API_PUBLIC_URL. The fallback (`req.protocol` + the request's
+ * Host header) is attacker-influencable behind proxies and simply wrong for
+ * webhook callbacks, so live mode refuses to boot without an https public URL.
+ * Sandbox mode has no money attached and keeps working without it. Extracted
+ * for unit testing, like paymentSandboxProblem.
+ */
+export function liveGatewayPublicUrlProblem(cfg: { SSLCOMMERZ_SANDBOX?: string; API_PUBLIC_URL?: string }): string | null {
+  if (cfg.SSLCOMMERZ_SANDBOX !== "false") return null;
+  if (!cfg.API_PUBLIC_URL) {
+    return "API_PUBLIC_URL is required in production when the SSLCommerz gateway is live (SSLCOMMERZ_SANDBOX=false) — gateway callback/IPN URLs must not be built from the request Host header";
+  }
+  if (!cfg.API_PUBLIC_URL.startsWith("https://")) {
+    return "API_PUBLIC_URL must be an https:// URL in production — gateway callbacks cannot be served over plaintext";
+  }
+  return null;
+}
+
 // Warn loudly if running with development defaults outside development.
 if (parsed.data.NODE_ENV === "production") {
   const weak =
@@ -305,6 +336,8 @@ if (parsed.data.NODE_ENV === "production") {
     }
     const sandboxProblem = paymentSandboxProblem(parsed.data);
     if (sandboxProblem) throw new Error(`${sandboxProblem} — startup aborted`);
+    const publicUrlProblem = liveGatewayPublicUrlProblem(parsed.data);
+    if (publicUrlProblem) throw new Error(`${publicUrlProblem} — startup aborted`);
   }
   if (parsed.data.SMS_PROVIDER === "http" && (!parsed.data.SMS_API_URL || !parsed.data.SMS_API_KEY)) {
     throw new Error("SMS_API_URL/SMS_API_KEY missing for SMS_PROVIDER=http in production — startup aborted");

@@ -129,6 +129,19 @@ test.describe("Scenario acceptance — privacy", () => {
     }
 
     // Deletion: confirm dialog → session ends → credentials blocked, and stay blocked.
+    // SEC-04: the deletion carries a fresh SMS step-up code — the UI's send-code
+    // click reveals the input, and the code itself is minted through the same
+    // endpoint (the register token is still live; dev shortcuts echo the code).
+    await page.locator("button", { hasText: /Send verification code|ভেরিফিকেশন কোড পাঠান/ }).first().click();
+    await expect(page.locator("#st-del-otp")).toBeVisible({ timeout: 8_000 });
+    const stepUp = await request.post("/api/v1/auth/otp/stepup", {
+      headers: { Authorization: `Bearer ${f.data.accessToken}` },
+      data: {},
+    });
+    expect(stepUp.status()).toBe(200);
+    const otpCode = ((await stepUp.json()) as { data?: { devCode?: string } }).data?.devCode ?? "";
+    expect(otpCode).toMatch(/^\d{6}$/);
+    await page.fill("#st-del-otp", otpCode);
     await page.locator("button", { hasText: /অ্যাকাউন্ট মুছে ফেলুন|Delete account/ }).first().click();
     const dialog = page.locator('[role="dialog"]');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
@@ -183,11 +196,20 @@ test.describe("Scenario acceptance — UX & resilience", () => {
 
     // A closable dialog: Escape closes it and focus returns to its opener.
     // (The checkout wizard deliberately has no mid-flow Escape — state loss.)
+    // SEC-02: registration sets the session cookies in THIS browser context,
+    // so the boot would auto-restore the new user before the login form ever
+    // renders. The spec wants the login FORM flow — drop the cookies first.
     const f = await registerByApi(page.request);
+    await page.context().clearCookies();
     await login(page, { phone: f.phone, password: "Demo@1234" });
     await page.goto("/settings");
     const opener = page.locator("button", { hasText: /অ্যাকাউন্ট মুছে ফেলুন|Delete account/ }).first();
     await expect(opener).toBeVisible({ timeout: 10_000 });
+    // SEC-04: reveal the step-up input (send-code click) and fill format-valid
+    // digits — this test never submits, the server is never called.
+    await page.locator("button", { hasText: /Send verification code|ভেরিফিকেশন কোড পাঠান/ }).first().click();
+    await expect(page.locator("#st-del-otp")).toBeVisible({ timeout: 8_000 });
+    await page.fill("#st-del-otp", "123456");
     await opener.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 8_000 });
     await page.keyboard.press("Escape");

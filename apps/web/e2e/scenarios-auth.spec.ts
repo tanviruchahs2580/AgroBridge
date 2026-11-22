@@ -42,11 +42,19 @@ test.describe("Scenario acceptance — auth", () => {
     expect((await dup.json()).data.needsLogin).toBe(true);
 
     // Logout revokes the token THIS BROWSER holds; replay fails and storage is cleared.
+    // SEC-02: the per-tab refresh mirror lives in sessionStorage (localStorage
+    // token keys must stay empty — that is the audit acceptance).
     await login(page, DEMO.farmer);
-    const pageRefresh = await page.evaluate(() => localStorage.getItem("ab_rt"));
+    const pageRefresh = await page.evaluate(() => sessionStorage.getItem("ab_rt"));
     expect(pageRefresh && pageRefresh.length).toBeGreaterThan(20);
+    const localStorageTokens = await page.evaluate(() => ({
+      at: localStorage.getItem("ab_at"),
+      rt: localStorage.getItem("ab_rt"),
+    }));
+    expect(localStorageTokens.at).toBeNull();
+    expect(localStorageTokens.rt).toBeNull();
     await logout(page);
-    const gone = await page.evaluate(() => localStorage.getItem("ab_rt"));
+    const gone = await page.evaluate(() => sessionStorage.getItem("ab_rt"));
     expect(gone).toBeNull();
     const replay = await request.post("/api/v1/auth/refresh", { data: { refreshToken: pageRefresh } });
     expect(replay.status()).toBe(401);
@@ -123,12 +131,13 @@ test.describe("Scenario acceptance — auth", () => {
     await page.goto("/wallet");
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
 
-    // Sign in; a tampered access token recovers via refresh (stale session), not logout.
+    // Sign in; a fresh boot recovers the session via the refresh path — and
+    // with SEC-02 there IS no localStorage access token to tamper with (the
+    // token is memory-only; that unreachability is the security improvement
+    // this scenario used to simulate around). The boot-restore path — mirror
+    // → /auth/refresh → /auth/me — is exercised directly by reloading.
     await login(page, DEMO.farmer);
-    await page.evaluate(() => {
-      const raw = localStorage.getItem("ab_at");
-      if (raw) localStorage.setItem("ab_at", "tampered.token.value");
-    });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.goto("/wallet");
     await expect(page.locator("#main")).toContainText(/ব্যালেন্স|Balance/, { timeout: 15_000 });
     await expect(page).not.toHaveURL(/\/login/);

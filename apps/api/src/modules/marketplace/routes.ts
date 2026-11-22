@@ -311,10 +311,15 @@ ordersRouter.get("/:id", async (req, res, next) => {
 });
 
 /**
- * Delete one of my own finished orders (removes the order + its line items
- * from history). Orders still being fulfilled (PENDING/CONFIRMED/SHIPPED)
- * must be cancelled first. Payment and wallet-ledger rows are financial
- * records and are intentionally kept untouched.
+ * Delete one of my own orders — only terminal orders without open money
+ * (CANCELLED, REFUNDED). PAY-06: the guard used to block only
+ * PENDING/CONFIRMED/SHIPPED, so a settled PAID order could be hard-deleted by
+ * its owner even though the money had been captured. In-progress orders
+ * (PENDING/CONFIRMED/SHIPPED) must be cancelled first; settled orders
+ * (PAID — and DELIVERED once a fulfilment path lands) must go through the
+ * refund path, which flips them to REFUNDED, after which deletion works.
+ * Payment and wallet-ledger rows are financial records and are intentionally
+ * kept untouched; sandbox payment rows go with the order.
  */
 ordersRouter.delete("/:id", async (req, res, next) => {
   try {
@@ -322,6 +327,9 @@ ordersRouter.delete("/:id", async (req, res, next) => {
     if (!order) throw notFound("Order");
     if (["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status)) {
       throw unprocessable("This order is still in progress — cancel it before deleting");
+    }
+    if (!["CANCELLED", "REFUNDED"].includes(order.status)) {
+      throw unprocessable("This order is a settled financial record — request a refund before deleting it");
     }
     await prisma.$transaction(async (tx) => {
       // Sandbox payment rows are simulated (no real money) — they go with the

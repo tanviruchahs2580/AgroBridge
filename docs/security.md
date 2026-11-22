@@ -14,7 +14,13 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
   hashes with rotation and revocation. Suspension/role-change revokes all refresh tokens immediately,
   and `requireAuth` re-validates account status per request so suspended accounts are cut off at once.
 - **RBAC:** 13 roles → permission map enforced in middleware (`requirePermission`) plus per-resource
-  ownership scoping in every farmer-facing query. **Tenancy:** `Organization`/`OrganizationMember` + `Farm.organizationId`; CORPORATE/COOPERATIVE `org:read/org:manage` + farm queries scoped to `OR(ownerId, organizationId in members)`; zero cross-tenant leakage proven by tenant isolation test.
+  ownership scoping in every farmer-facing query. **Tenancy — scoped claim:** tenancy exists only as
+  `Organization`/`OrganizationMember` + `Farm.organizationId`: CORPORATE/COOPERATIVE `org:read/org:manage`
+  with farm queries scoped to `OR(ownerId, organizationId in members)`, and the tenant-isolation test
+  covers that surface. It does NOT extend to orders, wallets, payments or bookings — those carry no
+  tenant key and are scoped by ownership/role only. Row-level security is deferred
+  (ADR-0015/ADR-0020); decide the tenant model before any B2B/NGO/government customer, and do not
+  present multi-tenancy as proven beyond the farm surface.
 - **Input validation:** zod schemas on body/query for every route (coercion, length caps, regex for
   BD phone numbers, UUID checks for sync ids).
 - **Injection prevention:** Prisma parameterized queries only; no raw string SQL from user input.

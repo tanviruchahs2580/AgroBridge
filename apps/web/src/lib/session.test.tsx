@@ -11,6 +11,9 @@ import { MemoryRouter } from "react-router-dom";
 // ── Mocks ──
 const mockApi = vi.fn();
 const mockClearTokens = vi.fn(() => {
+  // SEC-02: the token mirror lives in sessionStorage; the legacy localStorage
+  // keys are kept in the assertion path because clearTokens deletes them too.
+  sessionStorage.removeItem("ab_rt");
   localStorage.removeItem("ab_at");
   localStorage.removeItem("ab_rt");
 });
@@ -18,6 +21,8 @@ let capturedUnauthorizedHandler: (() => void) | null = null;
 const mockSetUnauthorizedHandler = vi.fn((fn: (() => void) | null) => {
   capturedUnauthorizedHandler = fn;
 });
+const mockRefreshAccessToken = vi.fn(async () => true);
+const mockHasPlausibleSession = vi.fn(() => false);
 
 vi.mock("./api.js", async () => {
   const actual = await vi.importActual<typeof import("./api.js")>("./api.js");
@@ -26,6 +31,8 @@ vi.mock("./api.js", async () => {
     api: (...args: unknown[]) => mockApi(...args),
     clearTokens: (...args: unknown[]) => mockClearTokens(...args),
     setUnauthorizedHandler: (fn: unknown) => mockSetUnauthorizedHandler(fn as any),
+    refreshAccessToken: () => mockRefreshAccessToken(),
+    hasPlausibleSession: () => mockHasPlausibleSession(),
   };
 });
 
@@ -123,6 +130,10 @@ async function renderSession(initialPath = "/", initialSearch = "") {
 describe("lib/session — refresh (session restoration on boot)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    mockRefreshAccessToken.mockClear();
+    mockHasPlausibleSession.mockReset();
+    mockHasPlausibleSession.mockReturnValue(false);
     mockApi.mockReset();
     mockClearTokens.mockClear();
     mockSetUnauthorizedHandler.mockClear();
@@ -141,10 +152,12 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     // So nothing
   });
 
-  it("when no ab_at in localStorage, refresh resolves to null session, loading false, no api call", async () => {
+  it("with no plausible session, refresh resolves to null session, loading false, no api call (SEC-02)", async () => {
     expect(localStorage.getItem("ab_at")).toBeNull();
+    expect(sessionStorage.getItem("ab_rt")).toBeNull();
     const { getCtx, unmount } = await renderSession("/");
     expect(mockApi).not.toHaveBeenCalledWith("GET", "/auth/me");
+    expect(mockRefreshAccessToken).not.toHaveBeenCalled();
     expect(getCtx().session).toBeNull();
     expect(getCtx().loading).toBe(false);
     // document lang stays bn for guest
@@ -152,11 +165,15 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     unmount();
   });
 
-  it("when ab_at present, a successful GET /auth/me hydrates the session", async () => {
-    localStorage.setItem("ab_at", "fake-at");
-    localStorage.setItem("ab_rt", "fake-rt");
+  it("with a plausible session, a minted access token lets GET /auth/me hydrate the session (SEC-02)", async () => {
+    // The per-tab fallback mirror names a session; boot mints an access token
+    // through /auth/refresh (mocked at the api layer) and then restores.
+    sessionStorage.setItem("ab_rt", "fake-rt");
+    mockHasPlausibleSession.mockReturnValue(true);
+    mockRefreshAccessToken.mockResolvedValueOnce(true);
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "Karim", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
+    expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
     expect(mockApi).toHaveBeenCalledWith("GET", "/auth/me");
     // `dark` left the Session shape (AUD-V3 L-7): theme truth lives in the
     // context state, not on the session object — nothing consumed session.dark.
@@ -166,8 +183,10 @@ describe("lib/session — refresh (session restoration on boot)", () => {
     unmount();
   });
 
-  it("when ab_at present and user has langPref en, session.lang is en and html lang becomes en", async () => {
-    localStorage.setItem("ab_at", "fake-at");
+  it("when the restored user has langPref en, session.lang is en and html lang becomes en", async () => {
+    sessionStorage.setItem("ab_rt", "fake-rt");
+    mockHasPlausibleSession.mockReturnValue(true);
+    mockRefreshAccessToken.mockResolvedValueOnce(true);
     mockApi.mockResolvedValueOnce({ id: "u2", fullName: "Asha", role: "ADMIN", langPref: "en" });
     const { getCtx, unmount } = await renderSession("/");
     expect(getCtx().session?.lang).toBe("en");
@@ -176,7 +195,8 @@ describe("lib/session — refresh (session restoration on boot)", () => {
   });
 
   it("when GET /auth/me 401s (definitive rejection), clears tokens and sets session null", async () => {
-    localStorage.setItem("ab_at", "bad-at");
+    sessionStorage.setItem("ab_at", "bad-at");
+    sessionStorage.setItem("ab_rt", "bad-rt");
     const { ApiError } = await import("./api");
     mockApi.mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "Token expired"));
     const { getCtx, unmount } = await renderSession("/");
@@ -187,20 +207,22 @@ describe("lib/session — refresh (session restoration on boot)", () => {
   });
 
   it("when GET /auth/me fails with a NETWORK error, tokens are preserved (offline user stays logged in)", async () => {
-    localStorage.setItem("ab_at", "good-at");
-    localStorage.setItem("ab_rt", "good-rt");
+    sessionStorage.setItem("ab_at", "good-at");
+    sessionStorage.setItem("ab_rt", "good-rt");
     const { ApiError } = await import("./api");
     mockApi.mockRejectedValueOnce(new ApiError(0, "NETWORK_TIMEOUT", "Request timed out"));
     const { getCtx, unmount } = await renderSession("/");
     expect(mockClearTokens).not.toHaveBeenCalled();
     expect(getCtx().session).toBeNull(); // no session while /auth/me is unreachable…
-    expect(localStorage.getItem("ab_at")).toBe("good-at"); // …but tokens survive for next boot
+    expect(sessionStorage.getItem("ab_at")).toBe("good-at"); // …both mirrors survive for next boot
+    expect(sessionStorage.getItem("ab_rt")).toBe("good-rt");
     expect(getCtx().loading).toBe(false);
     unmount();
   });
 
   it("refresh() exposed via context can be called manually to re-validate", async () => {
-    localStorage.setItem("ab_at", "at1");
+    sessionStorage.setItem("ab_rt", "rt1");
+    mockHasPlausibleSession.mockReturnValue(true);
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     expect(getCtx().session?.userId).toBe("u1");
@@ -218,6 +240,10 @@ describe("lib/session — refresh (session restoration on boot)", () => {
 describe("lib/session — logout", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    mockRefreshAccessToken.mockClear();
+    mockHasPlausibleSession.mockReset();
+    mockHasPlausibleSession.mockReturnValue(false);
     mockApi.mockReset();
     mockClearTokens.mockClear();
     capturedUnauthorizedHandler = null;
@@ -227,8 +253,8 @@ describe("lib/session — logout", () => {
   afterEach(() => localStorage.clear());
 
   it("logout sends the refresh token so the server actually revokes the session", async () => {
-    localStorage.setItem("ab_at", "at");
-    localStorage.setItem("ab_rt", "rt");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" }); // initial refresh
     mockApi.mockResolvedValueOnce({ loggedOut: true }); // logout call (api POST)
     const { getCtx, unmount } = await renderSession("/wallet");
@@ -258,8 +284,8 @@ describe("lib/session — logout", () => {
   });
 
   it("a logout broadcast from another tab clears this tab's React session", async () => {
-    localStorage.setItem("ab_at", "at");
-    localStorage.setItem("ab_rt", "rt");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/wallet");
     expect(getCtx().session).not.toBeNull();
@@ -278,8 +304,8 @@ describe("lib/session — logout", () => {
   });
 
   it("endSession clears tokens and the session WITHOUT calling the server (post-deletion)", async () => {
-    localStorage.setItem("ab_at", "at");
-    localStorage.setItem("ab_rt", "rt");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" }); // initial refresh only
     const { getCtx, unmount } = await renderSession("/wallet");
     expect(getCtx().session).not.toBeNull();
@@ -299,7 +325,8 @@ describe("lib/session — logout", () => {
   });
 
   it("logout clears tokens even when POST /auth/logout network fails", async () => {
-    localStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
     mockApi.mockRejectedValueOnce(new Error("network down"));
     const { getCtx, unmount } = await renderSession("/");
@@ -316,6 +343,10 @@ describe("lib/session — logout", () => {
 describe("lib/session — expired token handling (unauthorizedHandler)", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    mockRefreshAccessToken.mockClear();
+    mockHasPlausibleSession.mockReset();
+    mockHasPlausibleSession.mockReturnValue(false);
     mockApi.mockReset();
     mockClearTokens.mockClear();
     mockTrack.mockClear();
@@ -338,7 +369,8 @@ describe("lib/session — expired token handling (unauthorizedHandler)", () => {
   });
 
   it("when handler invoked while authed, clears tokens, tracks, toasts, and navigates to /login with from", async () => {
-    localStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "en" });
     const { getCtx, unmount } = await renderSession("/farm", "?x=1");
     expect(getCtx().session?.lang).toBe("en");
@@ -411,7 +443,8 @@ describe("lib/session — expired token handling (unauthorizedHandler)", () => {
   });
 
   it("sets document.documentElement.lang to bn when session cleared", async () => {
-    localStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "en" });
     const { unmount } = await renderSession("/");
     expect(document.documentElement.lang).toBe("en");
@@ -431,6 +464,10 @@ describe("lib/session — the OS theme preference (F-41)", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    mockRefreshAccessToken.mockClear();
+    mockHasPlausibleSession.mockReset();
+    mockHasPlausibleSession.mockReturnValue(false);
     mockApi.mockReset();
     mqListeners = [];
     document.documentElement.dataset.theme = "light";
@@ -490,6 +527,10 @@ describe("lib/session — the OS theme preference (F-41)", () => {
 describe("lib/session — setLang", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    mockRefreshAccessToken.mockClear();
+    mockHasPlausibleSession.mockReset();
+    mockHasPlausibleSession.mockReturnValue(false);
     mockApi.mockReset();
     mockTrack.mockClear();
     document.documentElement.lang = "bn";
@@ -497,7 +538,8 @@ describe("lib/session — setLang", () => {
   afterEach(() => localStorage.clear());
 
   it("setLang updates session lang, html lang, tracks, and PATCHes", async () => {
-    localStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     expect(getCtx().session?.lang).toBe("bn");
@@ -513,7 +555,8 @@ describe("lib/session — setLang", () => {
   });
 
   it("setLang keeps UI language even if PATCH fails (characterization)", async () => {
-    localStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_at", "at");
+    sessionStorage.setItem("ab_rt", "rt");
     mockApi.mockResolvedValueOnce({ id: "u1", fullName: "K", role: "FARMER", langPref: "bn" });
     const { getCtx, unmount } = await renderSession("/");
     mockApi.mockRejectedValueOnce(new Error("network"));

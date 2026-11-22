@@ -113,8 +113,14 @@ export function createApp() {  const app = express();
     // same carrier NAT, which is how a village loses its marketplace to the
     // first few users of the window. See middleware/rateLimitKeys.ts.
     keyGenerator: credentialOrIpKey,
-    // Relaxed in local dev; enforced in test/staging/production.
-    skip: () => isDev,
+    // Relaxed in local dev; enforced in test/staging/production. The payment
+    // webhook is exempt (PAY-03): gateway IPNs arrive from a handful of
+    // provider addresses, and once REDIS_URL makes the window shared across
+    // instances an address-keyed global budget would start 429ing real payment
+    // confirmations. Exact-route only: anything else under the prefix keeps
+    // the global budget. Signature verification remains the webhook's real
+    // gate, and it carries its own generous flood cap (payments-webhook).
+    skip: (req) => isDev || req.path === "/v1/payments/webhook/sslcommerz",
     store: sharedStore,
     message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
     handler: rateLimitHandler,

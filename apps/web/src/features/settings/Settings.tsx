@@ -3,12 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { BadgeCheck, CircleAlert, Download, KeyRound, Settings as SettingsIcon, ShieldCheck, Trash2 } from "lucide-react";
 import { api, ApiError, API_BASE } from "../../lib/api";
 import { getTokens } from "../../lib/sessionManager";
-import type { Me, OtpRequestResult } from "../../lib/api-types";
+import type { Me, OtpRequestResult, TotpEnabledResult, TotpEnrollResult } from "../../lib/api-types";
 import { invalidate, useResource } from "../../lib/useResource";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
 import { mapError } from "../../lib/errors-ui";
 import { BUILD_INFO } from "../../lib/build-info";
+import { StepUpAuth } from "../../components/StepUpAuth";
 import {
   Badge, Button, Card, ErrorBanner, Input, Label, PageHeader, SectionHeader, Select, Skeleton, Spinner, useConfirm, useToast,
 } from "../../components/ui";
@@ -19,6 +20,26 @@ import {
  * deletes their account. Google Play requires the deletion path to live inside
  * the app, so this screen is the entry point for it.
  */
+
+/**
+ * The authenticator-code input, shared by the TOTP panel's activate and disable
+ * forms — the same digits-only one-time-code shape as the SMS code inputs, but
+ * labelled for the app rather than the phone.
+ */
+function TotpCodeInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <Input
+      id={id}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      maxLength={6}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+      className="max-w-[12rem] tracking-[0.3em]"
+    />
+  );
+}
+
 export default function Settings() {
   const { session, setLang, endSession } = useSession();
   const lang = session?.lang ?? "bn";
@@ -46,9 +67,26 @@ export default function Settings() {
   const [otpBusy, setOtpBusy] = useState(false);
   const [otpErr, setOtpErr] = useState<string | null>(null);
 
+  // The step-up code the deletion submit must carry (SEC-04); the send-code
+  // button and input are the shared StepUpAuth widget (the wallet's withdrawal
+  // form mounts the same one).
+  const [delOtp, setDelOtp] = useState("");
+
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  // ── Administrator two-step verification (SEC-04) ──
+  // No status read exists for the enrolment, so the panel starts unknown/off
+  // and learns "enabled" the only two ways it can: a successful activation, or
+  // the API's 409 when an already-enrolled admin asks to enrol again.
+  const isTotpAdmin = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN";
+  const [totpState, setTotpState] = useState<"off" | "enrolling" | "enabled">("off");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [totpUrl, setTotpUrl] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpBusy, setTotpBusy] = useState(false);
+  const [totpErr, setTotpErr] = useState<string | null>(null);
 
   // Prefill: every successful /auth/me result resets the form fields, so a save
   // or a phone verification re-normalises them from the server — the old
@@ -167,6 +205,13 @@ export default function Settings() {
   }
 
   async function deleteAccount() {
+    // The step-up gate runs server-side BEFORE the money guards, so a missing
+    // or malformed code is refused before any of the domain reasons below can
+    // apply — no point opening the confirm dialog without it.
+    if (!/^\d{6}$/.test(delOtp)) {
+      setDeleteErr(t("errOtpFormat", lang));
+      return;
+    }
     const okToDelete = await confirm({
       title: t("deleteAccountTitle", lang),
       body: t("deleteAccountBody", lang),
@@ -178,7 +223,7 @@ export default function Settings() {
     setDeleting(true);
     setDeleteErr(null);
     try {
-      await api("DELETE", "/auth/me");
+      await api("DELETE", "/auth/me", { otp: delOtp });
       // Reset the SESSION CONTEXT, not just storage. Clearing tokens alone left
       // the provider's signed-in state in place, so the reverse guard bounced
       // this very navigation back into the app and the deleted account kept
@@ -192,15 +237,85 @@ export default function Settings() {
       navigate("/login", { replace: true });
     } catch (err) {
       // The API refuses while money is in flight (open orders / pending
-      // withdrawals); surface that reason instead of a generic failure.
+      // withdrawals); surface that reason instead of a generic failure. The
+      // step-up gate answers 422 first with its own codes — those carry
+      // dictionary copy through the code map, the money guards' domain
+      // messages stay passthrough.
       setDeleteErr(
-        err instanceof ApiError && err.status === 422
+        err instanceof ApiError &&
+          err.status === 422 &&
+          err.code !== "OTP_INVALID" &&
+          err.code !== "OTP_EXPIRED"
           ? err.message
           : mapError(err, lang)
       );
     } finally {
       setDeleting(false);
     }
+  }
+
+  // ── Administrator two-step verification (SEC-04) ──
+
+  async function enrollTotp() {
+    setTotpBusy(true);
+    setTotpErr(null);
+    try {
+      const res = await api<TotpEnrollResult>("POST", "/auth/totp/enroll");
+      setTotpSecret(res.secret);
+      setTotpUrl(res.otpauthUrl);
+      setTotpCode("");
+      setTotpState("enrolling");
+    } catch (err) {
+      // "Already enabled" (409) is not a failure — it is how the panel, with
+      // no status read to consult, learns an enrolment exists. Show the badge
+      // and the disable flow instead of an error.
+      if (err instanceof ApiError && err.status === 409) {
+        setTotpState("enabled");
+      } else {
+        setTotpErr(mapError(err, lang));
+      }
+    } finally {
+      setTotpBusy(false);
+    }
+  }
+
+  /**
+   * One skeleton for the panel's two code submissions — validate the six
+   * digits, run the request, toast, reset. The activate/disable pair used to
+   * be two near-identical handlers; drift between them (one forgetting to
+   * clear the error, say) would be invisible in a security control.
+   */
+  async function submitTotpCode(path: "activate" | "disable", successToast: string, onDone: () => void) {
+    if (!/^\d{6}$/.test(totpCode)) {
+      setTotpErr(t("errOtpFormat", lang));
+      return;
+    }
+    setTotpBusy(true);
+    setTotpErr(null);
+    try {
+      await api<TotpEnabledResult>("POST", `/auth/totp/${path}`, { code: totpCode });
+      toast.success(successToast);
+      setTotpCode("");
+      onDone();
+    } catch (err) {
+      setTotpErr(mapError(err, lang));
+    } finally {
+      setTotpBusy(false);
+    }
+  }
+
+  async function activateTotp(e: React.FormEvent) {
+    e.preventDefault();
+    await submitTotpCode("activate", t("totpActivatedToast", lang), () => {
+      setTotpSecret("");
+      setTotpUrl("");
+      setTotpState("enabled");
+    });
+  }
+
+  async function disableTotp(e: React.FormEvent) {
+    e.preventDefault();
+    await submitTotpCode("disable", t("totpDisabledToast", lang), () => setTotpState("off"));
   }
 
   if (meRes.loading) {
@@ -365,6 +480,71 @@ export default function Settings() {
         )}
       </Card>
 
+      {/* ── Administrator two-step verification (SEC-04) ──
+          Enrolment is an admin-tier control: the roles that approve
+          withdrawals, refunds and payouts. Every gate below is server-checked;
+          this panel only feeds it the code. */}
+      {isTotpAdmin && (
+        <Card className="space-y-3">
+          <SectionHeader title={t("totpEnabledTitle", lang)} />
+          {totpErr && <ErrorBanner message={totpErr} />}
+          {totpState === "enabled" ? (
+            <div className="space-y-3">
+              <Badge tone="success">
+                <BadgeCheck className="h-3.5 w-3.5" aria-hidden /> {t("totpEnabledBadge", lang)}
+              </Badge>
+              <form onSubmit={disableTotp} className="space-y-2" noValidate>
+                <Label htmlFor="st-totp">{t("totpCodeLabel", lang)}</Label>
+                <TotpCodeInput id="st-totp" value={totpCode} onChange={setTotpCode} />
+                <div>
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className="border-danger-border text-danger-text hover:bg-danger-bg"
+                    disabled={totpBusy}
+                    aria-busy={totpBusy || undefined}
+                  >
+                    {totpBusy && <Spinner className="mr-1.5 h-4 w-4" />}
+                    {t("totpDisableBtn", lang)}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : totpState === "enrolling" ? (
+            <div className="space-y-2">
+              <p className="text-xs text-stone-500">{t("totpSecretHint", lang)}</p>
+              {/* The key and the setup URL, selectable so they can be copied
+                  into the authenticator app; monospace because a base32 key
+                  misreads in a proportional face. */}
+              <code className="block break-all rounded-input border border-surface-border bg-surface-subdued px-3 py-2 font-mono text-sm text-stone-800">
+                {totpSecret}
+              </code>
+              <code className="block break-all rounded-input border border-surface-border bg-surface-subdued px-3 py-2 font-mono text-xs text-stone-600">
+                {totpUrl}
+              </code>
+              <form onSubmit={activateTotp} className="space-y-2" noValidate>
+                <Label htmlFor="st-totp">{t("totpCodeLabel", lang)}</Label>
+                <TotpCodeInput id="st-totp" value={totpCode} onChange={setTotpCode} />
+                <div>
+                  <Button type="submit" disabled={totpBusy} aria-busy={totpBusy || undefined}>
+                    {totpBusy && <Spinner className="mr-1.5 h-4 w-4" />}
+                    {t("verify", lang)}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-stone-500">{t("totpEnableHint", lang)}</p>
+              <Button type="button" onClick={() => void enrollTotp()} disabled={totpBusy} aria-busy={totpBusy || undefined}>
+                {totpBusy && <Spinner className="mr-1.5 h-4 w-4" />}
+                {t("totpEnableBtn", lang)}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* ── Personal data export ──*/}
       <Card className="space-y-3">
         <SectionHeader title={t("dataExportTitle", lang)} />
@@ -404,6 +584,10 @@ export default function Settings() {
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-text" aria-hidden />
           {t("deleteAccountWarning", lang)}
         </p>
+        {/* SEC-04: deletion is gated by a fresh step-up code on this account's
+            phone, requested here and carried by DELETE /auth/me. Same widget as
+            the wallet's withdrawal form — one behaviour, one definition. */}
+        <StepUpAuth lang={lang} code={delOtp} onCodeChange={setDelOtp} idPrefix="st-del" />
         {deleteErr && <ErrorBanner message={deleteErr} />}
         <Button
           type="button"

@@ -23,6 +23,8 @@ import { getPaymentProvider } from "../../providers/payment/index.js";
 import { assertMayActOnProcurementOffer, assertNotSelfDealing } from "../../lib/separationOfDuties.js";
 import { paymentMetaOf, idempotencyKeyOfMeta, voidPendingIntents } from "../../lib/pendingIntents.js";
 import { claimPendingPayment } from "./meta.js";
+import { maskPhone } from "../../shared/utils/mask.js";
+import { assertStepUpOk, consumeOtpChallenge } from "../../lib/otp.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
@@ -53,7 +55,8 @@ const financialLimiter = rateLimit({
 
 /** Mask a payout destination for storage/display (never store full account). */
 function maskDestination(phone: string): string {
-  return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
+  // Delegates to the one shared masking definition (SEC-10 consolidation).
+  return maskPhone(phone);
 }
 
 // The meta helpers live in lib/pendingIntents.ts (shared with the void paths in
@@ -889,6 +892,11 @@ const withdrawalSchema = z.object({
   // `api()` helper sends it in the body). Bounded 8..100 so a hostile client
   // cannot stuff unbounded keys into the unique index.
   clientRequestId: z.string().min(8).max(100).optional(),
+  // SEC-04 step-up: a fresh SMS factor is consumed per withdrawal request.
+  // Keyed replays skip this gate — the replay returns the stored result, and
+  // re-charging an OTP on a replay would break the one-key-one-withdrawal
+  // contract the idempotency middleware exists to keep.
+  otp: z.string().regex(/^\d{6}$/),
 });
 
 /** Replay lookup used both up-front and after a lost race: one key = one withdrawal. */
@@ -982,6 +990,11 @@ walletRouter.post(
         return;
       }
     }
+
+    // SEC-04 step-up: moving money OUT of a wallet demands a fresh SMS factor.
+    // Consumed AFTER the keyed replay (a replay must not need a second code)
+    // and BEFORE the hold (fail cheap, spend nothing).
+    assertStepUpOk(await consumeOtpChallenge(getAuth(req).userId, "STEP_UP", (req.body as { otp: string }).otp));
 
     try {
       const withdrawal = await createWithdrawalWithHold({

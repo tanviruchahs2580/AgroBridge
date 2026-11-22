@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
-import { app, registerFarmer, createFarmWithCrop } from "./helpers.js";
+import { app, registerFarmer, createFarmWithCrop, requestStepUpCode } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 import { getStorageProvider } from "../src/providers/storage/index.js";
 import { uploadImage, jpegWithExif } from "./upload-helper.js";
@@ -43,7 +43,13 @@ describe("account deletion completion (B-24)", () => {
     expect(otp.status).toBe(200);
     expect(await prisma.otpChallenge.count({ where: { phone: f.phone } })).toBe(1);
 
-    const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    // SEC-04: the deletion itself consumes a STEP_UP challenge (minted after the
+    // count assertion above, so that assertion still sees only the PHONE_VERIFY
+    // row); the purge below removes both purposes for this user/phone.
+    const del = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(del.status).toBe(200);
     // Honest completion report: the single upload was purged, none pending.
     expect(del.body.data).toEqual({ deleted: true, uploads: { purged: 1, pendingPurge: 0 } });
@@ -75,7 +81,10 @@ describe("account deletion completion (B-24)", () => {
     const provider = getStorageProvider();
     const deleteSpy = vi.spyOn(provider, "delete").mockRejectedValueOnce(new Error("storage unreachable"));
     try {
-      const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+      const del = await request(app)
+        .delete("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${f.accessToken}`)
+        .send({ otp: await requestStepUpCode(f.accessToken) });
       expect(del.status).toBe(200);
       expect(del.body.data.deleted).toBe(true);
       expect(deleteSpy).toHaveBeenCalledWith((up.body.data as { imagePath: string }).imagePath);
@@ -119,7 +128,10 @@ describe("account deletion completion (B-24)", () => {
       data: { userId: f.user.id, type: "ORDER", title: "Order confirmed", body: "Deliver to House 1, Road 2, Savar; call 01711111111" },
     });
 
-    const del = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const del = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(del.status).toBe(200);
     expect(del.body.data.deleted).toBe(true);
 
@@ -162,7 +174,14 @@ describe("account deletion completion (B-24)", () => {
     const farmB = await createFarmWithCrop(b.accessToken);
     const before = await prisma.farm.findUniqueOrThrow({ where: { id: farmB.farmId } });
 
-    expect((await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${a.accessToken}`)).status).toBe(200);
+    expect(
+      (
+        await request(app)
+          .delete("/api/v1/auth/me")
+          .set("Authorization", `Bearer ${a.accessToken}`)
+          .send({ otp: await requestStepUpCode(a.accessToken) })
+      ).status
+    ).toBe(200);
 
     const after = await prisma.farm.findUniqueOrThrow({ where: { id: farmB.farmId } });
     expect(after.lat).toBe(before.lat);

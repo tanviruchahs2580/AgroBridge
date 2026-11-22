@@ -58,6 +58,8 @@ erDiagram
     string status "ACTIVE|SUSPENDED|DISABLED"
     string region "territory scope for manager roles (e.g., DHAKA_NORTH)"
     boolean phoneVerified
+    string totpSecret "base32 TOTP secret — set at enrolment, cleared on disable; demanded at login once totpEnabledAt is set (SEC-04)"
+    datetime totpEnabledAt "enrolment confirmation time — login demands a 6-digit TOTP code when set"
     string notificationPrefs "JSON (critical:boolean,action:boolean,info:boolean)"
     datetime createdAt
     datetime updatedAt
@@ -200,7 +202,7 @@ erDiagram
     string id PK
     string orderNo
     string userId FK
-    string status "PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED"
+    string status "PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED|REFUNDED (refund path writes REFUNDED)"
     int subtotalPaisa
     int discountPaisa
     int deliveryFeePaisa
@@ -336,7 +338,7 @@ erDiagram
     string userId FK
     string phone
     string codeHash
-    string purpose
+    string purpose "PHONE_VERIFY|PASSWORD_RESET|STEP_UP (STEP_UP: re-auth gate for withdrawals and account deletion, SEC-04)"
     int attempts
     datetime consumedAt
     datetime expiresAt
@@ -437,7 +439,7 @@ erDiagram
 
 | Model | Fields | Edges |
 |---|---|---|
-| `User` | 31 | 20 |
+| `User` | 33 | 20 |
 | `RefreshToken` | 8 | 1 |
 | `FarmerProfile` | 10 | 1 |
 | `Farm` | 19 | 6 |

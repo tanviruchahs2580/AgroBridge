@@ -61,6 +61,15 @@ The four replaced their existing Dependabot PRs (`undici-8.12.3`, `fast-uri-3.1.
 `postcss-selector-parser-6.1.5`, `serialize-javascript-7.1.4`), which can be closed as superseded.
 `npm audit --omit=dev` remains **0 findings**.
 
+Resolved by remediation (2026-11-22) — effect (GHSA-7589-6fvf-x4pw, ReDoS in `Schema.TemplateLiteral`
+compiled regex, **high**): `prisma@6.19.3 → @prisma/config@6.19.3` pins `effect` at exactly `3.21.0`
+(no range for `npm update` to move, and 6.19.3 is the newest 6.x), so the fix went through a root
+`overrides` entry — `effect: "^3.22.1"` → resolved **3.22.5**, the same major and the pattern this
+register already records for `qs`/`deepmerge-ts` ("parent's range too narrow"). `@prisma/config` is
+CLI-side (config loading); the query engine is unaffected. Verified: `npm audit --omit=dev` is **0
+findings**, the prisma CLI (migrate deploy / generate / db seed via the test suite's global setup)
+runs clean under 3.22.5, and the API suite is green.
+
 Rules:
 
 - No waivers for runtime dependencies without staff-engineer + security-engineer sign-off.

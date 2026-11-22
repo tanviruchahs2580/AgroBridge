@@ -2,9 +2,11 @@
  * Feature test for the withdrawal form's validation path (AUD-V3 F1).
  * Mounts the real Wallet screen with canned resources and drives the money
  * guardrails that protect the wallet: the 100-taka minimum, the
- * available-balance ceiling (balance minus PENDING withdrawal holds), and the
- * busy-guard that blocks double-submit. No network touched on the rejection
- * paths — the form's own validation returns before api().
+ * available-balance ceiling (balance minus PENDING withdrawal holds), the
+ * busy-guard that blocks double-submit, and the step-up gate (SEC-04) — the
+ * request carries a fresh six-digit `otp` and the submit stays disabled until
+ * one is present. No network touched on the rejection paths — the form's own
+ * validation returns before api().
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React, { act } from "react";
@@ -95,7 +97,7 @@ describe("features/wallet — withdrawal guardrails", () => {
     expect(mockApi).not.toHaveBeenCalled();
   });
 
-  it("accepts an amount within the available balance and posts paisa to the API", async () => {
+  it("accepts an amount within the available balance and posts paisa with the step-up otp (SEC-04)", async () => {
     mount(<WalletPage />);
     const openBtn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes(dict.withdrawTitle.bn));
     act(() => openBtn!.click());
@@ -103,14 +105,47 @@ describe("features/wallet — withdrawal guardrails", () => {
     const amount = document.querySelector<HTMLInputElement>("#wd-amount")!;
     const form = amount.closest("form")!;
     typeInto(amount, "450"); // exactly the available balance
+
+    // The step-up gate: send the code to the account's phone, then enter it.
+    const sendBtn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes(dict.stepUpSendCode.bn));
+    expect(sendBtn, "the send-code control must be in the dialog").toBeTruthy();
+    await act(async () => {
+      sendBtn!.click();
+    });
+    expect(mockApi).toHaveBeenCalledWith("POST", "/auth/otp/stepup");
+    expect(document.body.textContent).toContain(dict.stepUpSent.bn);
+
+    const otp = document.querySelector<HTMLInputElement>("#wd-otp");
+    expect(otp, "the six-digit input appears once the code is sent").toBeTruthy();
+    typeInto(otp!, "123456");
+
     await act(async () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    expect(mockApi).toHaveBeenCalledTimes(1);
-    const [method, path, body] = mockApi.mock.calls[0]!;
+    expect(mockApi).toHaveBeenCalledTimes(2);
+    const [method, path, body] = mockApi.mock.calls[1]!;
     expect(method).toBe("POST");
     expect(path).toBe("/wallet/withdrawals");
     expect((body as { amountPaisa: number }).amountPaisa).toBe(45000);
+    expect((body as { otp: string }).otp).toBe("123456");
+  });
+
+  it("keeps the request button disabled until the six-digit code is present", async () => {
+    mount(<WalletPage />);
+    const openBtn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes(dict.withdrawTitle.bn));
+    act(() => openBtn!.click());
+
+    const amount = document.querySelector<HTMLInputElement>("#wd-amount")!;
+    typeInto(amount, "450");
+    const submitBtn = amount.closest("form")!.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(submitBtn.disabled, "no code yet — the money must not move").toBe(true);
+
+    const sendBtn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes(dict.stepUpSendCode.bn))!;
+    await act(async () => {
+      sendBtn.click();
+    });
+    typeInto(document.querySelector<HTMLInputElement>("#wd-otp")!, "123456");
+    expect(submitBtn.disabled).toBe(false);
   });
 });

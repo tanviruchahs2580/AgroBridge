@@ -50,14 +50,21 @@ function readQueue(page: Page): Promise<QueueEntry[]> {
 }
 
 /**
- * Call the API the way the app's client does — bearer token from localStorage,
- * relative /api/v1 path (works against the dev proxy and the preview server's
- * inherited proxy alike).
+ * Call the API the way the app's client does — bearer-authenticated, relative
+ * /api/v1 path (works against the dev proxy and the preview server's inherited
+ * proxy alike). SEC-02: the access token is memory-only now, so this helper
+ * mints one from the same login endpoint the UI uses (the dev login limiter is
+ * skipped; each call is independent).
  */
 function apiCall(page: Page, method: string, path: string, body?: unknown) {
   return page.evaluate(
     async ({ method, path, body }) => {
-      const token = localStorage.getItem("ab_at"); // sessionManager owns this key
+      const login = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: "01700000002", password: "Demo@1234" }),
+      }).then((r) => r.json());
+      const token = login?.data?.accessToken ?? "";
       const res = await fetch(`/api/v1${path}`, {
         method,
         headers: {

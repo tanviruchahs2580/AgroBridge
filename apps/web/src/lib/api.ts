@@ -282,8 +282,16 @@ function parseEnvelope(res: Response): Promise<Envelope> {
   );
 }
 
+/**
+ * Outcome of one refresh attempt (SEC-01 client side). "invalid" means the
+ * server judged the session itself dead (400/401 from the refresh endpoint);
+ * "transient" means the endpoint refused for a reason that can clear — rate
+ * limiting (429), a 5xx, or a network failure — and the session must survive it.
+ */
+type RefreshOutcome = "ok" | "invalid" | "transient";
+
 /** Single-flight refresh to avoid stampedes on 401. */
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 
 /**
  * Refreshes the access token once, sharing the same in-flight promise as the
@@ -295,44 +303,122 @@ export async function refreshAccessToken(): Promise<boolean> {
 }
 
 async function tryRefresh(): Promise<boolean> {
+  return (await tryRefreshOutcome()) === "ok";
+}
+
+/** Outcome-aware single-flight — the form `request()`'s 401 handler needs. */
+async function tryRefreshOutcome(): Promise<RefreshOutcome> {
   const startedWith = getTokens();
-  if (!startedWith.refreshToken) return false;
   refreshing ??= (async () => {
-    if (await attemptRefresh(startedWith.refreshToken)) return true;
+    const first = await attemptRefresh(startedWith.refreshToken);
+    if (first !== "invalid") return first;
     // Cross-tab rotation: if another tab refreshed while our attempt was in
-    // flight, its BroadcastChannel/storage update has already replaced the
-    // stored refresh token — our (now rotated-away) token was rejected for
-    // exactly that reason. Retrying once with the winner's token keeps this
-    // tab signed in instead of logging it out of a healthy session.
+    // flight, its BroadcastChannel update has already replaced the stored
+    // refresh token — our (now rotated-away) token was rejected for exactly
+    // that reason. Retrying once with the winner's token keeps this tab signed
+    // in instead of logging it out of a healthy session. A "transient" outcome
+    // does not take this path: immediately retrying a 429 or a 5xx only
+    // hammers the endpoint; the session stays put instead.
     const now = getTokens();
     if (now.refreshToken && now.refreshToken !== startedWith.refreshToken) {
       return attemptRefresh(now.refreshToken);
     }
-    return false;
+    return "invalid";
   })().finally(() => {
     setTimeout(() => (refreshing = null), 0);
   });
   return refreshing;
 }
 
-async function attemptRefresh(refreshToken: string): Promise<boolean> {
+/**
+ * The readable half of the session-cookie pair (SEC-02). The server sets
+ * `ab_csrf` alongside the HttpOnly `ab_rt` refresh cookie; echoing it in
+ * X-CSRF-Token is the double-submit proof for cookie-transport calls — a
+ * cross-site forger can ride the cookie along but cannot read it to fill the
+ * header. `ab_rt` itself is HttpOnly and never in JS reach.
+ */
+function csrfTokenFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const pair = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith("ab_csrf="));
+  if (!pair) return null;
+  return pair.slice("ab_csrf=".length) || null;
+}
+
+/**
+ * Boot gate (SEC-02): with the access-token mirror in sessionStorage a reload
+ * restores without touching /auth/refresh (which rotates — see the race note
+ * in sessionManager), so this gate only matters for tabs with an EMPTY
+ * mirror: a refresh attempt is worth one call only when something plausibly
+ * authenticates it — the refresh-token fallback mirror, or the session-cookie
+ * pair. A guest boots with no auth call at all, exactly as before.
+ */
+export function hasPlausibleSession(): boolean {
+  try {
+    if (window.sessionStorage.getItem("ab_at") || window.sessionStorage.getItem("ab_rt")) return true;
+  } catch {
+    /* ignore */
+  }
+  return Boolean(csrfTokenFromCookie());
+}
+
+/**
+ * Cookie-transport logout (SEC-02): for the rare signed-in tab whose per-tab
+ * fallback mirror is empty but whose session cookie is still live. The common
+ * path sends the body token (see session.tsx logout — it also proves
+ * server-side revocation, which the e2e suite replays).
+ */
+export function logoutViaSessionCookie(): void {
+  const csrf = csrfTokenFromCookie();
+  void fetch(`${BASE}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": newRequestId(),
+      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+    },
+    body: "{}",
+  }).catch(() => undefined);
+}
+
+async function attemptRefresh(refreshToken: string): Promise<RefreshOutcome> {
+  // SEC-02 transports, in reliability order: a stored refresh token travels in
+  // the body (works in every browser — the Android migration window and the
+  // per-tab sessionStorage fallback both land here); without one, the HttpOnly
+  // cookie carries the token and the CSRF double-submit authorises it.
+  const bodyToken = refreshToken || null;
+  const csrf = bodyToken ? null : csrfTokenFromCookie();
+  if (!bodyToken && !csrf) return "invalid";
   try {
     const res = await fetch(`${BASE}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Request-Id": newRequestId() },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-Id": newRequestId(),
+        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      },
+      body: JSON.stringify(bodyToken ? { refreshToken: bodyToken } : {}),
     });
-    if (!res.ok) return false;
+    // 429/5xx mean "retry later", never "session dead" (SEC-01): a throttled or
+    // unhealthy refresh endpoint must not log a signed-in user out.
+    if (res.status === 429 || res.status >= 500) return "transient";
+    if (!res.ok) return "invalid";
     const j = await res.json();
     // Never trust a malformed refresh body: storing undefined tokens would
     // silently de-authenticate the user on the next replay.
     const at = j?.data?.accessToken;
     const rt = j?.data?.refreshToken;
-    if (typeof at !== "string" || !at || typeof rt !== "string" || !rt) return false;
+    if (typeof at !== "string" || !at || typeof rt !== "string" || !rt) return "invalid";
     setTokens(at, rt);
-    return true;
+    return "ok";
   } catch {
-    return false;
+    // A network failure mid-rotation is not a dead session either — the same
+    // request would have been retried as transient had the server answered 5xx.
+    return "transient";
   }
 }
 
@@ -385,7 +471,8 @@ async function request<T = unknown>(method: string, path: string, body?: unknown
 
     if (res.status === 401) {
       // Try one silent refresh + replay.
-      if (await tryRefresh()) {
+      const refreshOutcome = await tryRefreshOutcome();
+      if (refreshOutcome === "ok") {
         try {
           res = await performWithRetry(method, path, body, requestId);
           json = await parseEnvelope(res);
@@ -401,10 +488,12 @@ async function request<T = unknown>(method: string, path: string, body?: unknown
         }
       }
       if (res.status === 401) {
-        // Refresh failed OR replay STILL returned 401 → session is dead.
-        // Fallback copy comes from the i18n catalog in the session's language
-        // (no concatenated bilingual strings outside it — i18n:check gates
-        // inline copy, and a lib file is not exempt).
+        // Replay STILL returned 401 → session is dead — unless the refresh
+        // itself failed transiently (SEC-01 client side): a 429, a 5xx or a
+        // network failure on the refresh endpoint is "try again shortly", not
+        // "session dead". Fallback copy comes from the i18n catalog in the
+        // session's language (no concatenated bilingual strings outside it —
+        // i18n:check gates inline copy, and a lib file is not exempt).
         const expiredFallback = t("sessionExpired", getSession()?.lang ?? "bn");
         // ── Critical-flow guard: during checkout/payment, DO NOT clear
         //    tokens or redirect. The page handles the error UX and will
@@ -419,6 +508,15 @@ async function request<T = unknown>(method: string, path: string, body?: unknown
             json.error?.details,
             json.error?.reference
           );
+        }
+        if (refreshOutcome === "transient") {
+          // Keep the session: the tokens are still valid, the endpoint just
+          // said "not now". Surfaced as a retryable 429 RATE_LIMITED so the
+          // existing bilingual copy applies; the next user action retries the
+          // refresh. clearTokens()/unauthorizedHandler() are deliberately NOT
+          // called here — that pair IS the mass-logout failure mode this
+          // branch exists to prevent (throttled refresh ⇒ logged out).
+          throw new ApiError(429, "RATE_LIMITED", t("errRateLimited", getSession()?.lang ?? "bn"), undefined, json.error?.reference);
         }
         clearTokens();
         if (wasAuthed) unauthorizedHandler?.();
@@ -481,7 +579,8 @@ export async function apiBlob(path: string): Promise<Blob> {
     if (err instanceof NetworkError) throw networkApiError(err);
     throw new ApiError(0, "NETWORK_ERROR", err instanceof Error ? err.message : "Network error");
   }
-  if (res.status === 401 && (await tryRefresh())) {
+  const refreshOutcome = res.status === 401 ? await tryRefreshOutcome() : "invalid";
+  if (res.status === 401 && refreshOutcome === "ok") {
     try {
       res = await doFetch();
     } catch (err) {
@@ -490,6 +589,12 @@ export async function apiBlob(path: string): Promise<Blob> {
     }
   }
   if (res.status === 401) {
+    if (refreshOutcome === "transient") {
+      // SEC-01, same contract as api(): a throttled/unhealthy refresh is
+      // "try again shortly", not a dead session — the image load fails as a
+      // retryable 429 and the session survives.
+      throw new ApiError(429, "RATE_LIMITED", t("errRateLimited", getSession()?.lang ?? "bn"));
+    }
     // Session is dead after refresh/replay — same contract as api(): clear the
     // tokens and let the app shell route the user to sign-in.
     clearTokens();

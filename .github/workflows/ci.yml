@@ -470,6 +470,11 @@ jobs:
       # is the correct behaviour here, and it is the escape hatch the config
       # documents — a local run without this variable still refuses to reuse.
       PLAYWRIGHT_REUSE_SERVER: "1"
+      # SEC-04: the step-up gates (withdrawals, account deletion) need the SMS
+      # code readable by the specs. This ephemeral, non-production instance
+      # opts into the documented dev shortcut so /auth/otp/stepup echoes the
+      # code; the production guard (NODE_ENV=production) is untouched.
+      DEV_AUTH_SHORTCUTS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 

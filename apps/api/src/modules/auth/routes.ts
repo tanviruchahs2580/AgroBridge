@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, otpExpired } from "../../shared/errors/index.js";
+import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, otpExpired, forbidden, AppError } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
@@ -16,11 +16,14 @@ import { logger } from "../../lib/logger.js";
 import { normalizeBdPhone } from "../../shared/utils/phone.js";
 import { verifyPasswordAgainst, storedHashIsCheaper } from "./password.js";
 import { bcryptCost, bcryptHash } from "./bcryptPool.js";
-import { accountOrIpKey, userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { accountOrIpKey, userOrIpKey, refreshKey } from "../../middleware/rateLimitKeys.js";
 import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
+import { assertStepUpOk, assertTotpLogin, consumeOtpChallenge, generateTotpSecret, otpHash, totpOtpauthUrl, verifyTotp, OTP_MAX_ATTEMPTS } from "../../lib/otp.js";
+import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
+import { clearSessionCookies, CSRF_COOKIE, newCsrfToken, readCookie, REFRESH_COOKIE, setSessionCookies, csrfMatches } from "../../lib/sessionCookies.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 // Multi-instance-safe limiter stores. One instance per limiter, each with its own
@@ -35,6 +38,7 @@ const redisStoreFor = (prefix: string, windowMs: number) =>
   env.REDIS_URL ? createRedisStore(env.REDIS_URL, windowMs, prefix) : undefined;
 
 const loginStore = redisStoreFor("auth-login", 15 * 60 * 1000);
+const refreshStore = redisStoreFor("auth-refresh", 15 * 60 * 1000);
 const otpRequestStore = redisStoreFor("auth-otp-request", 60 * 60 * 1000);
 const otpVerifyStore = redisStoreFor("auth-otp-verify", 60 * 60 * 1000);
 const forgotStore = redisStoreFor("auth-pw-forgot", 60 * 60 * 1000);
@@ -60,6 +64,27 @@ const loginLimiter = rateLimit({
   skip: () => isDev,
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
+  handler: rateLimitHandler,
+});
+
+// Refresh limiter (SEC-01): rotation is high-entropy, so flooding it must still
+// cost something — but the budget belongs to the PRESENTED TOKEN, not to the
+// address. /refresh used to share loginLimiter, whose key fell back to `ip:`
+// for a body that carries no phone: with 15-minute access tokens and carrier-
+// grade NAT as the norm, a few dozen users on one address could spend each
+// other's refresh window and log each other out mid-session (any non-OK refresh
+// is a dead session to the web client). Keyed on the token fingerprint, one
+// household's refreshes never touch another's; address-level floods stay on the
+// global limiter.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.REFRESH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: refreshKey,
+  skip: () => isDev,
+  store: refreshStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many session refreshes. Please try again shortly." } },
   handler: rateLimitHandler,
 });
 
@@ -128,15 +153,23 @@ const registerLimiter = rateLimit({
 
 // Password-reset limiters: keyed by IP + the submitted phone so neither a
 // single source nor a single account can pump reset SMS or grind codes. The
-// phone in the key is the RAW body value — normalisation happens after the
-// limiter, and keying on the raw string is what a caller controls.
+// phone in the key is NORMALIZED (SEC-03): the raw body value is
+// caller-controlled, so raw-keying handed `+8801…`, `8801…` and Bengali-digit
+// spellings of one number separate budgets — a respelling bypass. Collapsing
+// every valid spelling onto its canonical form makes the budget
+// per-account-per-address; unparseable strings collapse onto one "invalid"
+// segment so garbage cannot mint buckets either.
 function phoneKeyedLimiter(limit: number, message: string, store: Store | undefined) {
   return rateLimit({
     windowMs: 60 * 60 * 1000,
     limit,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `${req.ip ?? "unknown"}:${typeof (req.body as { phone?: unknown })?.phone === "string" ? (req.body as { phone: string }).phone : ""}`,
+    keyGenerator: (req) => {
+      const raw = (req.body as { phone?: unknown } | undefined)?.phone;
+      const normalized = typeof raw === "string" ? normalizeBdPhone(raw) : null;
+      return `${req.ip ?? "unknown"}:${normalized ?? "invalid"}`;
+    },
     store,
     message: { ok: false, error: { code: "RATE_LIMITED", message } },
     handler: rateLimitHandler,
@@ -182,6 +215,9 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   phone: z.string().min(1),
   password: z.string().min(1),
+  // SEC-04: demanded only from accounts that enrolled a TOTP secret — the
+  // login response says TOTP_REQUIRED first, then the code rides here.
+  totp: z.string().regex(/^\d{6}$/).optional(),
 });
 
 function sha256(input: string): string {
@@ -249,11 +285,16 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
       meta: { policyVersion: POLICY_VERSION, scope: "terms+privacy" },
     });
 
+    const refreshToken = await issueRefreshToken(user.id, req.headers["user-agent"]);
+    // SEC-02: the token also rides the HttpOnly ab_rt cookie (with its readable
+    // CSRF pair) so browser clients can stop persisting tokens; the body copy
+    // stays for the migration window (Android, request-fixture clients).
+    setSessionCookies(res, refreshToken, newCsrfToken());
     ok(
       res,
       {
         accessToken: signAccessToken(user.id, user.role),
-        refreshToken: await issueRefreshToken(user.id, req.headers["user-agent"]),
+        refreshToken,
         user: { id: user.id, fullName: user.fullName, role: user.role, langPref: user.langPref },
       },
       201
@@ -290,12 +331,40 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
         entityType: "User",
         entityId: user?.id ?? undefined,
         ip: req.ip,
-        meta: { phone, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
+        // SEC-10: audit rows persist 180 days and are operator-readable — the
+        // phone lands masked (normalized above, so the mask is stable).
+        meta: { phone: phone ? maskPhone(phone) : null, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
       }).catch(() => undefined);
       await recordLoginFailure(throttleKey);
       throw invalidCredentials();
     }
     await clearLoginFailures(throttleKey);
+
+    // SEC-04: TOTP for the administrator tier. Demanded only AFTER the password
+    // has proven possession — a wrong-password attempt never learns whether
+    // the account carries a second factor, and the 6-digit code gates the
+    // session even when the password itself is compromised. The gate is a
+    // throwing verifier (lib/otp.ts): the session is issued only when it
+    // returns normally, the user-supplied code never appears in a route-side
+    // condition, and a present-but-wrong code is audited and throttled here.
+    if (user.totpEnabledAt && user.totpSecret) {
+      const code = (req.body as { totp?: string }).totp ?? "";
+      try {
+        assertTotpLogin(user.totpSecret, code);
+      } catch (e) {
+        if (e instanceof AppError && e.code === "TOTP_INVALID") {
+          await audit({
+            action: "AUTH_LOGIN_FAILED",
+            entityType: "User",
+            entityId: user.id,
+            ip: req.ip,
+            meta: { phone: phone ? maskPhone(phone) : null, reason: "totp_invalid" },
+          }).catch(() => undefined);
+          await recordLoginFailure(throttleKey);
+        }
+        throw e;
+      }
+    }
 
     // Transparent cost upgrade (F-02 option c): a hash stored at a cheaper
     // factor than this environment uses is re-hashed at the current one, so an
@@ -317,9 +386,12 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
 
     await audit({ actorId: user.id, action: "AUTH_LOGIN", entityType: "User", entityId: user.id, ip: req.ip });
 
+    const refreshToken = await issueRefreshToken(user.id, req.headers["user-agent"]);
+    // SEC-02: HttpOnly cookie alongside the body copy — see /refresh.
+    setSessionCookies(res, refreshToken, newCsrfToken());
     ok(res, {
       accessToken: signAccessToken(user.id, user.role),
-      refreshToken: await issueRefreshToken(user.id, req.headers["user-agent"]),
+      refreshToken,
       user: { id: user.id, fullName: user.fullName, role: user.role, langPref: user.langPref },
     });
   } catch (e) {
@@ -327,14 +399,30 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
   }
 });
 
-// Same limiter class as login: refresh issues new credentials, so flooding it
-// must be expensive even though the token itself is high-entropy.
-authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048) }) }), async (req, res, next) => {
+// Refresh carries its own per-token budget (SEC-01) — see refreshLimiter above.
+// It must NOT share loginLimiter: that limiter's key falls back to the shared
+// address for a phone-less body, which is exactly the mass-logout failure mode.
+// SEC-02: the token arrives as the HttpOnly ab_rt cookie OR the request body —
+// the body transport stays accepted for the Android migration window and the
+// e2e request fixture; cookie-transport callers (no body token) must pass the
+// CSRF double-submit (X-CSRF-Token mirroring the readable ab_csrf cookie),
+// because a cross-site form/fetch can ride along with cookies but cannot read
+// them to fill the header.
+authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048).optional() }) }), async (req, res, next) => {
   try {
-    const { refreshToken } = req.body as { refreshToken: string };
+    const bodyToken = (req.body as { refreshToken?: string }).refreshToken;
+    const cookieToken = readCookie(req, REFRESH_COOKIE);
+    if (!bodyToken && !csrfMatches(req.headers["x-csrf-token"], readCookie(req, CSRF_COOKIE))) {
+      throw unauthorized("Missing or invalid CSRF token");
+    }
+    const refreshToken = bodyToken ?? cookieToken ?? "";
+    if (refreshToken.length < 10) throw unauthorized("Refresh token invalid or expired");
 
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: sha256(refreshToken) }, include: { user: true } });
     if (!stored || stored.expiresAt < new Date() || stored.user.status !== "ACTIVE") {
+      // A rejected cookie may be stale or rotated away — clear it so the next
+      // boot goes to sign-in instead of retrying a dead cookie forever.
+      clearSessionCookies(res);
       throw unauthorized("Refresh token invalid or expired");
     }
 
@@ -349,10 +437,12 @@ authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshTok
         where: { userId: stored.userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      clearSessionCookies(res);
       throw unauthorized("Refresh token invalid or expired");
     }
 
     const newRaw = await issueRefreshToken(stored.userId, stored.deviceInfo ?? undefined);
+    setSessionCookies(res, newRaw, newCsrfToken());
 
     ok(res, {
       accessToken: signAccessToken(stored.user.id, stored.user.role),
@@ -365,13 +455,21 @@ authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshTok
 
 authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken: z.string().min(20).max(500).optional() }) }), async (req, res, next) => {
   try {
-    const refreshToken = (req.body as { refreshToken?: string }).refreshToken;
-    if (refreshToken) {
+    // SEC-02: revoke whichever transport carried the token — the body value, or
+    // the HttpOnly cookie when the client no longer stores tokens. The cookies
+    // are cleared on every logout regardless (requireAuth's Bearer gate already
+    // proves the caller is the session owner, so no CSRF header is needed
+    // here: a cross-site forger cannot produce the Authorization header).
+    const bodyToken = (req.body as { refreshToken?: string }).refreshToken;
+    const cookieToken = readCookie(req, REFRESH_COOKIE);
+    const target = bodyToken ?? cookieToken;
+    if (target) {
       await prisma.refreshToken.updateMany({
-        where: { tokenHash: sha256(refreshToken), userId: getAuth(req).userId },
+        where: { tokenHash: sha256(target), userId: getAuth(req).userId },
         data: { revokedAt: new Date() },
       });
     }
+    clearSessionCookies(res);
     ok(res, { loggedOut: true });
   } catch (e) {
     next(e);
@@ -449,7 +547,10 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
         action: "EMAIL_CHANGED",
         entityType: "User",
         entityId: user.id,
-        meta: { to: user.email ?? null },
+        // SEC-10: the row is still LOUD (a change happened, and the new
+        // address remains correlatable in masked form) without storing the raw
+        // address for 180 days.
+        meta: { to: user.email ? maskEmail(user.email) : null },
       });
     }
     ok(res, user);
@@ -461,11 +562,8 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
 // ---------------- Phone OTP verification ----------------
 
 const OTP_TTL_MINUTES = 5;
-const OTP_MAX_ATTEMPTS = 5;
-
-function hashOtp(phone: string, code: string): string {
-  return sha256(`${phone}:${code}:${env.JWT_ACCESS_SECRET}`);
-}
+// OTP_MAX_ATTEMPTS and the peppered hash live in lib/otp.ts (SEC-03): the
+// single implementation shared with the STEP_UP gates in lib/otp's consumers.
 
 /**
  * Create a fresh challenge for one purpose, invalidating the user's earlier
@@ -475,7 +573,7 @@ function hashOtp(phone: string, code: string): string {
  */
 async function issueOtpChallenge(
   user: { id: string; phone: string },
-  purpose: "PHONE_VERIFY" | "PASSWORD_RESET",
+  purpose: "PHONE_VERIFY" | "PASSWORD_RESET" | "STEP_UP",
 ): Promise<{ code: string; challenge: { expiresAt: Date } }> {
   // Supersede-then-create, retried once on the unique-index race: the partial
   // index OtpChallenge_user_purpose_live_key (one live challenge per user and
@@ -498,7 +596,7 @@ async function issueOtpChallenge(
           // Already canonical `01[3-9]XXXXXXXX` (normalised at registration),
           // so hashOtp and every verify lookup compare the same string.
           phone: user.phone,
-          codeHash: hashOtp(user.phone, code),
+          codeHash: otpHash(user.phone, code),
           purpose,
           expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
         },
@@ -547,11 +645,27 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw unprocessable("No active verification code. Please request a new one.");
-    if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw unprocessable("Too many attempts. Please request a new code.");
+    // Consume an attempt ATOMICALLY before comparing (SEC-03): the old
+    // check-then-increment let two parallel wrong guesses both pass the
+    // pre-read attempt check and exceed the cap. The conditional updateMany
+    // wins or loses on the stored attempts value itself, and the row write is
+    // serialized by both SQLite and PostgreSQL, so attempts can never pass the
+    // cap — including the success path, which counts as the final attempt.
+    const attempt = await prisma.otpChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (attempt.count === 0) {
+      // Lost the conditional update: either the cap is spent or the challenge
+      // was consumed/expired between the read and the write — tell those apart.
+      const now = await prisma.otpChallenge.findUnique({ where: { id: challenge.id } });
+      if (!now || now.consumedAt || now.expiresAt <= new Date()) {
+        throw unprocessable("No active verification code. Please request a new one.");
+      }
+      throw unprocessable("Too many attempts. Please request a new code.");
+    }
 
-    const valid = challenge.codeHash === hashOtp(challenge.phone, (req.body as { code: string }).code);
-    if (!valid) {
-      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+    if (challenge.codeHash !== otpHash(challenge.phone, (req.body as { code: string }).code)) {
       throw unprocessable("Incorrect verification code");
     }
 
@@ -612,10 +726,16 @@ authRouter.post(
           })
         : null;
       if (!user || user.status !== "ACTIVE" || !challenge) throw otpExpired();
-      if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw otpExpired("Too many attempts. Request a new code.");
+      // Same atomic attempt consumption as /otp/verify (SEC-03): the cap is
+      // enforced by the conditional update itself, not by a pre-read that
+      // parallel guesses can race past.
+      const attempt = await prisma.otpChallenge.updateMany({
+        where: { id: challenge.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+        data: { attempts: { increment: 1 } },
+      });
+      if (attempt.count === 0) throw otpExpired("Too many attempts. Request a new code.");
 
-      if (challenge.codeHash !== hashOtp(challenge.phone, otp)) {
-        await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+      if (challenge.codeHash !== otpHash(challenge.phone, otp)) {
         throw otpInvalid();
       }
 
@@ -627,7 +747,108 @@ authRouter.post(
       ]);
       await clearLoginFailures(phone);
       await audit({ actorId: user.id, action: "PASSWORD_RESET", entityType: "User", entityId: user.id, ip: req.ip });
+      // The reset revoked every refresh token — the browser's session cookies
+      // reference dead tokens now, so they go too.
+      clearSessionCookies(res);
       ok(res, { reset: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ---------------- Step-up re-auth + TOTP enrolment (SEC-04) ----------------
+/**
+ * Request a STEP_UP code: the fresh SMS factor demanded by the irreversible
+ * or money-moving self-service gates (withdrawals, account deletion). Same
+ * challenge machinery, delivery and limiter as /otp/request; the purpose keeps
+ * a step-up code from being consumed by phone verification or password reset,
+ * and vice versa.
+ */
+authRouter.post("/otp/stepup", requireAuth, otpLimiter, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+    if (!user) throw unauthorized();
+
+    const { code, challenge } = await issueOtpChallenge(user, "STEP_UP");
+    await sendSms(user.phone, otpSmsText(code));
+
+    await audit({ actorId: user.id, action: "STEP_UP_REQUESTED", entityType: "User", entityId: user.id });
+    ok(res, {
+      sent: true,
+      expiresAt: challenge.expiresAt,
+      ...(devAuthShortcuts ? { devCode: env.SMS_PROVIDER === "none" ? undefined : code } : {}),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// TOTP enrolment is an administrator-tier control (SEC-04): the roles that
+// approve withdrawals, refunds and payouts. Self-service, opt-in per account —
+// the seeded operator accounts are not enrolled, so nothing changes for them
+// until an admin opts in.
+const TOTP_TIER_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+authRouter.post("/totp/enroll", requireAuth, otpLimiter, async (req, res, next) => {
+  try {
+    if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+    if (!user) throw unauthorized();
+    if (user.totpEnabledAt) throw conflict("TOTP is already enabled — disable it before re-enrolling");
+
+    const secret = generateTotpSecret();
+    await prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } });
+    await audit({ actorId: user.id, action: "TOTP_ENROLL_STARTED", entityType: "User", entityId: user.id });
+    ok(res, { secret, otpauthUrl: totpOtpauthUrl(user.phone, secret) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post(
+  "/totp/activate",
+  requireAuth,
+  otpLimiter,
+  validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
+    try {
+      if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+      const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+      if (!user) throw unauthorized();
+      if (user.totpEnabledAt) throw conflict("TOTP is already enabled");
+      if (!user.totpSecret) throw unprocessable("No pending enrolment — start enrolment first");
+
+      if (!verifyTotp(user.totpSecret, (req.body as { code: string }).code)) {
+        throw new AppError(400, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { totpEnabledAt: new Date() } });
+      await audit({ actorId: user.id, action: "TOTP_ENABLED", entityType: "User", entityId: user.id });
+      ok(res, { enabled: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
+  "/totp/disable",
+  requireAuth,
+  otpLimiter,
+  validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
+    try {
+      if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+      const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+      if (!user || !user.totpEnabledAt || !user.totpSecret) throw unprocessable("TOTP is not enabled for this account");
+      // Disabling the second factor demands a valid code from it: possession
+      // of the session alone must not be enough to shed the factor.
+      if (!verifyTotp(user.totpSecret, (req.body as { code: string }).code)) {
+        throw new AppError(400, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { totpSecret: null, totpEnabledAt: null } });
+      await audit({ actorId: user.id, action: "TOTP_DISABLED", entityType: "User", entityId: user.id });
+      ok(res, { enabled: false });
     } catch (e) {
       next(e);
     }
@@ -658,9 +879,18 @@ authRouter.post(
  * event depends on. `LoginAttempt.phoneKey` is a salted hash (no plaintext
  * phone) and rows purge on the existing 24-hour/unlock schedule.
  */
-authRouter.delete("/me", requireAuth, async (req, res, next) => {
+authRouter.delete(
+  "/me",
+  requireAuth,
+  validate({ body: z.object({ otp: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
   try {
     const userId = getAuth(req).userId;
+    // SEC-04 step-up: deletion is irreversible and self-service, so it demands
+    // a fresh SMS factor — a stolen session (cookie or copied token) cannot
+    // erase an account without the phone in the owner's hand. The gate runs
+    // BEFORE the anonymisation transaction: fail cheap, count the attempt.
+    assertStepUpOk(await consumeOtpChallenge(userId, "STEP_UP", (req.body as { otp: string }).otp));
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true, diseaseCases: { select: { imagePath: true } } },
@@ -671,11 +901,17 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     // requested concurrently on a second session then cannot race past the
     // guard into an anonymized account.
     await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
-      // Block deletion if the user has active orders (financial integrity)
-      const pendingOrder = await tx.order.findFirst({
-        where: { userId, status: { notIn: ["CANCELLED", "DELETED"] } },
+      // Block deletion only while a lifecycle is genuinely in flight (CMP-01):
+      // unpaid, pre-fulfilment states. Settled history (PAID, DELIVERED,
+      // REFUNDED, CANCELLED) is retained through anonymisation below instead of
+      // blocking — the old guard refused unless every order was CANCELLED or
+      // the never-written "DELETED", which kept any customer who had ever paid
+      // from deleting their own account (and pushed them at the PAY-06
+      // hard-delete hole as the only escape).
+      const inFlightOrder = await tx.order.findFirst({
+        where: { userId, status: { in: ["PENDING", "CONFIRMED", "SHIPPED"] } },
       });
-      if (pendingOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
+      if (inFlightOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
 
       const pending = await tx.withdrawal.findFirst({
         where: { userId, status: { in: ["PENDING", "APPROVED"] } },
@@ -704,6 +940,15 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
       await tx.farm.updateMany({
         where: { ownerId: userId },
         data: { address: null, district: null, upazila: null, lat: null, lng: null },
+      });
+      // Retained order rows keep their financial content (totals, line items),
+      // but the buyer's raw shipping contact fields are masked (CMP-01
+      // follow-through): docs/data-protection.md promises personal data is
+      // deleted/anonymised at deletion, and settled-order rows now persist on
+      // accounts with paid history instead of blocking deletion.
+      await tx.order.updateMany({
+        where: { userId },
+        data: { shippingName: "Deleted User", shippingPhone: null, shippingAddress: null },
       });
       // The user's own words in the digital record and in advisory history.
       // AdvisoryQuery rows are retained up to 180 days by policy, and used to
@@ -754,7 +999,9 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId, ip: req.ip });
     // Honest completion: any upload whose purge failed is queued for retry
     // (scripts/purge-uploads.ts) and reported here instead of being presented
-    // as fully deleted.
+    // as fully deleted. Every refresh token was revoked in the transaction, so
+    // the browser's session cookies are dead weight — clear them too.
+    clearSessionCookies(res);
     ok(res, { deleted: true, uploads: { purged, pendingPurge: failed } });
   } catch (e) {
     next(e);

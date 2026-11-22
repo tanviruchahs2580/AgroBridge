@@ -256,6 +256,15 @@ test.describe("Scenario acceptance — marketplace", () => {
 });
 
 test.describe("Scenario acceptance — procurement & wallet", () => {
+  /** SEC-04: mint a fresh step-up code (dev shortcuts echo it in this stack). */
+  async function stepUpOtp(request: import("@playwright/test").APIRequestContext, token: string): Promise<string> {
+    const res = await api(request, "post", "/auth/otp/stepup", token);
+    expect(res.status()).toBe(200);
+    const otp = ((await res.json()) as { data?: { devCode?: string } }).data?.devCode ?? "";
+    expect(otp).toMatch(/^\d{6}$/);
+    return otp;
+  }
+
   /** Runs the documented pipeline for one offer up to COLLECTED, as the manager. */
   async function offerToCollected(
     request: import("@playwright/test").APIRequestContext,
@@ -460,6 +469,7 @@ test.describe("Scenario acceptance — procurement & wallet", () => {
     const over = await api(request, "post", "/wallet/withdrawals", f.data.accessToken, {
       amountPaisa: wallet.balancePaisa + 10_000,
       channel: "BKASH",
+      otp: await stepUpOtp(request, f.data.accessToken),
     });
     expect([422, 400]).toContain(over.status());
     const summary = (await (await api(request, "get", "/wallet/summary", f.data.accessToken)).json()).data as { pendingWithdrawalsPaisa: number };
@@ -478,10 +488,18 @@ test.describe("Scenario acceptance — procurement & wallet", () => {
     const wallet = (await (await api(request, "get", "/wallet", f.data.accessToken)).json()).data as { balancePaisa: number };
     const half = Math.floor(wallet.balancePaisa / 2);
     expect(half).toBeGreaterThanOrEqual(10_000); // 500kg grade-A rice pays past the ৳100 minimum
-    const w1 = await api(request, "post", "/wallet/withdrawals", f.data.accessToken, { amountPaisa: half, channel: "BKASH" });
+    const w1 = await api(request, "post", "/wallet/withdrawals", f.data.accessToken, {
+      amountPaisa: half,
+      channel: "BKASH",
+      otp: await stepUpOtp(request, f.data.accessToken),
+    });
     expect([200, 201], await w1.text()).toContain(w1.status());
     // A second hold for the full balance exceeds what remains available.
-    const w2 = await api(request, "post", "/wallet/withdrawals", f.data.accessToken, { amountPaisa: wallet.balancePaisa, channel: "BKASH" });
+    const w2 = await api(request, "post", "/wallet/withdrawals", f.data.accessToken, {
+      amountPaisa: wallet.balancePaisa,
+      channel: "BKASH",
+      otp: await stepUpOtp(request, f.data.accessToken),
+    });
     expect([422, 400]).toContain(w2.status());
     const summary = (await (await api(request, "get", "/wallet/summary", f.data.accessToken)).json()).data as { pendingWithdrawalsPaisa: number };
     expect(summary.pendingWithdrawalsPaisa).toBe(half);

@@ -36,40 +36,81 @@ type ChangePayload = {
 type ChangeCb = (payload: ChangePayload) => void;
 
 // ── storage keys ────────────────────────────────────────────────────────────
-const AT_KEY = "ab_at" as const;
-const RT_KEY = "ab_rt" as const;
+// SEC-02: tokens no longer live in localStorage. Both mirrors live in
+// sessionStorage — per-tab, gone when the tab closes:
+//   ab_at — the access token. Restoring a reload from the mirror means a boot
+//           does NOT hit /auth/refresh (which rotates), so rapid navigations
+//           can never race a rotation into a reuse-detection family kill —
+//           the failure mode that made a memory-only access token log users
+//           out mid-journey. XSS exposure is bounded to one tab and one
+//           access-token TTL (15 min), versus localStorage's forever.
+//   ab_rt — the refresh token, mirroring the server's HttpOnly cookie: the
+//           DOCUMENTED FALLBACK for browsers that refuse cross-site cookies
+//           (Safari), so those users keep same-tab persistence.
+// The audit's acceptance, "no token in localStorage", holds by construction:
+// the legacy ab_at/ab_rt localStorage keys are migrated (or dropped) at module
+// init and are never written again.
+const AT_KEY = "ab_at"; // sessionStorage: per-tab access-token mirror
+const RT_KEY = "ab_rt"; // sessionStorage: per-tab refresh-token fallback mirror
+const LEGACY_AT_KEY = "ab_at"; // localStorage: legacy — migration only
+const LEGACY_RT_KEY = "ab_rt"; // localStorage: legacy — migration only
 const CHANNEL_NAME = "agrobridge:session" as const;
 
 type ChannelMessage = { type: "logout" } | { type: "tokens"; tokens: Tokens } | { type: "session"; session: SessionUser | null };
 
-// ── safe localStorage helpers (SSR guard) ─────────────────────────────────
+// ── safe storage helpers (SSR guard) ───────────────────────────────────────
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-function readStorage(key: string): string {
-  if (!canUseStorage()) return "";
+function canUseSessionStorage(): boolean {
+  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+}
+
+function readSessionToken(key: string): string {
+  if (!canUseSessionStorage()) return "";
   try {
-    return window.localStorage.getItem(key) ?? "";
+    return window.sessionStorage.getItem(key) ?? "";
   } catch {
     return "";
   }
 }
 
-function writeStorage(key: string, value: string): void {
-  if (!canUseStorage()) return;
+function writeSessionToken(key: string, value: string): void {
+  if (!canUseSessionStorage()) return;
   try {
-    if (value) window.localStorage.setItem(key, value);
-    else window.localStorage.removeItem(key);
+    if (value) window.sessionStorage.setItem(key, value);
+    else window.sessionStorage.removeItem(key);
   } catch {
     // quota or private-mode — keep in-memory state, auth will re-establish
   }
 }
 
-// ── in-memory mirrors (single truth, hydrated from storage once) ──────────
-let _at: string = readStorage(AT_KEY);
-let _rt: string = readStorage(RT_KEY);
+// ── in-memory mirrors ──────────────────────────────────────────────────────
+// Both tokens' truth is the sessionStorage mirror; reads re-check it every
+// call (see getTokens) so a BroadcastChannel rotation from another tab is
+// honoured without an event.
+let _at = "";
+let _rt = "";
 let _session: SessionUser | null = null;
+
+// SEC-02 migration: an upgrade from the localStorage era moves a still-valid
+// refresh token to the per-tab mirror (when this tab has none yet) and deletes
+// both legacy keys. The legacy access-token copy is dropped — a fresh one is
+// minted at boot from the moved refresh token. Pure storage move — no network
+// call — so a flaky boot never destroys a working session.
+try {
+  if (canUseStorage()) {
+    const legacyRt = window.localStorage.getItem(LEGACY_RT_KEY);
+    if (legacyRt && !readSessionToken(RT_KEY)) writeSessionToken(RT_KEY, legacyRt);
+    window.localStorage.removeItem(LEGACY_AT_KEY);
+    window.localStorage.removeItem(LEGACY_RT_KEY);
+  }
+} catch {
+  /* ignore */
+}
+_at = readSessionToken(AT_KEY);
+_rt = readSessionToken(RT_KEY);
 
 // Hydrate session from storage if a previous tab persisted it.
 // We do NOT auto-persist session to localStorage by default; setSession may
@@ -119,18 +160,22 @@ function getChannel(): BroadcastChannel | null {
         _session = null;
         if (canUseStorage()) {
           try {
-            window.localStorage.removeItem(AT_KEY);
-            window.localStorage.removeItem(RT_KEY);
+            window.localStorage.removeItem(LEGACY_AT_KEY);
+            window.localStorage.removeItem(LEGACY_RT_KEY);
             window.localStorage.removeItem("ab_session");
           } catch {
             /* ignore */
           }
         }
+        writeSessionToken(AT_KEY, "");
+        writeSessionToken(RT_KEY, "");
         emit();
       } else if ((msg as ChannelMessage).type === "tokens") {
         const t = (msg as { tokens: Tokens }).tokens;
         _at = t.accessToken ?? "";
         _rt = t.refreshToken ?? "";
+        writeSessionToken(AT_KEY, _at);
+        writeSessionToken(RT_KEY, _rt);
         emit();
       } else if ((msg as ChannelMessage).type === "session") {
         _session = (msg as { session: SessionUser | null }).session ?? null;
@@ -149,20 +194,12 @@ function ensureStorageListener(): void {
   // lazily init channel too
   getChannel();
   window.addEventListener("storage", (e: StorageEvent) => {
-    // Fires in *other* tabs when one tab mutates localStorage.
-    // Detect logout (ab_at removed) or token rotation.
-    if (e.key === AT_KEY || e.key === RT_KEY || e.key === null) {
-      const nextAt = readStorage(AT_KEY);
-      const nextRt = readStorage(RT_KEY);
-      // Only emit if something actually changed (avoid loops)
-      if (nextAt !== _at || nextRt !== _rt) {
-        _at = nextAt;
-        _rt = nextRt;
-        // If ab_at was cleared externally, treat as logout — also clear session
-        if (!_at) _session = null;
-        emit();
-      }
-    }
+    // Fires in *other* tabs when one tab mutates localStorage. Token rotation
+    // no longer travels here (sessionStorage events never fire cross-tab) — it
+    // reaches the other tabs through BroadcastChannel (getChannel) instead.
+    // This listener keeps the session record in sync: ab_session holds user
+    // INFO, not a credential, and a full localStorage clear is treated as
+    // logout of the session record.
     if (e.key === "ab_session") {
       try {
         const raw = e.newValue;
@@ -172,8 +209,8 @@ function ensureStorageListener(): void {
         /* ignore malformed */
       }
     }
-    // e.key === null means clear was called — treat as full logout
-    if (e.key === null && !readStorage(AT_KEY) && !_at) {
+    // e.key === null means clear was called — treat as session-record logout
+    if (e.key === null && !_at) {
       _session = null;
       emit();
     }
@@ -202,27 +239,28 @@ if (typeof window !== "undefined") {
  * instead of calling this per header.
  */
 export function getTokens(): Tokens {
-  if (canUseStorage()) {
-    const sAt = readStorage(AT_KEY);
-    const sRt = readStorage(RT_KEY);
-    if (sAt !== _at || sRt !== _rt) {
-      _at = sAt;
-      _rt = sRt;
-    }
-  }
+  // The sessionStorage re-read is the safety net for writers this module never
+  // saw (same as the old localStorage re-read): a test harness planting the
+  // mirror, a same-tab tool clearing it. Two synchronous reads is the price of
+  // never serving a stale token; hot paths read once per request and reuse the
+  // value (see rawRequest in api.ts) instead of calling this per header.
+  const sAt = readSessionToken(AT_KEY);
+  if (sAt !== _at) _at = sAt;
+  const sRt = readSessionToken(RT_KEY);
+  if (sRt !== _rt) _rt = sRt;
   return { accessToken: _at, refreshToken: _rt };
 }
 
 /**
- * Persist tokens to in-memory + localStorage and notify subscribers.
- * Also posts via BroadcastChannel so other tabs can update without waiting
- * for the storage event.
+ * Persist tokens to the per-tab sessionStorage mirrors (SEC-02 — never
+ * localStorage) and notify subscribers. Also posts via BroadcastChannel so
+ * other tabs update without waiting for an event.
  */
 export function setTokens(at: string, rt: string): void {
   _at = at ?? "";
   _rt = rt ?? "";
-  writeStorage(AT_KEY, _at);
-  writeStorage(RT_KEY, _rt);
+  writeSessionToken(AT_KEY, _at);
+  writeSessionToken(RT_KEY, _rt);
   // broadcast token rotation (optional — logout is the critical sync)
   const ch = getChannel();
   if (ch) {
@@ -245,8 +283,19 @@ export function setTokens(at: string, rt: string): void {
 export function clearTokens(): void {
   _at = "";
   _rt = "";
-  writeStorage(AT_KEY, "");
-  writeStorage(RT_KEY, "");
+  writeSessionToken(AT_KEY, "");
+  writeSessionToken(RT_KEY, "");
+  // Belt and braces: the legacy localStorage keys are removed on every clear
+  // (the init migration should have taken them, but a tab restored from
+  // persisted browser storage may resurrect them).
+  if (canUseStorage()) {
+    try {
+      window.localStorage.removeItem(LEGACY_AT_KEY);
+      window.localStorage.removeItem(LEGACY_RT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
   emit();
 }
 
@@ -300,10 +349,12 @@ export function broadcastLogout(): void {
   _at = "";
   _rt = "";
   _session = null;
+  writeSessionToken(AT_KEY, "");
+  writeSessionToken(RT_KEY, "");
   if (canUseStorage()) {
     try {
-      window.localStorage.removeItem(AT_KEY);
-      window.localStorage.removeItem(RT_KEY);
+      window.localStorage.removeItem(LEGACY_AT_KEY);
+      window.localStorage.removeItem(LEGACY_RT_KEY);
       window.localStorage.removeItem("ab_session");
     } catch {
       /* ignore */
