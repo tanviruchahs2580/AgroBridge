@@ -46,6 +46,27 @@ export interface KbEntry {
  *     written with combining marks, so a Latin-style `\b` boundary would split
  *     words at the hasanta; the normalizer collapses the known variants.
  */
+
+/**
+ * Promotion guard (WP-11 / AIG-01): a KB entry may claim `REVIEWED` only when a
+ * real source name, a public source URL and an agronomist sign-off date all
+ * exist. Throws naming the offending entry, so a half-filled promotion fails
+ * in CI instead of shipping an overclaimed advisory. The process that fills
+ * these fields is `docs/ai/kb-review-process.md`.
+ */
+export function assertKbReviewProvenance(entries: KbEntry[]): void {
+  for (const e of entries) {
+    if (e.status !== "REVIEWED") continue;
+    const missing: string[] = [];
+    if (!e.sourceName) missing.push("sourceName");
+    if (!e.sourceUrl || !/^https?:\/\//.test(e.sourceUrl)) missing.push("sourceUrl");
+    if (!e.reviewedAt || Number.isNaN(Date.parse(e.reviewedAt))) missing.push("reviewedAt");
+    if (missing.length) {
+      throw new Error(`KB entry "${e.id}" claims REVIEWED without: ${missing.join(", ")} (docs/ai/kb-review-process.md)`);
+    }
+  }
+}
+
 export const KNOWLEDGE_BASE: KbEntry[] = [
   {
     id: "rice-blast",
