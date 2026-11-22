@@ -343,13 +343,18 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
     // SEC-04: TOTP for the administrator tier. Demanded only AFTER the password
     // has proven possession — a wrong-password attempt never learns whether
     // the account carries a second factor, and the 6-digit code gates the
-    // session even when the password itself is compromised.
+    // session even when the password itself is compromised. Verify FIRST
+    // (deny-by-default): the session is issued only when the presented code
+    // matches the server-stored secret; an absent code fails the verifier
+    // (it cannot match the 6-digit shape) and answers TOTP_REQUIRED so the
+    // client can show its second-step input, while a present-but-wrong code
+    // is audited and throttled like any other failed login.
     if (user.totpEnabledAt && user.totpSecret) {
-      const code = (req.body as { totp?: string }).totp;
-      if (!code) {
-        throw new AppError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app");
-      }
+      const code = (req.body as { totp?: string }).totp ?? "";
       if (!verifyTotp(user.totpSecret, code)) {
+        if (!code) {
+          throw new AppError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app");
+        }
         await audit({
           action: "AUTH_LOGIN_FAILED",
           entityType: "User",
