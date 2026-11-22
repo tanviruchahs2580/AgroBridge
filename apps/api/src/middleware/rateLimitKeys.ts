@@ -64,6 +64,25 @@ export function accountOrIpKey(req: Request): string {
 }
 
 /**
+ * Refresh endpoint (SEC-01): the presented refresh token IS the session the
+ * request acts on, so the rotation budget belongs to that token — not to the
+ * address. A refresh body carries no phone, so the login limiter this route
+ * used to share always fell back to `ip:`; with 15-minute access tokens and
+ * carrier-grade NAT as the norm, a few dozen users on one address could spend
+ * each other's refresh window and log each other out mid-session. The
+ * truncated SHA-256 keeps the store keyless-credential-safe (a forged token
+ * only ever mints a bucket for itself); address-level flood control stays on
+ * the global limiter.
+ */
+export function refreshKey(req: Request): string {
+  const raw = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+  if (typeof raw === "string" && raw.length >= 10) {
+    return `rt:${createHash("sha256").update(raw).digest("hex").slice(0, 32)}`;
+  }
+  return `ip:${req.ip ?? "unknown"}`;
+}
+
+/**
  * Global limiter: a signed-in caller is accounted per credential, an anonymous
  * one per address. The credential is hashed, so a forged header cannot mint
  * arbitrary buckets — an attacker must present a token that login itself had to

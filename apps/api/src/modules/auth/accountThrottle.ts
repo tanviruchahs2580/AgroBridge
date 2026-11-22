@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { accountLocked } from "../../shared/errors/index.js";
+import { deriveSubkey } from "../../shared/utils/kdf.js";
 
 /**
  * Per-account login throttling (complements the per-IP limiter on /login).
@@ -19,8 +20,13 @@ import { accountLocked } from "../../shared/errors/index.js";
 const MAX_FAILURES = 10;
 const LOCK_MINUTES = 15;
 
+// Domain-separated throttle salt (SEC-03): this used JWT_ACCESS_SECRET
+// verbatim — see shared/utils/kdf.ts. One-time deploy effect: previously
+// recorded phoneKeys no longer match, so existing throttle counters reset.
+const LOGIN_ATTEMPT_SALT = deriveSubkey(env.JWT_ACCESS_SECRET, "login-attempt-salt-v1");
+
 function phoneKey(phone: string): string {
-  return createHash("sha256").update(`login:${phone}:${env.JWT_ACCESS_SECRET}`).digest("hex");
+  return createHash("sha256").update(`login:${phone}:${LOGIN_ATTEMPT_SALT}`).digest("hex");
 }
 
 /** Throws 429 when the account (or the unknown number) is inside a lock window. */

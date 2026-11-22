@@ -16,11 +16,13 @@ import { logger } from "../../lib/logger.js";
 import { normalizeBdPhone } from "../../shared/utils/phone.js";
 import { verifyPasswordAgainst, storedHashIsCheaper } from "./password.js";
 import { bcryptCost, bcryptHash } from "./bcryptPool.js";
-import { accountOrIpKey, userOrIpKey } from "../../middleware/rateLimitKeys.js";
+import { accountOrIpKey, userOrIpKey, refreshKey } from "../../middleware/rateLimitKeys.js";
 import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
+import { deriveSubkey } from "../../shared/utils/kdf.js";
+import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 // Multi-instance-safe limiter stores. One instance per limiter, each with its own
@@ -35,6 +37,7 @@ const redisStoreFor = (prefix: string, windowMs: number) =>
   env.REDIS_URL ? createRedisStore(env.REDIS_URL, windowMs, prefix) : undefined;
 
 const loginStore = redisStoreFor("auth-login", 15 * 60 * 1000);
+const refreshStore = redisStoreFor("auth-refresh", 15 * 60 * 1000);
 const otpRequestStore = redisStoreFor("auth-otp-request", 60 * 60 * 1000);
 const otpVerifyStore = redisStoreFor("auth-otp-verify", 60 * 60 * 1000);
 const forgotStore = redisStoreFor("auth-pw-forgot", 60 * 60 * 1000);
@@ -60,6 +63,27 @@ const loginLimiter = rateLimit({
   skip: () => isDev,
   store: loginStore,
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many login attempts. Please try again later." } },
+  handler: rateLimitHandler,
+});
+
+// Refresh limiter (SEC-01): rotation is high-entropy, so flooding it must still
+// cost something — but the budget belongs to the PRESENTED TOKEN, not to the
+// address. /refresh used to share loginLimiter, whose key fell back to `ip:`
+// for a body that carries no phone: with 15-minute access tokens and carrier-
+// grade NAT as the norm, a few dozen users on one address could spend each
+// other's refresh window and log each other out mid-session (any non-OK refresh
+// is a dead session to the web client). Keyed on the token fingerprint, one
+// household's refreshes never touch another's; address-level floods stay on the
+// global limiter.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.REFRESH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: refreshKey,
+  skip: () => isDev,
+  store: refreshStore,
+  message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many session refreshes. Please try again shortly." } },
   handler: rateLimitHandler,
 });
 
@@ -128,15 +152,23 @@ const registerLimiter = rateLimit({
 
 // Password-reset limiters: keyed by IP + the submitted phone so neither a
 // single source nor a single account can pump reset SMS or grind codes. The
-// phone in the key is the RAW body value — normalisation happens after the
-// limiter, and keying on the raw string is what a caller controls.
+// phone in the key is NORMALIZED (SEC-03): the raw body value is
+// caller-controlled, so raw-keying handed `+8801…`, `8801…` and Bengali-digit
+// spellings of one number separate budgets — a respelling bypass. Collapsing
+// every valid spelling onto its canonical form makes the budget
+// per-account-per-address; unparseable strings collapse onto one "invalid"
+// segment so garbage cannot mint buckets either.
 function phoneKeyedLimiter(limit: number, message: string, store: Store | undefined) {
   return rateLimit({
     windowMs: 60 * 60 * 1000,
     limit,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `${req.ip ?? "unknown"}:${typeof (req.body as { phone?: unknown })?.phone === "string" ? (req.body as { phone: string }).phone : ""}`,
+    keyGenerator: (req) => {
+      const raw = (req.body as { phone?: unknown } | undefined)?.phone;
+      const normalized = typeof raw === "string" ? normalizeBdPhone(raw) : null;
+      return `${req.ip ?? "unknown"}:${normalized ?? "invalid"}`;
+    },
     store,
     message: { ok: false, error: { code: "RATE_LIMITED", message } },
     handler: rateLimitHandler,
@@ -290,7 +322,9 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
         entityType: "User",
         entityId: user?.id ?? undefined,
         ip: req.ip,
-        meta: { phone, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
+        // SEC-10: audit rows persist 180 days and are operator-readable — the
+        // phone lands masked (normalized above, so the mask is stable).
+        meta: { phone: phone ? maskPhone(phone) : null, reason: !user ? "unknown_account" : !valid ? "bad_password" : "not_active" },
       }).catch(() => undefined);
       await recordLoginFailure(throttleKey);
       throw invalidCredentials();
@@ -327,9 +361,10 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
   }
 });
 
-// Same limiter class as login: refresh issues new credentials, so flooding it
-// must be expensive even though the token itself is high-entropy.
-authRouter.post("/refresh", loginLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048) }) }), async (req, res, next) => {
+// Refresh carries its own per-token budget (SEC-01) — see refreshLimiter above.
+// It must NOT share loginLimiter: that limiter's key falls back to the shared
+// address for a phone-less body, which is exactly the mass-logout failure mode.
+authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048) }) }), async (req, res, next) => {
   try {
     const { refreshToken } = req.body as { refreshToken: string };
 
@@ -449,7 +484,10 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
         action: "EMAIL_CHANGED",
         entityType: "User",
         entityId: user.id,
-        meta: { to: user.email ?? null },
+        // SEC-10: the row is still LOUD (a change happened, and the new
+        // address remains correlatable in masked form) without storing the raw
+        // address for 180 days.
+        meta: { to: user.email ? maskEmail(user.email) : null },
       });
     }
     ok(res, user);
@@ -463,8 +501,14 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
 const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 
+// Domain-separated OTP pepper (SEC-03): this used to be JWT_ACCESS_SECRET
+// itself, reusing the token-signing key as a hash pepper. See
+// shared/utils/kdf.ts for the derivation rationale and the one-time deploy
+// effect (in-flight challenges invalidate; users re-request a code).
+const OTP_PEPPER = deriveSubkey(env.JWT_ACCESS_SECRET, "otp-hash-v1");
+
 function hashOtp(phone: string, code: string): string {
-  return sha256(`${phone}:${code}:${env.JWT_ACCESS_SECRET}`);
+  return sha256(`${phone}:${code}:${OTP_PEPPER}`);
 }
 
 /**
@@ -547,11 +591,27 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw unprocessable("No active verification code. Please request a new one.");
-    if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw unprocessable("Too many attempts. Please request a new code.");
+    // Consume an attempt ATOMICALLY before comparing (SEC-03): the old
+    // check-then-increment let two parallel wrong guesses both pass the
+    // pre-read attempt check and exceed the cap. The conditional updateMany
+    // wins or loses on the stored attempts value itself, and the row write is
+    // serialized by both SQLite and PostgreSQL, so attempts can never pass the
+    // cap — including the success path, which counts as the final attempt.
+    const attempt = await prisma.otpChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (attempt.count === 0) {
+      // Lost the conditional update: either the cap is spent or the challenge
+      // was consumed/expired between the read and the write — tell those apart.
+      const now = await prisma.otpChallenge.findUnique({ where: { id: challenge.id } });
+      if (!now || now.consumedAt || now.expiresAt <= new Date()) {
+        throw unprocessable("No active verification code. Please request a new one.");
+      }
+      throw unprocessable("Too many attempts. Please request a new code.");
+    }
 
-    const valid = challenge.codeHash === hashOtp(challenge.phone, (req.body as { code: string }).code);
-    if (!valid) {
-      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+    if (challenge.codeHash !== hashOtp(challenge.phone, (req.body as { code: string }).code)) {
       throw unprocessable("Incorrect verification code");
     }
 
@@ -612,10 +672,16 @@ authRouter.post(
           })
         : null;
       if (!user || user.status !== "ACTIVE" || !challenge) throw otpExpired();
-      if (challenge.attempts >= OTP_MAX_ATTEMPTS) throw otpExpired("Too many attempts. Request a new code.");
+      // Same atomic attempt consumption as /otp/verify (SEC-03): the cap is
+      // enforced by the conditional update itself, not by a pre-read that
+      // parallel guesses can race past.
+      const attempt = await prisma.otpChallenge.updateMany({
+        where: { id: challenge.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+        data: { attempts: { increment: 1 } },
+      });
+      if (attempt.count === 0) throw otpExpired("Too many attempts. Request a new code.");
 
       if (challenge.codeHash !== hashOtp(challenge.phone, otp)) {
-        await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
         throw otpInvalid();
       }
 
@@ -671,11 +737,17 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     // requested concurrently on a second session then cannot race past the
     // guard into an anonymized account.
     await prisma.$transaction(async (tx: import("@prisma/client").Prisma.TransactionClient) => {
-      // Block deletion if the user has active orders (financial integrity)
-      const pendingOrder = await tx.order.findFirst({
-        where: { userId, status: { notIn: ["CANCELLED", "DELETED"] } },
+      // Block deletion only while a lifecycle is genuinely in flight (CMP-01):
+      // unpaid, pre-fulfilment states. Settled history (PAID, DELIVERED,
+      // REFUNDED, CANCELLED) is retained through anonymisation below instead of
+      // blocking — the old guard refused unless every order was CANCELLED or
+      // the never-written "DELETED", which kept any customer who had ever paid
+      // from deleting their own account (and pushed them at the PAY-06
+      // hard-delete hole as the only escape).
+      const inFlightOrder = await tx.order.findFirst({
+        where: { userId, status: { in: ["PENDING", "CONFIRMED", "SHIPPED"] } },
       });
-      if (pendingOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
+      if (inFlightOrder) throw unprocessable("Resolve or cancel your pending orders before deleting your account");
 
       const pending = await tx.withdrawal.findFirst({
         where: { userId, status: { in: ["PENDING", "APPROVED"] } },
@@ -704,6 +776,15 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
       await tx.farm.updateMany({
         where: { ownerId: userId },
         data: { address: null, district: null, upazila: null, lat: null, lng: null },
+      });
+      // Retained order rows keep their financial content (totals, line items),
+      // but the buyer's raw shipping contact fields are masked (CMP-01
+      // follow-through): docs/data-protection.md promises personal data is
+      // deleted/anonymised at deletion, and settled-order rows now persist on
+      // accounts with paid history instead of blocking deletion.
+      await tx.order.updateMany({
+        where: { userId },
+        data: { shippingName: "Deleted User", shippingPhone: null, shippingAddress: null },
       });
       // The user's own words in the digital record and in advisory history.
       // AdvisoryQuery rows are retained up to 180 days by policy, and used to
