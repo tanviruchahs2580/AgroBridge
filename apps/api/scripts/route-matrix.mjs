@@ -20,6 +20,7 @@
  * The guard test asserts the PUBLIC set never grows beyond the admission allowlist.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -67,6 +68,20 @@ function firstPathArg(args) {
   return m ? m[1] : null;
 }
 
+function schemasOf(args) {
+  // The validate() middleware call names the Zod schemas that parse this
+  // route's body/query — the OpenAPI generator surfaces them as x-request-schema
+  // so the spec names the exact source schema per operation.
+  const m = /validate\(\s*\{([^}]*)\}/.exec(args);
+  if (!m) return undefined;
+  const out = {};
+  for (const part of ["body", "query", "params"]) {
+    const name = new RegExp(part + "\\s*:\\s*(\\w+)").exec(m[1]);
+    if (name) out[part] = name[1];
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function authChainOf(args) {
   const chain = [];
   if (/requireAuth/.test(args)) chain.push("requireAuth");
@@ -75,9 +90,15 @@ function authChainOf(args) {
   return chain;
 }
 
-const routes = [];
+/**
+ * Pure parse of the mounted API surface — exported so the OpenAPI generator
+ * (scripts/generate-openapi.mjs) and this script share ONE parser and can never
+ * disagree about what the source mounts.
+ */
+export function collectRoutes() {
+  const routes = [];
 
-for (const [module, file] of ROUTE_FILES) {
+  for (const [module, file] of ROUTE_FILES) {
   const full = path.join(modulesDir, file);
   const text = readFileSync(full, "utf8");
 
@@ -115,7 +136,7 @@ for (const [module, file] of ROUTE_FILES) {
     const routePath = firstPathArg(args);
     if (!routePath) continue;
     const routerSym = factoryAt(m.index) ?? (/^\s*(\w+)/.exec(text.slice(m.index))?.[1] ?? "unknown");
-    found.push({ symbol: routerSym, method, path: routePath, chain: authChainOf(args) });
+    found.push({ symbol: routerSym, method, path: routePath, chain: authChainOf(args), schemas: schemasOf(args) });
   }
 
   // Pass 2b: fluent chains. A factory may build its router as one expression —
@@ -130,7 +151,7 @@ for (const [module, file] of ROUTE_FILES) {
       const args = sliceCall(text, openParen);
       const routePath = firstPathArg(args);
       if (!routePath) continue;
-      found.push({ symbol: f.name, method: m[1].toUpperCase(), path: routePath, chain: authChainOf(args) });
+      found.push({ symbol: f.name, method: m[1].toUpperCase(), path: routePath, chain: authChainOf(args), schemas: schemasOf(args) });
     }
   }
 
@@ -154,11 +175,16 @@ for (const [module, file] of ROUTE_FILES) {
     if (r.chain.length > 0) auth = r.chain.join(",");
     else if (authedBySymbol.has(r.symbol)) auth = `requireAuth (file-level use on ${r.symbol})`;
     else auth = "PUBLIC";
-    routes.push({ module, file: `src/modules/${file}`, method: r.method, path: r.path, router: r.symbol, auth });
+    routes.push({ module, file: `src/modules/${file}`, method: r.method, path: r.path, router: r.symbol, auth, schemas: r.schemas });
   }
 }
 
-routes.sort((a, b) => (a.module + a.path + a.method).localeCompare(b.module + b.path + a.method));
+  routes.sort((a, b) => (a.module + a.path + a.method).localeCompare(b.module + b.path + a.method));
+  return routes;
+}
+
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const routes = collectRoutes();
 
 const summary = routes.reduce((acc, r) => {
   const key = r.auth.startsWith("PUBLIC") ? "PUBLIC" : r.auth.split(",")[0];
@@ -194,7 +220,10 @@ const md = [
   "",
 ].join("\n");
 
-if (CHECK) {
+if (!invokedDirectly) {
+  // Imported for the shared parser (freshness test, OpenAPI generator): expose the
+  // collected routes and do not touch the committed inventory.
+} else if (CHECK) {
   const committedJson = readFileSync(OUT_JSON, "utf8");
   const committedMd = readFileSync(OUT_MD, "utf8");
   if (committedJson !== JSON.stringify(payload, null, 2) + "\n" || committedMd !== md) {

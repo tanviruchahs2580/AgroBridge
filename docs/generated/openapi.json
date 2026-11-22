@@ -1,0 +1,3006 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AgroBridge API",
+    "version": "1.4.3",
+    "description": "Agricultural marketplace and advisory API. Generated from the mounted route surface — regenerate with `node apps/api/scripts/generate-openapi.mjs`; drift fails the freshness test and the quality-gates job. Auth values mirror docs/generated/route-matrix.md."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "admin"
+    },
+    {
+      "name": "aiagent"
+    },
+    {
+      "name": "analytics"
+    },
+    {
+      "name": "auth"
+    },
+    {
+      "name": "disease"
+    },
+    {
+      "name": "farms"
+    },
+    {
+      "name": "marketplace"
+    },
+    {
+      "name": "notifications"
+    },
+    {
+      "name": "ops"
+    },
+    {
+      "name": "organizations"
+    },
+    {
+      "name": "payments"
+    },
+    {
+      "name": "payments-webhook"
+    },
+    {
+      "name": "procurement"
+    },
+    {
+      "name": "services"
+    },
+    {
+      "name": "weather"
+    }
+  ],
+  "paths": {
+    "/api/v1/admin/ai-usage": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_ai_usage",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:admin:metrics. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "admin:metrics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/analytics/summary": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_analytics_summary",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:admin:metrics. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "admin:metrics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_audit_logs",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:audit:read. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "auditLogQuery"
+        },
+        "x-permission": "audit:read",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/metrics": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_metrics",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:admin:metrics. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "admin:metrics",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_users",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:users:read. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "userQuery"
+        },
+        "x-permission": "users:read",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "patch": {
+        "operationId": "patch_admin_api_v1_admin_users_id",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:users:manage. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "userUpdate"
+        },
+        "x-permission": "users:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/withdrawals": {
+      "get": {
+        "operationId": "get_admin_api_v1_admin_withdrawals",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:finance:withdrawals. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "withdrawalQuery"
+        },
+        "x-permission": "finance:withdrawals",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/admin/withdrawals/{id}/decision": {
+      "post": {
+        "operationId": "post_admin_api_v1_admin_withdrawals_id_decision",
+        "tags": [
+          "admin"
+        ],
+        "description": "requirePermission:finance:withdrawals. Source: src/modules/admin/routes.ts (adminRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "decisionSchema"
+        },
+        "x-permission": "finance:withdrawals",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/advisory": {
+      "post": {
+        "operationId": "post_aiagent_api_v1_ai_advisory",
+        "tags": [
+          "aiagent"
+        ],
+        "description": "requireAuth (file-level use on aiRouter). Source: src/modules/aiagent/routes.ts (aiRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/history": {
+      "get": {
+        "operationId": "get_aiagent_api_v1_ai_history",
+        "tags": [
+          "aiagent"
+        ],
+        "description": "requireAuth (file-level use on aiRouter). Source: src/modules/aiagent/routes.ts (aiRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/ai/history/{id}/feedback": {
+      "post": {
+        "operationId": "post_aiagent_api_v1_ai_history_id_feedback",
+        "tags": [
+          "aiagent"
+        ],
+        "description": "requireAuth (file-level use on aiRouter). Source: src/modules/aiagent/routes.ts (aiRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/analytics/events": {
+      "post": {
+        "operationId": "post_analytics_api_v1_analytics_events",
+        "tags": [
+          "analytics"
+        ],
+        "description": "requireAuth. Source: src/modules/analytics/routes.ts (analyticsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "eventSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_login",
+        "tags": [
+          "auth"
+        ],
+        "description": "PUBLIC. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "loginSchema"
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_logout",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "get_auth_api_v1_auth_me",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "patch": {
+        "operationId": "patch_auth_api_v1_auth_me",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "profileSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "delete_auth_api_v1_auth_me",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/me/export": {
+      "get": {
+        "operationId": "get_auth_api_v1_auth_me_export",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/auth/otp/request": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_otp_request",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/otp/stepup": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_otp_stepup",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/otp/verify": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_otp_verify",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_password_forgot",
+        "tags": [
+          "auth"
+        ],
+        "description": "PUBLIC. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_password_reset",
+        "tags": [
+          "auth"
+        ],
+        "description": "PUBLIC. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_refresh",
+        "tags": [
+          "auth"
+        ],
+        "description": "PUBLIC. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_register",
+        "tags": [
+          "auth"
+        ],
+        "description": "PUBLIC. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "registerSchema"
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/totp/activate": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_totp_activate",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/totp/disable": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_totp_disable",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/totp/enroll": {
+      "post": {
+        "operationId": "post_auth_api_v1_auth_totp_enroll",
+        "tags": [
+          "auth"
+        ],
+        "description": "requireAuth. Source: src/modules/auth/routes.ts (authRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/": {
+      "post": {
+        "operationId": "post_services_api_v1_bookings",
+        "tags": [
+          "services"
+        ],
+        "description": "requireAuth (file-level use on bookingsRouter). Source: src/modules/services/routes.ts (bookingsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "bookingCreate"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_services_api_v1_bookings",
+        "tags": [
+          "services"
+        ],
+        "description": "requireAuth (file-level use on bookingsRouter). Source: src/modules/services/routes.ts (bookingsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/bookings/{id}/assign": {
+      "post": {
+        "operationId": "post_services_api_v1_bookings_id_assign",
+        "tags": [
+          "services"
+        ],
+        "description": "requirePermission:bookings:assign. Source: src/modules/services/routes.ts (bookingsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "assignSchema"
+        },
+        "x-permission": "bookings:assign",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/rating": {
+      "post": {
+        "operationId": "post_services_api_v1_bookings_id_rating",
+        "tags": [
+          "services"
+        ],
+        "description": "requireAuth (file-level use on bookingsRouter). Source: src/modules/services/routes.ts (bookingsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "ratingSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/status": {
+      "post": {
+        "operationId": "post_services_api_v1_bookings_id_status",
+        "tags": [
+          "services"
+        ],
+        "description": "requireAuth (file-level use on bookingsRouter). Source: src/modules/services/routes.ts (bookingsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/cart/": {
+      "get": {
+        "operationId": "get_marketplace_api_v1_cart",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on cartRouter). Source: src/modules/marketplace/routes.ts (cartRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/cart/items": {
+      "post": {
+        "operationId": "post_marketplace_api_v1_cart_items",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on cartRouter). Source: src/modules/marketplace/routes.ts (cartRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "addItemSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/cart/items/{productId}": {
+      "delete": {
+        "operationId": "delete_marketplace_api_v1_cart_items_productid",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on cartRouter). Source: src/modules/marketplace/routes.ts (cartRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/disease/cases": {
+      "post": {
+        "operationId": "post_disease_api_v1_disease_cases",
+        "tags": [
+          "disease"
+        ],
+        "description": "requireAuth (file-level use on diseaseRouter). Source: src/modules/disease/routes.ts (diseaseRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_disease_api_v1_disease_cases",
+        "tags": [
+          "disease"
+        ],
+        "description": "requireAuth (file-level use on diseaseRouter). Source: src/modules/disease/routes.ts (diseaseRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/disease/cases/{id}": {
+      "get": {
+        "operationId": "get_disease_api_v1_disease_cases_id",
+        "tags": [
+          "disease"
+        ],
+        "description": "requireAuth (file-level use on diseaseRouter). Source: src/modules/disease/routes.ts (diseaseRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/disease/cases/{id}/image": {
+      "get": {
+        "operationId": "get_disease_api_v1_disease_cases_id_image",
+        "tags": [
+          "disease"
+        ],
+        "description": "requireAuth (file-level use on diseaseRouter). Source: src/modules/disease/routes.ts (diseaseRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "idParams"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/disease/cases/{id}/review": {
+      "post": {
+        "operationId": "post_disease_api_v1_disease_cases_id_review",
+        "tags": [
+          "disease"
+        ],
+        "description": "requirePermission:disease:review. Source: src/modules/disease/routes.ts (diseaseRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "reviewSchema"
+        },
+        "x-permission": "disease:review",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms/": {
+      "get": {
+        "operationId": "get_farms_api_v1_farms",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth. Source: src/modules/farms/routes.ts (farmsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "post": {
+        "operationId": "post_farms_api_v1_farms",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on farmsRouter). Source: src/modules/farms/routes.ts (farmsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "farmBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms//crops": {
+      "post": {
+        "operationId": "post_farms_api_v1_farms_crops",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on cropsRouter). Source: src/modules/farms/routes.ts (cropsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "cropBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_farms_api_v1_farms_crops",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on cropsRouter). Source: src/modules/farms/routes.ts (cropsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/farms//crops/{cropId}": {
+      "patch": {
+        "operationId": "patch_farms_api_v1_farms_crops_cropid",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on cropsRouter). Source: src/modules/farms/routes.ts (cropsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cropId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "cropUpdateBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms/{id}": {
+      "patch": {
+        "operationId": "patch_farms_api_v1_farms_id",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on farmsRouter). Source: src/modules/farms/routes.ts (farmsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "farmBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "delete_farms_api_v1_farms_id",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on farmsRouter). Source: src/modules/farms/routes.ts (farmsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms/{id}/events": {
+      "get": {
+        "operationId": "get_farms_api_v1_farms_id_events",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on eventsRouter). Source: src/modules/farms/routes.ts (eventsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "post": {
+        "operationId": "post_farms_api_v1_farms_id_events",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on eventsRouter). Source: src/modules/farms/routes.ts (eventsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "eventBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms/{id}/plots": {
+      "post": {
+        "operationId": "post_farms_api_v1_farms_id_plots",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on plotsRouter). Source: src/modules/farms/routes.ts (plotsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "plotBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_farms_api_v1_farms_id_plots",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on plotsRouter). Source: src/modules/farms/routes.ts (plotsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/farms/{id}/plots/{plotId}": {
+      "patch": {
+        "operationId": "patch_farms_api_v1_farms_id_plots_plotid",
+        "tags": [
+          "farms"
+        ],
+        "description": "requireAuth (file-level use on plotsRouter). Source: src/modules/farms/routes.ts (plotsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "plotBody"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/membership/plans": {
+      "get": {
+        "operationId": "get_payments_api_v1_membership_plans",
+        "tags": [
+          "payments"
+        ],
+        "description": "PUBLIC. Source: src/modules/payments/routes.ts (membershipRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/notifications/": {
+      "get": {
+        "operationId": "get_notifications_api_v1_notifications",
+        "tags": [
+          "notifications"
+        ],
+        "description": "requireAuth (file-level use on notificationsRouter). Source: src/modules/notifications/routes.ts (notificationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "listQuery"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/notifications/preferences": {
+      "get": {
+        "operationId": "get_notifications_api_v1_notifications_preferences",
+        "tags": [
+          "notifications"
+        ],
+        "description": "requireAuth (file-level use on notificationsRouter). Source: src/modules/notifications/routes.ts (notificationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "patch": {
+        "operationId": "patch_notifications_api_v1_notifications_preferences",
+        "tags": [
+          "notifications"
+        ],
+        "description": "requireAuth (file-level use on notificationsRouter). Source: src/modules/notifications/routes.ts (notificationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "prefsSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/read": {
+      "post": {
+        "operationId": "post_notifications_api_v1_notifications_read",
+        "tags": [
+          "notifications"
+        ],
+        "description": "requireAuth (file-level use on notificationsRouter). Source: src/modules/notifications/routes.ts (notificationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ops/reconcile-wallet": {
+      "get": {
+        "operationId": "get_ops_api_v1_ops_reconcile_wallet",
+        "tags": [
+          "ops"
+        ],
+        "description": "PUBLIC. Source: src/modules/ops/routes.ts (opsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/ops/retention": {
+      "get": {
+        "operationId": "get_ops_api_v1_ops_retention",
+        "tags": [
+          "ops"
+        ],
+        "description": "PUBLIC. Source: src/modules/ops/routes.ts (opsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/orders/": {
+      "get": {
+        "operationId": "get_marketplace_api_v1_orders",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on ordersRouter). Source: src/modules/marketplace/routes.ts (ordersRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/orders/checkout": {
+      "post": {
+        "operationId": "post_marketplace_api_v1_orders_checkout",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on ordersRouter). Source: src/modules/marketplace/routes.ts (ordersRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "checkoutBodySchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/orders/{id}": {
+      "get": {
+        "operationId": "get_marketplace_api_v1_orders_id",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on ordersRouter). Source: src/modules/marketplace/routes.ts (ordersRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "delete": {
+        "operationId": "delete_marketplace_api_v1_orders_id",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on ordersRouter). Source: src/modules/marketplace/routes.ts (ordersRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/cancel": {
+      "post": {
+        "operationId": "post_marketplace_api_v1_orders_id_cancel",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on ordersRouter). Source: src/modules/marketplace/routes.ts (ordersRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "cancelOrderBodySchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/": {
+      "post": {
+        "operationId": "post_organizations_api_v1_organizations",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:org:manage. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "createOrgSchema"
+        },
+        "x-permission": "org:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_organizations_api_v1_organizations",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:org:read. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "org:read",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/organizations/{id}": {
+      "get": {
+        "operationId": "get_organizations_api_v1_organizations_id",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:org:read. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "z"
+        },
+        "x-permission": "org:read",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/organizations/{id}/farms": {
+      "get": {
+        "operationId": "get_organizations_api_v1_organizations_id_farms",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:farm:read:org. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "z"
+        },
+        "x-permission": "farm:read:org",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/organizations/{id}/members": {
+      "post": {
+        "operationId": "post_organizations_api_v1_organizations_id_members",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:org:manage. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "addMemberSchema"
+        },
+        "x-permission": "org:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/{id}/members/{userId}": {
+      "delete": {
+        "operationId": "delete_organizations_api_v1_organizations_id_members_userid",
+        "tags": [
+          "organizations"
+        ],
+        "description": "requirePermission:org:manage. Source: src/modules/organizations/routes.ts (organizationsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "z"
+        },
+        "x-permission": "org:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/": {
+      "get": {
+        "operationId": "get_payments_api_v1_payments",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on paymentsRouter). Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/payments/intent": {
+      "post": {
+        "operationId": "post_payments_api_v1_payments_intent",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on paymentsRouter). Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/payouts": {
+      "post": {
+        "operationId": "post_payments_api_v1_payments_payouts",
+        "tags": [
+          "payments"
+        ],
+        "description": "requirePermission:procurement:pay. Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "payoutSchema"
+        },
+        "x-permission": "procurement:pay",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/webhook/sslcommerz": {
+      "post": {
+        "operationId": "post_payments-webhook_api_v1_payments_webhook_sslcommerz",
+        "tags": [
+          "payments-webhook"
+        ],
+        "description": "PUBLIC. Source: src/modules/payments/webhook.ts (paymentWebhookRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/payments/{id}/confirm": {
+      "post": {
+        "operationId": "post_payments_api_v1_payments_id_confirm",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on paymentsRouter). Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "idParams"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/{id}/refund": {
+      "post": {
+        "operationId": "post_payments_api_v1_payments_id_refund",
+        "tags": [
+          "payments"
+        ],
+        "description": "requirePermission:payments:refund. Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "refundSchema",
+          "params": "idParams"
+        },
+        "x-permission": "payments:refund",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/{id}/status": {
+      "get": {
+        "operationId": "get_payments_api_v1_payments_id_status",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on paymentsRouter). Source: src/modules/payments/routes.ts (paymentsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "params": "idParams"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/procurement/": {
+      "get": {
+        "operationId": "get_procurement_api_v1_procurement",
+        "tags": [
+          "procurement"
+        ],
+        "description": "requireAuth (file-level use on procurementRouter). Source: src/modules/procurement/routes.ts (procurementRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/procurement/offers": {
+      "post": {
+        "operationId": "post_procurement_api_v1_procurement_offers",
+        "tags": [
+          "procurement"
+        ],
+        "description": "requireAuth (file-level use on procurementRouter). Source: src/modules/procurement/routes.ts (procurementRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "submitSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/procurement/{id}/review": {
+      "post": {
+        "operationId": "post_procurement_api_v1_procurement_id_review",
+        "tags": [
+          "procurement"
+        ],
+        "description": "requirePermission:procurement:review. Source: src/modules/procurement/routes.ts (procurementRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "reviewSchema"
+        },
+        "x-permission": "procurement:review",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/products/": {
+      "get": {
+        "operationId": "get_marketplace_api_v1_products",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth (file-level use on productsRouter). Source: src/modules/marketplace/routes.ts (productsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "listQuery"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "post": {
+        "operationId": "post_marketplace_api_v1_products",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requireAuth,requirePermission:products:manage. Source: src/modules/marketplace/routes.ts (productsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "productBody"
+        },
+        "x-permission": "products:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/products/{id}": {
+      "patch": {
+        "operationId": "patch_marketplace_api_v1_products_id",
+        "tags": [
+          "marketplace"
+        ],
+        "description": "requirePermission:products:manage. Source: src/modules/marketplace/routes.ts (productsRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-request-schema": {
+          "body": "productUpdateBody"
+        },
+        "x-permission": "products:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/services/": {
+      "get": {
+        "operationId": "get_services_api_v1_services",
+        "tags": [
+          "services"
+        ],
+        "description": "requireAuth (file-level use on servicesRouter). Source: src/modules/services/routes.ts (servicesRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      },
+      "post": {
+        "operationId": "post_services_api_v1_services",
+        "tags": [
+          "services"
+        ],
+        "description": "requirePermission:services:manage. Source: src/modules/services/routes.ts (servicesRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "serviceBody"
+        },
+        "x-permission": "services:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/services/providers": {
+      "post": {
+        "operationId": "post_services_api_v1_services_providers",
+        "tags": [
+          "services"
+        ],
+        "description": "requirePermission:providers:manage. Source: src/modules/services/routes.ts (servicesRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "providerBody"
+        },
+        "x-permission": "providers:manage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/wallet/": {
+      "get": {
+        "operationId": "get_payments_api_v1_wallet",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on walletRouter). Source: src/modules/payments/routes.ts (walletRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/wallet/summary": {
+      "get": {
+        "operationId": "get_payments_api_v1_wallet_summary",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on walletRouter). Source: src/modules/payments/routes.ts (walletRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/wallet/withdrawals": {
+      "post": {
+        "operationId": "post_payments_api_v1_wallet_withdrawals",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on walletRouter). Source: src/modules/payments/routes.ts (walletRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "body": "withdrawalSchema"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "get_payments_api_v1_wallet_withdrawals",
+        "tags": [
+          "payments"
+        ],
+        "description": "requireAuth (file-level use on walletRouter). Source: src/modules/payments/routes.ts (walletRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    },
+    "/api/v1/weather/": {
+      "get": {
+        "operationId": "get_weather_api_v1_weather",
+        "tags": [
+          "weather"
+        ],
+        "description": "requireAuth (file-level use on weatherRouter). Source: src/modules/weather/routes.ts (weatherRouter).",
+        "responses": {
+          "default": {
+            "description": "Every response uses the shared ok/fail envelope (ADR-0022): `{ok:true, data, requestId}` on success — `data` is specific to this operation — and `{ok:false, error:{code, message, details?, reference}, requestId}` on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "x-request-schema": {
+          "query": "z"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotent": true
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ResponseEnvelope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "const": true
+              },
+              "data": {},
+              "requestId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "data",
+              "requestId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "const": false
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "details": {},
+                  "reference": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ]
+              },
+              "requestId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "error",
+              "requestId"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
