@@ -13,6 +13,9 @@
  *   - a SHORT password is deliberately not a client-side error here (F-35):
  *     the registration length policy does not apply to authentication, and the
  *     submit is allowed to reach the API with it
+ *   - the TOTP second step (SEC-04): a 401 TOTP_REQUIRED reveals the
+ *     authenticator-code field, the retry carries `totp`, and both TOTP codes
+ *     surface through errors-ui's dedicated bilingual copy
  * No network is touched: the component's own validation returns before api().
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -26,15 +29,17 @@ const mockApi = vi.fn(() => Promise.resolve({}));
 vi.mock("../../lib/session", () => ({
   useSession: () => ({ session: { lang: "bn", fullName: "Test", role: "FARMER" }, refresh: async () => {} }),
 }));
-vi.mock("../../lib/api.js", () => ({
-  api: (...args: unknown[]) => mockApi(...args),
-  setTokens: () => {},
-  hasToken: () => false,
-  API_BASE: "/api/v1",
-}));
+// The real module behind the api stub, so `ApiError` is the SAME class the
+// unmocked errors-ui.ts imports — mapError's `err instanceof ApiError` (and the
+// TOTP code map this suite pins) dies on a hand-rolled stand-in.
+vi.mock("../../lib/api.js", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/api.js")>("../../lib/api.js");
+  return { ...actual, api: (...args: unknown[]) => mockApi(...args), setTokens: () => {} };
+});
 vi.mock("../../lib/analytics.js", () => ({ track: () => {} }));
 
 import Login from "./Login";
+import { ApiError } from "../../lib/api";
 import { dict } from "../../lib/i18n";
 
 // The expected copy comes from the dictionary itself (single source of truth
@@ -200,6 +205,94 @@ describe("Login form — validation reaches the user", () => {
     });
     expect(mockApi).toHaveBeenCalledTimes(1);
     expect(mockApi).toHaveBeenCalledWith("POST", "/auth/login", { phone: "01712345678", password: "short" });
+    mounted.unmount();
+  }, 15_000);
+});
+
+/**
+ * The TOTP second step (SEC-04): the field does not exist until the API answers
+ * the first, password-only attempt with 401 TOTP_REQUIRED; the retry then carries
+ * `totp`, and both TOTP codes reach the user through errors-ui's code map — the
+ * server's English message must never paint a Bengali screen.
+ */
+describe("Login — TOTP second step (SEC-04)", () => {
+  const TOTP_REQUIRED = dict.errTotpRequired.bn;
+  const TOTP_INVALID = dict.errTotpInvalid.bn;
+
+  async function flush() {
+    for (let i = 0; i < 2; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+  }
+
+  /** Fill valid credentials and submit once, with the API answering 401 TOTP_REQUIRED. */
+  async function firstAttemptAnsweredTotpRequired() {
+    mockApi.mockRejectedValueOnce(new ApiError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app"));
+    await type(must<HTMLInputElement>("#phone"), "01712345678");
+    await type(must<HTMLInputElement>("#password"), "short");
+    await act(async () => {
+      must<HTMLButtonElement>('button[type="submit"]').click();
+    });
+    await flush();
+  }
+
+  it("a 401 TOTP_REQUIRED reveals the authenticator-code field with dedicated copy", async () => {
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Login)));
+    await firstAttemptAnsweredTotpRequired();
+
+    // The first call went out password-only — the server asked for the factor.
+    expect(mockApi).toHaveBeenCalledWith("POST", "/auth/login", { phone: "01712345678", password: "short" });
+
+    const totp = must<HTMLInputElement>("#totp");
+    expect(totp.getAttribute("inputmode")).toBe("numeric");
+    expect(totp.getAttribute("autocomplete")).toBe("one-time-code");
+    expect(totp.getAttribute("maxlength")).toBe("6");
+    // The banner names the second step in the user's language (code-mapped copy,
+    // not the server's English sentence).
+    expect(document.body.textContent).toContain(TOTP_REQUIRED);
+    mounted.unmount();
+  }, 15_000);
+
+  it("the retry carries totp, and a wrong code surfaces the dedicated copy", async () => {
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Login)));
+    await firstAttemptAnsweredTotpRequired();
+
+    await type(must<HTMLInputElement>("#totp"), "123456");
+    mockApi.mockRejectedValueOnce(new ApiError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again"));
+    await act(async () => {
+      must<HTMLButtonElement>('button[type="submit"]').click();
+    });
+    await flush();
+
+    expect(mockApi).toHaveBeenLastCalledWith("POST", "/auth/login", {
+      phone: "01712345678",
+      password: "short",
+      totp: "123456",
+    });
+    expect(document.body.textContent).toContain(TOTP_INVALID);
+    // The field stays for the corrected code.
+    expect(must<HTMLInputElement>("#totp")).toBeTruthy();
+    mounted.unmount();
+  }, 15_000);
+
+  it("a partial or non-numeric code is refused client-side before any retry", async () => {
+    const mounted = mount(React.createElement(MemoryRouter, null, React.createElement(Login)));
+    await firstAttemptAnsweredTotpRequired();
+
+    // Digits-only onChange: letters never reach the value at all.
+    await type(must<HTMLInputElement>("#totp"), "12ab");
+    expect(must<HTMLInputElement>("#totp").value).toBe("12");
+
+    await act(async () => {
+      must<HTMLButtonElement>('button[type="submit"]').click();
+    });
+    await flush();
+
+    // Still exactly the first attempt — no request went out with a bad code.
+    expect(mockApi).toHaveBeenCalledTimes(1);
+    expect(alerts()).toContain(dict.errOtpFormat.bn);
     mounted.unmount();
   }, 15_000);
 });

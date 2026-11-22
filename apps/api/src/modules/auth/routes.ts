@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { randomBytes, randomInt, createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, otpExpired } from "../../shared/errors/index.js";
+import { unauthorized, invalidCredentials, conflict, unprocessable, otpInvalid, otpExpired, forbidden, AppError } from "../../shared/errors/index.js";
 import { requireAuth, signAccessToken } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import { audit } from "../../middleware/audit.js";
@@ -21,7 +21,7 @@ import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
-import { deriveSubkey } from "../../shared/utils/kdf.js";
+import { assertStepUpOk, consumeOtpChallenge, generateTotpSecret, otpHash, totpOtpauthUrl, verifyTotp, OTP_MAX_ATTEMPTS } from "../../lib/otp.js";
 import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
 import { clearSessionCookies, CSRF_COOKIE, newCsrfToken, readCookie, REFRESH_COOKIE, setSessionCookies, csrfMatches } from "../../lib/sessionCookies.js";
 import { getAuth } from "../../shared/auth-context.js";
@@ -215,6 +215,9 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   phone: z.string().min(1),
   password: z.string().min(1),
+  // SEC-04: demanded only from accounts that enrolled a TOTP secret — the
+  // login response says TOTP_REQUIRED first, then the code rides here.
+  totp: z.string().regex(/^\d{6}$/).optional(),
 });
 
 function sha256(input: string): string {
@@ -336,6 +339,28 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
       throw invalidCredentials();
     }
     await clearLoginFailures(throttleKey);
+
+    // SEC-04: TOTP for the administrator tier. Demanded only AFTER the password
+    // has proven possession — a wrong-password attempt never learns whether
+    // the account carries a second factor, and the 6-digit code gates the
+    // session even when the password itself is compromised.
+    if (user.totpEnabledAt && user.totpSecret) {
+      const code = (req.body as { totp?: string }).totp;
+      if (!code) {
+        throw new AppError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app");
+      }
+      if (!verifyTotp(user.totpSecret, code)) {
+        await audit({
+          action: "AUTH_LOGIN_FAILED",
+          entityType: "User",
+          entityId: user.id,
+          ip: req.ip,
+          meta: { phone: phone ? maskPhone(phone) : null, reason: "totp_invalid" },
+        }).catch(() => undefined);
+        await recordLoginFailure(throttleKey);
+        throw new AppError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+      }
+    }
 
     // Transparent cost upgrade (F-02 option c): a hash stored at a cheaper
     // factor than this environment uses is re-hashed at the current one, so an
@@ -533,17 +558,8 @@ authRouter.patch("/me", requireAuth, validate({ body: profileSchema }), async (r
 // ---------------- Phone OTP verification ----------------
 
 const OTP_TTL_MINUTES = 5;
-const OTP_MAX_ATTEMPTS = 5;
-
-// Domain-separated OTP pepper (SEC-03): this used to be JWT_ACCESS_SECRET
-// itself, reusing the token-signing key as a hash pepper. See
-// shared/utils/kdf.ts for the derivation rationale and the one-time deploy
-// effect (in-flight challenges invalidate; users re-request a code).
-const OTP_PEPPER = deriveSubkey(env.JWT_ACCESS_SECRET, "otp-hash-v1");
-
-function hashOtp(phone: string, code: string): string {
-  return sha256(`${phone}:${code}:${OTP_PEPPER}`);
-}
+// OTP_MAX_ATTEMPTS and the peppered hash live in lib/otp.ts (SEC-03): the
+// single implementation shared with the STEP_UP gates in lib/otp's consumers.
 
 /**
  * Create a fresh challenge for one purpose, invalidating the user's earlier
@@ -553,7 +569,7 @@ function hashOtp(phone: string, code: string): string {
  */
 async function issueOtpChallenge(
   user: { id: string; phone: string },
-  purpose: "PHONE_VERIFY" | "PASSWORD_RESET",
+  purpose: "PHONE_VERIFY" | "PASSWORD_RESET" | "STEP_UP",
 ): Promise<{ code: string; challenge: { expiresAt: Date } }> {
   // Supersede-then-create, retried once on the unique-index race: the partial
   // index OtpChallenge_user_purpose_live_key (one live challenge per user and
@@ -576,7 +592,7 @@ async function issueOtpChallenge(
           // Already canonical `01[3-9]XXXXXXXX` (normalised at registration),
           // so hashOtp and every verify lookup compare the same string.
           phone: user.phone,
-          codeHash: hashOtp(user.phone, code),
+          codeHash: otpHash(user.phone, code),
           purpose,
           expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60_000),
         },
@@ -645,7 +661,7 @@ authRouter.post("/otp/verify", requireAuth, otpVerifyLimiter, validate({ body: z
       throw unprocessable("Too many attempts. Please request a new code.");
     }
 
-    if (challenge.codeHash !== hashOtp(challenge.phone, (req.body as { code: string }).code)) {
+    if (challenge.codeHash !== otpHash(challenge.phone, (req.body as { code: string }).code)) {
       throw unprocessable("Incorrect verification code");
     }
 
@@ -715,7 +731,7 @@ authRouter.post(
       });
       if (attempt.count === 0) throw otpExpired("Too many attempts. Request a new code.");
 
-      if (challenge.codeHash !== hashOtp(challenge.phone, otp)) {
+      if (challenge.codeHash !== otpHash(challenge.phone, otp)) {
         throw otpInvalid();
       }
 
@@ -731,6 +747,104 @@ authRouter.post(
       // reference dead tokens now, so they go too.
       clearSessionCookies(res);
       ok(res, { reset: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+// ---------------- Step-up re-auth + TOTP enrolment (SEC-04) ----------------
+/**
+ * Request a STEP_UP code: the fresh SMS factor demanded by the irreversible
+ * or money-moving self-service gates (withdrawals, account deletion). Same
+ * challenge machinery, delivery and limiter as /otp/request; the purpose keeps
+ * a step-up code from being consumed by phone verification or password reset,
+ * and vice versa.
+ */
+authRouter.post("/otp/stepup", requireAuth, otpLimiter, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+    if (!user) throw unauthorized();
+
+    const { code, challenge } = await issueOtpChallenge(user, "STEP_UP");
+    await sendSms(user.phone, otpSmsText(code));
+
+    await audit({ actorId: user.id, action: "STEP_UP_REQUESTED", entityType: "User", entityId: user.id });
+    ok(res, {
+      sent: true,
+      expiresAt: challenge.expiresAt,
+      ...(devAuthShortcuts ? { devCode: env.SMS_PROVIDER === "none" ? undefined : code } : {}),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// TOTP enrolment is an administrator-tier control (SEC-04): the roles that
+// approve withdrawals, refunds and payouts. Self-service, opt-in per account —
+// the seeded operator accounts are not enrolled, so nothing changes for them
+// until an admin opts in.
+const TOTP_TIER_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+authRouter.post("/totp/enroll", requireAuth, otpLimiter, async (req, res, next) => {
+  try {
+    if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+    const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+    if (!user) throw unauthorized();
+    if (user.totpEnabledAt) throw conflict("TOTP is already enabled — disable it before re-enrolling");
+
+    const secret = generateTotpSecret();
+    await prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } });
+    await audit({ actorId: user.id, action: "TOTP_ENROLL_STARTED", entityType: "User", entityId: user.id });
+    ok(res, { secret, otpauthUrl: totpOtpauthUrl(user.phone, secret) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post(
+  "/totp/activate",
+  requireAuth,
+  otpLimiter,
+  validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
+    try {
+      if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+      const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+      if (!user) throw unauthorized();
+      if (user.totpEnabledAt) throw conflict("TOTP is already enabled");
+      if (!user.totpSecret) throw unprocessable("No pending enrolment — start enrolment first");
+
+      if (!verifyTotp(user.totpSecret, (req.body as { code: string }).code)) {
+        throw new AppError(400, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { totpEnabledAt: new Date() } });
+      await audit({ actorId: user.id, action: "TOTP_ENABLED", entityType: "User", entityId: user.id });
+      ok(res, { enabled: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
+  "/totp/disable",
+  requireAuth,
+  otpLimiter,
+  validate({ body: z.object({ code: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
+    try {
+      if (!TOTP_TIER_ROLES.includes(getAuth(req).role)) throw forbidden("TOTP enrolment is available to administrator accounts only");
+      const user = await prisma.user.findUnique({ where: { id: getAuth(req).userId } });
+      if (!user || !user.totpEnabledAt || !user.totpSecret) throw unprocessable("TOTP is not enabled for this account");
+      // Disabling the second factor demands a valid code from it: possession
+      // of the session alone must not be enough to shed the factor.
+      if (!verifyTotp(user.totpSecret, (req.body as { code: string }).code)) {
+        throw new AppError(400, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+      }
+      await prisma.user.update({ where: { id: user.id }, data: { totpSecret: null, totpEnabledAt: null } });
+      await audit({ actorId: user.id, action: "TOTP_DISABLED", entityType: "User", entityId: user.id });
+      ok(res, { enabled: false });
     } catch (e) {
       next(e);
     }
@@ -761,9 +875,18 @@ authRouter.post(
  * event depends on. `LoginAttempt.phoneKey` is a salted hash (no plaintext
  * phone) and rows purge on the existing 24-hour/unlock schedule.
  */
-authRouter.delete("/me", requireAuth, async (req, res, next) => {
+authRouter.delete(
+  "/me",
+  requireAuth,
+  validate({ body: z.object({ otp: z.string().regex(/^\d{6}$/) }) }),
+  async (req, res, next) => {
   try {
     const userId = getAuth(req).userId;
+    // SEC-04 step-up: deletion is irreversible and self-service, so it demands
+    // a fresh SMS factor — a stolen session (cookie or copied token) cannot
+    // erase an account without the phone in the owner's hand. The gate runs
+    // BEFORE the anonymisation transaction: fail cheap, count the attempt.
+    assertStepUpOk(await consumeOtpChallenge(userId, "STEP_UP", (req.body as { otp: string }).otp));
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true, diseaseCases: { select: { imagePath: true } } },

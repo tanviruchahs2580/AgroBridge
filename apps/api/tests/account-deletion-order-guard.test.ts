@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { app, registerFarmer, getAdmin } from "./helpers.js";
+import { app, registerFarmer, getAdmin, requestStepUpCode } from "./helpers.js";
 import { prisma } from "../src/lib/prisma.js";
 
 /**
@@ -10,6 +10,10 @@ import { prisma } from "../src/lib/prisma.js";
  * transaction retains. The old guard refused unless every order was CANCELLED —
  * or the never-written "DELETED" — so any customer who had ever paid could not
  * self-delete, and the only escape was the PAY-06 hard-delete hole.
+ *
+ * SEC-04 (FIX-14): deletion now also demands a fresh step-up OTP, consumed
+ * BEFORE the order/withdrawal guards — every call below mints and sends one so
+ * the 422s asserted here are the order-lifecycle blocks, not gate rejections.
  */
 
 async function checkoutOrder(token: string): Promise<string> {
@@ -39,7 +43,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
   it("blocks while an order is CONFIRMED (in flight)", async () => {
     const f = await registerFarmer();
     await checkoutOrder(f.accessToken);
-    const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const res = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe("UNPROCESSABLE");
   });
@@ -49,7 +56,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
       const f = await registerFarmer();
       const orderId = await checkoutOrder(f.accessToken);
       await prisma.order.update({ where: { id: orderId }, data: { status } });
-      const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+      const res = await request(app)
+        .delete("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${f.accessToken}`)
+        .send({ otp: await requestStepUpCode(f.accessToken) });
       expect(res.status).toBe(422);
     }
   });
@@ -65,7 +75,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
       where: { id: orderId },
       data: { shippingName: "Real Name", shippingPhone: "01712345678", shippingAddress: "Village, Upazila, District" },
     });
-    const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const res = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(res.status).toBe(200);
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     expect(order).not.toBeNull(); // kept for legal/financial retention
@@ -87,7 +100,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
       .set("Authorization", `Bearer ${(await getAdmin()).accessToken}`)
       .send({ reason: "CMP-01 regression fixture" });
     expect(refund.status).toBe(200);
-    const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const res = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(res.status).toBe(200);
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     expect(order?.status).toBe("REFUNDED");
@@ -101,7 +117,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
       .set("Authorization", `Bearer ${f.accessToken}`)
       .send({ reason: "no longer needed" });
     expect(cancel.status).toBeLessThan(300);
-    const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const res = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(res.status).toBe(200);
   });
 
@@ -109,7 +128,10 @@ describe("CMP-01 — account deletion vs the order lifecycle", () => {
     const f = await registerFarmer();
     const orderId = await checkoutOrder(f.accessToken);
     await prisma.order.update({ where: { id: orderId }, data: { status: "DELIVERED" } });
-    const res = await request(app).delete("/api/v1/auth/me").set("Authorization", `Bearer ${f.accessToken}`);
+    const res = await request(app)
+      .delete("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ otp: await requestStepUpCode(f.accessToken) });
     expect(res.status).toBe(200);
   });
 });

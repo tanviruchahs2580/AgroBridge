@@ -63,3 +63,24 @@ describe("lib/errors-ui — single-field validation copy (F-38)", () => {
     expect(msg).toBe("এই প্লটে ইতিমধ্যে একটি সক্রিয় ফসল আছে।");
   });
 });
+
+describe("lib/errors-ui — TOTP second-step codes (SEC-04)", () => {
+  // The login endpoint answers the password-only attempt with 401 TOTP_REQUIRED
+  // and a wrong authenticator code with 401 TOTP_INVALID; both must reach the
+  // user as dictionary copy, never as the server's English sentence.
+  it("maps TOTP_REQUIRED to the bilingual reveal copy, in both languages", () => {
+    expect(mapError(new ApiError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app"), "bn")).toBe(dict.errTotpRequired.bn);
+    expect(mapError(new ApiError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app"), "en")).toBe(dict.errTotpRequired.en);
+  });
+
+  it("maps TOTP_INVALID to the bilingual retry copy, in both languages", () => {
+    expect(mapError(new ApiError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again"), "bn")).toBe(dict.errTotpInvalid.bn);
+    expect(mapError(new ApiError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again"), "en")).toBe(dict.errTotpInvalid.en);
+  });
+
+  it("names the code field when a 400 validation detail points at otp", () => {
+    const msg = mapError(validation([{ field: "otp", message: "Required" }]), "bn");
+    expect(msg).toContain("ভেরিফিকেশন কোড");
+    expect(msg).not.toBe("otp প্রয়োজন"); // the raw key name, not a label
+  });
+});

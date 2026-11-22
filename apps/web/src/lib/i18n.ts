@@ -125,6 +125,20 @@ export const dict = {
   resetChangeNumber: { bn: "অন্য নম্বর দিন", en: "Use a different number" },
   errOtpInvalid: { bn: "কোডটি সঠিক নয়।", en: "That code is not correct." },
   errOtpExpired: { bn: "কোডের মেয়াদ শেষ — নতুন কোড নিন।", en: "The code has expired — request a new one." },
+  // ── TOTP second step (SEC-04) ──
+  // The authenticator-code label is shared by the login second step and the
+  // admin enrolment panel; the two error sentences below are the dedicated
+  // copy errors-ui's code map picks for TOTP_REQUIRED / TOTP_INVALID — the
+  // server's English message must not reach a Bengali screen.
+  totpCodeLabel: { bn: "অ্যাপের ৬-ডিজিটের কোড", en: "6-digit code from your app" },
+  errTotpRequired: {
+    bn: "আপনার অ্যাকাউন্টে দ্বি-ধাপ যাচাই চালু আছে — অথেন্টিকেটর অ্যাপের ৬-সংখ্যার কোড দিন।",
+    en: "Your account has two-step verification on — enter the 6-digit code from your authenticator app.",
+  },
+  errTotpInvalid: {
+    bn: "দ্বি-ধাপ যাচাইয়ের কোড সঠিক নয় — আবার চেষ্টা করুন।",
+    en: "That two-step code is not correct — try again.",
+  },
   // Language toggle labels name the *target* language, so the bn value is the
   // English label and the en value is the Bengali one.
   langToggleButton: { bn: "EN", en: "বাং" },
@@ -754,6 +768,31 @@ export const dict = {
   },
   deleteAccountConfirm: { bn: "হ্যাঁ, মুছে ফেলুন", en: "Yes, delete" },
   accountDeletedToast: { bn: "অ্যাকাউন্ট মুছে ফেলা হয়েছে", en: "Account deleted" },
+  // ── Step-up verification (SEC-04) ──
+  // The fresh one-time code a sensitive action must carry: account deletion and
+  // wallet withdrawals both request it on the signed-in account's phone and
+  // submit it as `otp`. The sent confirmation reads inline, next to the input
+  // it unlocks — a toast disappears before the code arrives by SMS.
+  stepUpSendCode: { bn: "ভেরিফিকেশন কোড পাঠান", en: "Send verification code" },
+  stepUpSent: { bn: "কোড পাঠানো হয়েছে — মোবাইলে দেখুন।", en: "Code sent — check your phone." },
+  // ── Administrator two-step verification panel (SEC-04) ──
+  // Enrolment is an admin-tier control (the roles that approve withdrawals,
+  // refunds and payouts); the panel lives in Settings under its own title.
+  totpEnabledTitle: { bn: "দ্বি-ধাপ যাচাই (অ্যাডমিন)", en: "Two-step verification (admin)" },
+  totpEnableHint: {
+    bn: "চালু করলে এই অ্যাকাউন্টে লগইনের সময় অথেন্টিকেটর অ্যাপের কোডও লাগবে।",
+    en: "Once on, signing in to this account will also ask for the authenticator app code.",
+  },
+  totpEnableBtn: { bn: "দ্বি-ধাপ যাচাই চালু করুন", en: "Enable two-step verification" },
+  totpDisableBtn: { bn: "দ্বি-ধাপ যাচাই বন্ধ করুন", en: "Disable two-step verification" },
+  totpEnabledBadge: { bn: "চালু আছে", en: "Enabled" },
+  // What the secret block below it is for: add it to the authenticator app.
+  totpSecretHint: {
+    bn: "নিচের কী বা লিঙ্কটি আপনার অথেন্টিকেটর অ্যাপে যোগ করুন, তারপর অ্যাপের ৬-সংখ্যার কোড দিয়ে নিশ্চিত করুন।",
+    en: "Add the key or link below to your authenticator app, then confirm with its 6-digit code.",
+  },
+  totpActivatedToast: { bn: "দ্বি-ধাপ যাচাই চালু হয়েছে।", en: "Two-step verification is on." },
+  totpDisabledToast: { bn: "দ্বি-ধাপ যাচাই বন্ধ হয়েছে।", en: "Two-step verification is off." },
   // ── Personal data export ──
   dataExportTitle: { bn: "আমার ডেটা", en: "My data" },
   // Scope in one line: what is in the file, and the one thing that is not.

@@ -40,6 +40,10 @@ const AUTH_CODE_KEYS: Record<string, DictKey> = {
   // server's own English message would otherwise reach a Bengali screen.
   OTP_INVALID: "errOtpInvalid",
   OTP_EXPIRED: "errOtpExpired",
+  // TOTP second step (SEC-04): POST /auth/login answers 401 with these when the
+  // account enforces the authenticator second factor.
+  TOTP_REQUIRED: "errTotpRequired",
+  TOTP_INVALID: "errTotpInvalid",
 };
 
 /**
@@ -157,6 +161,10 @@ const FIELD_LABELS: Record<string, { bn: string; en: string }> = {
   withdrawalAmount: { bn: "উত্তোলনের পরিমাণ", en: "Withdrawal amount" },
   provider: { bn: "প্রদানকারী", en: "Provider" },
   providerId: { bn: "প্রদানকারী", en: "Provider" },
+  // The step-up/TOTP gates (SEC-04) validate `otp` and `code`; a 400 that names
+  // one of them should read as the code field, not the raw key name.
+  otp: { bn: "ভেরিফিকেশন কোড", en: "Verification code" },
+  code: { bn: "কোড", en: "Code" },
 };
 
 /** Display label for a backend field name in the active UI language. */

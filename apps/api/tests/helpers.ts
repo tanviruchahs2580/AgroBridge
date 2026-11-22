@@ -53,6 +53,19 @@ export async function getAdmin() {
   return adminCtx;
 }
 
+/**
+ * SEC-04: mint a fresh STEP_UP code for `token`'s account. Dev shortcuts echo
+ * the code in the response (tests run with DEV_AUTH_SHORTCUTS=1 from
+ * tests/setup-env.ts) — production delivers it over SMS instead.
+ */
+export async function requestStepUpCode(token: string): Promise<string> {
+  const res = await request(app).post("/api/v1/auth/otp/stepup").set("Authorization", `Bearer ${token}`);
+  if (res.status !== 200) throw new Error(`step-up request failed: ${JSON.stringify(res.body)}`);
+  const code = res.body.data?.devCode as string | undefined;
+  if (!code) throw new Error("no devCode echoed — DEV_AUTH_SHORTCUTS must be enabled in tests");
+  return code;
+}
+
 /** Registers a fresh user then elevates their role directly in the DB. */
 export async function createUserWithRole(role: string): Promise<{ accessToken: string; userId: string; phone: string }> {
   const f = await registerFarmer();

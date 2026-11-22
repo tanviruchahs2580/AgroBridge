@@ -9,6 +9,7 @@ import { channelLabel, membershipBenefitLabel, paymentPurposeLabel, reasonLabel,
 import { mapError } from "../../lib/errors-ui";
 import { track } from "../../lib/analytics";
 import { uuid } from "../../lib/uuid";
+import { StepUpAuth } from "../../components/StepUpAuth";
 import { ArrowDownCircle, ArrowUpCircle, Check, Clock3, Landmark, Receipt, Wallet } from "lucide-react";
 import {
   Badge, BlockError, Button, Card, EmptyState, ErrorBanner, Input, Label, Modal, PageHeader, SectionHeader, Select, Skeleton, StatTile, useConfirm, useToast,
@@ -76,6 +77,12 @@ export default function WalletPage() {
   const [wdOpen, setWdOpen] = useState(false);
   const [wdAmount, setWdAmount] = useState("");
   const [wdChannel, setWdChannel] = useState<(typeof CHANNELS)[number]>("BKASH");
+  // The step-up code the withdrawal submit must carry (SEC-04): the API
+  // refuses the request without it, before any hold is reserved. The send-code
+  // button and input are the shared StepUpAuth widget (account deletion in
+  // Settings mounts the same one).
+  const [wdOtp, setWdOtp] = useState("");
+  const wdOtpReady = /^\d{6}$/.test(wdOtp);
   const [wdErr, setWdErr] = useState("");
   const [wdBusy, setWdBusy] = useState(false);
   const [planBusyTier, setPlanBusyTier] = useState<string | null>(null);
@@ -156,6 +163,14 @@ export default function WalletPage() {
       setWdErr(t("errInsufficientBalance", lang));
       return;
     }
+    // Last guard, after the money checks: the submit control is disabled until
+    // six digits are present, so this only fires for a direct form submit —
+    // and it asks for a code, which the send button right above the field
+    // provides.
+    if (!wdOtpReady) {
+      setWdErr(t("errOtpFormat", lang));
+      return;
+    }
     setWdErr("");
     void doWithdraw(paisa);
   }
@@ -163,16 +178,19 @@ export default function WalletPage() {
   async function doWithdraw(amountPaisa: number) {
     setWdBusy(true);
     // Reused across retries and reloads; only cleared once the server has
-    // created or replayed the withdrawal.
+    // created or replayed the withdrawal. An idempotent replay under the same
+    // key does not need a fresh code, so the one entered with this attempt
+    // serves its retries too.
     const clientRequestId = pendingWithdrawalKey();
     try {
-      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel, clientRequestId });
+      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel, clientRequestId, otp: wdOtp });
       // Created or replayed — this key is spent.
       clearPendingWithdrawalKey();
       track("withdrawal_requested", { channel: wdChannel });
       toast.success(t("withdrawRequestedToast", lang));
       setWdOpen(false);
       setWdAmount("");
+      setWdOtp("");
       // The new request moves the balance and the month summary and adds a
       // history row; those three resources own all of it.
       invalidate("wallet");
@@ -402,6 +420,16 @@ export default function WalletPage() {
                 ))}
               </Select>
             </div>
+            {/* SEC-04: a withdrawal moves money out, so the API demands a fresh
+                code on the account's phone (asserted server-side, before the
+                hold). The request stays disabled until six digits are present —
+                the send button inside the widget is how one arrives. */}
+            <StepUpAuth
+              lang={lang}
+              code={wdOtp}
+              onCodeChange={(v) => { setWdOtp(v); if (wdErr) setWdErr(""); }}
+              idPrefix="wd"
+            />
             {/* The wrapper carries the id the amount input points at via
                 aria-describedby; it must not also carry role="alert", because
                 ErrorBanner is itself role="alert" and the message was announced
@@ -411,7 +439,9 @@ export default function WalletPage() {
               <Button type="button" variant="ghost" className="flex-1" disabled={wdBusy} onClick={() => setWdOpen(false)}>
                 {t("cancel", lang)}
               </Button>
-              <Button type="submit" className="flex-[2]" loading={wdBusy}>{t("withdrawRequestBtn", lang)}</Button>
+              <Button type="submit" className="flex-[2]" loading={wdBusy} disabled={!wdOtpReady}>
+                {t("withdrawRequestBtn", lang)}
+              </Button>
             </div>
           </form>
         </Modal>

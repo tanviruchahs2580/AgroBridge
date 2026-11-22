@@ -102,7 +102,7 @@ test.describe("settings & account", () => {
   test("deleting an account ends the session and blocks the credentials", async ({ page }) => {
     const phone = uniquePhone();
     const password = "Delete@12345";
-    await registerViaApi(phone, password);
+    const registered = await registerViaApi(phone, password);
     expect(await loginViaApi(phone, password)).toBe(200);
 
     await page.goto("/login");
@@ -112,6 +112,18 @@ test.describe("settings & account", () => {
     await page.waitForURL((u) => !/login/.test(u.pathname), { timeout: 15_000 });
 
     await page.goto("/settings");
+    // SEC-04: the deletion carries a fresh SMS step-up code. The UI's send-code
+    // click reveals the input; the code is minted through the same endpoint
+    // with the still-live register token (dev shortcuts echo it).
+    await page.getByRole("button", { name: /Send verification code|ভেরিফিকেশন কোড পাঠান/ }).click();
+    await expect(page.locator("#st-del-otp")).toBeVisible({ timeout: 8_000 });
+    const stepUp = await fetch(`${API}/auth/otp/stepup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${registered.accessToken}` },
+    }).then((r) => r.json());
+    const otpCode = stepUp?.data?.devCode as string | undefined;
+    expect(otpCode).toMatch(/^\d{6}$/);
+    await page.fill("#st-del-otp", otpCode);
     await page.getByRole("button", { name: /Delete account|অ্যাকাউন্ট মুছে ফেলুন/ }).click();
 
     // The confirmation dialog spells out that this cannot be undone.

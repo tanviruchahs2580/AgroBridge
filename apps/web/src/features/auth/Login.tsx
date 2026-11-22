@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { api, setTokens } from "../../lib/api";
+import { ApiError, api, setTokens } from "../../lib/api";
 import { track } from "../../lib/analytics";
 import { useSession } from "../../lib/session";
 import { t } from "../../lib/i18n";
@@ -22,9 +22,15 @@ export default function Login() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [fieldErrs, setFieldErrs] = useState<{ phone?: string; password?: string }>({});
+  const [fieldErrs, setFieldErrs] = useState<{ phone?: string; password?: string; totp?: string }>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // TOTP second step (SEC-04): the first, password-only attempt is answered
+  // with 401 TOTP_REQUIRED for accounts that enforce the authenticator factor.
+  // The field stays hidden until the server asks for it, so a plain
+  // login form never shows an input it does not need.
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totp, setTotp] = useState("");
   const nav = useNavigate();
 
   // Authentication, not registration: the API's login schema is
@@ -41,6 +47,10 @@ export default function Login() {
     if (!phone.trim()) errs.phone = t("errFieldRequired", lang);
     else if (!BD_PHONE_RE.test(phone.trim())) errs.phone = t("errPhoneInvalid", lang);
     if (!password) errs.password = t("errFieldRequired", lang);
+    // The second factor is only asked for once the API has accepted the phone +
+    // password pair, so its own completeness is checked here rather than ahead
+    // of the first attempt.
+    if (needsTotp && !/^\d{6}$/.test(totp)) errs.totp = t("errOtpFormat", lang);
     setFieldErrs(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -50,12 +60,23 @@ export default function Login() {
       // The declared contract shape (lib/api-types), not a locally invented
       // subset: a hand-written `{ accessToken, refreshToken }` here was a third
       // declaration of the login response that could drift from the API's.
-      const data = await api<AuthSession>("POST", "/auth/login", { phone: phone.trim(), password });
+      const data = await api<AuthSession>("POST", "/auth/login", {
+        phone: phone.trim(),
+        password,
+        // The code rides only once the server has asked for it: sending an
+        // empty `totp` unconditionally would change the request shape for every
+        // account without the factor.
+        ...(needsTotp ? { totp } : {}),
+      });
       setTokens(data.accessToken, data.refreshToken);
       track("login_success");
       await refresh();
       nav("/");
     } catch (err) {
+      // TOTP_REQUIRED reveals the authenticator-code field for the retry; both
+      // TOTP codes surface through the code map's dedicated bilingual copy, so
+      // the server's English message never reaches the screen.
+      if (err instanceof ApiError && err.code === "TOTP_REQUIRED") setNeedsTotp(true);
       setError(mapError(err, lang));
     } finally {
       setBusy(false);
@@ -147,6 +168,25 @@ export default function Login() {
             </IconButton>
           </div>
         </Field>
+
+        {/* SEC-04: the second step, revealed only on 401 TOTP_REQUIRED. Same
+            digits-only one-time-code shape as the SMS code inputs (Reset,
+            Settings); the label names the authenticator app, not SMS. */}
+        {needsTotp && (
+          <Field label={t("totpCodeLabel", lang)} htmlFor="totp" error={fieldErrs.totp}>
+            <Input
+              id="totp"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={totp}
+              onChange={(e) => { setTotp(e.target.value.replace(/\D/g, "")); setFieldErrs((p) => ({ ...p, totp: undefined })); }}
+              className="max-w-[12rem] tracking-[0.3em]"
+              aria-invalid={Boolean(fieldErrs.totp)}
+              aria-describedby={fieldErrs.totp ? "totp-err" : undefined}
+            />
+          </Field>
+        )}
 
         {error && (
           <ErrorBanner

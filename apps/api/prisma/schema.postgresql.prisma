@@ -22,6 +22,8 @@ model User {
   status       String   @default("ACTIVE") // ACTIVE|SUSPENDED|DISABLED
   region       String? // territory scope for manager roles (e.g., DHAKA_NORTH)
   phoneVerified Boolean @default(false)
+  totpSecret    String? // base32 TOTP secret — set at enrolment, cleared on disable; demanded at login once totpEnabledAt is set (SEC-04)
+  totpEnabledAt DateTime? // enrolment confirmation time — login demands a 6-digit TOTP code when set
   notificationPrefs String? // JSON {critical:boolean,action:boolean,info:boolean}
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -478,7 +480,7 @@ model OtpChallenge {
   userId     String
   phone      String
   codeHash   String
-  purpose    String    @default("PHONE_VERIFY")
+  purpose    String    @default("PHONE_VERIFY") // PHONE_VERIFY|PASSWORD_RESET|STEP_UP (STEP_UP: re-auth gate for withdrawals and account deletion, SEC-04)
   attempts   Int       @default(0)
   consumedAt DateTime?
   expiresAt  DateTime

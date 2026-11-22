@@ -132,6 +132,13 @@ test.describe("Keyboard-only pass (WEB-03)", () => {
     expect(visited.length, "Tab movement stalled inside the shell").toBeGreaterThanOrEqual(5);
 
     // ── dialog: focus trapped inside, Escape closes and restores focus ────
+    // SEC-04: the delete action is gated on a six-digit step-up code, and the
+    // StepUpAuth widget only renders its input after the send-code click. This
+    // test never submits, so format-valid digits are enough to open the dialog
+    // (the server is never called).
+    await page.locator("button", { hasText: /Send verification code|ভেরিফিকেশন কোড পাঠান/ }).first().click();
+    await expect(page.locator("#st-del-otp")).toBeVisible({ timeout: 8_000 });
+    await page.fill("#st-del-otp", "123456");
     // Focus the trigger explicitly first: the dialog restores focus to whatever
     // was focused when it opened, and this makes that target deterministic
     // (a touch-emulated click does not always move focus by itself).

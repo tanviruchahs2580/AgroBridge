@@ -120,6 +120,31 @@ export interface OtpRequestResult {
   devCode?: string;
 }
 
+/**
+ * POST /auth/otp/stepup — `data`. A fresh one-time code on the signed-in
+ * account's phone for a sensitive action (account deletion, wallet withdrawal);
+ * the action's submit carries it as `otp`. The purpose-scoped challenge means a
+ * step-up code cannot be consumed by phone verification or reset, and vice
+ * versa. `devCode` exists only outside production, for automated tests — never
+ * rendered as UI.
+ */
+export interface OtpStepUpResult {
+  sent: boolean;
+  expiresAt: IsoDateTime;
+  devCode?: string;
+}
+
+/** POST /auth/totp/enroll — `data`. The base32 secret and the otpauth setup URL. */
+export interface TotpEnrollResult {
+  secret: string;
+  otpauthUrl: string;
+}
+
+/** POST /auth/totp/activate · POST /auth/totp/disable — `data`. */
+export interface TotpEnabledResult {
+  enabled: boolean;
+}
+
 export interface NotificationPreferences {
   critical: boolean;
   action: boolean;
