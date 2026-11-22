@@ -21,7 +21,7 @@ import { collectUserData } from "./dataExport.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./accountThrottle.js";
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
-import { assertStepUpOk, consumeOtpChallenge, generateTotpSecret, otpHash, totpOtpauthUrl, verifyTotp, OTP_MAX_ATTEMPTS } from "../../lib/otp.js";
+import { assertStepUpOk, assertTotpLogin, consumeOtpChallenge, generateTotpSecret, otpHash, totpOtpauthUrl, verifyTotp, OTP_MAX_ATTEMPTS } from "../../lib/otp.js";
 import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
 import { clearSessionCookies, CSRF_COOKIE, newCsrfToken, readCookie, REFRESH_COOKIE, setSessionCookies, csrfMatches } from "../../lib/sessionCookies.js";
 import { getAuth } from "../../shared/auth-context.js";
@@ -343,27 +343,26 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
     // SEC-04: TOTP for the administrator tier. Demanded only AFTER the password
     // has proven possession — a wrong-password attempt never learns whether
     // the account carries a second factor, and the 6-digit code gates the
-    // session even when the password itself is compromised. Verify FIRST
-    // (deny-by-default): the session is issued only when the presented code
-    // matches the server-stored secret; an absent code fails the verifier
-    // (it cannot match the 6-digit shape) and answers TOTP_REQUIRED so the
-    // client can show its second-step input, while a present-but-wrong code
-    // is audited and throttled like any other failed login.
+    // session even when the password itself is compromised. The gate is a
+    // throwing verifier (lib/otp.ts): the session is issued only when it
+    // returns normally, the user-supplied code never appears in a route-side
+    // condition, and a present-but-wrong code is audited and throttled here.
     if (user.totpEnabledAt && user.totpSecret) {
       const code = (req.body as { totp?: string }).totp ?? "";
-      if (!verifyTotp(user.totpSecret, code)) {
-        if (!code) {
-          throw new AppError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app");
+      try {
+        assertTotpLogin(user.totpSecret, code);
+      } catch (e) {
+        if (e instanceof AppError && e.code === "TOTP_INVALID") {
+          await audit({
+            action: "AUTH_LOGIN_FAILED",
+            entityType: "User",
+            entityId: user.id,
+            ip: req.ip,
+            meta: { phone: phone ? maskPhone(phone) : null, reason: "totp_invalid" },
+          }).catch(() => undefined);
+          await recordLoginFailure(throttleKey);
         }
-        await audit({
-          action: "AUTH_LOGIN_FAILED",
-          entityType: "User",
-          entityId: user.id,
-          ip: req.ip,
-          meta: { phone: phone ? maskPhone(phone) : null, reason: "totp_invalid" },
-        }).catch(() => undefined);
-        await recordLoginFailure(throttleKey);
-        throw new AppError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+        throw e;
       }
     }
 

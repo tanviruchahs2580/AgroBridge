@@ -121,6 +121,24 @@ export function totpOtpauthUrl(phone: string, secret: string): string {
 }
 
 /**
+ * Login-time TOTP gate (SEC-04): throwing, not boolean, so the caller's
+ * continuation is guarded by exception flow — the session is issued only when
+ * this returns normally, and the user-supplied code never appears in a
+ * caller-side condition. An absent code fails the verifier (it cannot match
+ * the six-digit shape) and answers TOTP_REQUIRED without touching the failure
+ * counters — nothing was guessed — while a present-but-wrong code fails as
+ * TOTP_INVALID for the caller to audit and throttle.
+ */
+export function assertTotpLogin(secret: string, code: string): void {
+  if (!/^\d{6}$/.test(code)) {
+    throw new AppError(401, "TOTP_REQUIRED", "Enter the 6-digit code from your authenticator app");
+  }
+  if (!verifyTotp(secret, code)) {
+    throw new AppError(401, "TOTP_INVALID", "That code is not valid — check your authenticator and try again");
+  }
+}
+
+/**
  * Map a step-up gate outcome to its user-facing 422. Distinct machine codes
  * (OTP_EXPIRED / OTP_INVALID) keep the web's bilingual mapping working; the
  * messages are deliberate about the remedy (request a new code).
