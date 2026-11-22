@@ -67,6 +67,30 @@ groups:
           description: "Prometheus cannot reach {{ $labels.instance }} for 3m. Container may be crashed or network partitioned."
           runbook: docs/runbooks/live-deployment.md
 
+      # WP-05 (SEC-07 readiness): the limiter store fails OPEN by decision
+      # (ADR-0010) — these two rules make the fail-open state visible instead of
+      # silent. The first watches enforcement failures (store unreachable); the
+      # second fires when a process booted without REDIS_URL, which means the
+      # effective quota is instances × configured max.
+      - alert: LimiterStoreErrors
+        expr: increase(agrobridge_limiter_store_errors_total[10m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate-limiter store failing open (>50 errors in 10m)"
+          description: "Redis limiter enforcement is failing — every request is being allowed (ADR-0010 fail-open) while the store is unreachable. Check REDIS_URL connectivity and the store's health; the API keeps serving."
+          runbook: docs/runbooks/redis-limiter.md
+
+      - alert: ProductionMemoryLimiter
+        expr: max_over_time(agrobridge_limiter_store_info{store="memory"}[5m]) == 1
+        labels:
+          severity: warning
+        annotations:
+          summary: "A production process runs on per-instance memory rate limits"
+          description: "{{ $labels.instance }} booted without REDIS_URL — the effective quota is instances × configured max (documented fail-open). Provision the shared store (docs/runbooks/redis-limiter.md) and restart."
+          runbook: docs/runbooks/redis-limiter.md
+
       # AGENTS.md §12 expects authorisation failures to be alertable, and the HTTP
       # series cannot carry them: metricsMiddleware labels a request that is
       # refused before the route layer runs as route="unmatched" (F-26), so a

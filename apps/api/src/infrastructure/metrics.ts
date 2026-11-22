@@ -54,6 +54,30 @@ export const smsSendTotal = new Counter({
 });
 
 /**
+ * Rate-limiter store failures (WP-05). The store fails OPEN by decision
+ * (ADR-0010) — availability beats strict limiting — but a silent fail-open is
+ * indistinguishable from a working limiter, so every store error increments
+ * this counter (the alert rule in monitoring/alert_rules.yml watches it) and
+ * the store logs at most once a minute. The companion
+ * `agrobridge_limiter_store_info` gauge reports which store the process
+ * actually booted with, so a production deployment silently running on
+ * per-instance memory windows is alertable.
+ */
+export const limiterStoreErrorsTotal = new Counter({
+  name: "agrobridge_limiter_store_errors_total",
+  help: "Rate-limiter store errors (store fails open)",
+  labelNames: ["store"] as const,
+  registers: [registry],
+});
+
+export const limiterStoreInfo = new Gauge({
+  name: "agrobridge_limiter_store_info",
+  help: "Which rate-limiter store this process uses (1 for the active store)",
+  labelNames: ["store"] as const,
+  registers: [registry],
+});
+
+/**
  * Requests refused by the admission guard (middleware/admission.ts). F-71: the
  * guard shed requests with a log line only, so a device at its concurrency
  * ceiling produced 503s that appeared solely as `route="unmatched"` in the
