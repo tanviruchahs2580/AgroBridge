@@ -53,18 +53,19 @@ test.describe("English mode toggle", () => {
     // changed" and "the next spec will start in Bengali".
     await page.locator(bnToggle).click();
     await expect(page.getByRole("link", { name: /বাজার/u }).first()).toBeVisible();
+    // Persisting the preference is the difference between "the label changed"
+    // and "the next spec will start in Bengali": a fresh boot hydrates the
+    // language from the account. With SEC-02 the access token is memory-only
+    // (there is no localStorage copy for this poll to read), so the assertion
+    // goes through the product surface: reload, let the boot restore run
+    // (per-tab mirror → /auth/refresh → /auth/me), and watch the document
+    // language follow the server's langPref.
+    await page.reload({ waitUntil: "domcontentloaded" });
     await expect
-      .poll(
-        async () =>
-          page.evaluate(async () => {
-            const raw = localStorage.getItem("ab_at"); // sessionManager owns this key
-            const res = await fetch("/api/v1/auth/me", { headers: raw ? { Authorization: `Bearer ${raw}` } : {} });
-            if (!res.ok) return `http_${res.status}`;
-            const body = await res.json();
-            return body?.data?.langPref ?? "missing";
-          }),
-        { timeout: 10_000, message: "the Bengali preference never reached the server — later specs would start in English" }
-      )
+      .poll(() => page.evaluate(() => document.documentElement.lang), {
+        timeout: 10_000,
+        message: "the Bengali preference never reached the server — later specs would start in English",
+      })
       .toBe("bn");
   });
 });

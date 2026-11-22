@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api, ApiError, setUnauthorizedHandler } from "./api";
+import { api, ApiError, hasPlausibleSession, logoutViaSessionCookie, refreshAccessToken, setUnauthorizedHandler } from "./api";
 import { broadcastLogout, clearTokens as smClearTokens, getTokens, onChange } from "./sessionManager";
 import { track } from "./analytics";
 import { t } from "./i18n";
@@ -91,9 +91,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!getTokens().accessToken) {
-      setSession(null);
-      setLoading(false);
-      return;
+      // SEC-02: tokens no longer persist across reloads. A plausible session
+      // (the per-tab fallback mirror, or the readable half of the session-
+      // cookie pair) mints an access token from /auth/refresh before the
+      // /auth/me restore below; a guest boots with no auth call at all,
+      // exactly as before.
+      if (hasPlausibleSession() && (await refreshAccessToken())) {
+        // fall through to the restore with the freshly minted access token
+      } else {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
     }
     // A boot-time network failure or transient 5xx must NOT destroy valid
     // tokens — that would log an offline user out and defeat the offline
@@ -152,18 +161,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [session?.lang]);
 
   const logout = useCallback(() => {
-    // The refresh token MUST travel in the body: `POST /auth/logout` revokes the
-    // refresh token it is given (`req.body.refreshToken`, optional) and does
-    // nothing at all when the body is empty. This call used to send `{}`, so
-    // logging out cleared the browser's copy and returned to /login while the
-    // server-side row stayed valid for the token's full 7-day TTL — a copied
-    // refresh token kept minting access tokens after the user had logged out.
-    // Measured on the running stack: with body `{}` the same token still got 200
-    // from `/auth/refresh`; with the token in the body it got 401.
-    // The API test suite asserts the revocation contract
-    // (tests/security-matrix.test.ts:65) — the client was simply not exercising it.
+    // The refresh token MUST reach the server or the server-side row stays
+    // valid for its full 7-day TTL (a copied token kept minting access tokens
+    // after the user had logged out — measured on the running stack; the API
+    // test suite asserts the revocation contract). SEC-02 layering: the
+    // per-tab mirror rides the body when present (every browser), and the
+    // HttpOnly session cookie backs the rare case where the mirror is empty
+    // but the cookie still names the session.
     const { refreshToken } = getTokens();
-    void api("POST", "/auth/logout", refreshToken ? { refreshToken } : {}).catch(() => undefined);
+    if (refreshToken) {
+      void api("POST", "/auth/logout", { refreshToken }).catch(() => undefined);
+    } else {
+      logoutViaSessionCookie();
+    }
     // broadcastLogout, not clearTokens: signing out is an intent that applies to
     // every tab on this device, and only the broadcast tells the others.
     broadcastLogout();

@@ -183,7 +183,11 @@ test.describe("Scenario acceptance — UX & resilience", () => {
 
     // A closable dialog: Escape closes it and focus returns to its opener.
     // (The checkout wizard deliberately has no mid-flow Escape — state loss.)
+    // SEC-02: registration sets the session cookies in THIS browser context,
+    // so the boot would auto-restore the new user before the login form ever
+    // renders. The spec wants the login FORM flow — drop the cookies first.
     const f = await registerByApi(page.request);
+    await page.context().clearCookies();
     await login(page, { phone: f.phone, password: "Demo@1234" });
     await page.goto("/settings");
     const opener = page.locator("button", { hasText: /অ্যাকাউন্ট মুছে ফেলুন|Delete account/ }).first();

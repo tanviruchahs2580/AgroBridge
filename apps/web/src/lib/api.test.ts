@@ -31,6 +31,7 @@ describe("lib/api — token storage (setTokens / clearTokens / hasToken)", () =>
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     // ensure module re-reads empty storage
     mod = await import("./api.js");
     mod.clearTokens();
@@ -40,35 +41,40 @@ describe("lib/api — token storage (setTokens / clearTokens / hasToken)", () =>
   afterEach(() => {
     vi.unstubAllGlobals();
     localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it("setTokens persists to localStorage and hasToken becomes true", async () => {
+  it("setTokens persists both per-tab mirrors to sessionStorage — NEVER localStorage (SEC-02)", async () => {
     mod.setTokens("at-123", "rt-456");
-    expect(localStorage.getItem("ab_at")).toBe("at-123");
-    expect(localStorage.getItem("ab_rt")).toBe("rt-456");
+    expect(sessionStorage.getItem("ab_at")).toBe("at-123");
+    expect(sessionStorage.getItem("ab_rt")).toBe("rt-456");
+    expect(localStorage.getItem("ab_at")).toBeNull();
+    expect(localStorage.getItem("ab_rt")).toBeNull();
     expect(mod.hasToken()).toBe(true);
   });
 
-  it("clearTokens removes storage and hasToken becomes false", async () => {
+  it("clearTokens removes the mirrors and hasToken becomes false", async () => {
     mod.setTokens("at-123", "rt-456");
     mod.clearTokens();
+    expect(sessionStorage.getItem("ab_at")).toBeNull();
+    expect(sessionStorage.getItem("ab_rt")).toBeNull();
     expect(localStorage.getItem("ab_at")).toBeNull();
     expect(localStorage.getItem("ab_rt")).toBeNull();
     expect(mod.hasToken()).toBe(false);
   });
 
-  it("initial accessToken is read from localStorage on module load", async () => {
+  it("legacy localStorage tokens migrate to the new scheme at module load (SEC-02)", async () => {
     localStorage.setItem("ab_at", "preloaded-at");
     localStorage.setItem("ab_rt", "preloaded-rt");
     vi.resetModules();
     const fresh = await import("./api.js");
-    expect(fresh.hasToken()).toBe(true);
-    // api should send Authorization header with preloaded token
-    const fetchMock = vi.fn(async () => okData({ hello: "world" }));
-    vi.stubGlobal("fetch", fetchMock);
-    await fresh.api("GET", "/ping");
-    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer preloaded-at");
+    // The refresh mirror moved to sessionStorage; the legacy keys are gone.
+    expect(sessionStorage.getItem("ab_rt")).toBe("preloaded-rt");
+    expect(localStorage.getItem("ab_at")).toBeNull();
+    expect(localStorage.getItem("ab_rt")).toBeNull();
+    // The stale AT copy is dropped on purpose: a fresh access token is minted
+    // from the migrated refresh token at boot (session.tsx → refreshAccessToken).
+    expect(fresh.hasToken()).toBe(false);
     fresh.clearTokens();
   });
 
@@ -90,8 +96,8 @@ describe("lib/api — token storage (setTokens / clearTokens / hasToken)", () =>
   it("setTokens overwrites previous values", async () => {
     mod.setTokens("a1", "r1");
     mod.setTokens("a2", "r2");
-    expect(localStorage.getItem("ab_at")).toBe("a2");
-    expect(localStorage.getItem("ab_rt")).toBe("r2");
+    expect(sessionStorage.getItem("ab_at")).toBe("a2");
+    expect(sessionStorage.getItem("ab_rt")).toBe("r2");
   });
 });
 
@@ -100,6 +106,7 @@ describe("lib/api — ApiError and envelope handling", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
     vi.stubGlobal("fetch", vi.fn());
@@ -175,6 +182,7 @@ describe("lib/api — retry semantics (GET-only, 5xx and network)", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
   });
@@ -263,6 +271,7 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
     vi.restoreAllMocks();
@@ -287,8 +296,13 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
     // refresh called once
     const refreshCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/auth/refresh"));
     expect(refreshCalls.length).toBe(1);
-    expect(localStorage.getItem("ab_at")).toBe("new-at");
-    expect(localStorage.getItem("ab_rt")).toBe("new-rt");
+    // SEC-02: the refreshed tokens land in the per-tab mirrors — the
+    // localStorage token keys must stay empty forever (the audit acceptance).
+    expect(sessionStorage.getItem("ab_at")).toBe("new-at");
+    expect(sessionStorage.getItem("ab_rt")).toBe("new-rt");
+    expect(localStorage.getItem("ab_at")).toBeNull();
+    expect(localStorage.getItem("ab_rt")).toBeNull();
+    expect(mod.hasToken()).toBe(true);
   });
 
   it("concurrent 401s share single refresh request (single-flight)", async () => {
@@ -326,6 +340,7 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
     });
     vi.stubGlobal("fetch", fetchMock);
     await expect(mod.api("GET", "/auth/me")).rejects.toMatchObject({ status: 401, code: "UNAUTHORIZED" });
+    expect(sessionStorage.getItem("ab_rt")).toBeNull();
     expect(localStorage.getItem("ab_at")).toBeNull();
     expect(localStorage.getItem("ab_rt")).toBeNull();
     expect(mod.hasToken()).toBe(false);
@@ -347,8 +362,7 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
     // A throttled refresh is "try again shortly", not a dead session: the
     // client surfaces a retryable 429 and the tokens stay in place.
     await expect(mod.api("GET", "/auth/me")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
-    expect(localStorage.getItem("ab_at")).toBe("expired-at");
-    expect(localStorage.getItem("ab_rt")).toBe("valid-rt");
+    expect(sessionStorage.getItem("ab_rt")).toBe("valid-rt");
     expect(mod.hasToken()).toBe(true);
     expect(handler).not.toHaveBeenCalled();
     mod.setUnauthorizedHandler(null);
@@ -430,21 +444,63 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
     mod.setUnauthorizedHandler(null);
   });
 
-  it("no refreshToken stored — immediate 401 clears tokens", async () => {
+  it("no plausible session — immediate 401 clears tokens without any refresh call", async () => {
     mod.clearTokens();
-    mod.setTokens("", ""); // ensure empty
-    // manually set only accessToken without refresh
-    localStorage.setItem("ab_at", "only-at");
-    vi.resetModules();
-    const fresh = await import("./api.js");
-    // fresh has accessToken=only-at, refreshToken=""
-    vi.stubGlobal("fetch", vi.fn(async () => errEnvelope(401, "UNAUTHORIZED", "expired")));
+    mod.setTokens("only-at", ""); // AT in memory, no refresh mirror, no cookie pair
+    const fetchMock = vi.fn(async () => errEnvelope(401, "UNAUTHORIZED", "expired"));
+    vi.stubGlobal("fetch", fetchMock);
     const h = vi.fn();
-    fresh.setUnauthorizedHandler(h);
-    await expect(fresh.api("GET", "/x")).rejects.toMatchObject({ status: 401 });
-    // wasAuthed true before, so handler called, tokens cleared
+    mod.setUnauthorizedHandler(h);
+    await expect(mod.api("GET", "/x")).rejects.toMatchObject({ status: 401 });
+    // wasAuthed true before, so handler called, tokens cleared; the 401 flow
+    // skipped the refresh entirely (neither transport had anything to send)
     expect(h).toHaveBeenCalled();
-    fresh.setUnauthorizedHandler(null);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    mod.setUnauthorizedHandler(null);
+  });
+  it("cookie-transport refresh sends the CSRF double-submit and no body token (SEC-02)", async () => {
+    // No stored refresh token; the readable CSRF pair is present. The real
+    // ab_rt is HttpOnly — it never appears in JS reach, this test only proves
+    // the CLIENT's half of the double-submit contract.
+    document.cookie = "ab_csrf=abc123def456abc123def456abc12345";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { accessToken: "at-c", refreshToken: "rt-c" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await mod.refreshAccessToken()).toBe(true);
+    const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(String(url)).toContain("/auth/refresh");
+    expect((opts.headers as Record<string, string>)["X-CSRF-Token"]).toBe("abc123def456abc123def456abc12345");
+    expect(opts.credentials).toBe("include");
+    expect(opts.body).toBe("{}");
+    // The minted pair lands in the per-tab mirrors, never localStorage.
+    expect(mod.hasToken()).toBe(true);
+    expect(sessionStorage.getItem("ab_at")).toBe("at-c");
+    expect(sessionStorage.getItem("ab_rt")).toBe("rt-c");
+    expect(localStorage.getItem("ab_at")).toBeNull();
+    document.cookie = "ab_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  });
+
+  it("cookie-transport refresh with no CSRF pair and no mirror is refused locally (no fetch)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await mod.refreshAccessToken()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("hasPlausibleSession gates the boot refresh (SEC-02)", async () => {
+    // Guest: nothing authenticates a refresh — no boot auth call.
+    expect(mod.hasPlausibleSession()).toBe(false);
+    // Any per-tab mirror present.
+    mod.setTokens("", "rt-mirror");
+    expect(mod.hasPlausibleSession()).toBe(true);
+    mod.clearTokens();
+    mod.setTokens("at-mirror", "");
+    expect(mod.hasPlausibleSession()).toBe(true);
+    mod.clearTokens();
+    // Readable CSRF cookie present (the HttpOnly refresh cookie's pair).
+    document.cookie = "ab_csrf=fedcba9876543210fedcba9876543210";
+    expect(mod.hasPlausibleSession()).toBe(true);
+    document.cookie = "ab_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    expect(mod.hasPlausibleSession()).toBe(false);
   });
 });
 
@@ -453,6 +509,7 @@ describe("lib/api — X-Request-Id correlation (I-01)", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
   });
@@ -541,6 +598,7 @@ describe("lib/api — isOnline / onOnlineStatusChange", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
   });
@@ -600,6 +658,7 @@ describe("lib/api — offline enqueue side-effect (characterization)", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
     localStorage.removeItem("agrobridge.mutationQueue");
@@ -659,6 +718,7 @@ describe("lib/api — cross-tab refresh rotation (AUD-V3 M-3)", () => {
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
     vi.restoreAllMocks();
@@ -679,9 +739,9 @@ describe("lib/api — cross-tab refresh rotation (AUD-V3 M-3)", () => {
         const body = JSON.parse(String(opts.body)) as { refreshToken: string };
         if (body.refreshToken === "rt1") {
           // The other tab wins the race while our request is in flight: its
-          // rotation lands in storage before our rejection resolves.
-          localStorage.setItem("ab_at", "at2");
-          localStorage.setItem("ab_rt", "rt2");
+          // rotation reaches this tab through the BroadcastChannel handler,
+          // which lands the new tokens via setTokens (memory + per-tab mirror).
+          mod.setTokens("at2", "rt2");
           return new Response(JSON.stringify({ ok: false, error: { code: "UNAUTHORIZED", message: "rotated" } }), { status: 401 });
         }
         if (body.refreshToken === "rt2") {
@@ -695,8 +755,7 @@ describe("lib/api — cross-tab refresh rotation (AUD-V3 M-3)", () => {
 
     const okRefresh = await mod.refreshAccessToken();
     expect(okRefresh).toBe(true);
-    expect(localStorage.getItem("ab_at")).toBe("at3");
-    expect(localStorage.getItem("ab_rt")).toBe("rt3");
+    expect(sessionStorage.getItem("ab_rt")).toBe("rt3");
     const refreshBodies = fetchMock.mock.calls
       .filter((c) => String(c[0]).includes("/auth/refresh"))
       .map((c) => (JSON.parse(String((c[1] as RequestInit).body)) as { refreshToken: string }).refreshToken);
@@ -719,6 +778,7 @@ describe("lib/api — apiBlob goes through the shared transport (folded audit it
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
+    sessionStorage.clear();
     mod = await import("./api.js");
     mod.clearTokens();
   });

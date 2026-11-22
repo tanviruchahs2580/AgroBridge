@@ -23,6 +23,7 @@ import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "./ac
 import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
 import { deriveSubkey } from "../../shared/utils/kdf.js";
 import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
+import { clearSessionCookies, CSRF_COOKIE, newCsrfToken, readCookie, REFRESH_COOKIE, setSessionCookies, csrfMatches } from "../../lib/sessionCookies.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 // Multi-instance-safe limiter stores. One instance per limiter, each with its own
@@ -281,11 +282,16 @@ authRouter.post("/register", registerLimiter, validate({ body: registerSchema })
       meta: { policyVersion: POLICY_VERSION, scope: "terms+privacy" },
     });
 
+    const refreshToken = await issueRefreshToken(user.id, req.headers["user-agent"]);
+    // SEC-02: the token also rides the HttpOnly ab_rt cookie (with its readable
+    // CSRF pair) so browser clients can stop persisting tokens; the body copy
+    // stays for the migration window (Android, request-fixture clients).
+    setSessionCookies(res, refreshToken, newCsrfToken());
     ok(
       res,
       {
         accessToken: signAccessToken(user.id, user.role),
-        refreshToken: await issueRefreshToken(user.id, req.headers["user-agent"]),
+        refreshToken,
         user: { id: user.id, fullName: user.fullName, role: user.role, langPref: user.langPref },
       },
       201
@@ -351,9 +357,12 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
 
     await audit({ actorId: user.id, action: "AUTH_LOGIN", entityType: "User", entityId: user.id, ip: req.ip });
 
+    const refreshToken = await issueRefreshToken(user.id, req.headers["user-agent"]);
+    // SEC-02: HttpOnly cookie alongside the body copy — see /refresh.
+    setSessionCookies(res, refreshToken, newCsrfToken());
     ok(res, {
       accessToken: signAccessToken(user.id, user.role),
-      refreshToken: await issueRefreshToken(user.id, req.headers["user-agent"]),
+      refreshToken,
       user: { id: user.id, fullName: user.fullName, role: user.role, langPref: user.langPref },
     });
   } catch (e) {
@@ -364,12 +373,27 @@ authRouter.post("/login", loginLimiter, validate({ body: loginSchema }), async (
 // Refresh carries its own per-token budget (SEC-01) — see refreshLimiter above.
 // It must NOT share loginLimiter: that limiter's key falls back to the shared
 // address for a phone-less body, which is exactly the mass-logout failure mode.
-authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048) }) }), async (req, res, next) => {
+// SEC-02: the token arrives as the HttpOnly ab_rt cookie OR the request body —
+// the body transport stays accepted for the Android migration window and the
+// e2e request fixture; cookie-transport callers (no body token) must pass the
+// CSRF double-submit (X-CSRF-Token mirroring the readable ab_csrf cookie),
+// because a cross-site form/fetch can ride along with cookies but cannot read
+// them to fill the header.
+authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshToken: z.string().min(10).max(2048).optional() }) }), async (req, res, next) => {
   try {
-    const { refreshToken } = req.body as { refreshToken: string };
+    const bodyToken = (req.body as { refreshToken?: string }).refreshToken;
+    const cookieToken = readCookie(req, REFRESH_COOKIE);
+    if (!bodyToken && !csrfMatches(req.headers["x-csrf-token"], readCookie(req, CSRF_COOKIE))) {
+      throw unauthorized("Missing or invalid CSRF token");
+    }
+    const refreshToken = bodyToken ?? cookieToken ?? "";
+    if (refreshToken.length < 10) throw unauthorized("Refresh token invalid or expired");
 
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: sha256(refreshToken) }, include: { user: true } });
     if (!stored || stored.expiresAt < new Date() || stored.user.status !== "ACTIVE") {
+      // A rejected cookie may be stale or rotated away — clear it so the next
+      // boot goes to sign-in instead of retrying a dead cookie forever.
+      clearSessionCookies(res);
       throw unauthorized("Refresh token invalid or expired");
     }
 
@@ -384,10 +408,12 @@ authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshT
         where: { userId: stored.userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      clearSessionCookies(res);
       throw unauthorized("Refresh token invalid or expired");
     }
 
     const newRaw = await issueRefreshToken(stored.userId, stored.deviceInfo ?? undefined);
+    setSessionCookies(res, newRaw, newCsrfToken());
 
     ok(res, {
       accessToken: signAccessToken(stored.user.id, stored.user.role),
@@ -400,13 +426,21 @@ authRouter.post("/refresh", refreshLimiter, validate({ body: z.object({ refreshT
 
 authRouter.post("/logout", requireAuth, validate({ body: z.object({ refreshToken: z.string().min(20).max(500).optional() }) }), async (req, res, next) => {
   try {
-    const refreshToken = (req.body as { refreshToken?: string }).refreshToken;
-    if (refreshToken) {
+    // SEC-02: revoke whichever transport carried the token — the body value, or
+    // the HttpOnly cookie when the client no longer stores tokens. The cookies
+    // are cleared on every logout regardless (requireAuth's Bearer gate already
+    // proves the caller is the session owner, so no CSRF header is needed
+    // here: a cross-site forger cannot produce the Authorization header).
+    const bodyToken = (req.body as { refreshToken?: string }).refreshToken;
+    const cookieToken = readCookie(req, REFRESH_COOKIE);
+    const target = bodyToken ?? cookieToken;
+    if (target) {
       await prisma.refreshToken.updateMany({
-        where: { tokenHash: sha256(refreshToken), userId: getAuth(req).userId },
+        where: { tokenHash: sha256(target), userId: getAuth(req).userId },
         data: { revokedAt: new Date() },
       });
     }
+    clearSessionCookies(res);
     ok(res, { loggedOut: true });
   } catch (e) {
     next(e);
@@ -693,6 +727,9 @@ authRouter.post(
       ]);
       await clearLoginFailures(phone);
       await audit({ actorId: user.id, action: "PASSWORD_RESET", entityType: "User", entityId: user.id, ip: req.ip });
+      // The reset revoked every refresh token — the browser's session cookies
+      // reference dead tokens now, so they go too.
+      clearSessionCookies(res);
       ok(res, { reset: true });
     } catch (e) {
       next(e);
@@ -835,7 +872,9 @@ authRouter.delete("/me", requireAuth, async (req, res, next) => {
     await audit({ actorId: userId, action: "ACCOUNT_DELETED", entityType: "User", entityId: userId, ip: req.ip });
     // Honest completion: any upload whose purge failed is queued for retry
     // (scripts/purge-uploads.ts) and reported here instead of being presented
-    // as fully deleted.
+    // as fully deleted. Every refresh token was revoked in the transaction, so
+    // the browser's session cookies are dead weight — clear them too.
+    clearSessionCookies(res);
     ok(res, { deleted: true, uploads: { purged, pendingPurge: failed } });
   } catch (e) {
     next(e);

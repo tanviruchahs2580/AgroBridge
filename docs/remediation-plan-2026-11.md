@@ -35,6 +35,7 @@ Each item below lists the finding it closes, the code change, and the test that 
 | Webhook limiter exemption | PAY-03 | `/v1/payments/webhook/` exempt from the global per-address limiter; dedicated `webhookLimiter` (600/15min, own `payments-webhook` Redis namespace) bounds flood while real IPNs never 429 | `tests/payments-webhook-limiter.test.ts` — webhook answers past a global budget of 2 while non-webhook traffic 429s |
 | Audit PII masking | SEC-10 | `AUTH_LOGIN_FAILED` phone and `EMAIL_CHANGED` address stored masked via new `shared/utils/mask.ts`; the two pre-existing parallel mask helpers (SMS logs, payout destination) now delegate to it | `tests/audit-pii-masking.test.ts` — masked present, raw absent |
 | Status-vocabulary drift | DAT-01 (slice) | `Order.status` comment lists `REFUNDED` in all three schema files; `docs/business-rules.md` §3 + BR-10 and `docs/api.md` updated to the new deletion rule. Comment-only — no DDL, no migration. Real CHECK constraints stay with FIX-15 | ERD freshness gate green (comment-insensitive) |
+| Token storage (SEC-02 / FIX-08) | SEC-02 | **Executed 2026-11-22.** API: the refresh token also rides an HttpOnly cookie (`ab_rt`, SameSite=None+Partitioned+Secure in the cross-site production profile, Lax same-origin locally) with a CSRF double-submit pair (`ab_csrf` at path `/` so the client can read it on any document); body transport stays accepted for the Android migration window; logout/reset/deletion clear the cookies. Web: zero tokens in `localStorage` (legacy keys migrated at boot); both tokens mirror in per-tab `sessionStorage` — the access-token mirror exists so a reload restores WITHOUT hitting /auth/refresh, which keeps rapid navigations from racing a rotation into a reuse-detection family kill; refresh transports are body-first, cookie+CSRF when the mirror is empty (second tab, new tab) | `tests/auth-cookie-session.test.ts` (6 cases: flags, rotation, CSRF refusal without consumption, logout clearing), web `api.test.ts` (localStorage-free invariant, transport/CSRF/migration), e2e AUTH-01/AUTH-03 (second-tab cookie restore, tamper-surface removal), full chromium suite 84 passed / 2 skipped |
 | Tenant claim reword | ARC-07 | `docs/security.md` now states tenancy is farm-scoped only (orders/wallets/payments carry no tenant key; RLS deferred per ADR-0015/0020) | docs |
 
 **Deliberately NOT changed** (documented decisions, verified correct):
@@ -45,15 +46,9 @@ Each item below lists the finding it closes, the code change, and the test that 
 
 ## 4. Ready-to-execute designs (next workstreams)
 
-### 4.1 SEC-02 — token storage (the next dedicated session)
+### 4.1 SEC-02 — token storage — EXECUTED 2026-11-22
 
-Goal: no token in `localStorage`; refresh token unreadable by scripts.
-
-- **API:** keep the JSON body for the access token; set the refresh token as `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth` cookie on login/register/refresh; accept it from the cookie (or body for the Android transition window) on `/refresh` and `/logout`. Add a CSRF token (double-submit header, non-HttpOnly, checked on cookie-authenticated mutations) since SameSite alone is not the CSRF story for the Capacitor origin.
-- **Web:** access token in memory only (`sessionManager` keeps cross-tab BroadcastChannel but stops persisting `ab_at`/`ab_rt`); on boot, no token → rely on the cookie: call `/auth/refresh` once at boot to mint an in-memory access token. The offline queue keeps its idempotency keys (`clientUuid`) so queued writes survive the change. 401-refresh semantics from the 2026-11-22 change (transient ≠ logout) carry over unchanged.
-- **Android (Capacitor):** `@capacitor/preferences` is not sufficient for the refresh cookie across WebView restarts — use `@capacitor-community/secure-storage` (or Capacitor Cookies plugin) for a Keystore-backed refresh token; keep the body-transport compatibility flag during the migration window.
-- **Migration/e2e:** dual-accept window (cookie OR body) so the APK and web deploy independently; update the Playwright login fixtures; add an e2e that asserts `document.cookie` never exposes a refresh token; update `docs/runtime-contract.md` and the api-contract fixture for the refreshed response shape.
-- **Estimate:** 5–8 person-days including e2e; do NOT mix with other changes.
+Implemented as the row in §3 (fix table) and committed; the design below is retained as the record of intent. Residual, documented: (1) the per-tab `sessionStorage` mirror is script-readable within a tab as the cookie-hostile-browser fallback — the audit's "no token in localStorage" acceptance holds, and the exposure is one tab for one token TTL; (2) cross-tab/second-tab persistence depends on the session cookie — guaranteed in the same-origin Docker topology, partitioned-cookie in the cross-origin Vercel topology, and fallback-to-relogin on browsers that block third-party cookies (Safari); (3) Android keeps the body transport during the migration window — a Keystore-backed plugin (`@capacitor-community/secure-storage`) is the follow-up hardening and needs an approved dependency change.
 
 ### 4.2 SEC-04 — MFA / step-up (P1)
 

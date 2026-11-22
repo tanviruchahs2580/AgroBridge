@@ -309,17 +309,16 @@ async function tryRefresh(): Promise<boolean> {
 /** Outcome-aware single-flight — the form `request()`'s 401 handler needs. */
 async function tryRefreshOutcome(): Promise<RefreshOutcome> {
   const startedWith = getTokens();
-  if (!startedWith.refreshToken) return "invalid";
   refreshing ??= (async () => {
     const first = await attemptRefresh(startedWith.refreshToken);
     if (first !== "invalid") return first;
     // Cross-tab rotation: if another tab refreshed while our attempt was in
-    // flight, its BroadcastChannel/storage update has already replaced the
-    // stored refresh token — our (now rotated-away) token was rejected for
-    // exactly that reason. Retrying once with the winner's token keeps this
-    // tab signed in instead of logging it out of a healthy session. A
-    // "transient" outcome does not take this path: immediately retrying a 429
-    // or a 5xx only hammers the endpoint; the session stays put instead.
+    // flight, its BroadcastChannel update has already replaced the stored
+    // refresh token — our (now rotated-away) token was rejected for exactly
+    // that reason. Retrying once with the winner's token keeps this tab signed
+    // in instead of logging it out of a healthy session. A "transient" outcome
+    // does not take this path: immediately retrying a 429 or a 5xx only
+    // hammers the endpoint; the session stays put instead.
     const now = getTokens();
     if (now.refreshToken && now.refreshToken !== startedWith.refreshToken) {
       return attemptRefresh(now.refreshToken);
@@ -331,12 +330,78 @@ async function tryRefreshOutcome(): Promise<RefreshOutcome> {
   return refreshing;
 }
 
+/**
+ * The readable half of the session-cookie pair (SEC-02). The server sets
+ * `ab_csrf` alongside the HttpOnly `ab_rt` refresh cookie; echoing it in
+ * X-CSRF-Token is the double-submit proof for cookie-transport calls — a
+ * cross-site forger can ride the cookie along but cannot read it to fill the
+ * header. `ab_rt` itself is HttpOnly and never in JS reach.
+ */
+function csrfTokenFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const pair = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith("ab_csrf="));
+  if (!pair) return null;
+  return pair.slice("ab_csrf=".length) || null;
+}
+
+/**
+ * Boot gate (SEC-02): with the access-token mirror in sessionStorage a reload
+ * restores without touching /auth/refresh (which rotates — see the race note
+ * in sessionManager), so this gate only matters for tabs with an EMPTY
+ * mirror: a refresh attempt is worth one call only when something plausibly
+ * authenticates it — the refresh-token fallback mirror, or the session-cookie
+ * pair. A guest boots with no auth call at all, exactly as before.
+ */
+export function hasPlausibleSession(): boolean {
+  try {
+    if (window.sessionStorage.getItem("ab_at") || window.sessionStorage.getItem("ab_rt")) return true;
+  } catch {
+    /* ignore */
+  }
+  return Boolean(csrfTokenFromCookie());
+}
+
+/**
+ * Cookie-transport logout (SEC-02): for the rare signed-in tab whose per-tab
+ * fallback mirror is empty but whose session cookie is still live. The common
+ * path sends the body token (see session.tsx logout — it also proves
+ * server-side revocation, which the e2e suite replays).
+ */
+export function logoutViaSessionCookie(): void {
+  const csrf = csrfTokenFromCookie();
+  void fetch(`${BASE}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": newRequestId(),
+      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+    },
+    body: "{}",
+  }).catch(() => undefined);
+}
+
 async function attemptRefresh(refreshToken: string): Promise<RefreshOutcome> {
+  // SEC-02 transports, in reliability order: a stored refresh token travels in
+  // the body (works in every browser — the Android migration window and the
+  // per-tab sessionStorage fallback both land here); without one, the HttpOnly
+  // cookie carries the token and the CSRF double-submit authorises it.
+  const bodyToken = refreshToken || null;
+  const csrf = bodyToken ? null : csrfTokenFromCookie();
+  if (!bodyToken && !csrf) return "invalid";
   try {
     const res = await fetch(`${BASE}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Request-Id": newRequestId() },
-      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-Id": newRequestId(),
+        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      },
+      body: JSON.stringify(bodyToken ? { refreshToken: bodyToken } : {}),
     });
     // 429/5xx mean "retry later", never "session dead" (SEC-01): a throttled or
     // unhealthy refresh endpoint must not log a signed-in user out.

@@ -42,17 +42,15 @@ test.describe("Farmer journey", () => {
       await toggle.click();
       await expect(page.locator("body")).toContainText(/Home|হোম/);
       await toggle.click();
+      // SEC-02: the access token is memory-only, so the server-side language
+      // restore is asserted through the product surface — reload, let the
+      // boot restore hydrate from the account, and watch the document language.
+      await page.reload({ waitUntil: "domcontentloaded" });
       await expect
-        .poll(
-          async () =>
-            page.evaluate(async () => {
-              const raw = localStorage.getItem("ab_at"); // sessionManager owns this key
-              const res = await fetch("/api/v1/auth/me", { headers: raw ? { Authorization: `Bearer ${raw}` } : {} });
-              if (!res.ok) return `http_${res.status}`;
-              return (await res.json())?.data?.langPref ?? "missing";
-            }),
-          { timeout: 10_000, message: "the language restore never reached the server — later specs would run in English" }
-        )
+        .poll(() => page.evaluate(() => document.documentElement.lang), {
+          timeout: 10_000,
+          message: "the language restore never reached the server — later specs would run in English",
+        })
         .toBe("bn");
     }
     // Navigate to farm
