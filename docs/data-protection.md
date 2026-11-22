@@ -78,8 +78,10 @@ marked "post-fix" below is *not* in the code at `3f1c991`):
 - **Disease-case metadata rows survive deletion** (diagnosis text, storage key). The photo
   *bytes* are purged (step 6); the advisory record itself is retained with the anonymized
   user id. If policy later requires removing these, the cascade is one `deleteMany`.
-- **PNG/WebP metadata is not stripped.** Only JPEG APP1 (EXIF/GPS/XMP) is removed at
-  upload; PNG text chunks and WebP EXIF pass through unchanged.
+- **PNG/WebP metadata is stripped as of 2026-11-23** (WP-23): JPEG APP1 (EXIF/GPS/XMP), the
+  PNG `eXIf`/`tEXt`/`iTXt`/`zTXt`/`tIME` chunks and the WebP `EXIF`/`XMP ` chunks are removed at
+  upload; rendering-only metadata (ICC profiles, gamma, physical dimensions) is kept. A file
+  whose container cannot be parsed is rejected, not stored unclean.
 - **Marketplace listings: not applicable.** `Product.supplier` is free text with **no owner
   relation** in the schema — there is no user-owned listing to withdraw. Farmers' own rows
   (`ProcurementOrder`, `Order`, `Booking`) are retained as business records (step 7).

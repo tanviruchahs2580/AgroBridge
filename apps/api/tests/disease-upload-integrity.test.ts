@@ -38,7 +38,7 @@ describe("disease upload — EXIF stripping (B-17)", () => {
     rmSync(path.resolve(imagePath), { force: true });
   });
 
-  it("stores PNG bytes unchanged (pass-through, documented)", async () => {
+  it("stores a metadata-free PNG byte-for-byte (the stripper is a no-op on clean input)", async () => {
     const f = await registerFarmer();
     const png = tinyPng();
     const res = await uploadImage(f.accessToken, png, "image/png", "leaf.png");
@@ -129,13 +129,23 @@ describe("disease upload — deep magic-byte signatures (AUD-V3)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("accepts a real WebP signature (RIFF….WEBP)", async () => {
+  it("accepts a structurally valid WebP (RIFF….WEBP with a covering VP8 chunk)", async () => {
+    // Rewritten as a behaviour-spec correction: the old fixture declared a
+    // zero-length VP8 chunk with 24 trailing bytes — unparseable as a chunk
+    // stream, accepted only while intake was a magic-byte sniff. The WP-23
+    // stripper parses the container, so the fixture now carries a VP8 chunk
+    // whose size covers its data exactly.
     const f = await registerFarmer();
+    const vp8Data = Buffer.alloc(20);
+    const vp8Size = Buffer.alloc(4);
+    vp8Size.writeUInt32LE(vp8Data.length);
     const webp = Buffer.concat([
       Buffer.from("RIFF", "ascii"),
       Buffer.from([0x24, 0x00, 0x00, 0x00]),
-      Buffer.from("WEBPVP8 ", "ascii"),
-      Buffer.alloc(24),
+      Buffer.from("WEBP", "ascii"),
+      Buffer.from("VP8 ", "ascii"),
+      vp8Size,
+      vp8Data,
     ]);
     const res = await uploadImage(f.accessToken, webp, "image/webp", "leaf.webp");
     expect(res.status).toBe(201);

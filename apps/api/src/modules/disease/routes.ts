@@ -14,6 +14,8 @@ import { ok } from "../../middleware/context.js";
 import { getStorageProvider } from "../../providers/storage/index.js";
 import { removeStoredUpload } from "../../providers/storage/cleanup.js";
 import { stripJpegMetadata } from "../../shared/utils/jpeg.js";
+import { stripPngMetadata } from "../../shared/utils/png.js";
+import { stripWebpMetadata } from "../../shared/utils/webp.js";
 import { notify } from "../../providers/notification/service.js";
 import { getAuth } from "../../shared/auth-context.js";
 import { env } from "../../config/env.js";
@@ -112,18 +114,18 @@ diseaseRouter.post(
 
       if (cropGuess && cropGuess.length > 120) throw badRequest("cropGuess too long");
 
-      // strip EXIF (APP1 — GPS/device/timestamps) from JPEGs before the
-      // bytes are stored. PNG/WebP pass through unchanged: the audit-flagged
-      // leak is the camera EXIF in JPEGs, and neither format can carry APP1
-      // segments; their own metadata chunks are a recorded residual.
-      // A JPEG that cannot be parsed is rejected rather than stored unclean.
+      // strip metadata from every format before the bytes are stored (WP-23,
+      // SEC-06): JPEG drops APP1 (EXIF/XMP), PNG drops eXIf/text/tIME chunks,
+      // WebP drops the EXIF and "XMP " RIFF chunks — the same GPS/device data
+      // in each format's own container. A file that cannot be parsed is
+      // rejected rather than stored unclean.
       let upload = imagePart.data;
-      if (format === "jpeg") {
-        try {
-          upload = stripJpegMetadata(imagePart.data);
-        } catch {
-          throw badRequest("Malformed JPEG image — metadata could not be verified and removed");
-        }
+      try {
+        if (format === "jpeg") upload = stripJpegMetadata(imagePart.data);
+        else if (format === "png") upload = stripPngMetadata(imagePart.data);
+        else if (format === "webp") upload = stripWebpMetadata(imagePart.data);
+      } catch {
+        throw badRequest(`Malformed ${format} image — metadata could not be verified and removed`);
       }
 
       // Storage abstraction: local disk in dev, S3-compatible in production.
