@@ -10,6 +10,12 @@ them) and `docs/slo.md` (alert mapping). This page remains the control inventory
 
 ## Implemented controls
 - **Passwords:** bcrypt (cost 12; 4 in tests only). Uniform login errors prevent user enumeration.
+- **Registration response (SEC-08, recorded trade-off):** a successful registration returns 201 and
+  an already-registered phone returns the neutral 200 — the responses remain distinguishable to a
+  determined caller. Accepted on 2026-11-22 (docs/remediation-plan-2026-11.md §3): the neutral
+  shape is what the registration flow needs for its own UX, the 10/h-per-address limiter bounds
+  enumeration speed, and making them indistinguishable would break the client's existing-phone
+  handling. Revisit only if enumeration becomes an observed abuse vector.
 - **Sessions:** JWT access tokens (15 min, issuer-checked) + opaque refresh tokens stored as SHA-256
   hashes with rotation and revocation. Suspension/role-change revokes all refresh tokens immediately,
   and `requireAuth` re-validates account status per request so suspended accounts are cut off at once.
