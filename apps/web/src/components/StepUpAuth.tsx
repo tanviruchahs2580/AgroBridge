@@ -27,22 +27,31 @@ export function StepUpAuth({
   code,
   onCodeChange,
   idPrefix,
+  onEnforcement,
 }: {
   lang: Lang;
   code: string;
   onCodeChange: (v: string) => void;
   /** Unique per mount — two step-up surfaces on one page must not share input ids. */
   idPrefix: string;
+  /** Tells the parent whether the submit must carry `otp` (enforced) or may proceed without it (waived). */
+  onEnforcement?: (enforced: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [enforced, setEnforced] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   async function send() {
     setBusy(true);
     setErr(null);
     try {
-      await api<OtpStepUpResult>("POST", "/auth/otp/stepup");
+      const res = await api<OtpStepUpResult>("POST", "/auth/otp/stepup");
+      // Waived deployment (placeholder SMS — the code can be issued but never
+      // delivered): the gates step aside server-side, so this widget reveals
+      // the waiver notice instead of an input the user can never fill.
+      setEnforced(res.enforced ?? true);
+      onEnforcement?.(res.enforced ?? true);
       setSent(true);
     } catch (e) {
       setErr(mapError(e, lang));
@@ -58,6 +67,12 @@ export function StepUpAuth({
           {busy && <Spinner className="mr-1.5 h-4 w-4" />}
           <KeyRound className="mr-1.5 h-4 w-4" aria-hidden /> {t("stepUpSendCode", lang)}
         </Button>
+      ) : sent && !enforced ? (
+        <>
+          <p className="text-xs font-medium text-stone-600" role="status">
+            {t("stepUpWaived", lang)}
+          </p>
+        </>
       ) : (
         <>
           <p className="text-xs font-medium text-success-text" role="status">

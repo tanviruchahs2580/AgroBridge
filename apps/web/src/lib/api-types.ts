@@ -131,6 +131,8 @@ export interface OtpRequestResult {
 export interface OtpStepUpResult {
   sent: boolean;
   expiresAt: IsoDateTime;
+  /** False while SMS is a placeholder: the gates are waived and the UI hides the code input. */
+  enforced: boolean;
   devCode?: string;
 }
 

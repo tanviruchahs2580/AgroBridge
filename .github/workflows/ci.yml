@@ -475,6 +475,11 @@ jobs:
       # opts into the documented dev shortcut so /auth/otp/stepup echoes the
       # code; the production guard (NODE_ENV=production) is untouched.
       DEV_AUTH_SHORTCUTS: "1"
+      # SEC-04: the step-up specs drive the ENFORCED UI (code input, gated
+      # submits); on this ephemeral, non-production instance the gates must be
+      # on even though SMS is a placeholder. Production decides via
+      # STEP_UP_ENFORCEMENT/SMS_PROVIDER itself.
+      STEP_UP_ENFORCEMENT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin v7.0.1
 

@@ -71,6 +71,9 @@ export default function Settings() {
   // button and input are the shared StepUpAuth widget (the wallet's withdrawal
   // form mounts the same one).
   const [delOtp, setDelOtp] = useState("");
+  // Learned from /auth/otp/stepup: false while SMS is a placeholder — the
+  // server waives the step-up gates and the UI must not demand a code.
+  const [stepUpRequired, setStepUpRequired] = useState(true);
 
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
@@ -207,8 +210,11 @@ export default function Settings() {
   async function deleteAccount() {
     // The step-up gate runs server-side BEFORE the money guards, so a missing
     // or malformed code is refused before any of the domain reasons below can
-    // apply — no point opening the confirm dialog without it.
-    if (!/^\d{6}$/.test(delOtp)) {
+    // apply — no point opening the confirm dialog without it. On a waived
+    // deployment (placeholder SMS — the widget learned it from /auth/otp/
+    // stepup) the code is not required and the action proceeds exactly as it
+    // did before SEC-04 shipped.
+    if (stepUpRequired && !/^\d{6}$/.test(delOtp)) {
       setDeleteErr(t("errOtpFormat", lang));
       return;
     }
@@ -223,7 +229,7 @@ export default function Settings() {
     setDeleting(true);
     setDeleteErr(null);
     try {
-      await api("DELETE", "/auth/me", { otp: delOtp });
+      await api("DELETE", "/auth/me", stepUpRequired ? { otp: delOtp } : {});
       // Reset the SESSION CONTEXT, not just storage. Clearing tokens alone left
       // the provider's signed-in state in place, so the reverse guard bounced
       // this very navigation back into the app and the deleted account kept
@@ -587,7 +593,7 @@ export default function Settings() {
         {/* SEC-04: deletion is gated by a fresh step-up code on this account's
             phone, requested here and carried by DELETE /auth/me. Same widget as
             the wallet's withdrawal form — one behaviour, one definition. */}
-        <StepUpAuth lang={lang} code={delOtp} onCodeChange={setDelOtp} idPrefix="st-del" />
+        <StepUpAuth lang={lang} code={delOtp} onCodeChange={setDelOtp} idPrefix="st-del" onEnforcement={setStepUpRequired} />
         {deleteErr && <ErrorBanner message={deleteErr} />}
         <Button
           type="button"

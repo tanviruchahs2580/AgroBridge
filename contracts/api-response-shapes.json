@@ -167,6 +167,7 @@
   ],
   "auth/otp/stepup": [
     "devCode: string",
+    "enforced: boolean",
     "expiresAt: string",
     "sent: boolean"
   ],

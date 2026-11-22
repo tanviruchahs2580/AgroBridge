@@ -82,6 +82,9 @@ export default function WalletPage() {
   // button and input are the shared StepUpAuth widget (account deletion in
   // Settings mounts the same one).
   const [wdOtp, setWdOtp] = useState("");
+  // Learned from /auth/otp/stepup: false while SMS is a placeholder — the
+  // server waives the step-up gates and the UI must not demand a code.
+  const [wdStepUpEnforced, setWdStepUpEnforced] = useState(true);
   const wdOtpReady = /^\d{6}$/.test(wdOtp);
   const [wdErr, setWdErr] = useState("");
   const [wdBusy, setWdBusy] = useState(false);
@@ -164,10 +167,11 @@ export default function WalletPage() {
       return;
     }
     // Last guard, after the money checks: the submit control is disabled until
-    // six digits are present, so this only fires for a direct form submit —
-    // and it asks for a code, which the send button right above the field
-    // provides.
-    if (!wdOtpReady) {
+    // six digits are present (on an enforced deployment — the StepUpAuth
+    // widget reports the deployment's choice from /auth/otp/stepup), so this
+    // only fires for a direct form submit — and it asks for a code, which the
+    // send button right above the field provides.
+    if (wdStepUpEnforced && !wdOtpReady) {
       setWdErr(t("errOtpFormat", lang));
       return;
     }
@@ -183,7 +187,7 @@ export default function WalletPage() {
     // serves its retries too.
     const clientRequestId = pendingWithdrawalKey();
     try {
-      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel, clientRequestId, otp: wdOtp });
+      await api("POST", "/wallet/withdrawals", { amountPaisa, channel: wdChannel, clientRequestId, ...(wdStepUpEnforced ? { otp: wdOtp } : {}) });
       // Created or replayed — this key is spent.
       clearPendingWithdrawalKey();
       track("withdrawal_requested", { channel: wdChannel });
@@ -428,6 +432,7 @@ export default function WalletPage() {
               lang={lang}
               code={wdOtp}
               onCodeChange={(v) => { setWdOtp(v); if (wdErr) setWdErr(""); }}
+              onEnforcement={setWdStepUpEnforced}
               idPrefix="wd"
             />
             {/* The wrapper carries the id the amount input points at via

@@ -775,6 +775,13 @@ export const dict = {
   // it unlocks — a toast disappears before the code arrives by SMS.
   stepUpSendCode: { bn: "ভেরিফিকেশন কোড পাঠান", en: "Send verification code" },
   stepUpSent: { bn: "কোড পাঠানো হয়েছে — মোবাইলে দেখুন।", en: "Code sent — check your phone." },
+  // Waived deployments (placeholder SMS — the code can be issued but never
+  // delivered): the widget discloses the waiver and the gated action proceeds
+  // without it, exactly as it did before SEC-04 shipped.
+  stepUpWaived: {
+    bn: "এই সাইটে এসএমএস এখনো চালু নয় — যাচাই কোড ছাড়াই এগিয়ে যেতে পারবেন।",
+    en: "SMS delivery is not configured on this site — you can continue without a verification code.",
+  },
   // ── Administrator two-step verification panel (SEC-04) ──
   // Enrolment is an admin-tier control (the roles that approve withdrawals,
   // refunds and payouts); the panel lives in Settings under its own title.

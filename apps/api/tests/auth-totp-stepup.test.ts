@@ -172,7 +172,7 @@ describe("SEC-04 — login demands the TOTP code once enrolled", () => {
 });
 
 describe("SEC-04 — withdrawals demand a step-up code", () => {
-  it("no otp is a 400 validation error; a wrong code is 422 OTP_INVALID; a minted code creates the withdrawal", async () => {
+  it("no otp is refused by the gate (400 OTP_EXPIRED); a wrong code is 400 OTP_INVALID; a minted code creates the withdrawal", async () => {
     const f = await registerFarmer();
     await prisma.wallet.upsert({
       where: { userId: f.user.id },
@@ -180,12 +180,15 @@ describe("SEC-04 — withdrawals demand a step-up code", () => {
       create: { userId: f.user.id, balancePaisa: 100_000 },
     });
 
+    // With `otp` optional in the schema, a missing code passes validation and
+    // is refused by the ENFORCEMENT gate: 422 OTP_EXPIRED with the remedy copy
+    // ("request a verification code first"), never a 400 shape mismatch.
     const noOtp = await request(app)
       .post("/api/v1/wallet/withdrawals")
       .set("Authorization", `Bearer ${f.accessToken}`)
       .send({ amountPaisa: 20_000, channel: "BKASH" });
     expect(noOtp.status).toBe(400);
-    expect(noOtp.body.error.code).toBe("BAD_REQUEST");
+    expect(noOtp.body.error.code).toBe("OTP_EXPIRED");
 
     // A live challenge exists (so this is the wrong-code branch, not no-active).
     await requestStepUpCode(f.accessToken);
@@ -237,7 +240,7 @@ describe("SEC-04 — withdrawals demand a step-up code", () => {
 });
 
 describe("SEC-04 — account deletion demands a step-up code", () => {
-  it("a wrong otp is 422 OTP_INVALID and the account survives", async () => {
+  it("a wrong otp is 400 OTP_INVALID and the account survives", async () => {
     const f = await registerFarmer();
     await requestStepUpCode(f.accessToken); // live challenge, deliberately misused below
 
