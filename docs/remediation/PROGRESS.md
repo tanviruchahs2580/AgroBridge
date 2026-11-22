@@ -34,7 +34,7 @@ Status vocabulary: `TODO` · `IN-PROGRESS` · `PR-OPEN` · `BLOCKED-DECISION (DR
 | WP-20 | Fulfilment module | **BLOCKED-DECISION (DR-08)** | design memo only |
 | WP-21 | Offline read cache | **BLOCKED-DECISION (DR-04)** | memo only; no service worker (ADR-0008/0009 bind) |
 | WP-22 | Auth hot-path cache | **N/A (evidence)** | precondition (load-test evidence of a bottleneck) unmet; DB is co-located, per-request read ≈1.2 ms measured |
-| WP-23 | Image intake pipeline | **IN-PROGRESS** (2026-11-23) | |
+| WP-23 | Image intake pipeline | **PR-OPEN** (2026-11-23), PNG/WebP half | PNG + WebP metadata strippers (dependency-free, strict-bounds chunk walkers) wired into the disease upload; fast-check fuzz properties; route-level strip tests; data-protection residual claim updated. The busboy multipart swap needs its own ci(deps) PR (R4) and follows | |
 | WP-24 | Tracing + SLO adoption | **BLOCKED-OWNER (OA-05)** | SLO sign-off + vendor sink; spans need an approved dep |
 | WP-25 | One deployment path, IaC, secrets | TODO (memo) | |
 | WP-26 | Governance / bus factor | **BLOCKED-OWNER (OA-11)** | docs deliverable this session; ruleset changes are the owner's |
