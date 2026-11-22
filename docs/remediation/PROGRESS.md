@@ -30,7 +30,7 @@ Status vocabulary: `TODO` · `IN-PROGRESS` · `PR-OPEN` · `BLOCKED-DECISION (DR
 | WP-16 | Service-layer refactor | TODO | |
 | WP-17 | Double-entry ledger | **BLOCKED-DECISION (DR-06)** | design memo only until finance sign-off (OA-14) |
 | WP-18 | Outbox + workers | **BLOCKED-DECISION (DR-07)** | design memo only until approved |
-| WP-19 | OpenAPI from route inventory + Zod | **IN-PROGRESS** (2026-11-23) | |
+| WP-19 | OpenAPI from route inventory + Zod | **PR-OPEN** (2026-11-23) | generator shares the route-matrix parser (92 ops, 9 PUBLIC cross-checked); x-request-schema on 58 ops; --check + freshness test + CI gate; ADR-0026 supersedes ADR-0021; lifecycle policy. Follow-ups: per-route body schemas (Zod 4), Spectral dep (own ci(deps) PR per R4) | |
 | WP-20 | Fulfilment module | **BLOCKED-DECISION (DR-08)** | design memo only |
 | WP-21 | Offline read cache | **BLOCKED-DECISION (DR-04)** | memo only; no service worker (ADR-0008/0009 bind) |
 | WP-22 | Auth hot-path cache | **N/A (evidence)** | precondition (load-test evidence of a bottleneck) unmet; DB is co-located, per-request read ≈1.2 ms measured |

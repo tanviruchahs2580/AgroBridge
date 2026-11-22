@@ -60,7 +60,10 @@
       "method": "GET",
       "path": "/audit-logs",
       "router": "adminRouter",
-      "auth": "requirePermission:audit:read"
+      "auth": "requirePermission:audit:read",
+      "schemas": {
+        "query": "auditLogQuery"
+      }
     },
     {
       "module": "admin",
@@ -76,7 +79,10 @@
       "method": "PATCH",
       "path": "/users/:id",
       "router": "adminRouter",
-      "auth": "requirePermission:users:manage"
+      "auth": "requirePermission:users:manage",
+      "schemas": {
+        "body": "userUpdate"
+      }
     },
     {
       "module": "admin",
@@ -84,7 +90,10 @@
       "method": "GET",
       "path": "/users",
       "router": "adminRouter",
-      "auth": "requirePermission:users:read"
+      "auth": "requirePermission:users:read",
+      "schemas": {
+        "query": "userQuery"
+      }
     },
     {
       "module": "admin",
@@ -92,7 +101,10 @@
       "method": "POST",
       "path": "/withdrawals/:id/decision",
       "router": "adminRouter",
-      "auth": "requirePermission:finance:withdrawals"
+      "auth": "requirePermission:finance:withdrawals",
+      "schemas": {
+        "body": "decisionSchema"
+      }
     },
     {
       "module": "admin",
@@ -100,7 +112,10 @@
       "method": "GET",
       "path": "/withdrawals",
       "router": "adminRouter",
-      "auth": "requirePermission:finance:withdrawals"
+      "auth": "requirePermission:finance:withdrawals",
+      "schemas": {
+        "query": "withdrawalQuery"
+      }
     },
     {
       "module": "aiagent",
@@ -108,7 +123,10 @@
       "method": "POST",
       "path": "/advisory",
       "router": "aiRouter",
-      "auth": "requireAuth (file-level use on aiRouter)"
+      "auth": "requireAuth (file-level use on aiRouter)",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "aiagent",
@@ -116,7 +134,10 @@
       "method": "POST",
       "path": "/history/:id/feedback",
       "router": "aiRouter",
-      "auth": "requireAuth (file-level use on aiRouter)"
+      "auth": "requireAuth (file-level use on aiRouter)",
+      "schemas": {
+        "params": "z"
+      }
     },
     {
       "module": "aiagent",
@@ -132,7 +153,10 @@
       "method": "POST",
       "path": "/events",
       "router": "analyticsRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "eventSchema"
+      }
     },
     {
       "module": "auth",
@@ -140,7 +164,10 @@
       "method": "POST",
       "path": "/login",
       "router": "authRouter",
-      "auth": "PUBLIC"
+      "auth": "PUBLIC",
+      "schemas": {
+        "body": "loginSchema"
+      }
     },
     {
       "module": "auth",
@@ -148,7 +175,10 @@
       "method": "POST",
       "path": "/logout",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -172,7 +202,10 @@
       "method": "PATCH",
       "path": "/me",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "profileSchema"
+      }
     },
     {
       "module": "auth",
@@ -180,7 +213,10 @@
       "method": "DELETE",
       "path": "/me",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -204,7 +240,10 @@
       "method": "POST",
       "path": "/otp/verify",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -212,7 +251,10 @@
       "method": "POST",
       "path": "/password/forgot",
       "router": "authRouter",
-      "auth": "PUBLIC"
+      "auth": "PUBLIC",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -220,7 +262,10 @@
       "method": "POST",
       "path": "/password/reset",
       "router": "authRouter",
-      "auth": "PUBLIC"
+      "auth": "PUBLIC",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -228,7 +273,10 @@
       "method": "POST",
       "path": "/refresh",
       "router": "authRouter",
-      "auth": "PUBLIC"
+      "auth": "PUBLIC",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -236,7 +284,10 @@
       "method": "POST",
       "path": "/register",
       "router": "authRouter",
-      "auth": "PUBLIC"
+      "auth": "PUBLIC",
+      "schemas": {
+        "body": "registerSchema"
+      }
     },
     {
       "module": "auth",
@@ -244,7 +295,10 @@
       "method": "POST",
       "path": "/totp/activate",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -252,7 +306,10 @@
       "method": "POST",
       "path": "/totp/disable",
       "router": "authRouter",
-      "auth": "requireAuth"
+      "auth": "requireAuth",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "auth",
@@ -268,7 +325,10 @@
       "method": "GET",
       "path": "/cases/:id/image",
       "router": "diseaseRouter",
-      "auth": "requireAuth (file-level use on diseaseRouter)"
+      "auth": "requireAuth (file-level use on diseaseRouter)",
+      "schemas": {
+        "params": "idParams"
+      }
     },
     {
       "module": "disease",
@@ -276,7 +336,10 @@
       "method": "POST",
       "path": "/cases/:id/review",
       "router": "diseaseRouter",
-      "auth": "requirePermission:disease:review"
+      "auth": "requirePermission:disease:review",
+      "schemas": {
+        "body": "reviewSchema"
+      }
     },
     {
       "module": "disease",
@@ -308,7 +371,10 @@
       "method": "PATCH",
       "path": "/:id",
       "router": "farmsRouter",
-      "auth": "requireAuth (file-level use on farmsRouter)"
+      "auth": "requireAuth (file-level use on farmsRouter)",
+      "schemas": {
+        "body": "farmBody"
+      }
     },
     {
       "module": "farms",
@@ -324,7 +390,10 @@
       "method": "PATCH",
       "path": "/crops/:cropId",
       "router": "cropsRouter",
-      "auth": "requireAuth (file-level use on cropsRouter)"
+      "auth": "requireAuth (file-level use on cropsRouter)",
+      "schemas": {
+        "body": "cropUpdateBody"
+      }
     },
     {
       "module": "farms",
@@ -332,7 +401,10 @@
       "method": "POST",
       "path": "/crops",
       "router": "cropsRouter",
-      "auth": "requireAuth (file-level use on cropsRouter)"
+      "auth": "requireAuth (file-level use on cropsRouter)",
+      "schemas": {
+        "body": "cropBody"
+      }
     },
     {
       "module": "farms",
@@ -356,7 +428,10 @@
       "method": "POST",
       "path": "/events",
       "router": "eventsRouter",
-      "auth": "requireAuth (file-level use on eventsRouter)"
+      "auth": "requireAuth (file-level use on eventsRouter)",
+      "schemas": {
+        "body": "eventBody"
+      }
     },
     {
       "module": "farms",
@@ -364,7 +439,10 @@
       "method": "POST",
       "path": "/plots",
       "router": "plotsRouter",
-      "auth": "requireAuth (file-level use on plotsRouter)"
+      "auth": "requireAuth (file-level use on plotsRouter)",
+      "schemas": {
+        "body": "plotBody"
+      }
     },
     {
       "module": "farms",
@@ -380,7 +458,10 @@
       "method": "POST",
       "path": "/",
       "router": "farmsRouter",
-      "auth": "requireAuth (file-level use on farmsRouter)"
+      "auth": "requireAuth (file-level use on farmsRouter)",
+      "schemas": {
+        "body": "farmBody"
+      }
     },
     {
       "module": "farms",
@@ -388,7 +469,10 @@
       "method": "PATCH",
       "path": "/plots/:plotId",
       "router": "plotsRouter",
-      "auth": "requireAuth (file-level use on plotsRouter)"
+      "auth": "requireAuth (file-level use on plotsRouter)",
+      "schemas": {
+        "body": "plotBody"
+      }
     },
     {
       "module": "farms",
@@ -404,7 +488,10 @@
       "method": "POST",
       "path": "/:id/cancel",
       "router": "ordersRouter",
-      "auth": "requireAuth (file-level use on ordersRouter)"
+      "auth": "requireAuth (file-level use on ordersRouter)",
+      "schemas": {
+        "body": "cancelOrderBodySchema"
+      }
     },
     {
       "module": "marketplace",
@@ -412,7 +499,10 @@
       "method": "PATCH",
       "path": "/:id",
       "router": "productsRouter",
-      "auth": "requirePermission:products:manage"
+      "auth": "requirePermission:products:manage",
+      "schemas": {
+        "body": "productUpdateBody"
+      }
     },
     {
       "module": "marketplace",
@@ -436,7 +526,10 @@
       "method": "POST",
       "path": "/checkout",
       "router": "ordersRouter",
-      "auth": "requireAuth (file-level use on ordersRouter)"
+      "auth": "requireAuth (file-level use on ordersRouter)",
+      "schemas": {
+        "body": "checkoutBodySchema"
+      }
     },
     {
       "module": "marketplace",
@@ -444,7 +537,10 @@
       "method": "POST",
       "path": "/items",
       "router": "cartRouter",
-      "auth": "requireAuth (file-level use on cartRouter)"
+      "auth": "requireAuth (file-level use on cartRouter)",
+      "schemas": {
+        "body": "addItemSchema"
+      }
     },
     {
       "module": "marketplace",
@@ -452,7 +548,10 @@
       "method": "GET",
       "path": "/",
       "router": "productsRouter",
-      "auth": "requireAuth (file-level use on productsRouter)"
+      "auth": "requireAuth (file-level use on productsRouter)",
+      "schemas": {
+        "query": "listQuery"
+      }
     },
     {
       "module": "marketplace",
@@ -460,7 +559,10 @@
       "method": "POST",
       "path": "/",
       "router": "productsRouter",
-      "auth": "requireAuth,requirePermission:products:manage"
+      "auth": "requireAuth,requirePermission:products:manage",
+      "schemas": {
+        "body": "productBody"
+      }
     },
     {
       "module": "marketplace",
@@ -484,7 +586,10 @@
       "method": "DELETE",
       "path": "/items/:productId",
       "router": "cartRouter",
-      "auth": "requireAuth (file-level use on cartRouter)"
+      "auth": "requireAuth (file-level use on cartRouter)",
+      "schemas": {
+        "params": "z"
+      }
     },
     {
       "module": "notifications",
@@ -492,7 +597,10 @@
       "method": "GET",
       "path": "/",
       "router": "notificationsRouter",
-      "auth": "requireAuth (file-level use on notificationsRouter)"
+      "auth": "requireAuth (file-level use on notificationsRouter)",
+      "schemas": {
+        "query": "listQuery"
+      }
     },
     {
       "module": "notifications",
@@ -508,7 +616,10 @@
       "method": "PATCH",
       "path": "/preferences",
       "router": "notificationsRouter",
-      "auth": "requireAuth (file-level use on notificationsRouter)"
+      "auth": "requireAuth (file-level use on notificationsRouter)",
+      "schemas": {
+        "body": "prefsSchema"
+      }
     },
     {
       "module": "notifications",
@@ -516,7 +627,10 @@
       "method": "POST",
       "path": "/read",
       "router": "notificationsRouter",
-      "auth": "requireAuth (file-level use on notificationsRouter)"
+      "auth": "requireAuth (file-level use on notificationsRouter)",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "ops",
@@ -540,7 +654,10 @@
       "method": "GET",
       "path": "/:id/farms",
       "router": "organizationsRouter",
-      "auth": "requirePermission:farm:read:org"
+      "auth": "requirePermission:farm:read:org",
+      "schemas": {
+        "params": "z"
+      }
     },
     {
       "module": "organizations",
@@ -548,7 +665,10 @@
       "method": "DELETE",
       "path": "/:id/members/:userId",
       "router": "organizationsRouter",
-      "auth": "requirePermission:org:manage"
+      "auth": "requirePermission:org:manage",
+      "schemas": {
+        "params": "z"
+      }
     },
     {
       "module": "organizations",
@@ -556,7 +676,10 @@
       "method": "POST",
       "path": "/:id/members",
       "router": "organizationsRouter",
-      "auth": "requirePermission:org:manage"
+      "auth": "requirePermission:org:manage",
+      "schemas": {
+        "body": "addMemberSchema"
+      }
     },
     {
       "module": "organizations",
@@ -564,7 +687,10 @@
       "method": "GET",
       "path": "/:id",
       "router": "organizationsRouter",
-      "auth": "requirePermission:org:read"
+      "auth": "requirePermission:org:read",
+      "schemas": {
+        "params": "z"
+      }
     },
     {
       "module": "organizations",
@@ -572,7 +698,10 @@
       "method": "POST",
       "path": "/",
       "router": "organizationsRouter",
-      "auth": "requirePermission:org:manage"
+      "auth": "requirePermission:org:manage",
+      "schemas": {
+        "body": "createOrgSchema"
+      }
     },
     {
       "module": "organizations",
@@ -596,7 +725,10 @@
       "method": "POST",
       "path": "/:id/confirm",
       "router": "paymentsRouter",
-      "auth": "requireAuth (file-level use on paymentsRouter)"
+      "auth": "requireAuth (file-level use on paymentsRouter)",
+      "schemas": {
+        "params": "idParams"
+      }
     },
     {
       "module": "payments",
@@ -604,7 +736,11 @@
       "method": "POST",
       "path": "/:id/refund",
       "router": "paymentsRouter",
-      "auth": "requirePermission:payments:refund"
+      "auth": "requirePermission:payments:refund",
+      "schemas": {
+        "body": "refundSchema",
+        "params": "idParams"
+      }
     },
     {
       "module": "payments",
@@ -612,7 +748,10 @@
       "method": "GET",
       "path": "/:id/status",
       "router": "paymentsRouter",
-      "auth": "requireAuth (file-level use on paymentsRouter)"
+      "auth": "requireAuth (file-level use on paymentsRouter)",
+      "schemas": {
+        "params": "idParams"
+      }
     },
     {
       "module": "payments",
@@ -636,7 +775,10 @@
       "method": "POST",
       "path": "/intent",
       "router": "paymentsRouter",
-      "auth": "requireAuth (file-level use on paymentsRouter)"
+      "auth": "requireAuth (file-level use on paymentsRouter)",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "payments",
@@ -644,7 +786,10 @@
       "method": "POST",
       "path": "/payouts",
       "router": "paymentsRouter",
-      "auth": "requirePermission:procurement:pay"
+      "auth": "requirePermission:procurement:pay",
+      "schemas": {
+        "body": "payoutSchema"
+      }
     },
     {
       "module": "payments",
@@ -668,7 +813,10 @@
       "method": "POST",
       "path": "/withdrawals",
       "router": "walletRouter",
-      "auth": "requireAuth (file-level use on walletRouter)"
+      "auth": "requireAuth (file-level use on walletRouter)",
+      "schemas": {
+        "body": "withdrawalSchema"
+      }
     },
     {
       "module": "payments",
@@ -684,7 +832,10 @@
       "method": "POST",
       "path": "/:id/review",
       "router": "procurementRouter",
-      "auth": "requirePermission:procurement:review"
+      "auth": "requirePermission:procurement:review",
+      "schemas": {
+        "body": "reviewSchema"
+      }
     },
     {
       "module": "procurement",
@@ -700,7 +851,10 @@
       "method": "POST",
       "path": "/offers",
       "router": "procurementRouter",
-      "auth": "requireAuth (file-level use on procurementRouter)"
+      "auth": "requireAuth (file-level use on procurementRouter)",
+      "schemas": {
+        "body": "submitSchema"
+      }
     },
     {
       "module": "services",
@@ -708,7 +862,10 @@
       "method": "POST",
       "path": "/:id/assign",
       "router": "bookingsRouter",
-      "auth": "requirePermission:bookings:assign"
+      "auth": "requirePermission:bookings:assign",
+      "schemas": {
+        "body": "assignSchema"
+      }
     },
     {
       "module": "services",
@@ -716,7 +873,10 @@
       "method": "POST",
       "path": "/:id/rating",
       "router": "bookingsRouter",
-      "auth": "requireAuth (file-level use on bookingsRouter)"
+      "auth": "requireAuth (file-level use on bookingsRouter)",
+      "schemas": {
+        "body": "ratingSchema"
+      }
     },
     {
       "module": "services",
@@ -724,7 +884,10 @@
       "method": "POST",
       "path": "/:id/status",
       "router": "bookingsRouter",
-      "auth": "requireAuth (file-level use on bookingsRouter)"
+      "auth": "requireAuth (file-level use on bookingsRouter)",
+      "schemas": {
+        "body": "z"
+      }
     },
     {
       "module": "services",
@@ -740,7 +903,10 @@
       "method": "POST",
       "path": "/",
       "router": "servicesRouter",
-      "auth": "requirePermission:services:manage"
+      "auth": "requirePermission:services:manage",
+      "schemas": {
+        "body": "serviceBody"
+      }
     },
     {
       "module": "services",
@@ -748,7 +914,10 @@
       "method": "POST",
       "path": "/",
       "router": "bookingsRouter",
-      "auth": "requireAuth (file-level use on bookingsRouter)"
+      "auth": "requireAuth (file-level use on bookingsRouter)",
+      "schemas": {
+        "body": "bookingCreate"
+      }
     },
     {
       "module": "services",
@@ -764,7 +933,10 @@
       "method": "POST",
       "path": "/providers",
       "router": "servicesRouter",
-      "auth": "requirePermission:providers:manage"
+      "auth": "requirePermission:providers:manage",
+      "schemas": {
+        "body": "providerBody"
+      }
     },
     {
       "module": "weather",
@@ -772,7 +944,10 @@
       "method": "GET",
       "path": "/",
       "router": "weatherRouter",
-      "auth": "requireAuth (file-level use on weatherRouter)"
+      "auth": "requireAuth (file-level use on weatherRouter)",
+      "schemas": {
+        "query": "z"
+      }
     }
   ]
 }

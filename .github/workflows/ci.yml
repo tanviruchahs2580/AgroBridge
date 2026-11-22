@@ -185,10 +185,11 @@ jobs:
         run: npm run qa:versioncode
       - name: eslint warning ratchet (api 143 / web 0)
         run: node scripts/qa/lint-budget.mjs
-      - name: generated docs freshness (route matrix + ERD)
+      - name: generated docs freshness (route matrix + ERD + OpenAPI)
         run: |
           node apps/api/scripts/route-matrix.mjs --check
           node apps/api/scripts/gen-erd.mjs --check
+          node apps/api/scripts/generate-openapi.mjs --check
 
 
   api-postgres:

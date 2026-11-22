@@ -21,10 +21,16 @@ const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 type EnvReferenceModule = { buildEnvReference: () => string };
 type ErdModule = { buildErd: () => string };
+type OpenApiModule = { buildOpenApi: () => object };
 
 async function loadEnvGenerator(): Promise<EnvReferenceModule> {
   const specifier: string = new URL("../scripts/generate-env-reference.mjs", import.meta.url).href;
   return (await import(specifier)) as EnvReferenceModule;
+}
+
+async function loadOpenApiGenerator(): Promise<OpenApiModule> {
+  const specifier: string = new URL("../scripts/generate-openapi.mjs", import.meta.url).href;
+  return (await import(specifier)) as OpenApiModule;
 }
 
 async function loadErdGenerator(): Promise<ErdModule> {
@@ -50,6 +56,16 @@ describe("generated docs freshness", () => {
     expect(
       committed,
       "docs/erd.md is stale — regenerate with: node apps/api/scripts/generate-erd.mjs",
+    ).toBe(fresh);
+  });
+
+  it("docs/generated/openapi.json matches a fresh render of the route inventory", async () => {
+    const { buildOpenApi } = await loadOpenApiGenerator();
+    const fresh = JSON.stringify(buildOpenApi(), null, 2) + "\n";
+    const committed = readFileSync(`${repoRoot}docs/generated/openapi.json`, "utf8");
+    expect(
+      committed,
+      "docs/generated/openapi.json is stale — regenerate with: node apps/api/scripts/generate-openapi.mjs",
     ).toBe(fresh);
   });
 
