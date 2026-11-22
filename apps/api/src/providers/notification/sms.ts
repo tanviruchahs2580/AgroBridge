@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import { logger } from "../../lib/logger.js";
+import { smsSendTotal } from "../../infrastructure/metrics.js";
 import { UpstreamHttpError, withResilience } from "../resilience.js";
 import { maskPhone } from "../../shared/utils/mask.js";
 
@@ -68,21 +69,27 @@ export async function sendViaHttp(
  * reset). sandbox/none log only — and never log the code itself: outside
  * production the code is echoed in the API response instead, and in production
  * a code in the logs would be an account-takeover vector for anyone with log
- * access.
+ * access. Every attempt is metered (`sms_send_total{provider,outcome}`), which
+ * is what makes a gateway outage alertable once a sink exists (WP-04/OA-05).
  */
 export async function sendSms(to: string, text: string): Promise<SmsResult> {
   if (env.SMS_PROVIDER === "none") {
     logger.warn({ phoneMasked: maskPhone(to) }, "sms(none): message dropped — no provider configured");
+    smsSendTotal.inc({ provider: "none", outcome: "dropped" });
     return { delivered: false, provider: "none" };
   }
   if (env.SMS_PROVIDER === "sandbox") {
     logger.info({ phoneMasked: maskPhone(to) }, "sms(sandbox): message not sent (codes are returned in API responses outside production)");
+    smsSendTotal.inc({ provider: "sandbox", outcome: "sandbox" });
     return { delivered: false, provider: "sandbox" };
   }
   if (!env.SMS_API_URL) {
     // env.ts aborts production startup in this state; this covers non-production.
     logger.warn({ phoneMasked: maskPhone(to) }, "sms(http): SMS_API_URL missing — message not sent");
+    smsSendTotal.inc({ provider: "http", outcome: "unconfigured" });
     return { delivered: false, provider: "http", error: "SMS_API_URL missing" };
   }
-  return sendViaHttp({ url: env.SMS_API_URL, key: env.SMS_API_KEY, senderId: env.SMS_SENDER_ID }, to, text);
+  const result = await sendViaHttp({ url: env.SMS_API_URL, key: env.SMS_API_KEY, senderId: env.SMS_SENDER_ID }, to, text);
+  smsSendTotal.inc({ provider: "http", outcome: result.delivered ? "delivered" : result.error === "gateway unreachable" ? "unreachable" : "rejected" });
+  return result;
 }

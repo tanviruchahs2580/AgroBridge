@@ -40,6 +40,20 @@ export const paymentIntentsTotal = new Counter({
 });
 
 /**
+ * Every SMS send attempt, by provider and outcome (WP-04): `delivered`,
+ * `rejected` (final gateway 4xx), `unreachable` (timeout/network after the
+ * bounded retry), `dropped` (no provider), `sandbox` (placeholder provider),
+ * `unconfigured` (http selected but no URL). The activation runbook's alert
+ * watches a sustained `unreachable`.
+ */
+export const smsSendTotal = new Counter({
+  name: "agrobridge_sms_send_total",
+  help: "SMS send attempts by provider and outcome",
+  labelNames: ["provider", "outcome"] as const,
+  registers: [registry],
+});
+
+/**
  * Requests refused by the admission guard (middleware/admission.ts). F-71: the
  * guard shed requests with a log line only, so a device at its concurrency
  * ceiling produced 503s that appeared solely as `route="unmatched"` in the
