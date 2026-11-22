@@ -254,7 +254,7 @@ model Order {
   id             String    @id @default(cuid())
   orderNo        String    @unique
   userId         String
-  status         String    @default("PENDING") // PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED
+  status         String    @default("PENDING") // PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED|REFUNDED (refund path writes REFUNDED)
   subtotalPaisa  Int
   discountPaisa  Int       @default(0)
   deliveryFeePaisa Int     @default(0)

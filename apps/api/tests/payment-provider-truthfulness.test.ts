@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "./helpers.js";
-import { paymentSandboxProblem } from "../src/config/env.js";
+import { paymentSandboxProblem, liveGatewayPublicUrlProblem } from "../src/config/env.js";
 import { sslcommerzMode } from "../src/providers/payment/sslcommerz.js";
 
 /**
@@ -37,5 +37,27 @@ describe("AUD-103: SSLCommerz reports the host it really uses", () => {
     // The test profile runs the sandbox provider; the field must exist and be
     // truthful, not merely present.
     expect(res.body.payments).toEqual({ provider: "sandbox", sandbox: true });
+  });
+});
+
+/**
+ * SEC-05: the live gateway must not build callback/IPN URLs from the request's
+ * Host header. Boot refuses unless API_PUBLIC_URL is an https URL when
+ * SSLCOMMERZ_SANDBOX is literally "false"; sandbox mode (no real money) is
+ * unaffected.
+ */
+describe("SEC-05: live gateway requires an https API_PUBLIC_URL", () => {
+  it("sandbox mode never demands the variable", () => {
+    for (const sandbox of [undefined, "true"]) {
+      expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: sandbox, API_PUBLIC_URL: undefined })).toBeNull();
+      expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: sandbox, API_PUBLIC_URL: "http://insecure" })).toBeNull();
+    }
+  });
+
+  it("live mode refuses to boot without the variable, or with a non-https one", () => {
+    expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: "false", API_PUBLIC_URL: undefined })).toMatch(/API_PUBLIC_URL/);
+    expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: "false", API_PUBLIC_URL: "" })).toMatch(/API_PUBLIC_URL/);
+    expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: "false", API_PUBLIC_URL: "http://api.example.com" })).toMatch(/https/);
+    expect(liveGatewayPublicUrlProblem({ SSLCOMMERZ_SANDBOX: "false", API_PUBLIC_URL: "https://api.example.com" })).toBeNull();
   });
 });

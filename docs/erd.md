@@ -200,7 +200,7 @@ erDiagram
     string id PK
     string orderNo
     string userId FK
-    string status "PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED"
+    string status "PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED|REFUNDED (refund path writes REFUNDED)"
     int subtotalPaisa
     int discountPaisa
     int deliveryFeePaisa
