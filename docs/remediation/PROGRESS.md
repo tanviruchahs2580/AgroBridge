@@ -23,18 +23,18 @@ Status vocabulary: `TODO` · `IN-PROGRESS` · `PR-OPEN` · `BLOCKED-DECISION (DR
 | WP-10 | Error tracking, alerting, runbooks | **TODO** | gated: Sentry deps (§9) + DSNs/accounts (OA-05) |
 | WP-11 | Advisory safety switch + KB review process | **DONE** (2026-11-23), with owner follow-ups | Owner decision (serve-with-warning) preserved; `assertKbReviewProvenance` CI guard + 5 guard tests + `docs/ai/kb-review-process.md`. Agronomist sign-off itself BLOCKED-OWNER (OA-09, gate G8) |
 | WP-12 | Licence/legal-entity memo | **N/A (evidence)** | owner decision recorded 2026-11-22: keep MIT until public release/distribution (plan doc §2, revisit trigger stated) |
-| WP-13 | Backup/restore drill tooling | **PR-OPEN** (2026-11-23) | timed phases + smoke queries + receipt writer + disposable-target guard (all four refusal paths exercised), runbook + receipt template; local drill receipt committed. The populated/Neon-PITR drill and RPO/RTO signature stay BLOCKED-OWNER (OA-06, gate G4) |
+| WP-13 | Backup/restore drill tooling | **DONE** (2026-11-23, PR #116) | timed phases + smoke queries + receipt writer + disposable-target guard (all four refusal paths exercised), runbook + receipt template; local drill receipt committed. The populated/Neon-PITR drill and RPO/RTO signature stay BLOCKED-OWNER (OA-06, gate G4) |
 | WP-14 | Admin MFA + step-up | **DONE** (2026-11-22, PR #108 + #110), with follow-ups | TOTP (admin tier) + SMS step-up on withdrawals/account deletion; #110 waives the step-up gates while SMS is a placeholder (un-waive = the OA-02 activation). Follow-ups recorded in plan doc §4.2: recovery codes, maker-checker threshold |
 | WP-15a | Shared vocabularies, status-scan test, PG CHECK constraints, orphan report, migration playbook | **PARTIAL** | DAT-01 slice done (PR #108: `REFUNDED` in schema comments + vocabulary); the rest TODO |
 | WP-15b | PostgreSQL-only | **BLOCKED-DECISION (DR-01)** | ADR-0004 binds until the owner approves a superseding ADR |
 | WP-16 | Service-layer refactor | TODO | |
 | WP-17 | Double-entry ledger | **BLOCKED-DECISION (DR-06)** | design memo only until finance sign-off (OA-14) |
 | WP-18 | Outbox + workers | **BLOCKED-DECISION (DR-07)** | design memo only until approved |
-| WP-19 | OpenAPI from route inventory + Zod | **PR-OPEN** (2026-11-23) | generator shares the route-matrix parser (92 ops, 9 PUBLIC cross-checked); x-request-schema on 58 ops; --check + freshness test + CI gate; ADR-0026 supersedes ADR-0021; lifecycle policy. Follow-ups: per-route body schemas (Zod 4), Spectral dep (own ci(deps) PR per R4) | |
+| WP-19 | OpenAPI from route inventory + Zod | **DONE** (2026-11-23, PR #120) | generator shares the route-matrix parser (92 ops, 9 PUBLIC cross-checked); x-request-schema on 58 ops; --check + freshness test + CI gate; ADR-0026 supersedes ADR-0021; lifecycle policy. Follow-ups: per-route body schemas (Zod 4), Spectral dep (own ci(deps) PR per R4) | |
 | WP-20 | Fulfilment module | **BLOCKED-DECISION (DR-08)** | design memo only |
 | WP-21 | Offline read cache | **BLOCKED-DECISION (DR-04)** | memo only; no service worker (ADR-0008/0009 bind) |
 | WP-22 | Auth hot-path cache | **N/A (evidence)** | precondition (load-test evidence of a bottleneck) unmet; DB is co-located, per-request read ≈1.2 ms measured |
-| WP-23 | Image intake pipeline | **PR-OPEN** (2026-11-23), PNG/WebP half | PNG + WebP metadata strippers (dependency-free, strict-bounds chunk walkers) wired into the disease upload; fast-check fuzz properties; route-level strip tests; data-protection residual claim updated. The busboy multipart swap needs its own ci(deps) PR (R4) and follows | |
+| WP-23 | Image intake pipeline | **DONE** (2026-11-23, PR #121), PNG/WebP half | PNG + WebP metadata strippers (dependency-free, strict-bounds chunk walkers) wired into the disease upload; fast-check fuzz properties; route-level strip tests; data-protection residual claim updated. The busboy multipart swap needs its own ci(deps) PR (R4) and follows | |
 | WP-24 | Tracing + SLO adoption | **BLOCKED-OWNER (OA-05)** | SLO sign-off + vendor sink; spans need an approved dep |
 | WP-25 | One deployment path, IaC, secrets | TODO (memo) | |
 | WP-26 | Governance / bus factor | **BLOCKED-OWNER (OA-11)** | docs deliverable this session; ruleset changes are the owner's |
@@ -43,7 +43,7 @@ Status vocabulary: `TODO` · `IN-PROGRESS` · `PR-OPEN` · `BLOCKED-DECISION (DR
 | QW-02 | Registration-response trade-off documented | **IN-PROGRESS** (2026-11-23) | |
 | QW-03 | Docs truthfulness | **PARTIAL** | ARC-07 tenancy reword done (PR #108); remaining checks land with the docs pass |
 | QW-04 | Literal `SSLCOMMERZ_SANDBOX` | **DONE** (PR #108) | |
-| QW-05 | Zod caps on single-amount inputs | **PR-OPEN** (2026-11-23) | MAX_SINGLE_AMOUNT_PAISA (2B) on product price, service base price, withdrawal amount; boundary tests; DAT-02 storage widening stays with WP-17 | |
+| QW-05 | Zod caps on single-amount inputs | **DONE** (2026-11-23, PR #115) | MAX_SINGLE_AMOUNT_PAISA (2B) on product price, service base price, withdrawal amount; boundary tests; DAT-02 storage widening stays with WP-17 | |
 | QW-06 | No hand-written counts in docs | **IN-PROGRESS** (2026-11-23) | |
 | QW-07 | Android FileProvider/minify | **BLOCKED-OWNER (UJ-09)** | CI-only build; the card forbids merging without owner device verification |
 | QW-08 | Audit-narrative comments → why+ADR | **N/A (policy)** | ongoing discipline, applied when touching a file |
