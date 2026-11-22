@@ -28,5 +28,10 @@ process.env.CRON_SECRET = process.env.CRON_SECRET ?? "test-cron-secret";
 // (OTP limiter) and rate-limit-envelope (financial limiter) tests; CI sets this
 // same documented variable for its e2e job.
 process.env.LOGIN_RATE_LIMIT_MAX = process.env.LOGIN_RATE_LIMIT_MAX ?? "500";
+// SEC-04: the step-up gates (withdrawals, account deletion) stay ENFORCED in
+// the suite so their behaviour is pinned regardless of the SMS provider the
+// CI/local environment happens to run (production waives them while SMS is a
+// placeholder — see stepUpEnforcementEnabled in config/env.ts).
+process.env.STEP_UP_ENFORCEMENT = process.env.STEP_UP_ENFORCEMENT ?? "1";
 
 export {};

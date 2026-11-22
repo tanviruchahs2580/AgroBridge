@@ -180,6 +180,16 @@ const schema = z.object({
   ALLOW_SANDBOX_PAYMENTS_IN_PRODUCTION: z.enum(["0", "1"]).optional(),
   SMS_PROVIDER: z.enum(["sandbox", "none", "http"]).default("sandbox"),
   /**
+   * SEC-04: enforces the step-up gates on withdrawals and account deletion.
+   * Auto-on when SMS actually delivers (`SMS_PROVIDER=http`); an explicit
+   * opt-out (`0`) or opt-in (`1`) overrides that for deployments running the
+   * accepted placeholder providers — a gate whose code can never be delivered
+   * would strand pilot users on the Play-mandated deletion path. Waived
+   * enforcement is listed in the startup placeholder manifest and closes
+   * automatically the moment SMS delivers.
+   */
+  STEP_UP_ENFORCEMENT: z.enum(["0", "1"]).optional(),
+  /**
    * Generic HTTP SMS gateway (SMS_PROVIDER=http): a POST endpoint that
    * receives `{ to, text }` with an optional bearer token and sender id.
    * Keeping it provider-agnostic means activating real OTP delivery is an
@@ -222,7 +232,7 @@ export function placeholderManifest(cfg: {
 }): string[] {
   const placeholders: string[] = [];
   if (cfg.SMS_PROVIDER === "none") placeholders.push("SMS_PROVIDER=none (OTP would be undelivered)");
-  if (cfg.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent)");
+  if (cfg.SMS_PROVIDER === "sandbox") placeholders.push("SMS_PROVIDER=sandbox (OTP codes are logged, not sent — SEC-04 step-up gates are waived until SMS delivers)");
   if (cfg.WEATHER_PROVIDER === "mock") placeholders.push("WEATHER_PROVIDER=mock (fixture weather data)");
   if (cfg.AI_PROVIDER === "offline") placeholders.push("AI_PROVIDER=offline (KB-only answers, no LLM)");
   if (cfg.PAYMENT_PROVIDER === "sandbox")
@@ -350,6 +360,21 @@ export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
 export const isTest = env.NODE_ENV === "test";
 export const isDev = env.NODE_ENV === "development";
+
+/**
+ * Whether the SEC-04 step-up gates (withdrawals, account deletion) enforce a
+ * fresh SMS code. Auto-on when SMS actually delivers; the explicit override
+ * exists for deployments running the accepted placeholder providers, where a
+ * code can be issued but never delivered — enforcing there would strand
+ * pilot users on the deletion path (see STEP_UP_ENFORCEMENT above and the
+ * startup placeholder manifest, which lists the waiver).
+ */
+export function stepUpEnforcementEnabled(cfg: { STEP_UP_ENFORCEMENT?: string; SMS_PROVIDER?: string }): boolean {
+  if (cfg.STEP_UP_ENFORCEMENT === "0") return false;
+  if (cfg.STEP_UP_ENFORCEMENT === "1") return true;
+  return cfg.SMS_PROVIDER === "http";
+}
+export const stepUpEnforced = stepUpEnforcementEnabled(env);
 
 /**
  * Whether the dev-only auth shortcuts are active (F-77): a self-registered

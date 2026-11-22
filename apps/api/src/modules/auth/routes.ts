@@ -24,6 +24,7 @@ import { otpSmsText, sendSms } from "../../providers/notification/sms.js";
 import { assertStepUpOk, assertTotpLogin, consumeOtpChallenge, generateTotpSecret, otpHash, totpOtpauthUrl, verifyTotp, OTP_MAX_ATTEMPTS } from "../../lib/otp.js";
 import { maskPhone, maskEmail } from "../../shared/utils/mask.js";
 import { clearSessionCookies, CSRF_COOKIE, newCsrfToken, readCookie, REFRESH_COOKIE, setSessionCookies, csrfMatches } from "../../lib/sessionCookies.js";
+import { stepUpEnforced } from "../../config/env.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 // Multi-instance-safe limiter stores. One instance per limiter, each with its own
@@ -777,6 +778,10 @@ authRouter.post("/otp/stepup", requireAuth, otpLimiter, async (req, res, next) =
     ok(res, {
       sent: true,
       expiresAt: challenge.expiresAt,
+      // The client adapts to this flag: enforced → show the code input; waived
+      // → the gated actions proceed without it (disclosed in the startup
+      // manifest until SMS delivers).
+      enforced: stepUpEnforced,
       ...(devAuthShortcuts ? { devCode: env.SMS_PROVIDER === "none" ? undefined : code } : {}),
     });
   } catch (e) {
@@ -882,7 +887,7 @@ authRouter.post(
 authRouter.delete(
   "/me",
   requireAuth,
-  validate({ body: z.object({ otp: z.string().regex(/^\d{6}$/) }) }),
+  validate({ body: z.object({ otp: z.string().regex(/^\d{6}$/).optional() }) }),
   async (req, res, next) => {
   try {
     const userId = getAuth(req).userId;
@@ -890,7 +895,13 @@ authRouter.delete(
     // a fresh SMS factor — a stolen session (cookie or copied token) cannot
     // erase an account without the phone in the owner's hand. The gate runs
     // BEFORE the anonymisation transaction: fail cheap, count the attempt.
-    assertStepUpOk(await consumeOtpChallenge(userId, "STEP_UP", (req.body as { otp: string }).otp));
+    // Waived while SMS is a placeholder (see the withdrawal gate + the
+    // startup manifest); the Play-mandated deletion path must stay reachable.
+    if (stepUpEnforced) {
+      const stepUpOtp = (req.body as { otp?: string }).otp;
+      if (!stepUpOtp) throw otpExpired("Request a verification code first — it arrives by SMS");
+      assertStepUpOk(await consumeOtpChallenge(userId, "STEP_UP", stepUpOtp));
+    }
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { phone: true, diseaseCases: { select: { imagePath: true } } },
