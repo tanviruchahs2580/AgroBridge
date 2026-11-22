@@ -102,6 +102,11 @@ const KNOWN_EXPORTS = new Set([
   "apps/api/src/lib/metrics.ts::mountedPrefixFor",
   "apps/api/src/lib/metrics.ts::providerHealthGauge",
   "apps/api/src/shared/authorization.ts::PLATFORM_ADMIN_ROLES",
+  // in-file used: the exported const `stepUpEnforced` composes it; exported as
+  // a pure function so tests can pin the SEC-04 enforcement matrix (auto-on
+  // when SMS delivers, 0/1 override). Removal trigger: the pinning test is
+  // deleted, or a production consumer imports it directly.
+  "apps/api/src/config/env.ts::stepUpEnforcementEnabled",
   // in-file used: farmsRouter mounts all three (`farmsRouter.use("/:id", plotsRouter())`
   // etc.); exported as module factories. Surfaced by the gate after the F-92
   // test-file split reshaped the analysed graph (knip 6.42.0). Removal trigger:
