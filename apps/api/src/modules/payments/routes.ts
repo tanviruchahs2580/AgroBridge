@@ -23,6 +23,7 @@ import { getPaymentProvider } from "../../providers/payment/index.js";
 import { assertMayActOnProcurementOffer, assertNotSelfDealing } from "../../lib/separationOfDuties.js";
 import { paymentMetaOf, idempotencyKeyOfMeta, voidPendingIntents } from "../../lib/pendingIntents.js";
 import { claimPendingPayment } from "./meta.js";
+import { maskPhone } from "../../shared/utils/mask.js";
 import { getAuth } from "../../shared/auth-context.js";
 
 export const paymentsRouter = Router();
@@ -53,7 +54,8 @@ const financialLimiter = rateLimit({
 
 /** Mask a payout destination for storage/display (never store full account). */
 function maskDestination(phone: string): string {
-  return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
+  // Delegates to the one shared masking definition (SEC-10 consolidation).
+  return maskPhone(phone);
 }
 
 // The meta helpers live in lib/pendingIntents.ts (shared with the void paths in

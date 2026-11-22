@@ -108,8 +108,8 @@ describe("Journey 6 — Marketplace to order", () => {
   });
 });
 
-describe("Order deletion — owner-only, finished orders only", () => {
-  it("blocks deleting an in-progress order, keeps other users out, allows delete once paid", async () => {
+describe("Order deletion — owner-only, terminal orders only", () => {
+  it("blocks in-progress AND settled orders, keeps other users out, allows delete once refunded", async () => {
     const f = await registerFarmer();
     const other = await registerFarmer();
     const before = await request(app).get("/api/v1/products?search=ইউরিয়া").set("Authorization", `Bearer ${f.accessToken}`);
@@ -128,12 +128,26 @@ describe("Order deletion — owner-only, finished orders only", () => {
     const foreign = await request(app).delete(`/api/v1/orders/${orderId}`).set("Authorization", `Bearer ${other.accessToken}`);
     expect(foreign.status).toBe(404);
 
-    // Sandbox-pay → PAID → deletable; payment rows stay (financial record).
+    // PAY-06 regression: sandbox-pay → PAID is now ALSO blocked. The old test
+    // asserted "allows delete once paid" — that assertion codified the hole the
+    // audit flagged (a settled order is the financial record of the sale), so
+    // this is a behavior-spec correction, not a test weakening.
     const intent = await request(app)
       .post("/api/v1/payments/intent")
       .set("Authorization", `Bearer ${f.accessToken}`)
       .send({ purposeType: "ORDER", purposeId: orderId });
     await request(app).post(`/api/v1/payments/${intent.body.data.paymentId}/confirm`).set("Authorization", `Bearer ${f.accessToken}`);
+    const paidBlock = await request(app).delete(`/api/v1/orders/${orderId}`).set("Authorization", `Bearer ${f.accessToken}`);
+    expect(paidBlock.status).toBe(422);
+
+    // Refund (platform-initiated) → REFUNDED → deletable; sandbox payment rows
+    // go with the order, real-gateway rows would be kept.
+    const admin = (await import("./helpers.js")).getAdmin;
+    const refund = await request(app)
+      .post(`/api/v1/payments/${intent.body.data.paymentId}/refund`)
+      .set("Authorization", `Bearer ${(await admin()).accessToken}`)
+      .send({ reason: "buyer requested order deletion" });
+    expect(refund.status).toBe(200);
 
     const del = await request(app).delete(`/api/v1/orders/${orderId}`).set("Authorization", `Bearer ${f.accessToken}`);
     expect(del.status).toBe(200);
@@ -144,5 +158,23 @@ describe("Order deletion — owner-only, finished orders only", () => {
     const { prisma } = await import("../src/lib/prisma.js");
     const paymentRows = await prisma.payment.count({ where: { purposeType: "ORDER", purposeId: orderId } });
     expect(paymentRows).toBe(0); // sandbox payment rows go with the order (wallet cleanliness)
+  });
+
+  it("cancelled orders delete cleanly (stock was already restored at cancel time)", async () => {
+    const f = await registerFarmer();
+    const before = await request(app).get("/api/v1/products?search=ইউরিয়া").set("Authorization", `Bearer ${f.accessToken}`);
+    const product = before.body.data.items[0];
+    await request(app).post("/api/v1/cart/items").set("Authorization", `Bearer ${f.accessToken}`).send({ productId: product.id, qty: 1 });
+    const checkout = await request(app).post("/api/v1/orders/checkout").set("Authorization", `Bearer ${f.accessToken}`);
+    expect(checkout.status).toBe(201);
+    const orderId = checkout.body.data.id as string;
+    const cancel = await request(app)
+      .post(`/api/v1/orders/${orderId}/cancel`)
+      .set("Authorization", `Bearer ${f.accessToken}`)
+      .send({ reason: "changed my mind before paying" });
+    expect(cancel.status).toBeLessThan(300);
+    const del = await request(app).delete(`/api/v1/orders/${orderId}`).set("Authorization", `Bearer ${f.accessToken}`);
+    expect(del.status).toBe(200);
+    expect(del.body.data.deleted).toBe(true);
   });
 });
