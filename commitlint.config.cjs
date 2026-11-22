@@ -39,5 +39,13 @@ module.exports = {
       message.startsWith(
         "test(ai): coverage-map parity, advisory-rule boundaries and copy-safety gates; file Domain A evidence (#88)"
       ),
+    // Same policy, same reason: one header on the open PR #108 (fix/p0-audit-
+    // remediation-2026-11) is over the 100-character limit, and rewording it
+    // would need a force-push of an already-pushed branch (forbidden). Exempted
+    // by EXACT header match; every new commit still fails as before.
+    (message) =>
+      message.startsWith(
+        "fix(api): verify the TOTP code before branching — deny-by-default silences the user-controlled-bypass heuristic"
+      ),
   ],
 };
