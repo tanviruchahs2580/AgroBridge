@@ -12,6 +12,7 @@ import { logger } from "../../lib/logger.js";
 import { env, primaryWebOrigin } from "../../config/env.js";
 import { createRedisStore } from "../../lib/rateLimitRedis.js";
 import { rateLimitHandler } from "../../middleware/rateLimitResponse.js";
+import type { OrderValidation } from "../../providers/payment/types.js";
 import { sslcommerzSignature, applyPaymentSideEffects, reconcileLiveVerdict } from "./routes.js";
 import { claimPendingPayment } from "./meta.js";
 import { paymentMetaOf } from "../../lib/pendingIntents.js";
@@ -32,6 +33,30 @@ const webhookLimiter = rateLimit({
   message: { ok: false, error: { code: "RATE_LIMITED", message: "Too many webhook posts. Please slow down." } },
   handler: rateLimitHandler,
 });
+
+/**
+ * Validator-authoritative gate (PAY-01, ADR-0023): null = the gateway's own
+ * Order Validation API agrees, settlement may proceed; otherwise the reason
+ * the payment must stay PENDING. Every non-agreeing outcome is retryable on
+ * the gateway's side — the webhook answers processed:false over HTTP 200 so
+ * the IPN retry schedule keeps running while reconciliation catches up.
+ */
+async function settleOnlyWhenValidatorAgrees(
+  validateOrder: (valId: string) => Promise<OrderValidation>,
+  valId: string,
+  expectedTranId: string,
+  payment: { id: string; amountPaisa: number }
+): Promise<{ reason: string } | null> {
+  if (!valId) return { reason: "missing_val_id" };
+  const verdict = await validateOrder(valId).catch((): OrderValidation => ({ status: "UNKNOWN" }));
+  if (verdict.status === "INVALID") return { reason: "validator_invalid" };
+  if (verdict.status === "UNKNOWN") return { reason: "validator_unavailable" };
+  if (verdict.tranId !== expectedTranId) return { reason: "validator_tran_mismatch" };
+  if (verdict.amountPaisa !== payment.amountPaisa) return { reason: "validator_amount_mismatch" };
+  if (verdict.currency.toUpperCase() !== "BDT") return { reason: "validator_currency_mismatch" };
+  if (verdict.riskLevel === 1) return { reason: "gateway_risk_flag" };
+  return null;
+}
 
 /**
  * SSLCommerz IPN/webhook endpoint — the ONLY path to success when a real
@@ -102,6 +127,30 @@ paymentWebhookRouter.post(
     if (params.currency && params.currency.toUpperCase() !== "BDT") {
       logger.warn({ tranId, paymentId: payment.id, currency: params.currency }, "SSLCommerz webhook currency mismatch — payment left PENDING");
       throw badRequest("Webhook currency is not BDT");
+    }
+
+    // Validator-authoritative settlement (PAY-01): the gateway's docs make the
+    // Order Validation API mandatory for every transaction
+    // (developer.sslcommerz.com/docs.html, retrieved 2026-11-22, ADR-0023).
+    // Adapters that expose validateOrder (the SSLCommerz adapter) must be
+    // answered VALID/VALIDATED with tran_id, amount, currency and no risk flag
+    // before the claim below; every other outcome stays PENDING, is audited and
+    // metered, and is answered with processed:false so the gateway retries the
+    // IPN while reconciliation catches up. Adapters without it (sandbox) keep
+    // the checks above as their contract.
+    const provider = getPaymentProvider();
+    if (typeof provider.validateOrder === "function") {
+      const unvalidated = await settleOnlyWhenValidatorAgrees(provider.validateOrder.bind(provider), valId, tranId, payment);
+      if (unvalidated) {
+        paymentIntentsTotal.inc({ purpose_type: payment.purposeType, status: `webhook_${unvalidated.reason}` });
+        await audit({
+          action: "PAYMENT_VALIDATOR_REJECTED",
+          entityType: "Payment",
+          entityId: payment.id,
+          meta: { reason: unvalidated.reason, tranId, valId },
+        });
+        return ok(res, { received: true, processed: false, reason: unvalidated.reason });
+      }
     }
 
     // The PENDING->SUCCEEDED claim is the idempotency gate: exactly one

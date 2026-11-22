@@ -1,5 +1,5 @@
 import { env } from "../../config/env.js";
-import type { CreatePaymentInput, PaymentIntent, PaymentProvider } from "./types.js";
+import type { CreatePaymentInput, OrderValidation, PaymentIntent, PaymentProvider } from "./types.js";
 import { logger } from "../../lib/logger.js";
 
 /**
@@ -34,6 +34,57 @@ function requireCredential(value: string | undefined, name: string): string {
  */
 export function sslcommerzMode(sandboxFlag: string | undefined): "sandbox" | "live" {
   return sandboxFlag === "false" ? "live" : "sandbox";
+}
+
+/** Gateway amounts arrive as BDT decimals; paisa must round exactly once. */
+function gatewayAmountToPaisa(raw: unknown): number | undefined {
+  if (raw == null || raw === "") return undefined;
+  const paisa = Math.round(Number(raw) * 100);
+  return Number.isFinite(paisa) ? paisa : undefined;
+}
+
+/**
+ * Order Validation API response → verdict. The documented statuses
+ * (developer.sslcommerz.com/docs.html, Order Validation section, retrieved
+ * 2026-11-22): VALID (first successful validation), VALIDATED (the same val_id
+ * validated more than once), INVALID_TRANSACTION (bad val_id). A success is
+ * only usable with an amount, a tran_id and a currency to cross-check against
+ * the stored payment; anything else — including an undocumented status — is
+ * UNKNOWN so the caller never settles on a guess. `risk_level` 1 is the
+ * gateway's own risk flag and travels to the caller for a conservative
+ * hold (a risky VALID is not settled automatically).
+ */
+function parseOrderValidation(j: Record<string, unknown>): OrderValidation {
+  const rawStatus = j.transactionStatus ?? j.status;
+  const txStatus = typeof rawStatus === "string" ? rawStatus : "";
+  if (txStatus === "VALID" || txStatus === "VALIDATED") {
+    return successfulValidation(txStatus, j);
+  }
+  if (txStatus === "INVALID_TRANSACTION" || txStatus === "INVALID" || txStatus === "FAILED" || txStatus === "CANCELLED") {
+    return { status: "INVALID" };
+  }
+  return { status: "UNKNOWN" };
+}
+
+/** A documented success is only usable with an amount, a tran_id and a currency to
+ * cross-check against the stored payment; a risk flag travels to the caller. */
+function successfulValidation(txStatus: "VALID" | "VALIDATED", j: Record<string, unknown>): OrderValidation {
+  const amountPaisa = gatewayAmountToPaisa(j.amount);
+  const tranId = typeof j.tran_id === "string" ? j.tran_id : "";
+  const currency = typeof j.currency === "string" ? j.currency : "";
+  if (amountPaisa === undefined || !tranId || !currency) {
+    logger.warn({ status: txStatus }, "SSLCom validator success missing amount/tran_id/currency — verdict UNKNOWN");
+    return { status: "UNKNOWN" };
+  }
+  const riskLevel = Number(j.risk_level ?? 0) === 1 ? 1 : 0;
+  return {
+    status: txStatus,
+    amountPaisa,
+    currency,
+    tranId,
+    riskLevel,
+    riskTitle: typeof j.risk_title === "string" ? j.risk_title : undefined,
+  };
 }
 
 export class SSLCommerzProvider implements PaymentProvider {
@@ -169,6 +220,35 @@ export class SSLCommerzProvider implements PaymentProvider {
   // Payment verification
   // -----------------------------------------------------------------------
 
+  /**
+   * Order Validation API (the gateway's own settlement authority — its docs
+   * make validating each transaction mandatory, PAY-01). Bounded timeout; any
+   * unreachable/unreadable/undocumented answer is UNKNOWN, which callers treat
+   * as "do not settle, retry later" — never as a failure verdict.
+   */
+  async validateOrder(valId: string): Promise<OrderValidation> {
+    if (!valId || !this.storeId || !this.storePass) return { status: "UNKNOWN" };
+    try {
+      const res = await fetch(this.validatorUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: AbortSignal.timeout(15_000),
+        body: new URLSearchParams({
+          val_id: valId,
+          store_id: this.storeId,
+          store_passwd: this.storePass,
+          format: "json",
+        }).toString(),
+      });
+      if (!res.ok) return { status: "UNKNOWN" };
+      const j = (await res.json()) as Record<string, unknown>;
+      return parseOrderValidation(j);
+    } catch (e) {
+      logger.debug({ err: (e as Error).message, val_id: valId }, "SSLCom validator API failed — verdict UNKNOWN");
+      return { status: "UNKNOWN" };
+    }
+  }
+
   async verifyPayment(
     providerRef: string,
     meta?: Record<string, unknown>
@@ -185,56 +265,16 @@ export class SSLCommerzProvider implements PaymentProvider {
     const metaValId = meta?.valId;
     const valId = typeof metaValId === "string" && metaValId ? metaValId : "";
 
-    /** Gateway amounts arrive as BDT decimals; paisa must round exactly once. */
-    const toPaisa = (raw: unknown): number | undefined => {
-      if (raw == null || raw === "") return undefined;
-      const paisa = Math.round(Number(raw) * 100);
-      return Number.isFinite(paisa) ? paisa : undefined;
-    };
-
     // ── Primary: Validation Server API (val_id from payment meta) ───────
     if (valId) {
-      try {
-        const validatorRes = await fetch(this.validatorUrl(), {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          signal: AbortSignal.timeout(15_000),
-          body: new URLSearchParams({
-            val_id: valId,
-            store_id: this.storeId,
-            store_passwd: this.storePass,
-          }).toString(),
-        });
-
-        if (validatorRes.ok) {
-          // SSLCommerz validator returns JSON with `status` + `transactionStatus`
-          const raw = await validatorRes.text();
-          const j = JSON.parse(raw) as Record<string, unknown>;
-
-          const txStatus = (j.transactionStatus ?? j.status ?? "") as string;
-
-          if (txStatus === "VALID" || txStatus === "VALIDATED") {
-            // A success without a resolvable amount cannot be cross-checked
-            // against the payment, so it must not be confirmed here — the
-            // signed webhook remains the authority for that session.
-            const amountPaisa = toPaisa(j.amount);
-            if (amountPaisa === undefined) {
-              logger.warn({ val_id: valId }, "SSLCom validator returned success without a usable amount — staying PENDING");
-              return { status: "PENDING" };
-            }
-            return { status: "SUCCEEDED", amountPaisa };
-          }
-
-          if (txStatus === "INVALID" || txStatus === "FAILED" || txStatus === "CLOSED") {
-            return { status: "FAILED" };
-          }
-
-          // Unknown status — fall through to transaction query
-          logger.debug({ txStatus, val_id: valId }, "SSLCom-validator returned unknown tx status, falling back to query API");
-        }
-      } catch (e) {
-        logger.debug({ err: (e as Error).message }, "SSLCom validator API failed, falling back to transaction query");
+      const verdict = await this.validateOrder(valId);
+      if (verdict.status === "VALID" || verdict.status === "VALIDATED") {
+        return { status: "SUCCEEDED", amountPaisa: verdict.amountPaisa };
       }
+      if (verdict.status === "INVALID") {
+        return { status: "FAILED" };
+      }
+      // UNKNOWN — fall through to transaction query
     }
 
     // ── Fallback: Transaction Query API (orderNo = our refNo) ───────────
@@ -255,7 +295,7 @@ export class SSLCommerzProvider implements PaymentProvider {
         const txStatus = (j.transactionStatus ?? j.status ?? "") as string;
 
         if (txStatus === "VALID" || txStatus === "VALIDATED" || txStatus === "Completed") {
-          const amountPaisa = toPaisa(j.amount);
+          const amountPaisa = gatewayAmountToPaisa(j.amount);
           if (amountPaisa === undefined) {
             logger.warn({ orderNo: providerRef }, "SSLCom transaction query returned success without a usable amount — staying PENDING");
             return { status: "PENDING" };

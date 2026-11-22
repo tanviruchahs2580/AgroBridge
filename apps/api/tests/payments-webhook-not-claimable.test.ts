@@ -26,7 +26,9 @@ function storePassword(): string {
 }
 
 function signedWebhookParams(params: Record<string, string>): Record<string, string> {
-  return { ...params, verify_key: "unused", verify_sign: sslcommerzSignature(params, storePassword()) };
+  // Sign exactly what is posted: verify_key participates (PAY-01 conformance).
+  const withKey = { ...params, verify_key: "unused" };
+  return { ...withKey, verify_sign: sslcommerzSignature(withKey, storePassword()) };
 }
 
 async function metricValues(counterName: string): Promise<{ labels: Record<string, string>; value: number }[]> {
