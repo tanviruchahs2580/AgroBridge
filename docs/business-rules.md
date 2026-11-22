@@ -29,9 +29,9 @@ prices/durations/benefits; the percentage that checkout applies comes from this 
 
 ## 3. Order state machine
 
-Schema comment declares `PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED`
-(`apps/api/prisma/schema.prisma`, the `Order.status` comment); `paymentStatus` is `UNPAID|PAID|REFUNDED` (same model) — note `REFUNDED` is also written to
-`Order.status` by the refund path, which the status comment does not list.
+Schema comment declares `PENDING|CONFIRMED|PAID|SHIPPED|DELIVERED|CANCELLED|REFUNDED`
+(`apps/api/prisma/schema.prisma`, the `Order.status` comment); `paymentStatus` is `UNPAID|PAID|REFUNDED` (same model). `REFUNDED` is written to
+`Order.status` by the refund path and is listed in the status comment.
 
 | From | Trigger | To | Source |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Rules:
 | # | Rule | Source | Test |
 |---|---|---|---|
 | BR-9 | Cancel is claim-atomic on `status = CONFIRMED AND paymentStatus = UNPAID`; a second cancel or a cancel racing a payment updates 0 rows and restocks nothing | `POST /orders/:id/cancel` — claim-atomic conditional update (`apps/api/src/modules/marketplace/routes.ts`) | `apps/api/tests/order-cancel-restock.test.ts` |
-| BR-10 | Only finished orders can be deleted; `PENDING`, `CONFIRMED`, `SHIPPED` must be cancelled first. Sandbox payment rows go with the order; real-gateway payment rows are kept | `DELETE /orders/:id` (`apps/api/src/modules/marketplace/routes.ts`) | `apps/api/tests/journey-marketplace.test.ts` (order-deletion cases) |
+| BR-10 | Only terminal orders without open money can be deleted: `CANCELLED` or `REFUNDED`. In-progress orders (`PENDING`, `CONFIRMED`, `SHIPPED`) refuse with 422 until cancelled; settled ones (`PAID` — and `DELIVERED` once a fulfilment path lands) refuse until refunded. Sandbox payment rows go with the order; real-gateway payment rows are kept | `DELETE /orders/:id` (`apps/api/src/modules/marketplace/routes.ts`) | `apps/api/tests/journey-marketplace.test.ts` (order-deletion cases) |
 | BR-11 | `SHIPPED` and `DELIVERED` exist in the schema but **no code path writes them** (fleet/delivery transitions are not implemented) | grep across `apps/api/src` finds only the delete guard's read of `SHIPPED` (in `apps/api/src/modules/marketplace/routes.ts`); no writer exists | Documented from code; no test (nothing to test) |
 | BR-12 | Checkout without a `clientRequestId` is protected by the cart-as-token claim: a parallel or sequential retry on an emptied cart is refused, never a second order | the cart-as-token claim in `POST /orders/checkout` (`apps/api/src/modules/marketplace/routes.ts`) | `apps/api/tests/checkout-idempotency.test.ts` |
 | BR-13 | Checkout with a `clientRequestId` is idempotent: one key = one order for its lifetime, including when re-used later with a different cart | `findOrderByClientKey` + the replay paths in `POST /orders/checkout` (`apps/api/src/modules/marketplace/routes.ts`) | `apps/api/tests/checkout-idempotency-key.test.ts` |

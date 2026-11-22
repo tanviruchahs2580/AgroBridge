@@ -116,8 +116,9 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
   that key owns it, and a later request with the same key replays that same order with 200 and
   causes no stock/ledger side effects (contract: one key = one order, even if the key is later
   re-used for a different cart).
-- `DELETE /orders/:id` — removes a finished order (refused with 422 while PENDING/CONFIRMED/SHIPPED).
-  Sandbox payment rows go with the order; real-gateway payment records are kept for audit.
+- `DELETE /orders/:id` — removes a terminal order: only `CANCELLED` or `REFUNDED` are deletable. In-progress orders (PENDING/CONFIRMED/SHIPPED) refuse
+  with 422 until cancelled; settled orders (PAID, and DELIVERED once fulfilment lands) refuse until refunded. Sandbox payment rows go with the order;
+  real-gateway payment records are kept for audit.
 
 ## Services & bookings
 - `GET /services` (with active providers) · `POST /services` (`services:manage`)
