@@ -69,9 +69,15 @@ export default function MyOrders() {
   /** The API served a window: say how many of the total are on screen. */
   const truncated = ordersTotal !== null && ordersTotal > orders.length;
 
-  /** Finished orders can be removed; in-flight ones must be cancelled first. */
+  /**
+   * Terminal orders without open money can be removed — the same allow-list the
+   * API enforces (PAY-06): CANCELLED and REFUNDED. In-flight orders
+   * (PENDING/CONFIRMED/SHIPPED) must be cancelled first, and settled ones
+   * (PAID — and DELIVERED once fulfilment lands) must be refunded first, so
+   * their delete button is hidden rather than always answered with a 422.
+   */
   function deletable(order: OrderWithItems): boolean {
-    return !["PENDING", "CONFIRMED", "SHIPPED"].includes(order.status);
+    return ["CANCELLED", "REFUNDED"].includes(order.status);
   }
 
   async function removeOrder(order: OrderWithItems) {

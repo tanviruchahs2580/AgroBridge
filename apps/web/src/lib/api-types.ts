@@ -426,7 +426,7 @@ export interface Order {
   id: string;
   orderNo: string;
   userId: string;
-  /** PENDING | CONFIRMED | PAID | SHIPPED | DELIVERED | CANCELLED */
+  /** PENDING | CONFIRMED | PAID | SHIPPED | DELIVERED | CANCELLED | REFUNDED */
   status: string;
   subtotalPaisa: number;
   discountPaisa: number;

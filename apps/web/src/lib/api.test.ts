@@ -333,6 +333,76 @@ describe("lib/api — token refresh single-flight and unauthorized handling", ()
     mod.setUnauthorizedHandler(null);
   });
 
+  it("refresh 429 keeps the session: no clear, no unauthorizedHandler (SEC-01)", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    const handler = vi.fn();
+    mod.setUnauthorizedHandler(handler);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        return errEnvelope(429, "RATE_LIMITED", "Too many session refreshes. Please try again shortly.");
+      }
+      return errEnvelope(401, "UNAUTHORIZED", "expired");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    // A throttled refresh is "try again shortly", not a dead session: the
+    // client surfaces a retryable 429 and the tokens stay in place.
+    await expect(mod.api("GET", "/auth/me")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
+    expect(localStorage.getItem("ab_at")).toBe("expired-at");
+    expect(localStorage.getItem("ab_rt")).toBe("valid-rt");
+    expect(mod.hasToken()).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    mod.setUnauthorizedHandler(null);
+  });
+
+  it("refresh 5xx keeps the session too (transient, not dead)", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    const handler = vi.fn();
+    mod.setUnauthorizedHandler(handler);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        return errEnvelope(503, "UNAVAILABLE", "overloaded");
+      }
+      return errEnvelope(401, "UNAUTHORIZED", "expired");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(mod.api("GET", "/auth/me")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
+    expect(mod.hasToken()).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    mod.setUnauthorizedHandler(null);
+  });
+
+  it("apiBlob with a throttled refresh keeps the session (SEC-01 completeness)", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    const handler = vi.fn();
+    mod.setUnauthorizedHandler(handler);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        return errEnvelope(429, "RATE_LIMITED", "slow down");
+      }
+      return new Response("not allowed", { status: 401 });
+    }));
+    await expect(mod.apiBlob("/photos/x.jpg")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
+    expect(mod.hasToken()).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    mod.setUnauthorizedHandler(null);
+  });
+
+  it("refresh network failure is transient too — session survives a dead network", async () => {
+    mod.setTokens("expired-at", "valid-rt");
+    const handler = vi.fn();
+    mod.setUnauthorizedHandler(handler);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        throw new TypeError("Failed to fetch");
+      }
+      return errEnvelope(401, "UNAUTHORIZED", "expired");
+    }));
+    await expect(mod.api("GET", "/auth/me")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
+    expect(mod.hasToken()).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    mod.setUnauthorizedHandler(null);
+  });
+
   it("401 without prior token does NOT call unauthorizedHandler (wasAuthed guard)", async () => {
     mod.clearTokens();
     const handler = vi.fn();
