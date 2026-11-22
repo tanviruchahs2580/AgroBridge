@@ -142,7 +142,9 @@ truncated. This applies to `GET /orders`, `GET /payments`, `GET /wallet` and `GE
 - `POST /payments/gateway/return/:outcome` — public, unauthenticated hosted-checkout return
   (`outcome` = `success|fail|cancel`): asks the provider whether money actually moved, then
   303-redirects the buyer back to the web origin (`/orders?payment=…&ref=…`). Trusts nothing in the
-  request; the signed gateway webhook remains the primary settlement path.
+  request; the signed gateway webhook remains the primary settlement path, and — per ADR-0023 —
+  the webhook settles only after the gateway's own Order Validation API agrees on tran_id, amount,
+  currency and no risk flag; every other verdict leaves the payment PENDING for reconciliation.
 - `POST /payments/payouts` (`procurement:pay`) — credits farmer wallet from COLLECTED PO.
 - `POST /payments/:id/refund` (`payments:refund`) — platform-initiated refund for ORDER payments:
   moves the payment `SUCCEEDED → REFUNDED` atomically and records a compensating wallet entry.

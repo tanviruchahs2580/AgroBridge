@@ -79,7 +79,9 @@ describe("SSLCommerz adapter key discipline", () => {
   });
 
   it("verifyPayment sends val_id (from meta) to the validator and rounds BDT to paisa exactly once", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ status: "VALID", amount: "150.01" }));
+    // Validator answers are docs-shaped (tran_id + currency travel with the
+    // verdict — ADR-0023's cross-check needs them).
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: "VALID", amount: "150.01", tran_id: "PAY-REF-2", currency: "BDT", risk_level: 0 }));
     const provider = new SSLCommerzProvider();
     const verdict = await provider.verifyPayment("PAY-REF-2", { valId: "VAL-2" });
     expect(verdict).toEqual({ status: "SUCCEEDED", amountPaisa: 15001 });
@@ -107,7 +109,7 @@ describe("SSLCommerz adapter key discipline", () => {
   });
 
   it("rounds float taka with Math.round (matching the webhook's paisa rule)", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ status: "VALIDATED", amount: "10.005" }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: "VALIDATED", amount: "10.005", tran_id: "PAY-REF-5", currency: "BDT", risk_level: 0 }));
     const provider = new SSLCommerzProvider();
     const verdict = await provider.verifyPayment("PAY-REF-5", { valId: "VAL-5" });
     expect(verdict).toEqual({ status: "SUCCEEDED", amountPaisa: Math.round(10.005 * 100) });

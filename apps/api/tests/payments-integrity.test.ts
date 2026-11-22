@@ -24,10 +24,11 @@ async function orderStatus(orderId: string): Promise<{ status: string; paymentSt
 }
 
 function signedWebhookParams(params: Record<string, string>, verifySign?: string): Record<string, string> {
+  // Sign exactly what is posted: verify_key participates (PAY-01 conformance).
+  const withKey = { ...params, verify_key: "unused" };
   return {
-    ...params,
-    verify_key: "unused",
-    ...(verifySign === undefined ? { verify_sign: sslcommerzSignature(params, env.SSLCOMMERZ_STORE_PASSWORD!) } : { verify_sign: verifySign }),
+    ...withKey,
+    ...(verifySign === undefined ? { verify_sign: sslcommerzSignature(withKey, env.SSLCOMMERZ_STORE_PASSWORD!) } : { verify_sign: verifySign }),
   };
 }
 

@@ -288,9 +288,12 @@ function storePassword(): string {
   return value;
 }
 
-/** A correctly signed SSLCommerz IPN for the given payload. */
+/** A correctly signed SSLCommerz IPN for the given payload. The signature
+ * covers exactly what is posted — verify_key included — as the documented
+ * algorithm hashes the fields verify_key names (plus store_passwd). */
 function signedWebhookParams(params: Record<string, string>): Record<string, string> {
-  return { ...params, verify_key: "unused", verify_sign: sslcommerzSignature(params, storePassword()) };
+  const withKey = { ...params, verify_key: "unused" };
+  return { ...withKey, verify_sign: sslcommerzSignature(withKey, storePassword()) };
 }
 
 /**

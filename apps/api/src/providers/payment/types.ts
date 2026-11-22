@@ -26,6 +26,19 @@ export interface PaymentIntent {
 }
 
 /**
+ * Verdict of the gateway's own Order Validation API (SSLCommerz "Validation
+ * Server", developer.sslcommerz.com/docs.html, retrieved 2026-11-22). VALID is
+ * a first successful validation; VALIDATED is the documented status when the
+ * same val_id is validated more than once — both are successful settlements.
+ * INVALID covers the documented negative statuses; UNKNOWN covers anything
+ * retryable (unreachable gateway, unreadable answer, undocumented status).
+ */
+export type OrderValidation =
+  | { status: "VALID" | "VALIDATED"; amountPaisa: number; currency: string; tranId: string; riskLevel: 0 | 1; riskTitle?: string }
+  | { status: "INVALID" }
+  | { status: "UNKNOWN" };
+
+/**
  * PaymentProvider abstraction. Business logic never talks to
  * a specific gateway. Real gateways (SSLCommerz/bKash etc.) plug in here when
  * credentials are available — until then only sandbox mode is offered and is
@@ -46,4 +59,12 @@ export interface PaymentProvider {
     providerRef: string,
     meta?: Record<string, unknown>
   ): Promise<{ status: "SUCCEEDED" | "FAILED" | "PENDING"; amountPaisa?: number }>;
+  /**
+   * Server-to-server validation of a gateway-issued val_id, where the gateway
+   * offers one. The webhook holds every adapter that exposes this to a
+   * VALID/VALIDATED verdict before it settles — an IPN's signature proves the
+   * POST came from the gateway, not that the transaction settled (PAY-01).
+   * Adapters without it (sandbox) settle on their own documented contract.
+   */
+  validateOrder?(valId: string): Promise<OrderValidation>;
 }

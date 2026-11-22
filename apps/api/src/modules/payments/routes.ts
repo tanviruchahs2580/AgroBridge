@@ -1064,15 +1064,31 @@ membershipRouter.get("/plans", async (_req, res, next) => {
 });
 
 /**
- * SSLCommerz IPN signature validation (documented algorithm):
- * sort all params except verify_sign/verify_key alphabetically, concatenate
- * STORE_PASSWORD + k1=v1 + k2=v2... with no separators, MD5 uppercase.
+ * SSLCommerz IPN signature validation — the algorithm the gateway documents
+ * (developer.sslcommerz.com/docs.html, IPN section, retrieved 2026-11-22,
+ * ADR-0023): hash ONLY the parameters named in `verify_key` (comma-separated)
+ * together with `store_passwd` as the lowercase MD5 of the store password,
+ * key-sorted, joined as `key=value&…`, MD5'd. The retired in-house recipe
+ * hashed every posted parameter, so real IPNs could never verify and the tests
+ * only proved self-consistency (PAY-01/TST-01). A missing `verify_key` is the
+ * documented `false`: "" can never pass the webhook's length check.
  */
 export function sslcommerzSignature(params: Record<string, string>, storePassword: string): string {
-  const concat = Object.keys(params)
-    .filter((k) => k !== "verify_sign" && k !== "verify_key")
-    .sort()
-    .map((k) => `${k}=${params[k]}`)
-    .join("");
-  return createHash("md5").update(storePassword + concat).digest("hex").toUpperCase();
+  if (!params.verify_key) return "";
+  const named = params.verify_key
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const data = new Map<string, string>();
+  for (const k of named) {
+    if (typeof params[k] === "string") data.set(k, params[k]);
+  }
+  data.set("store_passwd", createHash("md5").update(storePassword, "utf8").digest("hex"));
+  const hashString = [...data.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+  // PHP md5() yields lowercase; the webhook normalises both sides to upper
+  // case for the constant-time compare, so hex case is equivalence here.
+  return createHash("md5").update(hashString, "utf8").digest("hex").toUpperCase();
 }
