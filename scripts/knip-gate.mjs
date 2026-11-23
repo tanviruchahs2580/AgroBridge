@@ -28,6 +28,9 @@ import { execFileSync } from "node:child_process";
 const GATED = new Set(["files", "dependencies", "unlisted", "binaries", "unresolved", "exports", "nsExports"]);
 
 const KNOWN = new Set([
+  // Staged WP-23 dependency PR: busboy is added before the multipart implementation
+  // consumes it. Removal trigger: the WP-23 application change imports busboy.
+  "busboy",
   // Vercel build commands — referenced from vercel.json `buildCommand`, invisible
   // to knip's dependency graph. Removal trigger: the Vercel build moves into CI.
   "scripts/vercel-build-api.mjs",

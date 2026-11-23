@@ -1,4 +1,6 @@
 {
   "_notes": "Overrides for scripts/licence-gate.mjs (flat map, checked before failing). npm's --long tree omits the licence field for some nested transitive deps, so the gate cannot read it from the tree; each entry records the licence verified from the installed package.json plus the reason the package is in the production tree.",
-  "magicast": "MIT (unjs/magicast) — production dependency of @prisma/config (c12 → magicast, the Prisma CLI/config loader); licence read from apps/api/node_modules/magicast/package.json. Re-check on Prisma major upgrades."
+  "magicast": "MIT (unjs/magicast) — production dependency of @prisma/config (c12 → magicast, the Prisma CLI/config loader); licence read from apps/api/node_modules/magicast/package.json. Re-check on Prisma major upgrades.",
+  "busboy": "MIT (busboy@1.6.0) — npm metadata omits the license field; verified from the upstream LICENSE at https://github.com/mscdex/busboy/blob/v1.6.0/LICENSE. Required for API multipart intake. Re-check this entry whenever the busboy version changes.",
+  "streamsearch": "MIT (streamsearch@1.1.0) — npm metadata omits the license field; verified from the upstream LICENSE at https://github.com/mscdex/streamsearch/blob/v1.1.0/LICENSE. Required transitive dependency of busboy@1.6.0. Re-check whenever busboy or streamsearch changes."
 }
